@@ -1,0 +1,68 @@
+#!/usr/bin/env python
+
+import logging
+import argparse
+import sys
+
+
+from lsst.ctrl.bps.bpsCore import BpsCore
+
+def parse_args(argv=None):
+    """Parse command line, and test for required arguments
+
+    Parameters
+    ----------
+    argv : `list`
+        List of strings containing the command-line arguments.
+
+    Returns
+    -------
+    args : `Namespace`
+        Command-line arguments converted into an object with attributes.
+    """
+    if argv is None:
+        argv = sys.argv[1:]
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--dryrun", action="store_true", dest="dryrun", required=False,
+                        help="If set, creates all files, but does not actually submit")
+    parser.add_argument("-d", "--debug", action="store_true", dest="debug", required=False,
+                        help="Set logging to debug level")
+    parser.add_argument("-v", "--verbose", action="store_true", dest="verbose", required=False,
+                        help="Set logging to info level")
+    parser.add_argument("configFile", action="store", default=None)
+    parser.add_argument("--overrides", action="store", dest="overrides", default="")
+    args = parser.parse_args(argv)
+    return args
+
+
+def main(argv):
+    """Program entry point.  Control process that iterates over each file
+
+    Parameters
+    ----------
+    argv : `list`
+        List of strings containing command line arguments.
+    """
+    if argv is None:
+        argv = sys.argv[1:]
+    args = parse_args(argv)
+
+    # set up logging
+    logging.basicConfig(format="%(levelname)s::%(asctime)s::%(message)s", datefmt="%m/%d/%Y %H:%M:%S")
+    _log = logging.getLogger()
+    if args.debug:
+        _log.setLevel(logging.DEBUG)
+    elif args.verbose:
+        _log.setLevel(logging.INFO)
+
+    bps = BpsCore(args.configFile, overrides=args.overrides)
+    bps.createSubmission()
+    if not args.dryrun:
+        bps.submit()
+        print(bps.getId())
+    else:
+        print("dryrun set.  Skipping actual submission.")
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])
