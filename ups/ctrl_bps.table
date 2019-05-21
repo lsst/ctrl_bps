@@ -1,0 +1,5 @@
+# ctrl_mpexec includes daf_butler, etc
+setupRequired(ctrl_mpexec)
+
+envPrepend(PYTHONPATH, ${PRODUCT_DIR}/python)
+envPrepend(PATH, ${PRODUCT_DIR}/bin)
