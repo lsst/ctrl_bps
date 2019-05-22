@@ -59,7 +59,7 @@ def main(argv):
     bps.createSubmission()
     if not args.dryrun:
         bps.submit()
-        print(bps.getId())
+        print("Pegasus Run Id: %s" % bps.getId())
     else:
         print("dryrun set.  Skipping actual submission.")
 

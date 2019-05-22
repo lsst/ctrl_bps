@@ -2,12 +2,14 @@ import logging
 import subprocess
 import warnings
 import os
-from os.path import expandvars
+from os.path import expandvars, basename
 import re
 import pickle
 import shlex
+import shutil
 import networkx
 import sys
+import time
 import yaml
 
 try:
@@ -159,15 +161,19 @@ class BpsCore(object):
             raise RuntimeError("%s exited with non-zero exit code (%s)"
                                % (qGraphGenExec, process.returncode))
 
+        self.readQuantumGraph()
+
+        if self.config.get('saveDot', {'default': False}):
+            draw_qgraph_html(self.qgraph,
+                             os.path.join(self.submitPath, "draw", "bpsgraph_quantum.dot"))
+
+    def _readQuantumGraph(self):
         with open(self.qgraphFilename, 'rb') as pickleFile:
             self.qgraph = pickle.load(pickleFile)
 
         if countQuantum(self.qgraph) == 0:
             raise RuntimeError("QuantumGraph is empty")
 
-        if self.config.get('saveDot', {'default': False}):
-            draw_qgraph_html(self.qgraph,
-                             os.path.join(self.submitPath, "draw", "bpsgraph_quantum.dot"))
 
     def _createScienceGraph(self):
         """Create expanded graph from the QuantumGraph that has explicit dependencies
@@ -262,7 +268,6 @@ class BpsCore(object):
             tnode['jobProfile'] = jobProfile
 
     def _linkSchemaNodes(self, schemaNodes):
-        print(schemaNodes)
         taskAbbrevList = [x.strip() for x in self.config['pipeline'].split(',')]
         for abbrevId, taskAbbrev in enumerate(taskAbbrevList, 0):
             if abbrevId != 0:
@@ -272,11 +277,8 @@ class BpsCore(object):
 
                 # get previous task's schema output file node
                 prevAbbrev = taskAbbrevList[abbrevId - 1]
-                print("%s->%s" % (taskAbbrev, prevAbbrev))
                 sfNodeName = schemaNodes[prevAbbrev][FILENODE]
                 sfNode = self.genWFGraph.nodes[sfNodeName]
-                print("%s->%s" % (sfNodeName, stNodeName))
-                print("%s->%s" % (sfNode['label'], stNode['label']))
 
                 # add edge from prev output schema to current task node
                 self.genWFGraph.add_edge(sfNodeName, stNodeName)
@@ -316,7 +318,7 @@ class BpsCore(object):
                 qNodeName = "%06d" % ncnt
                 qlfn = "quantum%s.pickle" % nodename
                 qFileName = os.path.join(self.submitPath, 'input', qlfn)
-                lfn = os.path.basename(qFileName)
+                lfn = basename(qFileName)
                 self.genWFGraph.add_node(qNodeName, nodeType=FILENODE, lfn=lfn, label=lfn, pfn=qFileName,
                                          ignore=False, data_type="quantum", shape='box', style='rounded')
                 save_single_qgnode(self.qgnodes[nodename], qFileName)
@@ -391,10 +393,32 @@ class BpsCore(object):
         self.workflow = self.workflow_engine.implementWorkflow(self.genWFGraph)
 
     def createSubmission(self):
-        self._createQuantumGraph()
+        subtime = time.time()
+        stime = time.time()
+        if 'qgraph_file' in self.config['global']:
+            _LOG.info("Copying and reading quantum graph (%s)", 
+                      self.config['global']['qgraph_file'])
+            self.qgraphFilename = '%s/%s' % (self.submitPath, 
+                                             basename(self.config['global']['qgraph_file']))
+            shutil.copy2(self.config['global']['qgraph_file'], self.qgraphFilename)
+            self._readQuantumGraph()
+            _LOG.info("Reading quantum graph took %.2d seconds", time.time()-stime)
+            
+        else:
+            _LOG.info("Creating quantum graph")
+            self._createQuantumGraph()
+            _LOG.info("Creating quantum graph took %.2d seconds", time.time()-stime)
+
+        stime = time.time()
         self._createGenericWorkflow()
+        _LOG.info("Creating Generic Workflow took %.2d seconds", time.time()-stime)
+
         self._createGenericWorkflowConfig()
+
+        stime = time.time()
         self._implement_workflow()
+        _LOG.info("Creating specific implementation of workflow took %.2d seconds", time.time()-stime)
+        _LOG.info("Total submission creation time = %.2d", time.time()-subtime)
 
     def submit(self):
         self.workflow.submit()
