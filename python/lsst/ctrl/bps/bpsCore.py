@@ -161,7 +161,7 @@ class BpsCore(object):
             raise RuntimeError("%s exited with non-zero exit code (%s)"
                                % (qGraphGenExec, process.returncode))
 
-        self.readQuantumGraph()
+        self._readQuantumGraph()
 
         if self.config.get('saveDot', {'default': False}):
             draw_qgraph_html(self.qgraph,
@@ -402,23 +402,23 @@ class BpsCore(object):
                                              basename(self.config['global']['qgraph_file']))
             shutil.copy2(self.config['global']['qgraph_file'], self.qgraphFilename)
             self._readQuantumGraph()
-            _LOG.info("Reading quantum graph took %.2d seconds", time.time()-stime)
+            _LOG.info("Reading quantum graph took %.2f seconds", time.time()-stime)
             
         else:
             _LOG.info("Creating quantum graph")
             self._createQuantumGraph()
-            _LOG.info("Creating quantum graph took %.2d seconds", time.time()-stime)
+            _LOG.info("Creating quantum graph took %.2f seconds", time.time()-stime)
 
         stime = time.time()
         self._createGenericWorkflow()
-        _LOG.info("Creating Generic Workflow took %.2d seconds", time.time()-stime)
+        _LOG.info("Creating Generic Workflow took %.2f seconds", time.time()-stime)
 
         self._createGenericWorkflowConfig()
 
         stime = time.time()
         self._implement_workflow()
-        _LOG.info("Creating specific implementation of workflow took %.2d seconds", time.time()-stime)
-        _LOG.info("Total submission creation time = %.2d", time.time()-subtime)
+        _LOG.info("Creating specific implementation of workflow took %.2f seconds", time.time()-stime)
+        _LOG.info("Total submission creation time = %.2f", time.time()-subtime)
 
     def submit(self):
         self.workflow.submit()
