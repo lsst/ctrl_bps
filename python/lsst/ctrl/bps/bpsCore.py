@@ -317,7 +317,7 @@ class BpsCore(object):
                 qcnt += 1
                 qNodeName = "%06d" % ncnt
                 qlfn = "quantum%s.pickle" % nodename
-                qFileName = os.path.join(self.submitPath, 'input', qlfn)
+                qFileName = os.path.join(self.submitPath, 'input', taskAbbrev, qlfn)
                 lfn = basename(qFileName)
                 self.genWFGraph.add_node(qNodeName, nodeType=FILENODE, lfn=lfn, label=lfn, pfn=qFileName,
                                          ignore=False, data_type="quantum", shape='box', style='rounded')
