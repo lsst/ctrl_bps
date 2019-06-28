@@ -196,17 +196,15 @@ class BpsCore(object):
         for taskId, nodes in enumerate(self.qgraph):
             _LOG.debug(taskId)
             taskDef = nodes.taskDef
-            _LOG.debug("dir=%s", dir(taskDef))
             _LOG.debug("config=%s", taskDef.config)
             _LOG.debug("taskClass=%s", taskDef.taskClass)
             _LOG.debug("taskName=%s", taskDef.taskName)
             _LOG.debug("label=%s", taskDef.label)
             for qId, quantum in enumerate(nodes.quanta):
-                # _LOG.debug("dir=%s",dir(quantum))
                 _LOG.debug('actualInputs=%s', quantum.actualInputs)
                 _LOG.debug('id=%s', quantum.id)
                 _LOG.debug('run=%s', quantum.run)
-                _LOG.debug('task=%s', quantum.task)
+                _LOG.debug('initInputs=%s', quantum.initInputs)
                 ncnt += 1
                 tcnt += 1
                 # tnodeName = "task%d (%s)" % (ncnt, taskDef.taskName)
@@ -217,7 +215,7 @@ class BpsCore(object):
                                        style='filled',
                                        label='.'.join(taskDef.taskName.split('.')[-2:]))
                 quanta2 = [quantum]
-                self.qgnodes[tnodeName] = QuantumGraphTaskNodes(taskDef, quanta2)
+                self.qgnodes[tnodeName] = QuantumGraphTaskNodes(taskDef, quanta2, quantum.initInputs, {})
 
                 # Make nodes for inputs
                 for dsRefs in quantum.predictedInputs.values():
