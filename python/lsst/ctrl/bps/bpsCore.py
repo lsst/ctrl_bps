@@ -17,6 +17,7 @@ try:
 except ImportError:
     from io import StringIO
 
+from lsst.daf.butler import Butler
 from lsst.pipe.base.graph import QuantumGraph
 from lsst.pipe.base.graph import QuantumGraphTaskNodes
 #from lsst.pipe.base.graph import QuantumGraphNodes
@@ -393,6 +394,14 @@ class BpsCore(object):
     def createSubmission(self):
         subtime = time.time()
         stime = time.time()
+
+        # Un-pickling QGraph needs a dimensions universe defined in
+        # registry. Easiest way to do it now is to initialize whole data
+        # butler even if it isn't used. Butler requires run or collection
+        # provided in constructor but in this case we do not care about
+        # which collection to use so give it an empty name.
+        self.butler = Butler(config=self.config['butlerConfig'], collection="")
+
         if 'qgraph_file' in self.config['global']:
             _LOG.info("Copying and reading quantum graph (%s)", 
                       self.config['global']['qgraph_file'])
