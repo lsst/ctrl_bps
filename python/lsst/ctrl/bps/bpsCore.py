@@ -303,7 +303,7 @@ class BpsCore(object):
         schemaNodes = {}
         nodelist = list(self.genWFGraph.nodes())
         for nodename in nodelist:
-            node = self.genWFGraph.node[nodename]
+            node = self.genWFGraph.nodes[nodename]
             if node['nodeType'] == FILENODE:   # data/file
                 node['lfn'] = nodename
                 node['ignore'] = True
@@ -341,7 +341,7 @@ class BpsCore(object):
                                                  style='filled',
                                                  label=lfn)
                         _LOG.info("creating schema task: %s", taskAbbrev)
-                        stNode = self.genWFGraph.node[stNodeName]
+                        stNode = self.genWFGraph.nodes[stNodeName]
                         schemaNodes[taskAbbrev][TASKNODE] = stNodeName
                         self._updateTask('createSchemas', stNode, qlfn)
                         ncnt += 1

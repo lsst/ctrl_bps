@@ -97,7 +97,7 @@ class PegasusWorkflow(object):
         # Process file nodes.
         _, computeSite = self.config.search('computeSite')
         for file_id in self.files:
-            attrs = self.genWorkflow.node[file_id]
+            attrs = self.genWorkflow.nodes[file_id]
             try:
                 name = attrs['lfn']
             except KeyError:
@@ -120,7 +120,7 @@ class PegasusWorkflow(object):
 
         # Add jobs to the DAX.
         for taskId in self.tasks:
-            attrs = self.genWorkflow.node[taskId]
+            attrs = self.genWorkflow.nodes[taskId]
             try:
                 # name = attrs['exec_name']
                 name = attrs['taskAbbrev']
@@ -158,7 +158,7 @@ class PegasusWorkflow(object):
             # Specify job's inputs.
             inputs = [file_id for file_id in self.genWorkflow.predecessors(taskId)]
             for file_id in inputs:
-                attrs = self.genWorkflow.node[file_id]
+                attrs = self.genWorkflow.nodes[file_id]
                 is_ignored = attrs.get('ignore', False)
                 if not is_ignored:
                     file_ = self.fileCatalog[attrs['lfn']]
@@ -167,7 +167,7 @@ class PegasusWorkflow(object):
             # Specify job's outputs
             outputs = [file_id for file_id in self.genWorkflow.successors(taskId)]
             for file_id in outputs:
-                attrs = self.genWorkflow.node[file_id]
+                attrs = self.genWorkflow.nodes[file_id]
                 is_ignored = attrs.get('ignore', False)
                 if not is_ignored:
                     file_ = self.fileCatalog[attrs['lfn']]
@@ -206,7 +206,7 @@ class PegasusWorkflow(object):
         tc = self.pegasusFiles['tc']['obj']
         alreadyAdded = {}
         for taskId in self.tasks:
-            attrs = self.genWorkflow.node[taskId]
+            attrs = self.genWorkflow.nodes[taskId]
             taskAbbrev = attrs.get('taskAbbrev')
             _, computeSite = self.config.search('computeSite', opt={'curvals':{'curr_pipetask': taskAbbrev}})
             if computeSite not in alreadyAdded or taskAbbrev not in alreadyAdded[computeSite]:
