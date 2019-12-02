@@ -109,21 +109,22 @@ class BpsCore(object):
         # create cmdline 
         qGraphGenExec = 'pipetask'
         cmd = [qGraphGenExec]
+        cmd.append('qgraph')  # pipetask subcommand
+
+        found, instrument = self.config.search('instrument')
+        if found:
+            cmd.append('--instrument "%s"' % instrument)
 
         found, dataQuery = self.config.search('dataQuery')
         if found:
             cmd.append('-d "%s"' % dataQuery)
+
         found, butlerConfig = self.config.search('butlerConfig')
         if found:
             cmd.append('-b %s' % (expandvars(butlerConfig)))
 
-        if "packageSearch" in self.config:
-            for p in self.config["packageSearch"].split(','):
-                cmd.append('-p %s' % p.strip())
-
         cmd.append('-i %s' % (self.config["inCollection"]))
         cmd.append('-o %s' % (self.config["outCollection"]))
-        cmd.append('qgraph')  # pipetask subcommand
         for taskAbbrev in [x.strip() for x in self.config['pipeline'].split(',')]:
             pipetask = self.config['pipetask'][taskAbbrev]
             cmd.append('-t %s:%s' % (pipetask['module'], taskAbbrev))
