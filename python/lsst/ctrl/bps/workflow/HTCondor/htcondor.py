@@ -8,7 +8,8 @@ import htcondor
 HTC_QUOTE_KEYS = {'environment'}
 HTC_VALID_JOB_KEYS = {'universe', 'executable', 'arguments', 'log', 'error', 'output',
                       'should_transfer_files', 'when_to_transfer_output', 'getenv',
-                      'notification', 'transfer_executable', 'transfer_input_files'}
+                      'notification', 'transfer_executable', 'transfer_input_files',
+                      'request_cpus', 'request_memory', 'requirements'}
 HTC_VALID_JOB_DAG_KEYS = {'pre', 'post', 'executable'}
 
 
@@ -188,6 +189,8 @@ class HTCDag(networkx.DiGraph):
             dagfh.write("DOT %s.dot\n" % self.name)
 
     def dump(self, outfh):
+        for k, v in self.graph:
+            print("%s=%s" % (k,v))
         for j, data in self.nodes().items():
             outfh.write("%s:\n" % j)
             data.dump(outfh)
@@ -201,8 +204,6 @@ class HTCDag(networkx.DiGraph):
         # add attributes to dag submission
         for k, v in self.graph['attribs'].items():
             sub["+%s" % k] = '"%s"' % htc_escape(v)
-
-        print(sub)
 
         # submit DAG to HTCondor's schedd
         schedd = htcondor.Schedd()

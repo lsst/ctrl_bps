@@ -135,9 +135,10 @@ class HTCondorWorkflow(object):
             #    job.addArguments(*args)
 
             # Add extra job attributes
-            #if 'jobProfile' in task_attrs:
-            #    for k, v in task_attrs['jobProfile'].items():
-            #        job.addProfile(Profile('condor', k, v))
+            if 'jobProfile' in task_attrs:
+                for k, v in task_attrs['jobProfile'].items():
+                    print("jobcmds %s=%s" % (k,v))
+                    jobcmds[k] = v
 
             #if 'jobEnv' in task_attrs:
             #    for k, v in task_attrs['jobEnv'].items():
@@ -168,7 +169,13 @@ class HTCondorWorkflow(object):
             job.addJobCmds(jobcmds)
             print(task_attrs)
             if 'job_attrib' in task_attrs:
+                for k, v in task_attrs['job_attrib'].items():
+                    print("job_attrib %s=%s" % (k,v))
                 job.addJobAttrs(task_attrs['job_attrib'])
+            if 'jobAttribs' in task_attrs:
+                for k, v in task_attrs['jobAttribs'].items():
+                    print("jobAttribs %s=%s" % (k,v))
+                job.addJobAttrs(task_attrs['jobAttribs'])
             self.dag.addJob(job)
 
         # Add job dependencies to the DAX.

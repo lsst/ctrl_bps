@@ -255,6 +255,15 @@ class BpsCore(object):
 
         taskOpt['required'] = False
         jobProfile = {}
+        jobAttribs = {}
+        if 'profile' in self.config['site'][computeSite]:
+            if 'condor' in self.config['site'][computeSite]['profile']:
+                for k, v in self.config['site'][computeSite]['profile']['condor'].items():
+                    if k.startswith('+'):
+                        jobAttribs[k[1:]] = v
+                    else:
+                        jobProfile[k] = v
+
         found, val = self.config.search('requestMemory', opt=taskOpt)
         if found:
             jobProfile['request_memory'] = val
@@ -263,8 +272,11 @@ class BpsCore(object):
         if found:
             jobProfile['request_cpus'] = val
 
+
         if len(jobProfile) > 0:
             tnode['jobProfile'] = jobProfile
+        if len(jobAttribs) > 0:
+            tnode['jobAttribs'] = jobAttribs
 
     def _linkSchemaNodes(self, schemaNodes):
         taskAbbrevList = [x.strip() for x in self.config['pipeline'].split(',')]
