@@ -1,0 +1,135 @@
+#!/usr/bin/env python
+"""Using information available in the job class ads,
+summarize what's in the queue
+"""
+
+import htcondor
+import os
+import sys
+import pprint
+
+
+def print_headers():
+    print("{:>8} {:5} {:8} {:8} {:>20} {:>15} {:>15}".format("ID", "PRJ", "CMPGN", "PAYLOAD",
+                                                      "RUN", "operator", "( I | R | X | H )"))
+    print("-" * 110)
+
+def print_run(jobads, jobid):
+    dagjob = jobads[jobid]
+    dagstat = dag_stat_summary(jobads, jobid)
+
+    statstr = "({:3}|{:3}|{:3}|{:3})".format(dagstat[1], dagstat[2], dagstat[3], dagstat[5])
+
+
+    print("{:>8} {:5} {:8} {:8} {:>20} {:>15} {:>15}".format(jobid,
+                                        dagjob['bps_project'],
+                                        dagjob['bps_campaign'],
+                                        dagjob['bps_payload'],
+                                        dagjob['bps_run'],
+                                        dagjob['bps_operator'],
+                                        statstr
+                                       ))
+    print_job_summary(jobads, jobid)
+
+def get_stat_counts(jobads, jobids):
+    stat_counts = {s: 0 for s in range(10)}
+    for j in jobids:
+        stat_counts[jobads[j]['JobStatus']] += 1
+
+    return stat_counts
+
+def create_stat_string(stat_counts):
+    statstr = "({:3}|{:3}|{:3}|{:3})".format(stat_counts[1], stat_counts[2],
+                                             stat_counts[3], stat_counts[5])
+    return statstr
+
+def dag_jobs_by_label(jobads, dagid):
+    job_labels = {}
+    for jobid in jobads:
+        if jobads[jobid].get('DAGManJobId', -999) == dagid:
+            if not jobads[jobid]['bps_jobabbrev'] in job_labels:
+                job_labels[jobads[jobid]['bps_jobabbrev']] = []
+            job_labels[jobads[jobid]['bps_jobabbrev']].append(jobid)
+    return job_labels
+
+def print_job_summary(jobads, dagid):
+    by_labels = dag_jobs_by_label(jobads, dagid)
+
+    formatstr = "\t\t{:<10} {:>15}"
+    print(formatstr.format("PipeTask", "( I | R | X | H )"))
+    for label in by_labels:
+        statjobs = get_stat_counts(jobads, by_labels[label])
+        statstr = create_stat_string(statjobs)
+        print(formatstr.format(label, statstr))
+
+def dag_stat_summary(jobads, dagid):
+    dagjob = jobads[dagid]
+    jobs_in_dag = []
+    for jobid in jobads:
+        if jobads[jobid].get('DAGManJobId', -999) == dagid:
+            jobs_in_dag.append(jobid)
+
+    dagstat = get_stat_counts(jobads, jobs_in_dag)
+    return dagstat
+
+def main(argv):
+    """Program Entry point.
+    """
+    schedd = htcondor.Schedd()
+
+    joblist = schedd.query(constraint='bps_isjob == "True"')
+
+    # convert list to dictionary
+    jobads = {}
+    for jobinfo in joblist:
+        del jobinfo['Environment']
+        jobads[jobinfo['ClusterId']] = jobinfo
+
+    #for jobad in jobads:
+    #    print(jobad['ClusterId'])
+    #    for k, v in jobad.items():
+    #        if k != "Environment":
+    #            if k.startswith('bps_'):
+    #                print('%s=%s' % (k, v))
+
+    top_jobs, orphan_jobs = condorq_dag(jobads)
+    #pp = pprint.PrettyPrinter(indent=4)
+    #pp.pprint(top_jobs)
+    #pp.pprint(orphan_jobs)
+    #pp.pprint(jobads)
+    print_headers()
+    for jobid in top_jobs:
+        print_run(jobads, jobid)
+
+
+def condorq_dag(jobads):
+    """Reorganize queue query results into dag trees.
+    """
+
+    top_jobs = []  # top dagman jobs
+    orphan_jobs = []  # jobs whose parents aren't in queue or non-dagman jobs
+
+    for jobid, jobinfo in jobads.items():
+        if not 'children' in jobinfo:
+            jobinfo['children'] = []
+
+        if 'dagmanjobid' in jobinfo: # should have parent
+            if jobinfo['dagmanjobid'] in jobads:  # if have parent
+                if 'children' in jobads[jobinfo['dagmanjobid']]:
+                    jobads[jobinfo['dagmanjobid']]['children'].append(jobid)
+                else:
+                    jobads[jobinfo['dagmanjobid']]['children'] = [jobid]
+            else:
+                orphan_jobs.append(jobid)  # lost parent
+        else:
+            if 'dagman' in os.path.basename(jobinfo['cmd']):
+                top_jobs.append(jobid)
+            else:  # either saveruntime job or operator manually running job
+                orphan_jobs.append(jobid)
+
+    return top_jobs, orphan_jobs
+
+
+
+if __name__ == '__main__':
+    main(sys.argv[1:])
