@@ -1,9 +1,12 @@
 
 import os
+import re
 from collections.abc import MutableMapping
 import networkx
 import pprint
+import subprocess
 import htcondor
+
 
 HTC_QUOTE_KEYS = {'environment'}
 HTC_VALID_JOB_KEYS = {'universe', 'executable', 'arguments', 'log', 'error', 'output',
@@ -76,6 +79,45 @@ def htcWriteCondorFile(filename, jobname, jobdict, jobattrib):
             htcWriteAttribs(subfh, jobattrib)
         subfh.write('queue\n')
 
+def htcVersion():
+    # $CondorVersion: 8.8.6 Nov 13 2019 BuildID: 489199 PackageID: 8.8.6-1 $
+    m = re.match("\$CondorVersion: (\d+.\d+.\d+)", htcondor.version())
+    if m:
+        return(m.group(1))
+    else:
+        raise RuntimeError("Problems parsing condor version")
+
+def htcSubmitFromDag(dag_filename, submit_options):
+    """Call condor_submit_dag on given dag description file.
+    (Use until using condor version with htcondor.Submit.from_dag)
+    """
+    cmd = 'condor_submit_dag -f -no_submit -notification never -autorescue 0 -UseDagDir -no_recurse %s' % (dag_filename)
+
+    try:
+        process = subprocess.Popen(cmd.split(), shell=False,
+                                   stdout=subprocess.PIPE,
+                                   stderr=subprocess.STDOUT,
+                                   encoding='utf-8')
+        process.wait()
+    except:
+        raise
+
+    if process.returncode != 0:
+        print("Exit code: %s" % process.returncode)
+        print(process.communicate()[0])
+        raise RuntimeError("Problems running condor_submit_dag")
+
+    sublines={}
+    with open(dag_filename + '.condor.sub', 'r') as infh:
+        for line in infh:
+            line = line.strip()
+            if not line.startswith('#') and not line == 'queue':
+                print(line)
+                (k, v) = re.split('\s*=\s*', line, 1) 
+                sublines[k] = v
+
+    sub = htcondor.Submit(sublines)
+    return sub 
 
 def htcWriteJobCommands(dagfh, name, ndict):
     if 'pre' in ndict:
@@ -199,7 +241,12 @@ class HTCDag(networkx.DiGraph):
 
     def submit(self, submit_options=None):
         # create submission from dag file
-        sub = htcondor.Submit.from_dag(self.graph['dag_filename'], submit_options)
+
+        v = htcVersion()
+        if v >= "8.9.3":
+            sub = htcondor.Submit.from_dag(self.graph['dag_filename'], submit_options)
+        else:
+            sub = htcSubmitFromDag(self.graph['dag_filename'], submit_options)
 
         # add attributes to dag submission
         for k, v in self.graph['attribs'].items():
