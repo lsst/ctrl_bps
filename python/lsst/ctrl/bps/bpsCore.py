@@ -451,7 +451,8 @@ class BpsCore(object):
         # butler even if it isn't used. Butler requires run or collection
         # provided in constructor but in this case we do not care about
         # which collection to use so give it an empty name.
-        self.butler = Butler(config=self.config['butlerConfig'])
+        self.butler = Butler(config=self.config['butlerConfig'], writeable=True)
+        self.butler.registry.registerRun(self.config["outCollection"])
 
         if 'qgraph_file' in self.config['global']:
             _LOG.info("Copying and reading quantum graph (%s)", 
