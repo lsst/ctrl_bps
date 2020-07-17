@@ -109,22 +109,21 @@ class BpsCore(object):
         # create cmdline 
         qGraphGenExec = 'pipetask'
         cmd = [qGraphGenExec]
-        cmd.append('qgraph')  # pipetask subcommand
-
-        found, instrument = self.config.search('instrument')
-        if found:
-            cmd.append('--instrument "%s"' % instrument)
 
         found, dataQuery = self.config.search('dataQuery')
         if found:
             cmd.append('-d "%s"' % dataQuery)
-
         found, butlerConfig = self.config.search('butlerConfig')
         if found:
             cmd.append('-b %s' % (expandvars(butlerConfig)))
 
+        if "packageSearch" in self.config:
+            for p in self.config["packageSearch"].split(','):
+                cmd.append('-p %s' % p.strip())
+
         cmd.append('-i %s' % (self.config["inCollection"]))
         cmd.append('-o %s' % (self.config["outCollection"]))
+        cmd.append('qgraph')  # pipetask subcommand
         for taskAbbrev in [x.strip() for x in self.config['pipeline'].split(',')]:
             pipetask = self.config['pipetask'][taskAbbrev]
             cmd.append('-t %s:%s' % (pipetask['module'], taskAbbrev))
@@ -256,6 +255,15 @@ class BpsCore(object):
 
         taskOpt['required'] = False
         jobProfile = {}
+        jobAttribs = {}
+        if 'profile' in self.config['site'][computeSite]:
+            if 'condor' in self.config['site'][computeSite]['profile']:
+                for k, v in self.config['site'][computeSite]['profile']['condor'].items():
+                    if k.startswith('+'):
+                        jobAttribs[k[1:]] = v
+                    else:
+                        jobProfile[k] = v
+
         found, val = self.config.search('requestMemory', opt=taskOpt)
         if found:
             jobProfile['request_memory'] = val
@@ -264,8 +272,11 @@ class BpsCore(object):
         if found:
             jobProfile['request_cpus'] = val
 
+
         if len(jobProfile) > 0:
             tnode['jobProfile'] = jobProfile
+        if len(jobAttribs) > 0:
+            tnode['jobAttribs'] = jobAttribs
 
     def _linkSchemaNodes(self, schemaNodes):
         taskAbbrevList = [x.strip() for x in self.config['pipeline'].split(',')]
@@ -283,7 +294,7 @@ class BpsCore(object):
                 # add edge from prev output schema to current task node
                 self.genWFGraph.add_edge(sfNodeName, stNodeName)
 
-    def _createWorkflowGraph(self):
+    def _createWorkflowGraph(self, gname):
         """Create workflow graph from the Science Graph that has information
         needed for WMS (e.g., filenames, command line arguments, etc)
 
@@ -298,8 +309,10 @@ class BpsCore(object):
         """
 
         _LOG.info("creating workflow graph")
-        self.genWFGraph = self.sciGraph.copy()
+        self.genWFGraph = networkx.DiGraph(self.sciGraph, gname=gname, gtype='workflow')
+
         ncnt = networkx.number_of_nodes(self.genWFGraph)
+        taskcnts = {}
         qcnt = 0
         schemaNodes = {}
         nodelist = list(self.genWFGraph.nodes())
@@ -311,6 +324,18 @@ class BpsCore(object):
                 node['data_type'] = "science"
             elif node['nodeType'] == TASKNODE:  # task
                 taskAbbrev = node['taskAbbrev']
+                node['job_attrib'] = {'bps_isjob': 'True',
+                                   'bps_project': self.config['project'],
+                                   'bps_campaign': self.config['campaign'],
+                                   'bps_run': gname,
+                                   'bps_operator': self.config['operator'],
+                                   'bps_payload': self.config['payloadName'],
+                                   'bps_runsite': 'TODO',
+                                   'bps_jobabbrev': taskAbbrev
+                                  }
+                if taskAbbrev not in taskcnts:
+                    taskcnts[taskAbbrev] = 0
+                taskcnts[taskAbbrev] += 1
 
                 # add quantum pickle input data node
                 ncnt += 1
@@ -332,12 +357,22 @@ class BpsCore(object):
                         stNodeName = schemaNodes[taskAbbrev][TASKNODE]
                     else:
                         schemaNodes[taskAbbrev] = {}
+                        taskcnts[taskAbbrev] += 1
                         ncnt += 1
                         stNodeName = "%06d" % ncnt
                         lfn = "%s_schema" % taskAbbrev
                         self.genWFGraph.add_node(stNodeName, nodeType=TASKNODE,
                                                  task_def_id=node['task_def_id'],
                                                  taskAbbrev=taskAbbrev, shape='box', fillcolor='gray',
+                                                 job_attrib={'bps_isjob': 'True',
+                                                             'bps_project': self.config['project'],
+                                                             'bps_campaign': self.config['campaign'],
+                                                             'bps_run': gname,
+                                                             'bps_operator': self.config['operator'],
+                                                             'bps_payload': self.config['payloadName'],
+                                                             'bps_runsite': 'TODO',
+                                                             'bps_jobabbrev': taskAbbrev
+                                                            },
                                                  #style='"filled,bold"',
                                                  style='filled',
                                                  label=lfn)
@@ -359,6 +394,21 @@ class BpsCore(object):
         if self.config.get('createSchemas', '{default: False}'):
             self._linkSchemaNodes(schemaNodes)
 
+        # save pipeline summary description to graph attributes
+        runSummary = []
+        for taskAbbrev in [x.strip() for x in self.config['pipeline'].split(',')]:
+            runSummary.append("%s:%d" % (taskAbbrev, taskcnts[taskAbbrev]))
+        self.genWFGraph.graph['job_attrib'] = {'bps_run_summary': ';'.join(runSummary),
+                                               'bps_isjob': 'True',
+                                               'bps_project': self.config['project'],
+                                               'bps_campaign': self.config['campaign'],
+                                               'bps_run': gname,
+                                               'bps_operator': self.config['operator'],
+                                               'bps_payload': self.config['payloadName'],
+                                               'bps_runsite': 'TODO',
+                                               'bps_jobabbrev': "DAG"
+                                               }
+
 
     def _createGenericWorkflow(self):
         # first convert LSST-specific graph implementation to networkX graph
@@ -367,7 +417,7 @@ class BpsCore(object):
             draw_networkx_dot(self.sciGraph, os.path.join(self.submitPath, 'draw', 'bpsgraph_sci.dot'))
 
         # Create workflow graph
-        self._createWorkflowGraph()
+        self._createWorkflowGraph(self.config['uniqProcName'])
         if self.config.get('saveWFGraph', {'default': False}):
             with open(os.path.join(self.submitPath, "wfgraph.pickle"), "wb") as pickleFile:
                 pickle.dump(self.genWFGraph, pickleFile)
@@ -401,7 +451,8 @@ class BpsCore(object):
         # butler even if it isn't used. Butler requires run or collection
         # provided in constructor but in this case we do not care about
         # which collection to use so give it an empty name.
-        self.butler = Butler(config=self.config['butlerConfig'], collection="")
+        self.butler = Butler(config=self.config['butlerConfig'], writeable=True)
+        self.butler.registry.registerRun(self.config["outCollection"])
 
         if 'qgraph_file' in self.config['global']:
             _LOG.info("Copying and reading quantum graph (%s)", 
@@ -411,7 +462,6 @@ class BpsCore(object):
             shutil.copy2(self.config['global']['qgraph_file'], self.qgraphFilename)
             self._readQuantumGraph()
             _LOG.info("Reading quantum graph took %.2f seconds", time.time()-stime)
-            
         else:
             _LOG.info("Creating quantum graph")
             self._createQuantumGraph()
