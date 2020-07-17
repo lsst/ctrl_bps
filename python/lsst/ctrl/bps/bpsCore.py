@@ -473,9 +473,6 @@ class BpsCore(object):
 
         self._createGenericWorkflowConfig()
 
-        with open('%s.pickle' % self.config['uniqProcName'], 'wb') as outfh:
-            pickle.dump(self.genWFGraph, outfh)
-
         stime = time.time()
         self._implement_workflow()
         _LOG.info("Creating specific implementation of workflow took %.2f seconds", time.time()-stime)
