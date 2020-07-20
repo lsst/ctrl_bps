@@ -278,20 +278,20 @@ class BpsCore(object):
         if len(jobAttribs) > 0:
             tnode['jobAttribs'] = jobAttribs
 
-    def _linkSchemaNodes(self, schemaNodes):
+    def _link_init_nodes(self, init_nodes):
         taskAbbrevList = [x.strip() for x in self.config['pipeline'].split(',')]
         for abbrevId, taskAbbrev in enumerate(taskAbbrevList, 0):
             if abbrevId != 0:
-                # get current task's schema task node
-                stNodeName = schemaNodes[taskAbbrev][TASKNODE]
+                # get current task's init task node
+                stNodeName = init_nodes[taskAbbrev][TASKNODE]
                 stNode = self.genWFGraph.nodes[stNodeName]
 
-                # get previous task's schema output file node
+                # get previous task's init output file node
                 prevAbbrev = taskAbbrevList[abbrevId - 1]
-                sfNodeName = schemaNodes[prevAbbrev][FILENODE]
+                sfNodeName = init_nodes[prevAbbrev][FILENODE]
                 sfNode = self.genWFGraph.nodes[sfNodeName]
 
-                # add edge from prev output schema to current task node
+                # add edge from prev output init node to current task node
                 self.genWFGraph.add_edge(sfNodeName, stNodeName)
 
     def _createWorkflowGraph(self, gname):
@@ -314,7 +314,7 @@ class BpsCore(object):
         ncnt = networkx.number_of_nodes(self.genWFGraph)
         taskcnts = {}
         qcnt = 0
-        schemaNodes = {}
+        init_nodes = {}
         nodelist = list(self.genWFGraph.nodes())
         for nodename in nodelist:
             node = self.genWFGraph.nodes[nodename]
@@ -351,16 +351,16 @@ class BpsCore(object):
                 self._updateTask(taskAbbrev, node, qlfn)
                 self.genWFGraph.add_edge(qNodeName, nodename)
 
-                # add schema job to setup graph
-                if self.config.get('createSchemas', '{default: False}'):
-                    if taskAbbrev in schemaNodes:
-                        stNodeName = schemaNodes[taskAbbrev][TASKNODE]
+                # add init job to setup graph
+                if self.config.get('runInit', '{default: False}'):
+                    if taskAbbrev in init_nodes:
+                        stNodeName = init_nodes[taskAbbrev][TASKNODE]
                     else:
-                        schemaNodes[taskAbbrev] = {}
+                        init_nodes[taskAbbrev] = {}
                         taskcnts[taskAbbrev] += 1
                         ncnt += 1
                         stNodeName = "%06d" % ncnt
-                        lfn = "%s_schema" % taskAbbrev
+                        lfn = "%s_init" % taskAbbrev
                         self.genWFGraph.add_node(stNodeName, nodeType=TASKNODE,
                                                  task_def_id=node['task_def_id'],
                                                  taskAbbrev=taskAbbrev, shape='box', fillcolor='gray',
@@ -376,23 +376,23 @@ class BpsCore(object):
                                                  #style='"filled,bold"',
                                                  style='filled',
                                                  label=lfn)
-                        _LOG.info("creating schema task: %s", taskAbbrev)
+                        _LOG.info("creating init task: %s", taskAbbrev)
                         stNode = self.genWFGraph.nodes[stNodeName]
-                        schemaNodes[taskAbbrev][TASKNODE] = stNodeName
-                        self._updateTask('createSchemas', stNode, qlfn)
+                        init_nodes[taskAbbrev][TASKNODE] = stNodeName
+                        self._updateTask('pipetask_init', stNode, qlfn)
                         ncnt += 1
                         sfNodeName = "%06d" % ncnt
                         self.genWFGraph.add_node(sfNodeName, nodeType=FILENODE, lfn=lfn, label=lfn,
                                                  ignore=True, data_type=lfn,
                                                  shape='box', style='rounded')
-                        schemaNodes[taskAbbrev][FILENODE] = sfNodeName
+                        init_nodes[taskAbbrev][FILENODE] = sfNodeName
                         self.genWFGraph.add_edge(stNodeName, sfNodeName)
                         self.genWFGraph.add_edge(qNodeName, stNodeName)
                     self.genWFGraph.add_edge(sfNodeName, nodename)
             else:
                 raise ValueError("Invalid nodeType (%s)" % node['nodeType'])
-        if self.config.get('createSchemas', '{default: False}'):
-            self._linkSchemaNodes(schemaNodes)
+        if self.config.get('runInit', '{default: False}'):
+            self._link_init_nodes(init_nodes)
 
         # save pipeline summary description to graph attributes
         runSummary = []
