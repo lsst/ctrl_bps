@@ -2,6 +2,7 @@ import logging
 import subprocess
 import warnings
 import os
+import datetime
 from os.path import expandvars, basename
 import re
 import pickle
@@ -91,6 +92,9 @@ class BpsCore(object):
         self.configLog(False, [])
         self.config = BpsConfig(configFile)
         _LOG.debug("Core kwargs = '%s'" % kwargs)
+        self.config['.global.timestamp'] = "{:%Y%m%dT%Hh%Mm%Ss}".format(datetime.datetime.now())
+        if 'uniqProcName' not in self.config:
+            self.config['.global.uniqProcName'] = self.config['outCollection'].replace('/', '_')
 
         if len(kwargs.get('overrides', {})) > 0:
             fd = StringIO(kwargs['overrides'])
@@ -98,6 +102,8 @@ class BpsCore(object):
             self.config.update(dct)
 
         self.submitPath = self.config['submitPath']
+        _LOG.debug("submitPath = '%s'" % self.submitPath)
+        print(self.submitPath)
 
         # make directories
         os.makedirs(self.submitPath, exist_ok=True)
@@ -105,10 +111,19 @@ class BpsCore(object):
         if self.config.get('saveDot', {'default': False}):
             os.makedirs("%s/draw" % self.submitPath, exist_ok=True)
 
-    def _createQuantumGraph(self):
-        # create cmdline 
+        self.pipeline = []
+
+    def _create_QG_generation_cmdline(self):
+        """Create the command line to create QuantumGraph
+
+        RETURNS
+        -------
+        cmdStr: `str`
+            String containing command to generate QuantumGraph
+        """
         qGraphGenExec = 'pipetask'
         cmd = [qGraphGenExec]
+        cmd.append('qgraph')  # pipetask subcommand
 
         found, dataQuery = self.config.search('dataQuery')
         if found:
@@ -122,25 +137,36 @@ class BpsCore(object):
                 cmd.append('-p %s' % p.strip())
 
         cmd.append('-i %s' % (self.config["inCollection"]))
-        cmd.append('-o %s' % (self.config["outCollection"]))
-        cmd.append('qgraph')  # pipetask subcommand
-        for taskAbbrev in [x.strip() for x in self.config['pipeline'].split(',')]:
-            pipetask = self.config['pipetask'][taskAbbrev]
-            cmd.append('-t %s:%s' % (pipetask['module'], taskAbbrev))
-            if "configFile" in pipetask:
-                cmd.append("-C %s:%s" % (taskAbbrev, expandvars(pipetask['configFile'])))
-            if "configOverride" in pipetask:
-                cmd.append("-c %s:%s" % (taskAbbrev, expandvars(pipetask['configOverride'])))
+        cmd.append('-o notused')
+        #cmd.append('--output-run %s' % (self.config["outCollection"]))
+        if "pipelineYaml" in self.config:
+            cmd.append('-p %s' % (self.config["pipelineYaml"]))
+        else:
+            for taskAbbrev in [x.strip() for x in self.pipeline]:
+                pipetask = self.config['pipetask'][taskAbbrev]
+                cmd.append('-t %s:%s' % (pipetask['module'], taskAbbrev))
+                if "configFile" in pipetask:
+                    cmd.append("-C %s:%s" % (taskAbbrev, expandvars(pipetask['configFile'])))
+                if "configOverride" in pipetask:
+                    cmd.append("-c %s:%s" % (taskAbbrev, expandvars(pipetask['configOverride'])))
 
-        _LOG.debug("submitPath = '%s'" % self.submitPath)
-        self.qgraphFilename = '%s/qgraph.pickle' % (self.submitPath)
         cmd.append('-q %s' % (self.qgraphFilename))
 
         if self.config.get('saveDot', {'default': False}):
             cmd.append('--pipeline-dot %s/draw/pipetask_pipeline.dot' % (self.submitPath))
             cmd.append('--qgraph-dot %s/draw/pipetask_qgraph.dot' % (self.submitPath))
 
-        cmdstr = ' '.join(cmd)
+        return ' '.join(cmd)
+
+
+    def _createQuantumGraph(self):
+        """Create QuantumGraph
+        """
+        _LOG.debug("submitPath = '%s'" % self.submitPath)
+        self.qgraphFilename = '%s/%s.pickle' % (self.submitPath, self.config['uniqProcName'])
+
+        # create cmdline 
+        cmdstr = self._create_QG_generation_cmdline()
         _LOG.info(cmdstr)
 
         #with warnings.catch_warnings():
@@ -148,6 +174,9 @@ class BpsCore(object):
         #    CmdLineFwk().parseAndRun(shlex.split(cmdstr))
         bufsize = 5000
         with open("%s/quantumGraphGeneration.out" % self.submitPath, "w") as qqgfh:
+            qqgfh.write(cmdstr)
+            qqgfh.write('\n')
+            
             process = subprocess.Popen(shlex.split(cmdstr), shell=False,
                                        stdout=subprocess.PIPE,
                                        stderr=subprocess.STDOUT)
@@ -159,8 +188,8 @@ class BpsCore(object):
             process.wait()
 
         if process.returncode != 0:
-            raise RuntimeError("%s exited with non-zero exit code (%s)"
-                               % (qGraphGenExec, process.returncode))
+            raise RuntimeError("QuantumGraph generation exited with non-zero exit code (%s)"
+                               % (process.returncode))
 
         self._readQuantumGraph()
 
@@ -194,9 +223,12 @@ class BpsCore(object):
 
         mapId = {}
         self.qgnodes = {}
+        pipeline = []
         for taskId, nodes in enumerate(self.qgraph):
             _LOG.debug(taskId)
             taskDef = nodes.taskDef
+            pipeline.append(taskDef.label)
+
             _LOG.debug("config=%s", taskDef.config)
             _LOG.debug("taskClass=%s", taskDef.taskClass)
             _LOG.debug("taskName=%s", taskDef.taskName)
@@ -245,6 +277,11 @@ class BpsCore(object):
                                                label=fnodeDesc, shape='box', style='rounded')
                         self.sciGraph.add_edge(tnodeName, fnodeName)
 
+        if 'pipeline' in self.config:
+            self.pipeline = self.config['pipeline'].split(',')
+        else:
+            self.pipeline = pipeline
+
         _LOG.info("Number of sciGraph nodes: tasks=%d files=%d", tcnt, dcnt)
 
     def _updateTask(self, taskAbbrev, tnode, qlfn):
@@ -279,7 +316,7 @@ class BpsCore(object):
             tnode['jobAttribs'] = jobAttribs
 
     def _link_init_nodes(self, init_nodes):
-        taskAbbrevList = [x.strip() for x in self.config['pipeline'].split(',')]
+        taskAbbrevList = [x.strip() for x in self.pipeline]
         for abbrevId, taskAbbrev in enumerate(taskAbbrevList, 0):
             if abbrevId != 0:
                 # get current task's init task node
@@ -396,7 +433,7 @@ class BpsCore(object):
 
         # save pipeline summary description to graph attributes
         runSummary = []
-        for taskAbbrev in [x.strip() for x in self.config['pipeline'].split(',')]:
+        for taskAbbrev in [x.strip() for x in self.pipeline]:
             runSummary.append("%s:%d" % (taskAbbrev, taskcnts[taskAbbrev]))
         self.genWFGraph.graph['job_attrib'] = {'bps_run_summary': ';'.join(runSummary),
                                                'bps_isjob': 'True',

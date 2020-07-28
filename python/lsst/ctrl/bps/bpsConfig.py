@@ -121,7 +121,9 @@ class BpsConfig(Config):
                     if "curr_" + sect in curvals:
                         currkey = curvals["curr_" + sect]
                         _LOG.debug("currkey for section %s = %s" % (sect, currkey))
-                        searchSect = Config.__getitem__(searchSect, currkey)
+                        #searchSect = Config.__getitem__(searchSect, currkey)
+                        if Config.__contains__(searchSect, currkey):
+                            searchSect = Config.__getitem__(searchSect, currkey)
 
                     _LOG.debug("%s %s" % (key, searchSect))
                     if Config.__contains__(searchSect, key):
