@@ -4,6 +4,7 @@ summarize what's in the queue
 """
 
 import htcondor
+import classad
 import os
 import sys
 import pprint
@@ -14,31 +15,65 @@ def print_headers():
                                                       "RUN", "operator", "( U  | R  | S  | F  |  %  )"))
     print("-" * 120)
 
-def print_run(jobads, jobid):
-    dagjob = jobads[jobid]
-    dagstat = dag_stat_summary(jobads, jobid)
+def dag_summary(dagjob, dagstat):
+    """If DAG_Nodes* status entries are not in condor_q
+       try to read from node_status_file, else just use
+       what is in condor_q output to create DAG summary
 
+    Parameters
+    ==========
+    dagjob: `classad._classad.ClassAd`
+        Class ad for dagjob
+    dagstat: `list`
+        List of DAG job counts per job status
+
+    Returns
+    =======
+    summary: `dict`
+        Dict of DAG summary stats
+    """
+    summary = {}
 
     # Try to use DAG_Nodes* entries from condor_q
     # UNREADY   READY     PRE  QUEUED    POST SUCCESS FAILURE %DONE
     if 'DAG_NodesReady' in dagjob:
-        if dagjob['DAG_NodesTotal'] != 0:
-            job_percent = "{:3.1f}".format(100*(dagjob['DAG_NodesDone'] + dagjob['DAG_NodesFailed'])/dagjob['DAG_NodesTotal'])
-        else:
-            job_percent = "UNK"
-
-        statstr = "({:>4}|{:>4}|{:>4}|{:>4}|{:>5})".format(dagjob['DAG_NodesUnReady'], 
-                                                 dagjob['DAG_NodesReady'],
-                                                 #dagjob['DAG_NodesPrerun'],
-                                                 #dagjob['DAG_NodesQueued'],
-                                                 #dagjob['DAG_NodesPostrun'],
-                                                 dagjob['DAG_NodesDone'],
-                                                 dagjob['DAG_NodesFailed'],
-                                                 job_percent)
-
+        for key in ['NodesUnReady', 'NodesReady', 'NodesDone', 'NodesFailed', 'NodesTotal']:
+            summary[key] = dagjob[f"DAG_{key}"]
     else:
-        statstr = "({:>4}|{:>4}|{:>4}|{:>4}|{:>5})".format('UNK', dagstat[1] + dagstat[2] + dagstat[3] + dagstat[5], 'UNK', 'UNK', 'UNK')
-        
+        # while this is probably more up to date than dag classad, only read from file if need to
+        node_stat_file = os.path.join(dagjob['Iwd'], f"{dagjob['bps_run']}.node_status")
+        try:
+            with open(node_stat_file, 'r') as infh:
+                dag_classad = classad.parseNext(infh)
+            for key in ['NodesUnReady', 'NodesReady', 'NodesDone', 'NodesFailed', 'NodesTotal']:
+                summary[key] = dag_classad[key]
+
+        except OSError as ex:
+            summary['NodesReady'] = dagstat[1] + dagstat[2] + dagstat[3] + dagstat[5]
+            for key in ['NodesUnReady', 'NodesDone', 'NodesFailed', 'NodesTotal', 'Percent']:
+                summary[key] = 'UNK'
+
+    # calculate percent done
+    try:
+        summary['Percent'] = "{:3.1f}".format(100 * (summary['NodesDone'] + summary['NodesFailed']) / summary['NodesTotal'])
+    except (TypeError, KeyError):
+        summary['Percent'] = "UNK"
+
+    return summary
+
+
+def print_run(jobads, jobid):
+    dagjob = jobads[jobid]
+    dagstat = dag_stat_summary(jobads, jobid)
+
+    summary = dag_summary(dagjob, dagstat)
+
+    # UNREADY READY SUCCESS FAILURE %DONE
+    statstr = "({:>4}|{:>4}|{:>4}|{:>4}|{:>5})".format(summary['NodesUnReady'], 
+                                                       summary['NodesReady'],
+                                                       summary['NodesDone'],
+                                                       summary['NodesFailed'],
+                                                       summary['Percent'])
 
     print("{:>8} {:5} {:8} {:8} {:>50} {:>10} {}".format(jobid,
                                         dagjob['bps_project'],
@@ -57,18 +92,14 @@ def get_stat_counts(jobads, jobids):
 
     return stat_counts
 
-def create_stat_string(stat_counts):
-    statstr = "({:4}|{:4}|{:4}|{:4})".format(stat_counts[1], stat_counts[2],
-                                             stat_counts[3], stat_counts[5])
-    return statstr
-
 def dag_jobs_by_label(jobads, dagid):
     job_labels = {}
     for jobid in jobads:
         if jobads[jobid].get('DAGManJobId', -999) == dagid:
-            if not jobads[jobid]['bps_jobabbrev'] in job_labels:
-                job_labels[jobads[jobid]['bps_jobabbrev']] = []
-            job_labels[jobads[jobid]['bps_jobabbrev']].append(jobid)
+            label = jobads[jobid].get('bps_jobabbrev', 'bps')
+            if not label in job_labels:
+                job_labels[label] = []
+            job_labels[label].append(jobid)
     return job_labels
 
 def print_job_summary(jobads, dagid):
@@ -78,7 +109,8 @@ def print_job_summary(jobads, dagid):
     print(formatstr.format("( I  | R  | X  | H  )", "PipeTask"))
     for label in by_labels:
         statjobs = get_stat_counts(jobads, by_labels[label])
-        statstr = create_stat_string(statjobs)
+        statstr = "({:4}|{:4}|{:4}|{:4})".format(statjobs[1], statjobs[2],
+                                                 statjobs[3], statjobs[5])
         print(formatstr.format(statstr, label))
 
 def dag_stat_summary(jobads, dagid):
@@ -104,20 +136,9 @@ def main(argv):
         del jobinfo['Environment']
         jobads[jobinfo['ClusterId']] = jobinfo
 
-    #for jobad in jobads:
-    #    print(jobad['ClusterId'])
-    #    for k, v in jobad.items():
-    #        if k != "Environment":
-    #            if k.startswith('bps_'):
-    #                print('%s=%s' % (k, v))
-
     top_jobs, orphan_jobs = condorq_dag(jobads)
-    #pp = pprint.PrettyPrinter(indent=4)
-    #pp.pprint(top_jobs)
-    #pp.pprint(orphan_jobs)
-    #pp.pprint(jobads)
     print_headers()
-    for jobid in top_jobs:
+    for jobid in sorted(top_jobs):
         print_run(jobads, jobid)
 
 

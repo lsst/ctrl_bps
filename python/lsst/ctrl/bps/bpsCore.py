@@ -361,13 +361,7 @@ class BpsCore(object):
                 node['data_type'] = "science"
             elif node['nodeType'] == TASKNODE:  # task
                 taskAbbrev = node['taskAbbrev']
-                node['job_attrib'] = {'bps_isjob': 'True',
-                                   'bps_project': self.config['project'],
-                                   'bps_campaign': self.config['campaign'],
-                                   'bps_run': gname,
-                                   'bps_operator': self.config['operator'],
-                                   'bps_payload': self.config['payloadName'],
-                                   'bps_runsite': 'TODO',
+                node['job_attrib'] = {
                                    'bps_jobabbrev': taskAbbrev
                                   }
                 if taskAbbrev not in taskcnts:
@@ -435,7 +429,7 @@ class BpsCore(object):
         runSummary = []
         for taskAbbrev in [x.strip() for x in self.pipeline]:
             runSummary.append("%s:%d" % (taskAbbrev, taskcnts[taskAbbrev]))
-        self.genWFGraph.graph['job_attrib'] = {'bps_run_summary': ';'.join(runSummary),
+        self.genWFGraph.graph['run_attrib'] = {'bps_run_summary': ';'.join(runSummary),
                                                'bps_isjob': 'True',
                                                'bps_project': self.config['project'],
                                                'bps_campaign': self.config['campaign'],
@@ -443,7 +437,6 @@ class BpsCore(object):
                                                'bps_operator': self.config['operator'],
                                                'bps_payload': self.config['payloadName'],
                                                'bps_runsite': 'TODO',
-                                               'bps_jobabbrev': "DAG"
                                                }
 
 
