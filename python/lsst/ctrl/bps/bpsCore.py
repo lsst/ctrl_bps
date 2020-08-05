@@ -2,6 +2,7 @@ import logging
 import subprocess
 import warnings
 import os
+import datetime
 from os.path import expandvars, basename
 import re
 import pickle
@@ -91,6 +92,9 @@ class BpsCore(object):
         self.configLog(False, [])
         self.config = BpsConfig(configFile)
         _LOG.debug("Core kwargs = '%s'" % kwargs)
+        self.config['.global.timestamp'] = "{:%Y%m%dT%Hh%Mm%Ss}".format(datetime.datetime.now())
+        if 'uniqProcName' not in self.config:
+            self.config['.global.uniqProcName'] = self.config['outCollection'].replace('/', '_')
 
         if len(kwargs.get('overrides', {})) > 0:
             fd = StringIO(kwargs['overrides'])
@@ -98,6 +102,8 @@ class BpsCore(object):
             self.config.update(dct)
 
         self.submitPath = self.config['submitPath']
+        _LOG.debug("submitPath = '%s'" % self.submitPath)
+        print(self.submitPath)
 
         # make directories
         os.makedirs(self.submitPath, exist_ok=True)
@@ -105,10 +111,19 @@ class BpsCore(object):
         if self.config.get('saveDot', {'default': False}):
             os.makedirs("%s/draw" % self.submitPath, exist_ok=True)
 
-    def _createQuantumGraph(self):
-        # create cmdline 
+        self.pipeline = []
+
+    def _create_QG_generation_cmdline(self):
+        """Create the command line to create QuantumGraph
+
+        RETURNS
+        -------
+        cmdStr: `str`
+            String containing command to generate QuantumGraph
+        """
         qGraphGenExec = 'pipetask'
         cmd = [qGraphGenExec]
+        cmd.append('qgraph')  # pipetask subcommand
 
         found, dataQuery = self.config.search('dataQuery')
         if found:
@@ -122,25 +137,36 @@ class BpsCore(object):
                 cmd.append('-p %s' % p.strip())
 
         cmd.append('-i %s' % (self.config["inCollection"]))
-        cmd.append('-o %s' % (self.config["outCollection"]))
-        cmd.append('qgraph')  # pipetask subcommand
-        for taskAbbrev in [x.strip() for x in self.config['pipeline'].split(',')]:
-            pipetask = self.config['pipetask'][taskAbbrev]
-            cmd.append('-t %s:%s' % (pipetask['module'], taskAbbrev))
-            if "configFile" in pipetask:
-                cmd.append("-C %s:%s" % (taskAbbrev, expandvars(pipetask['configFile'])))
-            if "configOverride" in pipetask:
-                cmd.append("-c %s:%s" % (taskAbbrev, expandvars(pipetask['configOverride'])))
+        cmd.append('-o notused')
+        #cmd.append('--output-run %s' % (self.config["outCollection"]))
+        if "pipelineYaml" in self.config:
+            cmd.append('-p %s' % (self.config["pipelineYaml"]))
+        else:
+            for taskAbbrev in [x.strip() for x in self.pipeline]:
+                pipetask = self.config['pipetask'][taskAbbrev]
+                cmd.append('-t %s:%s' % (pipetask['module'], taskAbbrev))
+                if "configFile" in pipetask:
+                    cmd.append("-C %s:%s" % (taskAbbrev, expandvars(pipetask['configFile'])))
+                if "configOverride" in pipetask:
+                    cmd.append("-c %s:%s" % (taskAbbrev, expandvars(pipetask['configOverride'])))
 
-        _LOG.debug("submitPath = '%s'" % self.submitPath)
-        self.qgraphFilename = '%s/qgraph.pickle' % (self.submitPath)
         cmd.append('-q %s' % (self.qgraphFilename))
 
         if self.config.get('saveDot', {'default': False}):
             cmd.append('--pipeline-dot %s/draw/pipetask_pipeline.dot' % (self.submitPath))
             cmd.append('--qgraph-dot %s/draw/pipetask_qgraph.dot' % (self.submitPath))
 
-        cmdstr = ' '.join(cmd)
+        return ' '.join(cmd)
+
+
+    def _createQuantumGraph(self):
+        """Create QuantumGraph
+        """
+        _LOG.debug("submitPath = '%s'" % self.submitPath)
+        self.qgraphFilename = '%s/%s.pickle' % (self.submitPath, self.config['uniqProcName'])
+
+        # create cmdline 
+        cmdstr = self._create_QG_generation_cmdline()
         _LOG.info(cmdstr)
 
         #with warnings.catch_warnings():
@@ -148,6 +174,9 @@ class BpsCore(object):
         #    CmdLineFwk().parseAndRun(shlex.split(cmdstr))
         bufsize = 5000
         with open("%s/quantumGraphGeneration.out" % self.submitPath, "w") as qqgfh:
+            qqgfh.write(cmdstr)
+            qqgfh.write('\n')
+            
             process = subprocess.Popen(shlex.split(cmdstr), shell=False,
                                        stdout=subprocess.PIPE,
                                        stderr=subprocess.STDOUT)
@@ -159,8 +188,8 @@ class BpsCore(object):
             process.wait()
 
         if process.returncode != 0:
-            raise RuntimeError("%s exited with non-zero exit code (%s)"
-                               % (qGraphGenExec, process.returncode))
+            raise RuntimeError("QuantumGraph generation exited with non-zero exit code (%s)"
+                               % (process.returncode))
 
         self._readQuantumGraph()
 
@@ -194,9 +223,12 @@ class BpsCore(object):
 
         mapId = {}
         self.qgnodes = {}
+        pipeline = []
         for taskId, nodes in enumerate(self.qgraph):
             _LOG.debug(taskId)
             taskDef = nodes.taskDef
+            pipeline.append(taskDef.label)
+
             _LOG.debug("config=%s", taskDef.config)
             _LOG.debug("taskClass=%s", taskDef.taskClass)
             _LOG.debug("taskName=%s", taskDef.taskName)
@@ -245,6 +277,11 @@ class BpsCore(object):
                                                label=fnodeDesc, shape='box', style='rounded')
                         self.sciGraph.add_edge(tnodeName, fnodeName)
 
+        if 'pipeline' in self.config:
+            self.pipeline = self.config['pipeline'].split(',')
+        else:
+            self.pipeline = pipeline
+
         _LOG.info("Number of sciGraph nodes: tasks=%d files=%d", tcnt, dcnt)
 
     def _updateTask(self, taskAbbrev, tnode, qlfn):
@@ -278,20 +315,20 @@ class BpsCore(object):
         if len(jobAttribs) > 0:
             tnode['jobAttribs'] = jobAttribs
 
-    def _linkSchemaNodes(self, schemaNodes):
-        taskAbbrevList = [x.strip() for x in self.config['pipeline'].split(',')]
+    def _link_init_nodes(self, init_nodes):
+        taskAbbrevList = [x.strip() for x in self.pipeline]
         for abbrevId, taskAbbrev in enumerate(taskAbbrevList, 0):
             if abbrevId != 0:
-                # get current task's schema task node
-                stNodeName = schemaNodes[taskAbbrev][TASKNODE]
+                # get current task's init task node
+                stNodeName = init_nodes[taskAbbrev][TASKNODE]
                 stNode = self.genWFGraph.nodes[stNodeName]
 
-                # get previous task's schema output file node
+                # get previous task's init output file node
                 prevAbbrev = taskAbbrevList[abbrevId - 1]
-                sfNodeName = schemaNodes[prevAbbrev][FILENODE]
+                sfNodeName = init_nodes[prevAbbrev][FILENODE]
                 sfNode = self.genWFGraph.nodes[sfNodeName]
 
-                # add edge from prev output schema to current task node
+                # add edge from prev output init node to current task node
                 self.genWFGraph.add_edge(sfNodeName, stNodeName)
 
     def _createWorkflowGraph(self, gname):
@@ -314,7 +351,7 @@ class BpsCore(object):
         ncnt = networkx.number_of_nodes(self.genWFGraph)
         taskcnts = {}
         qcnt = 0
-        schemaNodes = {}
+        init_nodes = {}
         nodelist = list(self.genWFGraph.nodes())
         for nodename in nodelist:
             node = self.genWFGraph.nodes[nodename]
@@ -324,13 +361,7 @@ class BpsCore(object):
                 node['data_type'] = "science"
             elif node['nodeType'] == TASKNODE:  # task
                 taskAbbrev = node['taskAbbrev']
-                node['job_attrib'] = {'bps_isjob': 'True',
-                                   'bps_project': self.config['project'],
-                                   'bps_campaign': self.config['campaign'],
-                                   'bps_run': gname,
-                                   'bps_operator': self.config['operator'],
-                                   'bps_payload': self.config['payloadName'],
-                                   'bps_runsite': 'TODO',
+                node['job_attrib'] = {
                                    'bps_jobabbrev': taskAbbrev
                                   }
                 if taskAbbrev not in taskcnts:
@@ -351,16 +382,16 @@ class BpsCore(object):
                 self._updateTask(taskAbbrev, node, qlfn)
                 self.genWFGraph.add_edge(qNodeName, nodename)
 
-                # add schema job to setup graph
-                if self.config.get('createSchemas', '{default: False}'):
-                    if taskAbbrev in schemaNodes:
-                        stNodeName = schemaNodes[taskAbbrev][TASKNODE]
+                # add init job to setup graph
+                if self.config.get('runInit', '{default: False}'):
+                    if taskAbbrev in init_nodes:
+                        stNodeName = init_nodes[taskAbbrev][TASKNODE]
                     else:
-                        schemaNodes[taskAbbrev] = {}
+                        init_nodes[taskAbbrev] = {}
                         taskcnts[taskAbbrev] += 1
                         ncnt += 1
                         stNodeName = "%06d" % ncnt
-                        lfn = "%s_schema" % taskAbbrev
+                        lfn = "%s_init" % taskAbbrev
                         self.genWFGraph.add_node(stNodeName, nodeType=TASKNODE,
                                                  task_def_id=node['task_def_id'],
                                                  taskAbbrev=taskAbbrev, shape='box', fillcolor='gray',
@@ -376,29 +407,29 @@ class BpsCore(object):
                                                  #style='"filled,bold"',
                                                  style='filled',
                                                  label=lfn)
-                        _LOG.info("creating schema task: %s", taskAbbrev)
+                        _LOG.info("creating init task: %s", taskAbbrev)
                         stNode = self.genWFGraph.nodes[stNodeName]
-                        schemaNodes[taskAbbrev][TASKNODE] = stNodeName
-                        self._updateTask('createSchemas', stNode, qlfn)
+                        init_nodes[taskAbbrev][TASKNODE] = stNodeName
+                        self._updateTask('pipetask_init', stNode, qlfn)
                         ncnt += 1
                         sfNodeName = "%06d" % ncnt
                         self.genWFGraph.add_node(sfNodeName, nodeType=FILENODE, lfn=lfn, label=lfn,
                                                  ignore=True, data_type=lfn,
                                                  shape='box', style='rounded')
-                        schemaNodes[taskAbbrev][FILENODE] = sfNodeName
+                        init_nodes[taskAbbrev][FILENODE] = sfNodeName
                         self.genWFGraph.add_edge(stNodeName, sfNodeName)
                         self.genWFGraph.add_edge(qNodeName, stNodeName)
                     self.genWFGraph.add_edge(sfNodeName, nodename)
             else:
                 raise ValueError("Invalid nodeType (%s)" % node['nodeType'])
-        if self.config.get('createSchemas', '{default: False}'):
-            self._linkSchemaNodes(schemaNodes)
+        if self.config.get('runInit', '{default: False}'):
+            self._link_init_nodes(init_nodes)
 
         # save pipeline summary description to graph attributes
         runSummary = []
-        for taskAbbrev in [x.strip() for x in self.config['pipeline'].split(',')]:
+        for taskAbbrev in [x.strip() for x in self.pipeline]:
             runSummary.append("%s:%d" % (taskAbbrev, taskcnts[taskAbbrev]))
-        self.genWFGraph.graph['job_attrib'] = {'bps_run_summary': ';'.join(runSummary),
+        self.genWFGraph.graph['run_attrib'] = {'bps_run_summary': ';'.join(runSummary),
                                                'bps_isjob': 'True',
                                                'bps_project': self.config['project'],
                                                'bps_campaign': self.config['campaign'],
@@ -406,7 +437,6 @@ class BpsCore(object):
                                                'bps_operator': self.config['operator'],
                                                'bps_payload': self.config['payloadName'],
                                                'bps_runsite': 'TODO',
-                                               'bps_jobabbrev': "DAG"
                                                }
 
 

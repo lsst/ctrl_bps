@@ -200,7 +200,7 @@ def htc_submit_from_dag(dag_filename, submit_options=None):
             line = line.strip()
             if not line.startswith('#') and not line == 'queue':
                 (key, val) = re.split(r'\s*=\s*', line, 1)
-                # Avoid UserWarning: the line 'copy_to_spool = False' was 
+                # Avoid UserWarning: the line 'copy_to_spool = False' was
                 #       unused by Submit object. Is it a typo?
                 if key != 'copy_to_spool':
                     sublines[key] = val
@@ -434,6 +434,7 @@ class HTCDag(networkx.DiGraph):
             for edge in self.edges():
                 dagfh.write(f"PARENT {edge[0]} CHILD {edge[1]}\n")
             dagfh.write(f"DOT {self.name}.dot\n")
+            dagfh.write(f"NODE_STATUS_FILE {self.name}.node_status\n")
 
     def dump(self, outfh):
         """Dump DAG info to output stream

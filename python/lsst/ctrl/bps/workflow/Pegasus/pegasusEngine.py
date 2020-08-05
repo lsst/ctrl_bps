@@ -3,11 +3,12 @@ import re
 import sys
 import subprocess
 import shlex
+import shutil
 import logging
 
-
-from Pegasus.DAX3 import ADAG, File, Job, Link, PFN, Executable, Profile
+from Pegasus.DAX3 import ADAG, File, Job, Link, PFN, Executable, Profile, Namespace
 from Pegasus.catalogs import replica_catalog, sites_catalog, transformation_catalog
+from lsst.ctrl.bps.workflow.HTCondor.lssthtc import htc_write_attribs
 
 FILENODE=0
 TASKNODE=1
@@ -145,15 +146,16 @@ class PegasusWorkflow(object):
             # Add extra job attributes
             if 'jobProfile' in attrs:
                 for k, v in attrs['jobProfile'].items():
-                    job.addProfile(Profile('condor', k, v))
+                    job.addProfile(Profile(Namespace.CONDOR, k, v))
 
             if 'jobEnv' in attrs:
                 for k, v in attrs['jobEnv'].items():
                     job.addProfile(Profile('env', k, v))
 
-            if 'jobAttrib' in attrs:
-                for k, v in attrs['jobAttrib'].items():
-                    job.addProfile(Profile('condor', k, v))
+            for key in ['job_attrib', 'jobAttribs']:
+                if key in attrs:
+                    for k, v in attrs[key].items():
+                        job.addProfile(Profile(Namespace.CONDOR, key=f'+{k}', value=f'"{v}"'))
 
             # Specify job's inputs.
             inputs = [file_id for file_id in self.genWorkflow.predecessors(taskId)]
@@ -226,6 +228,13 @@ class PegasusWorkflow(object):
                     dirDict[d] = {'path': siteData['directory'][d]['path']}
                 sc._sites[site]['directories'] = dirDict
 
+            # add run attributes to site def to get added to DAG and 
+            # Pegasus-added jobs
+            if 'run_attrib' in self.genWorkflow.graph:
+                for key, val in self.genWorkflow.graph['run_attrib'].items():
+                    sc.add_site_profile(site, namespace=Namespace.CONDOR, key=f'+{key}', value=f'"{val}"')
+
+            # add config provided site attributes
             if 'profile' in siteData:
                 for p, pData in siteData['profile'].items():
                     for k, v in pData.items():
@@ -290,6 +299,20 @@ class PegasusWorkflow(object):
 
         if process.returncode != 0:
             raise RuntimeError("pegasus-plan exited with non-zero exit code (%s)" % process.returncode)
+
+        # Hack - Using profile in sites.xml doesn't add run attributes to DAG submission file (see _defineSites)
+        # So adding them here:
+        if 'run_attrib' in self.genWorkflow.graph:
+            subname = f'{self.pegasusRunId}/{self.config["workflowName"]}-0.dag.condor.sub'
+            shutil.copyfile(subname, subname + '.orig')
+            with open(subname + '.orig', 'r') as insubfh:
+                with open(subname, 'w') as outsubfh:
+                    for line in insubfh:
+                        if line.strip() == 'queue':
+                            htc_write_attribs(outsubfh, self.genWorkflow.graph['run_attrib'])
+                            htc_write_attribs(outsubfh, {'bps_jobabbrev': 'DAG'})
+                        outsubfh.write(line)
+
 
     def _writePegasusPropertiesFile(self):
 

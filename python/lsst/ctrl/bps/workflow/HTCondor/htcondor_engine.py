@@ -122,7 +122,7 @@ class HTCondorWorkflow(workflow):
                 jobcmds['transfer_input_files'] = ','.join(transinputs)
 
         self.dag = HTCDag(name=self.config['uniqProcName'])
-        self.dag.add_attribs(self.gen_workflow.graph['job_attrib'])
+        self.dag.add_attribs(self.gen_workflow.graph['run_attrib'])
 
         # Add jobs to the DAG.
         id2name = {}
@@ -152,6 +152,9 @@ class HTCondorWorkflow(workflow):
             # Add the job cmds dict to the job object
             job.add_job_cmds(jobcmds)
 
+            # Add run level attribs to job
+            job.add_job_attrs(self.gen_workflow.graph['run_attrib'])
+
             # Add job attributes to job
             for key in ['job_attrib', 'jobAttribs']:
                 if key in task_attrs:
@@ -166,7 +169,7 @@ class HTCondorWorkflow(workflow):
                 parents.update(self.gen_workflow.predecessors(file_id))
             for parent_id in parents:
                 self.dag.add_job_relationship(parent=id2name[parent_id],
-                                 child=id2name[task_id])
+                                              child=id2name[task_id])
 
     def _write_files(self):
         """Output any files needed for workflow submission
