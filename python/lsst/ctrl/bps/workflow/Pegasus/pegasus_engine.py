@@ -19,9 +19,10 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+"""Support for using Pegasus WMS"""
+
 import os
 import re
-import sys
 import subprocess
 import shlex
 import shutil
@@ -30,99 +31,104 @@ import logging
 from Pegasus.DAX3 import ADAG, File, Job, Link, PFN, Executable, Profile, Namespace
 from Pegasus.catalogs import replica_catalog, sites_catalog, transformation_catalog
 from lsst.ctrl.bps.workflow.HTCondor.lssthtc import htc_write_attribs
+from lsst.ctrl.bps.workflow_engine import Workflow, WorkflowEngine
+from lsst.ctrl.bps.bps_core import FILENODE, TASKNODE
 
-FILENODE = 0
-TASKNODE = 1
 _LOG = logging.getLogger()
 
 
-class PegasusEngine(object):
-    def __init__(self, config):
-        self.config = config
+class PegasusEngine(WorkflowEngine):
+    """Pegasus version of workflow engine
+    Parameters
+    ----------
+    config : `lsst.ctrl.bps.BPSConfig`
+        BPS configuration that includes necessary submit/runtime information
+    """
 
-    def implementWorkflow(self, genWorkflow):
-        return PegasusWorkflow(genWorkflow, self.config)
+    def implement_workflow(self, gen_workflow):
+        """Convert generic workflow graph to an HTCondor DAG ready for submission
 
-    def statusID(self, id):
-        pass
+        Parameters
+        ----------
+        gen_workflow : `networkx.DiGraph`
+            The generic workflow graph (e.g., has executable name and arguments)
+        """
 
-    def statusAll(self):
-        pass
-
-    def remove():
-        pass
-
-    # future def history()
-    # future def pause()
-    # future def continue()
-    # future def edit()
-    # future def setRestartPoint()
-    # future def restart()
+        return PegasusWorkflow(self.config, gen_workflow)
 
 
-class PegasusWorkflow(object):
-    def __init__(self, genWorkflow, config):
-        self.genWorkflow = genWorkflow.copy()
-        self.config = config
-        _, computeSite = self.config.search("computeSite")
-        self.workdir = self.config["workflowPath"]
-        self.files = set(n for n, d in self.genWorkflow.nodes(data=True) if d["nodeType"] == FILENODE)
-        self.tasks = set(n for n, d in self.genWorkflow.nodes(data=True) if d["nodeType"] == TASKNODE)
-        self.fileCatalog = {}
-        self.pegasusFiles = {}
+class PegasusWorkflow(Workflow):
+    """Single Pegasus Workflow
+
+    Parameters
+    ----------
+    gen_workflow : `networkx.DiGraph`
+        The generic workflow graph (e.g., has executable name and arguments)
+    config : `lsst.ctrl.bps.BPSConfig`
+        BPS configuration that includes necessary submit/runtime information
+    """
+    def __init__(self, config, gen_workflow):
+        super().__init__(config, gen_workflow)
+        self.workdir = self.workflow_config["workflowPath"]
+        self.files = set(n for n, d in self.workflow_graph.nodes(data=True) if d["node_type"] == FILENODE)
+        self.tasks = set(n for n, d in self.workflow_graph.nodes(data=True) if d["node_type"] == TASKNODE)
+        self.file_catalog = {}
+        self.pegasus_files = {}
 
         # Replica Catalog keeps mappings of logical file ids/names (LFN's) to physical file ids/names (PFN's)
-        if "rcFile" in self.config:
-            self.pegasusFiles["rc"] = {"name": self.config["rcFile"], "obj": None}
+        if "rcFile" in self.workflow_config:
+            self.pegasus_files["rc"] = {"name": self.workflow_config["rcFile"], "obj": None}
         else:
             fname = "rc.txt"
-            rc = replica_catalog.ReplicaCatalog(self.workdir, fname)
-            self.pegasusFiles["rc"] = {"name": "%s/%s" % (self.workdir, fname), "obj": rc}
+            rcat = replica_catalog.ReplicaCatalog(self.workdir, fname)
+            self.pegasus_files["rc"] = {"name": "%s/%s" % (self.workdir, fname), "obj": rcat}
 
         # Site Catalog describes the sites where the workflow jobs are to be executed.
-        if "scFile" in self.config:
-            self.pegasusFiles["sc"] = {"name": self.config["scFile"], "obj": None}
+        if "scFile" in self.workflow_config:
+            self.pegasus_files["sc"] = {"name": self.workflow_config["scFile"], "obj": None}
         else:
             fname = "sites.xml"
-            sc = sites_catalog.SitesCatalog(self.workdir, fname)
-            self.pegasusFiles["sc"] = {"name": "%s/%s" % (self.workdir, fname), "obj": sc}
+            scat = sites_catalog.SitesCatalog(self.workdir, fname)
+            self.pegasus_files["sc"] = {"name": "%s/%s" % (self.workdir, fname), "obj": scat}
 
         # Transformation Catalog describes all of the executables
         # (called "transformations") used by the workflow.
-        if "tcFile" in self.config:
-            self.pegasusFiles["tc"] = {"name": self.config["tcFile"], "obj": None}
+        if "tcFile" in self.workflow_config:
+            self.pegasus_files["tc"] = {"name": self.workflow_config["tcFile"], "obj": None}
         else:
             fname = "tc.txt"
-            tc = transformation_catalog.TransformationCatalog(self.workdir, fname)
-            self.pegasusFiles["tc"] = {"name": "%s/%s" % (self.workdir, fname), "obj": tc}
+            tcat = transformation_catalog.TransformationCatalog(self.workdir, fname)
+            self.pegasus_files["tc"] = {"name": "%s/%s" % (self.workdir, fname), "obj": tcat}
 
-        if "propFile" in self.config:
-            self.pegasusFiles["prop"] = {"name": self.config["propFile"], "obj": None}
+        if "propFile" in self.workflow_config:
+            self.pegasus_files["prop"] = {"name": self.workflow_config["propFile"], "obj": None}
         else:
             fname = "pegasus.properties"
-            self.pegasusFiles["prop"] = {"name": "%s/%s" % (self.workdir, fname), "obj": None}
+            self.pegasus_files["prop"] = {"name": "%s/%s" % (self.workdir, fname), "obj": None}
 
-        self.pegasusFiles["dax"] = {
+        self.pegasus_files["dax"] = {
             "name": "%s/%s" % (self.workdir, "workflow.dax"),
-            "obj": ADAG(self.config["workflowName"]),
+            "obj": ADAG(self.workflow_config["workflowName"]),
         }
-        self.pegasusRunId = None
         self._implement()
 
     def _implement(self):
-        self._handleFileNodes()
-        self._handleTaskNodes()
-        self._defineSites()
-        self._addFilesToRC()
-        self._addActivatorToTC()
-        self._writePegasusFiles()
-        self._runPegasusPlan()
+        """Create files needed for a run submission
+        """
+        self._handle_file_nodes()
+        self._handle_task_nodes()
+        self._define_sites()
+        self._add_files_to_rc()
+        self._add_activator_to_tc()
+        self._write_pegasus_files()
+        self._run_pegasus_plan()
 
-    def _handleFileNodes(self):
-        # Process file nodes.
-        _, computeSite = self.config.search("computeSite")
+    def _handle_file_nodes(self):
+        """Process file nodes in workflow
+        """
+        _, compute_site = self.workflow_config.search("computeSite")
         for file_id in self.files:
-            attrs = self.genWorkflow.nodes[file_id]
+            attrs = self.workflow_graph.nodes[file_id]
             try:
                 name = attrs["lfn"]
             except KeyError:
@@ -134,69 +140,71 @@ class PegasusWorkflow(object):
             urls = attrs.get("pfn")
             if urls is not None:
                 urls = urls.split(",")
-                sites = len(urls) * [computeSite]
+                sites = len(urls) * [compute_site]
                 for url, site in zip(urls, sites):
                     file_.addPFN(PFN(url, site))
 
-            self.fileCatalog[attrs["lfn"]] = file_
+            self.file_catalog[attrs["lfn"]] = file_
 
-    def _handleTaskNodes(self):
-        dax = self.pegasusFiles["dax"]["obj"]
+    def _handle_task_nodes(self):
+        """Process task nodes in workflow
+        """
+        dax = self.pegasus_files["dax"]["obj"]
 
         # Add jobs to the DAX.
-        for taskId in self.tasks:
-            attrs = self.genWorkflow.nodes[taskId]
+        for task_id in self.tasks:
+            attrs = self.workflow_graph.nodes[task_id]
             try:
                 # name = attrs['exec_name']
-                name = attrs["taskAbbrev"]
+                name = attrs["task_abbrev"]
             except KeyError:
                 msg = 'Mandatory attribute "%s" is missing.'
-                raise AttributeError(msg.format("taskAbbrev"))
-            label = "{name}_{id}".format(name=attrs["label"], id=taskId)
-            job = Job(name, id=taskId, node_label=label)
+                raise AttributeError(msg.format("task_abbrev"))
+            label = "{name}_{id}".format(name=attrs["label"], id=task_id)
+            job = Job(name, id=task_id, node_label=label)
 
             # Add job command line arguments replacing any file name with
             # respective Pegasus file object.
             args = attrs.get("exec_args", [])
             if args:
                 args = args.split()
-                lfns = list(set(self.fileCatalog) & set(args))
+                lfns = list(set(self.file_catalog) & set(args))
                 if lfns:
                     indices = [args.index(lfn) for lfn in lfns]
                     for idx, lfn in zip(indices, lfns):
-                        args[idx] = self.fileCatalog[lfn]
+                        args[idx] = self.file_catalog[lfn]
                 job.addArguments(*args)
 
             # Add extra job attributes
             if "jobProfile" in attrs:
-                for k, v in attrs["jobProfile"].items():
-                    job.addProfile(Profile(Namespace.CONDOR, k, v))
+                for key, val in attrs["jobProfile"].items():
+                    job.addProfile(Profile(Namespace.CONDOR, key, val))
 
             if "jobEnv" in attrs:
-                for k, v in attrs["jobEnv"].items():
-                    job.addProfile(Profile("env", k, v))
+                for key, val in attrs["jobEnv"].items():
+                    job.addProfile(Profile("env", key, val))
 
-            for key in ["job_attrib", "jobAttribs"]:
-                if key in attrs:
-                    for k, v in attrs[key].items():
-                        job.addProfile(Profile(Namespace.CONDOR, key=f"+{k}", value=f'"{v}"'))
+            for akey in ["job_attrib", "jobAttribs"]:
+                if akey in attrs:
+                    for key, val in attrs[akey].items():
+                        job.addProfile(Profile(Namespace.CONDOR, key=f"+{key}", value=f'"{val}"'))
 
             # Specify job's inputs.
-            inputs = [file_id for file_id in self.genWorkflow.predecessors(taskId)]
+            inputs = [file_id for file_id in self.workflow_graph.predecessors(task_id)]
             for file_id in inputs:
-                attrs = self.genWorkflow.nodes[file_id]
+                attrs = self.workflow_graph.nodes[file_id]
                 is_ignored = attrs.get("ignore", False)
                 if not is_ignored:
-                    file_ = self.fileCatalog[attrs["lfn"]]
+                    file_ = self.file_catalog[attrs["lfn"]]
                     job.uses(file_, link=Link.INPUT)
 
             # Specify job's outputs
-            outputs = [file_id for file_id in self.genWorkflow.successors(taskId)]
+            outputs = [file_id for file_id in self.workflow_graph.successors(task_id)]
             for file_id in outputs:
-                attrs = self.genWorkflow.nodes[file_id]
+                attrs = self.workflow_graph.nodes[file_id]
                 is_ignored = attrs.get("ignore", False)
                 if not is_ignored:
-                    file_ = self.fileCatalog[attrs["lfn"]]
+                    file_ = self.file_catalog[attrs["lfn"]]
                     job.uses(file_, link=Link.OUTPUT)
 
             #        streams = attrs.get('streams')
@@ -220,105 +228,117 @@ class PegasusWorkflow(object):
             dax.addJob(job)
 
         # Add job dependencies to the DAX.
-        for taskId in self.tasks:
+        for task_id in self.tasks:
             parents = set()
-            for file_id in self.genWorkflow.predecessors(taskId):
-                parents.update(self.genWorkflow.predecessors(file_id))
+            for file_id in self.workflow_graph.predecessors(task_id):
+                parents.update(self.workflow_graph.predecessors(file_id))
             for parent_id in parents:
-                dax.depends(parent=dax.getJob(parent_id), child=dax.getJob(taskId))
+                dax.depends(parent=dax.getJob(parent_id), child=dax.getJob(task_id))
 
-    def _addActivatorToTC(self):
-        tc = self.pegasusFiles["tc"]["obj"]
-        alreadyAdded = {}
-        for taskId in self.tasks:
-            attrs = self.genWorkflow.nodes[taskId]
-            taskAbbrev = attrs.get("taskAbbrev")
-            _, computeSite = self.config.search("computeSite", opt={"curvals": {"curr_pipetask": taskAbbrev}})
-            if computeSite not in alreadyAdded or taskAbbrev not in alreadyAdded[computeSite]:
+    def _add_activator_to_tc(self):
+        """Add job activator to Pegasus Transformation Catalog
+        """
+        tcat = self.pegasus_files["tc"]["obj"]
+        already_added = {}
+        for task_id in self.tasks:
+            attrs = self.workflow_graph.nodes[task_id]
+            task_abbrev = attrs.get("task_abbrev")
+            _, compute_site = self.workflow_config.search("computeSite",
+                                                          opt={"curvals": {"curr_pipetask": task_abbrev}})
+            if compute_site not in already_added or task_abbrev not in already_added[compute_site]:
                 activator = Executable(
-                    taskAbbrev,
-                    arch=self.config["site"][computeSite]["arch"],
-                    os=self.config["site"][computeSite]["os"],
+                    task_abbrev,
+                    arch=self.workflow_config["site"][compute_site]["arch"],
+                    os=self.workflow_config["site"][compute_site]["os"],
                     installed=True,
                 )
-                activator.addPFN(PFN("file://%s" % self.config["runQuantumExec"], computeSite))
-                tc.add(activator)
+                activator.addPFN(PFN("file://%s" % self.workflow_config["runQuantumExec"], compute_site))
+                tcat.add(activator)
 
-    def _defineSites(self):
-        sc = self.pegasusFiles["sc"]["obj"]
-        for site, siteData in self.config["site"].items():
-            sc.add_site(site, arch=siteData["arch"], os=siteData["os"])
-            if "directory" in siteData:
+    def _define_sites(self):
+        """Create Pegasus Site Catalog
+        """
+        scat = self.pegasus_files["sc"]["obj"]
+        for site, site_data in self.workflow_config["site"].items():
+            scat.add_site(site, arch=site_data["arch"], os=site_data["os"])
+            if "directory" in site_data:
                 # hack because no Python API
-                dirDict = {}
-                for d in siteData["directory"]:
-                    dirDict[d] = {"path": siteData["directory"][d]["path"]}
-                sc._sites[site]["directories"] = dirDict
+                dir_dict = {}
+                for site_dir in site_data["directory"]:
+                    dir_dict[site_dir] = {"path": site_data["directory"][site_dir]["path"]}
+                scat._sites[site]["directories"] = dir_dict
 
             # add run attributes to site def to get added to DAG and
             # Pegasus-added jobs
-            if "run_attrib" in self.genWorkflow.graph:
-                for key, val in self.genWorkflow.graph["run_attrib"].items():
-                    sc.add_site_profile(site, namespace=Namespace.CONDOR, key=f"+{key}", value=f'"{val}"')
+            if "run_attrib" in self.workflow_graph.graph:
+                for key, val in self.workflow_graph.graph["run_attrib"].items():
+                    scat.add_site_profile(site, namespace=Namespace.CONDOR, key=f"+{key}",
+                                          value=f'"{val}"')
 
             # add config provided site attributes
-            if "profile" in siteData:
-                for p, pData in siteData["profile"].items():
-                    for k, v in pData.items():
-                        sc.add_site_profile(site, namespace=p, key=k, value=v)
+            if "profile" in site_data:
+                for pname, pdata in site_data["profile"].items():
+                    for key, val in pdata.items():
+                        scat.add_site_profile(site, namespace=pname, key=key, value=val)
 
-    def _addFilesToRC(self):
-        rcObj = self.pegasusFiles["rc"]["obj"]
-        files = [file_ for file_ in self.fileCatalog.values() if file_.pfns]
+    def _add_files_to_rc(self):
+        """Add files to Pegasus Replica Catalog
+        """
+        rc_obj = self.pegasus_files["rc"]["obj"]
+        files = [file_ for file_ in self.file_catalog.values() if file_.pfns]
         for file_ in files:
             lfn = file_.name
             for pfn in file_.pfns:
-                rcObj.add(lfn, pfn.url, pfn.site)
+                rc_obj.add(lfn, pfn.url, pfn.site)
 
-    def _writePegasusFiles(self):
+    def _write_pegasus_files(self):
+        """Write Pegasus Catalogs and DAX to files
+        """
         os.makedirs(self.workdir, exist_ok=True)
 
         # Write down the workflow in DAX format.
-        with open(self.pegasusFiles["dax"]["name"], "w") as f:
-            self.pegasusFiles["dax"]["obj"].writeXML(f)
+        with open(self.pegasus_files["dax"]["name"], "w") as outfh:
+            self.pegasus_files["dax"]["obj"].writeXML(outfh)
 
         # output site catalog
-        if self.pegasusFiles["sc"]["obj"] is not None:
-            self.pegasusFiles["sc"]["obj"].write()
+        if self.pegasus_files["sc"]["obj"] is not None:
+            self.pegasus_files["sc"]["obj"].write()
 
         # output transformation catalog
-        if self.pegasusFiles["tc"]["obj"] is not None:
-            self.pegasusFiles["tc"]["obj"].write()
+        if self.pegasus_files["tc"]["obj"] is not None:
+            self.pegasus_files["tc"]["obj"].write()
 
         # output replica catalog
-        if self.pegasusFiles["rc"]["obj"] is not None:
-            self.pegasusFiles["rc"]["obj"].write()
+        if self.pegasus_files["rc"]["obj"] is not None:
+            self.pegasus_files["rc"]["obj"].write()
 
-        self._writePegasusPropertiesFile()
+        self._write_pegasus_properties_file()
 
-    def _runPegasusPlan(self):
+    def _run_pegasus_plan(self):
+        """Execute pegasus-plan to convert DAX to HTCondor DAG for submission
+        """
         cmd = ["pegasus-plan"]
         cmd.append("--verbose")
-        cmd.append("--conf %s" % self.pegasusFiles["prop"]["name"])
-        cmd.append("--dax %s" % self.pegasusFiles["dax"]["name"])
+        cmd.append("--conf %s" % self.pegasus_files["prop"]["name"])
+        cmd.append("--dax %s" % self.pegasus_files["dax"]["name"])
         cmd.append("--dir %s/peg" % self.workdir)
         cmd.append("--cleanup none")
-        cmd.append("--sites %s" % self.config["computeSite"])
+        cmd.append("--sites %s" % self.workflow_config["computeSite"])
         cmd.append("--input-dir %s/input --output-dir %s/output" % (self.workdir, self.workdir))
-        cmdStr = " ".join(cmd)
+        cmd_str = " ".join(cmd)
         bufsize = 5000
         pegout = "%s/pegasus-plan.out" % self.workdir
         _LOG.info("pegasus-plan output in %s", pegout)
         with open(pegout, "w") as ppfh:
             process = subprocess.Popen(
-                shlex.split(cmdStr), shell=False, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+                shlex.split(cmd_str), shell=False, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
             )
             buf = os.read(process.stdout.fileno(), bufsize).decode()
             while process.poll is None or len(buf) != 0:
-                m = re.search(r"pegasus-run\s+(\S+)", buf)
+                match = re.search(r"pegasus-run\s+(\S+)", buf)
                 ppfh.write(buf)
-                if m:
-                    self.pegasusRunId = m.group(1)
+                if match:
+                    self.run_id = match.group(1)
                 buf = os.read(process.stdout.fileno(), bufsize).decode()
             process.stdout.close()
             process.wait()
@@ -326,30 +346,32 @@ class PegasusWorkflow(object):
         if process.returncode != 0:
             raise RuntimeError("pegasus-plan exited with non-zero exit code (%s)" % process.returncode)
 
-        # Hack - Using profile in sites.xml doesn't add run attributes to DAG submission file (see _defineSites)
-        # So adding them here:
-        if "run_attrib" in self.genWorkflow.graph:
-            subname = f'{self.pegasusRunId}/{self.config["workflowName"]}-0.dag.condor.sub'
+        # Hack - Using profile in sites.xml doesn't add run attributes to DAG submission
+        # file (see _define_sites). So adding them here:
+        if "run_attrib" in self.workflow_graph.graph:
+            subname = f'{self.run_id}/{self.workflow_config["workflowName"]}-0.dag.condor.sub'
             shutil.copyfile(subname, subname + ".orig")
             with open(subname + ".orig", "r") as insubfh:
                 with open(subname, "w") as outsubfh:
                     for line in insubfh:
                         if line.strip() == "queue":
-                            htc_write_attribs(outsubfh, self.genWorkflow.graph["run_attrib"])
+                            htc_write_attribs(outsubfh, self.workflow_graph.graph["run_attrib"])
                             htc_write_attribs(outsubfh, {"bps_jobabbrev": "DAG"})
                         outsubfh.write(line)
 
-    def _writePegasusPropertiesFile(self):
+    def _write_pegasus_properties_file(self):
+        """Write Pegasus Properties File
+        """
 
-        with open(self.pegasusFiles["prop"]["name"], "w") as pfh:
+        with open(self.pegasus_files["prop"]["name"], "w") as pfh:
             pfh.write("# This tells Pegasus where to find the Site Catalog.\n")
-            pfh.write("pegasus.catalog.site.file=%s\n" % self.pegasusFiles["sc"]["name"])
+            pfh.write("pegasus.catalog.site.file=%s\n" % self.pegasus_files["sc"]["name"])
             pfh.write("# This tells Pegasus where to find the Replica Catalog.\n")
             pfh.write("pegasus.catalog.replica=File\n")
-            pfh.write("pegasus.catalog.replica.file=%s\n" % self.pegasusFiles["rc"]["name"])
+            pfh.write("pegasus.catalog.replica.file=%s\n" % self.pegasus_files["rc"]["name"])
             pfh.write("# This tells Pegasus where to find the Transformation Catalog.\n")
             pfh.write("pegasus.catalog.transformation=Text\n")
-            pfh.write("pegasus.catalog.transformation.file=%s\n" % self.pegasusFiles["tc"]["name"])
+            pfh.write("pegasus.catalog.transformation.file=%s\n" % self.pegasus_files["tc"]["name"])
             pfh.write("# Run Pegasus in shared file system mode.\n")
             pfh.write("pegasus.data.configuration=sharedfs\n")
             pfh.write("# Make Pegasus use links instead of transfering files.\n")
@@ -360,13 +382,15 @@ class PegasusWorkflow(object):
             # pfh.write("pegasus.dir.storage.deep=true\n")
 
     def submit(self):
+        """Submit run to WMS by calling pegasus-run
+        """
         cmd = ["pegasus-run"]
-        cmd.append(self.pegasusRunId)
-        cmdStr = " ".join(cmd)
+        cmd.append(self.run_id)
+        cmd_str = " ".join(cmd)
         bufsize = 5000
         with open("%s/pegasus-run.out" % self.workdir, "w") as ppfh:
             process = subprocess.Popen(
-                shlex.split(cmdStr), shell=False, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+                shlex.split(cmd_str), shell=False, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
             )
             buf = os.read(process.stdout.fileno(), bufsize).decode()
             while process.poll is None or len(buf) != 0:
@@ -377,6 +401,3 @@ class PegasusWorkflow(object):
 
         if process.returncode != 0:
             raise RuntimeError("pegasus-run exited with non-zero exit code (%s)" % process.returncode)
-
-    def getId(self):
-        return self.pegasusRunId

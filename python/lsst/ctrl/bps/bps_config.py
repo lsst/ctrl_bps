@@ -19,34 +19,46 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from lsst.daf.butler.core.config import Config
+"""
+Configuration class that adds order to searching sections for value,
+expands environment variables and other config variables
+"""
+
 from os.path import expandvars
 import logging
 import copy
-import sys
 import string
 
-FILENODE = 0
-TASKNODE = 1
+from lsst.daf.butler.core.config import Config
+
 SEARCH_ORDER = ["payload", "pipetask", "site", "global"]
 
 _LOG = logging.getLogger()
 
 
 class BpsFormatter(string.Formatter):
+    """String formatter class that allows BPS config
+    search options
+    """
     def get_field(self, field_name, args, kwargs):
         val = args[0].__getitem__(field_name, opt=args[1])
         return (val, field_name)
 
     def get_value(self, key, args, kwargs):
-        # args = [ config ]
-        # kwargs is equiv to opt
         val = args[0].__getitem__(key, opt=args[1])
         return val
 
 
 class BpsConfig(Config):
-    def __init__(self, other, *args, **kwargs):
+    """Contains the configuration for a BPS submission
+
+    Parameters
+    ----------
+    other: `str`, `dict`, `Config`, `BpsConfig`
+        Path to a yaml file or a dict/Config/BpsConfig
+        containing configuration to copy
+    """
+    def __init__(self, other):
         super().__init__()
         self.search_order = []
         self.formatter = BpsFormatter()
@@ -58,51 +70,107 @@ class BpsConfig(Config):
         elif isinstance(other, Config):
             super().__init__(other)
         elif isinstance(other, str):
-            self.__initFromFile(other)
-        elif isinstance(other, dict) and "configFile" in other:
-            self.__initFromFile(other["configFile"])
+            self._init_from_file(other)
+        elif isinstance(other, dict) and "config_file" in other:
+            self._init_from_file(other["config_file"])
         else:
             raise RuntimeError("A BpsConfig could not be loaded from other: %s" % other)
 
-    def __initFromFile(self, configFile):
-        mainCfg = Config(configFile)
+    def _init_from_file(self, config_file):
+        """Reads configuration from a yaml file
+
+        Parameters
+        ----------
+        config_file: `str`:
+            Filename for the yaml file containing BPS config
+        """
+        main_config = Config(config_file)
 
         # job, pipetask, block, archive, site, global
-        if "includeConfigs" in mainCfg:
-            for inc in [x.strip() for x in mainCfg["includeConfigs"].split(",")]:
+        if "includeConfigs" in main_config:
+            for inc in [x.strip() for x in main_config["includeConfigs"].split(",")]:
                 _LOG.debug("Loading includeConfig %s", inc)
-                incConfig = Config(inc)
-                self.update(incConfig)
-            mainCfg.__delitem__("includeConfigs")
+                incl_config = Config(inc)
+                self.update(incl_config)
+            main_config.__delitem__("includeConfigs")
         else:
             _LOG.debug("Given config does not have key 'includeConfigs'")
 
-        self.update(mainCfg)
+        self.update(main_config)
         self.search_order = SEARCH_ORDER
         self.formatter = BpsFormatter()
 
     def copy(self):
-        print("Called copy")
+        """Makes a copy of config
+
+        Returns
+        -------
+        copy: `BpsConfig`
+            A duplicate of itself
+        """
         return BpsConfig(self)
 
     def __getitem__(self, name, opt=None):
+        """Returns the value from the config for the given name
+
+        Parameters
+        ----------
+        name: `str`
+            Key to look for in config
+        opt: `dict`, optional
+            Options to pass to search method
+
+        Returns
+        -------
+        val: `str`, `int`, `BPSConfig`, ...
+            Value from config if found
+        """
         _LOG.debug("GETITEM: %s, %s", name, opt)
 
         if opt is None:
             opt = {}
 
-        found, val = self.search(name, opt)
+        _, val = self.search(name, opt)
 
         return val
 
     def __contains__(self, name, opt=None):
+        """Checks whether name is in config
+
+        Parameters
+        ----------
+        name: `str`
+            Key to look for in config
+        opt: `dict`, optional
+            Options to pass to search method
+
+        Returns
+        -------
+        found: `bool`
+            Whether name was in config or not
+        """
         found, _ = self.search(name, opt)
         return found
 
     def search(self, key, opt=None):
         """Searches for key using given opt following hierarchy rules.
 
-        Hierarchy rules: current vals, search object, search order of config sections
+        Hierarchy rules: current vals, search object, search order
+        of config sections.
+
+        Parameters
+        ----------
+        key: `str`
+            Key to look for in config
+        opt: `dict`, optional
+            Options to use while searching
+
+        Returns
+        -------
+        found: `bool`
+            Whether name was in config or not
+        value: `str`, `int`, `BpsConfig`, ...
+            Value from config if found
         """
         _LOG.debug("search: initial key = '%s', opt = '%s'", key, opt)
 
@@ -138,18 +206,18 @@ class BpsConfig(Config):
             for sect in self.search_order:
                 if Config.__contains__(self, sect):
                     _LOG.debug("Searching '%s' section for key '%s'", sect, key)
-                    searchSect = Config.__getitem__(self, sect)
+                    search_sect = Config.__getitem__(self, sect)
                     if "curr_" + sect in curvals:
                         currkey = curvals["curr_" + sect]
                         _LOG.debug("currkey for section %s = %s", sect, currkey)
-                        # searchSect = Config.__getitem__(searchSect, currkey)
-                        if Config.__contains__(searchSect, currkey):
-                            searchSect = Config.__getitem__(searchSect, currkey)
+                        # search_sect = Config.__getitem__(search_sect, currkey)
+                        if Config.__contains__(search_sect, currkey):
+                            search_sect = Config.__getitem__(search_sect, currkey)
 
-                    _LOG.debug("%s %s", key, searchSect)
-                    if Config.__contains__(searchSect, key):
+                    _LOG.debug("%s %s", key, search_sect)
+                    if Config.__contains__(search_sect, key):
                         found = True
-                        value = Config.__getitem__(searchSect, key)
+                        value = Config.__getitem__(search_sect, key)
                         break
                 else:
                     _LOG.warning("Missing search section '%s' while searching for '%s'", sect, key)
@@ -163,7 +231,7 @@ class BpsConfig(Config):
                     _LOG.debug("root value='%s'", value)
 
         if not found and "default" in opt:
-            val = opt["default"]
+            value = opt["default"]
             found = True  # ????
 
         if not found and opt.get("required", False):

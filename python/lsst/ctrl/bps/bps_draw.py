@@ -19,6 +19,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+"""Functions used to draw BPS graphs
+"""
 import logging
 import networkx
 
@@ -42,30 +44,41 @@ def draw_networkx_dot(graph, outname):
 
 
 def draw_qgraph_html(qgraph, outfile):
+    """Draw QuantumGraph in table form closer representing
+       internal format
+
+    Parameters
+    ----------
+    qgraph : `QuantumGraph`
+        NetworkX digraph
+    outfile : `str`
+        Output filename for drawn graph
+    """
+
     _LOG.info("creating explicit science graph")
 
     tcnt = 0
     drcnt = 0
     qcnt = 0
-    mapId = {}
+    dsname_to_node_id = {}
 
     with open(outfile, "w") as ofh:
         ofh.write("digraph Q {\n")
         ofh.write('\tedge [color="invis"];\n')
-        for taskId, nodes in enumerate(qgraph):
+        for nodes in qgraph:
             tcnt += 1
-            tnodeName = ".".join(nodes.taskDef.taskName.split(".")[-2:])
+            tnode_name = ".".join(nodes.taskDef.taskName.split(".")[-2:])
 
             ofh.write("task%d [shape=none, margin=0, label=<\n" % (tcnt))
             ofh.write('<table border="0" cellborder="1" cellspacing="0" cellpadding="4">\n')
             ofh.write(
-                '<TR><TD><b>TD</b></TD><TD colspan="%d">%s</TD></TR>\n' % (len(nodes.quanta), tnodeName)
+                '<TR><TD><b>TD</b></TD><TD colspan="%d">%s</TD></TR>\n' % (len(nodes.quanta), tnode_name)
             )
 
             # write quantum headers
             ofh.write("<TR><TD><b>Q</b></TD>")
             colcnt = 0
-            for qId in range(1, len(nodes.quanta) + 1):
+            for q_id in range(1, len(nodes.quanta) + 1):
                 qcnt += 1
                 colcnt += 1
                 if colcnt % 2 == 0:
@@ -77,15 +90,15 @@ def draw_qgraph_html(qgraph, outfile):
             # write quantum inputs
             ofh.write("<TR><TD><b>IN</b></TD>")
             colcnt = 0
-            for qId, quantum in enumerate(nodes.quanta):
+            for quantum in nodes.quanta:
                 dr_ids = []
-                for dsRefs in quantum.predictedInputs.values():
-                    for dsRef in dsRefs:
-                        dsName = "%s+%s" % (dsRef.datasetType.name, dsRef.dataId)
-                        if dsName not in mapId:
+                for ds_refs in quantum.predictedInputs.values():
+                    for ds_ref in ds_refs:
+                        ds_name = "%s+%s" % (ds_ref.datasetType.name, ds_ref.dataId)
+                        if ds_name not in dsname_to_node_id:
                             drcnt += 1
-                            mapId[dsName] = drcnt
-                        dr_ids.append("dr%03d" % mapId[dsName])
+                            dsname_to_node_id[ds_name] = drcnt
+                        dr_ids.append("dr%03d" % dsname_to_node_id[ds_name])
                 colcnt += 1
                 if colcnt % 2 == 0:
                     ofh.write("<TD>%s</TD>" % ",".join(dr_ids))
@@ -96,15 +109,15 @@ def draw_qgraph_html(qgraph, outfile):
             # write quantum outputs
             ofh.write("<TR><TD><b>OUT</b></TD>")
             colcnt = 0
-            for qId, quantum in enumerate(nodes.quanta):
+            for quantum in nodes.quanta:
                 dr_ids = []
-                for dsRefs in quantum.outputs.values():
-                    for dsRef in dsRefs:
-                        dsName = "%s+%s" % (dsRef.datasetType.name, dsRef.dataId)
-                        if dsName not in mapId:
+                for ds_refs in quantum.outputs.values():
+                    for ds_ref in ds_refs:
+                        ds_name = "%s+%s" % (ds_ref.datasetType.name, ds_ref.dataId)
+                        if ds_name not in dsname_to_node_id:
                             drcnt += 1
-                            mapId[dsName] = drcnt
-                        dr_ids.append("dr%03d" % mapId[dsName])
+                            dsname_to_node_id[ds_name] = drcnt
+                        dr_ids.append("dr%03d" % dsname_to_node_id[ds_name])
                 colcnt += 1
                 if colcnt % 2 == 0:
                     ofh.write("<TD>%s</TD>" % ",".join(dr_ids))

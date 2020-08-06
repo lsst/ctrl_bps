@@ -165,10 +165,10 @@ def htc_version():
         Raised if fail to parse htcondor API string
     """
     # $CondorVersion: 8.8.6 Nov 13 2019 BuildID: 489199 PackageID: 8.8.6-1 $
-    m = re.match(r"\$CondorVersion: (\d+).(\d+).(\d+)", htcondor.version())
-    if m is None:
+    version_info = re.match(r"\$CondorVersion: (\d+).(\d+).(\d+)", htcondor.version())
+    if version_info is None:
         raise RuntimeError("Problems parsing condor version")
-    return f"{int(m.group(1)):04}.{int(m.group(2)):04}.{int(m.group(3)):04}"
+    return f"{int(version_info.group(1)):04}.{int(version_info.group(2)):04}.{int(version_info.group(3)):04}"
 
 
 def htc_submit_from_dag(dag_filename, submit_options=None):

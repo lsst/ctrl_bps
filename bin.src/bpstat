@@ -25,17 +25,18 @@
 summarize what's in the queue
 """
 
+import os
 import htcondor
 import classad
-import os
-import sys
-import pprint
 
 
 def print_headers():
+    """Print headers
+    """
     print("{:>8} {:5} {:8} {:8} {:>50} {:>10} {}".format("ID", "PRJ", "CMPGN", "PAYLOAD",
-                                                      "RUN", "operator", "( U  | R  | S  | F  |  %  )"))
+                                                         "RUN", "operator", "( U  | R  | S  | F  |  %  )"))
     print("-" * 120)
+
 
 def dag_summary(dagjob, dagstat):
     """If DAG_Nodes* status entries are not in condor_q
@@ -43,14 +44,14 @@ def dag_summary(dagjob, dagstat):
        what is in condor_q output to create DAG summary
 
     Parameters
-    ==========
+    ----------
     dagjob: `classad._classad.ClassAd`
         Class ad for dagjob
     dagstat: `list`
         List of DAG job counts per job status
 
     Returns
-    =======
+    -------
     summary: `dict`
         Dict of DAG summary stats
     """
@@ -69,15 +70,17 @@ def dag_summary(dagjob, dagstat):
                 dag_classad = classad.parseNext(infh)
             for key in ['NodesUnReady', 'NodesReady', 'NodesDone', 'NodesFailed', 'NodesTotal']:
                 summary[key] = dag_classad[key]
-
-        except OSError as ex:
+        except OSError:
+            # If other user's node stat file that don't have permissions to read,
+            # fall back to what can see in queue right now
             summary['NodesReady'] = dagstat[1] + dagstat[2] + dagstat[3] + dagstat[5]
             for key in ['NodesUnReady', 'NodesDone', 'NodesFailed', 'NodesTotal', 'Percent']:
                 summary[key] = 'UNK'
 
     # calculate percent done
     try:
-        summary['Percent'] = "{:3.1f}".format(100 * (summary['NodesDone'] + summary['NodesFailed']) / summary['NodesTotal'])
+        completed = summary['NodesDone'] + summary['NodesFailed']
+        summary['Percent'] = "{:3.1f}".format(100 * completed / summary['NodesTotal'])
     except (TypeError, KeyError):
         summary['Percent'] = "UNK"
 
@@ -85,46 +88,94 @@ def dag_summary(dagjob, dagstat):
 
 
 def print_run(jobads, jobid):
+    """Print single run info
+
+    Parameters
+    ----------
+    jobads : `dict`
+        Dictionary of HTCondor Job Classads
+    jobid : `int`
+        HTCondor job id
+    """
     dagjob = jobads[jobid]
     dagstat = dag_stat_summary(jobads, jobid)
 
     summary = dag_summary(dagjob, dagstat)
 
     # UNREADY READY SUCCESS FAILURE %DONE
-    statstr = "({:>4}|{:>4}|{:>4}|{:>4}|{:>5})".format(summary['NodesUnReady'], 
+    statstr = "({:>4}|{:>4}|{:>4}|{:>4}|{:>5})".format(summary['NodesUnReady'],
                                                        summary['NodesReady'],
                                                        summary['NodesDone'],
                                                        summary['NodesFailed'],
                                                        summary['Percent'])
 
     print("{:>8} {:5} {:8} {:8} {:>50} {:>10} {}".format(jobid,
-                                        dagjob['bps_project'],
-                                        dagjob['bps_campaign'],
-                                        dagjob['bps_payload'],
-                                        dagjob['bps_run'][:50],
-                                        dagjob['Owner'][:10],
-                                        statstr
-                                       ))
+                                                         dagjob['bps_project'],
+                                                         dagjob['bps_campaign'],
+                                                         dagjob['bps_payload'],
+                                                         dagjob['bps_run'][:50],
+                                                         dagjob['Owner'][:10],
+                                                         statstr))
     print_job_summary(jobads, jobid)
 
+
 def get_stat_counts(jobads, jobids):
+    """Count number of run jobs for each job status
+
+    Parameters
+    ----------
+    jobads : `dict`
+        Dictionary of HTCondor Job Classads
+    jobids : `list`
+        List of HTCondor job ids
+
+    Returns
+    -------
+    stat_counts : `list`
+        Job count per status (list index = job status value)
+    """
     stat_counts = {s: 0 for s in range(10)}
     for j in jobids:
         stat_counts[jobads[j]['JobStatus']] += 1
 
     return stat_counts
 
+
 def dag_jobs_by_label(jobads, dagid):
+    """Group DAG jobs by task abbreviation
+
+    Parameters
+    ----------
+    jobads : `dict`
+        Dictionary of HTCondor Job Classads
+    dagid : `int`
+        HTCondor job id for the run DAG
+
+    Returns
+    -------
+    job_labels : `dict`
+        Mapping of task abbrev to list of HTCondor job ids
+    """
     job_labels = {}
     for jobid in jobads:
         if jobads[jobid].get('DAGManJobId', -999) == dagid:
             label = jobads[jobid].get('bps_jobabbrev', 'bps')
-            if not label in job_labels:
+            if label not in job_labels:
                 job_labels[label] = []
             job_labels[label].append(jobid)
     return job_labels
 
+
 def print_job_summary(jobads, dagid):
+    """Print job summary per task abbrev
+
+    Parameters
+    ----------
+    jobads : `dict`
+        Dictionary of HTCondor Job Classads
+    dagid : `int`
+        HTCondor job id for the run DAG
+    """
     by_labels = dag_jobs_by_label(jobads, dagid)
 
     formatstr = "\t\t{:<20} {}"
@@ -135,8 +186,23 @@ def print_job_summary(jobads, dagid):
                                                  statjobs[3], statjobs[5])
         print(formatstr.format(statstr, label))
 
+
 def dag_stat_summary(jobads, dagid):
-    dagjob = jobads[dagid]
+    """Print job summary per task abbrev
+
+    Parameters
+    ----------
+    jobads : `dict`
+        Dictionary of HTCondor Job Classads
+    dagid : `int`
+        HTCondor job id for the run DAG
+
+    Returns
+    -------
+    dagstat : `list`
+        Job count per status (list index = job status value)
+
+    """
     jobs_in_dag = []
     for jobid in jobads:
         if jobads[jobid].get('DAGManJobId', -999) == dagid:
@@ -145,7 +211,8 @@ def dag_stat_summary(jobads, dagid):
     dagstat = get_stat_counts(jobads, jobs_in_dag)
     return dagstat
 
-def main(argv):
+
+def main():
     """Program Entry point.
     """
     schedd = htcondor.Schedd()
@@ -158,7 +225,7 @@ def main(argv):
         del jobinfo['Environment']
         jobads[jobinfo['ClusterId']] = jobinfo
 
-    top_jobs, orphan_jobs = condorq_dag(jobads)
+    top_jobs, _ = condorq_dag(jobads)
     print_headers()
     for jobid in sorted(top_jobs):
         print_run(jobads, jobid)
@@ -166,16 +233,27 @@ def main(argv):
 
 def condorq_dag(jobads):
     """Reorganize queue query results into dag trees.
-    """
 
+    Parameters
+    ----------
+    jobads : `dict`
+        Dictionary of HTCondor Job Classads
+
+    Returns
+    -------
+    top_jobs : `list`
+        List of DAGMan jobs
+    orphan_jobs : `list`
+        List of BPS jobs that don't have a DAG parent still in queue
+    """
     top_jobs = []  # top dagman jobs
     orphan_jobs = []  # jobs whose parents aren't in queue or non-dagman jobs
 
     for jobid, jobinfo in jobads.items():
-        if not 'children' in jobinfo:
+        if 'children' not in jobinfo:
             jobinfo['children'] = []
 
-        if 'dagmanjobid' in jobinfo: # should have parent
+        if 'dagmanjobid' in jobinfo:  # should have parent
             if jobinfo['dagmanjobid'] in jobads:  # if have parent
                 if 'children' in jobads[jobinfo['dagmanjobid']]:
                     jobads[jobinfo['dagmanjobid']]['children'].append(jobid)
@@ -192,6 +270,5 @@ def condorq_dag(jobads):
     return top_jobs, orphan_jobs
 
 
-
 if __name__ == '__main__':
-    main(sys.argv[1:])
+    main()

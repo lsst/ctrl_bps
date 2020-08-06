@@ -19,53 +19,45 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+"""Support for workflow engines"""
 
-# genWorkflow = networkX graph
-# bipartite:  nodeType = 0 (file), nodeType = 1 (executable)
-# executable node
-#    execName
-#    execArgs (opt)
-#    requestCpus (opt)
-#    requestMemory (opt)
-# file node
-#    lfn
-#    ignore = True/False
-#    data_type = "science"
+from abc import ABCMeta
 
 
-class workflowEngine(object):
-    def __init__(config):
-        pass
+class WorkflowEngine:
+    """Support for generating WMS workflow
+    """
+    def __init__(self, config):
+        self.config = config
 
-    def implementWorkflow(genWorkflow):
-        return
+    def implement_workflow(self, gen_workflow):
+        """Create submission for a generic workflow
+        in a specific WMS
+        """
+        raise NotImplementedError
+
+
+class Workflow(metaclass=ABCMeta):
+    """Interface for single workflow specific to a WMS
+
+    Parameters
+    ----------
+    config : `BpsConfig`
+        Generic workflow config
+    gen_workflow : `networkx.DiGraph`
+        Generic workflow graph
+    """
+    def __init__(self, config, gen_workflow):
+        self.workflow_config = config
+        self.workflow_graph = gen_workflow
+        self.run_id = None
 
     def submit(self):
-        pass
+        """Submit workflow to WMS
+        """
+        raise NotImplementedError
 
-    def statusID(self, id):
-        pass
-
-    def statusAll(self):
-        pass
-
-    def remove():
-        pass
-
-    # future def history()
-    # future def pause()
-    # future def continue()
-    # future def edit()
-    # future def setRestartPoint()
-    # future def restart()
-
-
-class workflow(object):
-    def __init__(config, genWorkflow):
-        pass
-
-    def implementWorkflow(genWorkflow):
-        pass
-
-    def getId():
-        pass
+    def get_id(self):
+        """Return run id
+        """
+        return self.run_id

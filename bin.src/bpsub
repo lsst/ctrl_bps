@@ -21,12 +21,14 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+"""Submit a run to a WMS"""
+
 import logging
 import argparse
 import sys
 
+from lsst.ctrl.bps.bps_core import BpsCore
 
-from lsst.ctrl.bps.bpsCore import BpsCore
 
 def parse_args(argv=None):
     """Parse command line, and test for required arguments
@@ -50,7 +52,7 @@ def parse_args(argv=None):
                         help="Set logging to debug level")
     parser.add_argument("-v", "--verbose", action="store_true", dest="verbose", required=False,
                         help="Set logging to info level")
-    parser.add_argument("configFile", action="store", default=None)
+    parser.add_argument("config_file", action="store", default=None)
     parser.add_argument("--overrides", action="store", dest="overrides", default="")
     args = parser.parse_args(argv)
     return args
@@ -76,11 +78,11 @@ def main(argv):
     elif args.verbose:
         _log.setLevel(logging.INFO)
 
-    bps = BpsCore(args.configFile, overrides=args.overrides)
-    bps.createSubmission()
+    bps = BpsCore(args.config_file, overrides=args.overrides)
+    bps.create_submission()
     if not args.dryrun:
         bps.submit()
-        print("Run Id: %s" % bps.getId())
+        print("Run Id: %s" % bps.get_id())
     else:
         print("dryrun set.  Skipping actual submission.")
 
