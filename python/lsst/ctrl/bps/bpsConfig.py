@@ -28,7 +28,7 @@ import string
 
 FILENODE = 0
 TASKNODE = 1
-SEARCH_ORDER = ['payload', 'pipetask', 'site', 'global']
+SEARCH_ORDER = ["payload", "pipetask", "site", "global"]
 
 _LOG = logging.getLogger()
 
@@ -59,27 +59,27 @@ class BpsConfig(Config):
             super().__init__(other)
         elif isinstance(other, str):
             self.__initFromFile(other)
-        elif isinstance(other, dict) and 'configFile' in other:
-            self.__initFromFile(other['configFile'])
+        elif isinstance(other, dict) and "configFile" in other:
+            self.__initFromFile(other["configFile"])
         else:
             raise RuntimeError("A BpsConfig could not be loaded from other: %s" % other)
 
     def __initFromFile(self, configFile):
-            mainCfg = Config(configFile)
+        mainCfg = Config(configFile)
 
-            # job, pipetask, block, archive, site, global
-            if 'includeConfigs' in mainCfg:
-                for inc in [x.strip() for x in mainCfg['includeConfigs'].split(',')]:
-                    _LOG.debug("Loading includeConfig %s" % inc)
-                    incConfig = Config(inc)
-                    self.update(incConfig)
-                mainCfg.__delitem__('includeConfigs')
-            else:
-                _LOG.debug("Given config does not have key 'includeConfigs'")
+        # job, pipetask, block, archive, site, global
+        if "includeConfigs" in mainCfg:
+            for inc in [x.strip() for x in mainCfg["includeConfigs"].split(",")]:
+                _LOG.debug("Loading includeConfig %s" % inc)
+                incConfig = Config(inc)
+                self.update(incConfig)
+            mainCfg.__delitem__("includeConfigs")
+        else:
+            _LOG.debug("Given config does not have key 'includeConfigs'")
 
-            self.update(mainCfg)
-            self.search_order = SEARCH_ORDER
-            self.formatter = BpsFormatter()
+        self.update(mainCfg)
+        self.search_order = SEARCH_ORDER
+        self.formatter = BpsFormatter()
 
     def copy(self):
         print("Called copy")
@@ -110,18 +110,18 @@ class BpsConfig(Config):
             opt = {}
 
         found = False
-        value = ''
+        value = ""
 
         # start with stored current values
         curvals = None
-        if Config.__contains__(self, 'current'):
-            curvals = copy.deepcopy(Config.__getitem__(self, 'current'))
+        if Config.__contains__(self, "current"):
+            curvals = copy.deepcopy(Config.__getitem__(self, "current"))
         else:
             curvals = {}
 
         # override with current values passed into function if given
-        if 'curvals' in opt:
-            for ckey, cval in list(opt['curvals'].items()):
+        if "curvals" in opt:
+            for ckey, cval in list(opt["curvals"].items()):
                 _LOG.debug("using specified curval %s = %s" % (ckey, cval))
                 curvals[ckey] = cval
 
@@ -131,9 +131,9 @@ class BpsConfig(Config):
             _LOG.debug("found %s in curvals" % (key))
             found = True
             value = curvals[key]
-        elif 'searchobj' in opt and key in opt['searchobj']:
+        elif "searchobj" in opt and key in opt["searchobj"]:
             found = True
-            value = opt['searchobj'][key]
+            value = opt["searchobj"][key]
         else:
             for sect in self.search_order:
                 if Config.__contains__(self, sect):
@@ -142,7 +142,7 @@ class BpsConfig(Config):
                     if "curr_" + sect in curvals:
                         currkey = curvals["curr_" + sect]
                         _LOG.debug("currkey for section %s = %s" % (sect, currkey))
-                        #searchSect = Config.__getitem__(searchSect, currkey)
+                        # searchSect = Config.__getitem__(searchSect, currkey)
                         if Config.__contains__(searchSect, currkey):
                             searchSect = Config.__getitem__(searchSect, currkey)
 
@@ -162,13 +162,13 @@ class BpsConfig(Config):
                     value = Config.__getitem__(self, key)
                     _LOG.debug("root value='%s'" % (value))
 
-        if not found and 'default' in opt:
-            val = opt['default']
-            found = True  #????
+        if not found and "default" in opt:
+            val = opt["default"]
+            found = True  # ????
 
-        if not found and opt.get('required', False):
+        if not found and opt.get("required", False):
             print("\n\nError: search for %s failed" % (key))
-            print("\tcurrent = ", Config.__getitem__(self, 'current'))
+            print("\tcurrent = ", Config.__getitem__(self, "current"))
             print("\topt = ", opt)
             print("\tcurvals = ", curvals)
             print("\n\n")
@@ -177,7 +177,7 @@ class BpsConfig(Config):
         _LOG.debug("found=%s, value=%s" % (found, value))
 
         _LOG.debug("opt=%s %s" % (opt, type(opt)))
-        if found and isinstance(value, str) and opt.get('replaceVars', True):
+        if found and isinstance(value, str) and opt.get("replaceVars", True):
             _LOG.debug("before format=%s" % (value))
             value = expandvars(value)  # must replace env vars before calling format
             value = self.formatter.format(value, self, opt)

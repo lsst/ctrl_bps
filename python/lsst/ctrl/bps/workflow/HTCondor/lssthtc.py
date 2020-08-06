@@ -29,12 +29,25 @@ import subprocess
 import networkx
 import htcondor
 
-HTC_QUOTE_KEYS = {'environment'}
-HTC_VALID_JOB_KEYS = {'universe', 'executable', 'arguments', 'log', 'error', 'output',
-                      'should_transfer_files', 'when_to_transfer_output', 'getenv',
-                      'notification', 'transfer_executable', 'transfer_input_files',
-                      'request_cpus', 'request_memory', 'requirements'}
-HTC_VALID_JOB_DAG_KEYS = {'pre', 'post', 'executable'}
+HTC_QUOTE_KEYS = {"environment"}
+HTC_VALID_JOB_KEYS = {
+    "universe",
+    "executable",
+    "arguments",
+    "log",
+    "error",
+    "output",
+    "should_transfer_files",
+    "when_to_transfer_output",
+    "getenv",
+    "notification",
+    "transfer_executable",
+    "transfer_input_files",
+    "request_cpus",
+    "request_memory",
+    "requirements",
+}
+HTC_VALID_JOB_DAG_KEYS = {"pre", "post", "executable"}
 
 
 class RestrictedDict(MutableMapping):
@@ -47,6 +60,7 @@ class RestrictedDict(MutableMapping):
     init_data: `dict`
         Dictionary with initial data
     """
+
     def __init__(self, valid_keys, init_data=()):
         self.valid_keys = valid_keys
         self.data = {}
@@ -92,7 +106,7 @@ def htc_escape(val):
     newval: `str`
         Given string with characters escaped
     """
-    return val.replace('\\', '\\\\').replace('"', '\\"').replace("'", "''")
+    return val.replace("\\", "\\\\").replace('"', '\\"').replace("'", "''")
 
 
 def htc_write_attribs(outfh, attribs):
@@ -122,20 +136,20 @@ def htc_write_condor_file(filename, jobname, jobdict, jobattrib):
     jobattrib: `dict`
         Dictionary of job attribute key, value
     """
-    with open(filename, 'w') as subfh:
+    with open(filename, "w") as subfh:
         for key, val in jobdict.items():
             if key in HTC_QUOTE_KEYS:
                 subfh.write(f'{key}="{htc_escape(val)}"\n')
             else:
-                subfh.write(f'{key}={val}\n')
-        for key in ['output', 'error', 'log']:
+                subfh.write(f"{key}={val}\n")
+        for key in ["output", "error", "log"]:
             if key not in jobdict:
-                filename = f'{jobname}.$(Cluster).${key[:3]}'
-                subfh.write(f'{key}={filename}\n')
+                filename = f"{jobname}.$(Cluster).${key[:3]}"
+                subfh.write(f"{key}={filename}\n")
 
         if jobattrib is not None:
             htc_write_attribs(subfh, jobattrib)
-        subfh.write('queue\n')
+        subfh.write("queue\n")
 
 
 def htc_version():
@@ -175,17 +189,16 @@ def htc_submit_from_dag(dag_filename, submit_options=None):
     """
 
     # run command line condor_submit_dag command
-    cmd = 'condor_submit_dag -f -no_submit -notification never -autorescue 0 -UseDagDir -no_recurse '
+    cmd = "condor_submit_dag -f -no_submit -notification never -autorescue 0 -UseDagDir -no_recurse "
 
     if submit_options is not None:
         for opt, val in submit_options.items():
             cmd += f" -{opt} {val or ''}"
-    cmd += f'{dag_filename}'
+    cmd += f"{dag_filename}"
 
-    process = subprocess.Popen(cmd.split(), shell=False,
-                               stdout=subprocess.PIPE,
-                               stderr=subprocess.STDOUT,
-                               encoding='utf-8')
+    process = subprocess.Popen(
+        cmd.split(), shell=False, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding="utf-8"
+    )
     process.wait()
 
     if process.returncode != 0:
@@ -195,14 +208,14 @@ def htc_submit_from_dag(dag_filename, submit_options=None):
 
     # read in the created submit file in order to create submit object
     sublines = {}
-    with open(dag_filename + '.condor.sub', 'r') as infh:
+    with open(dag_filename + ".condor.sub", "r") as infh:
         for line in infh:
             line = line.strip()
-            if not line.startswith('#') and not line == 'queue':
-                (key, val) = re.split(r'\s*=\s*', line, 1)
+            if not line.startswith("#") and not line == "queue":
+                (key, val) = re.split(r"\s*=\s*", line, 1)
                 # Avoid UserWarning: the line 'copy_to_spool = False' was
                 #       unused by Submit object. Is it a typo?
-                if key != 'copy_to_spool':
+                if key != "copy_to_spool":
                     sublines[key] = val
 
     sub = htcondor.Submit(sublines)
@@ -220,32 +233,38 @@ def htc_write_job_commands(dagfh, name, jdict):
     jdict: `RestrictedDict`
         Dictionary of DAG job keys and values
     """
-    if 'pre' in jdict:
-        dagfh.write(f"SCRIPT {jdict['pre'].get('defer', '')} PRE {name}"
-                    f"{jdict['pre']['executable']} {jdict['pre'].get('arguments', '')}"
-                    f"\n")
+    if "pre" in jdict:
+        dagfh.write(
+            f"SCRIPT {jdict['pre'].get('defer', '')} PRE {name}"
+            f"{jdict['pre']['executable']} {jdict['pre'].get('arguments', '')}"
+            f"\n"
+        )
 
-    if 'post' in jdict:
-        dagfh.write(f"SCRIPT {jdict['post'].get('defer', '')} PRE {name}"
-                    f"{jdict['post']['executable']} {jdict['post'].get('arguments', '')}"
-                    f"\n")
+    if "post" in jdict:
+        dagfh.write(
+            f"SCRIPT {jdict['post'].get('defer', '')} PRE {name}"
+            f"{jdict['post']['executable']} {jdict['post'].get('arguments', '')}"
+            f"\n"
+        )
 
-    if 'vars' in jdict:
-        for key, val in jdict['vars']:
+    if "vars" in jdict:
+        for key, val in jdict["vars"]:
             dagfh.write(f'VARS {name} {key}="{htc_escape(val)}"\n')
 
-    if 'pre_skip' in jdict:
+    if "pre_skip" in jdict:
         dagfh.write(f"PRE_SKIP {name} {jdict['pre_skip']}")
 
-    if 'retry' in jdict:
+    if "retry" in jdict:
         dagfh.write(f"RETRY {name} {jdict['retry']} ")
-        if 'retry_unless_exit' in jdict:
+        if "retry_unless_exit" in jdict:
             dagfh.write(f"UNLESS-EXIT {jdict['retry_unless_exit']}")
         dagfh.write("\n")
 
-    if 'abort_dag_on' in jdict:
-        dagfh.write(f"ABORT-DAG-ON {name} {jdict['abort_dag_on']['node_exit']}"
-                    f" RETURN {jdict['abort_dag_on']['abort_exit']}\n")
+    if "abort_dag_on" in jdict:
+        dagfh.write(
+            f"ABORT-DAG-ON {name} {jdict['abort_dag_on']['node_exit']}"
+            f" RETURN {jdict['abort_dag_on']['abort_exit']}\n"
+        )
 
 
 class HTCJob:
@@ -263,6 +282,7 @@ class HTCJob:
     initattrs: `dict`
         Initial dictionary of job attributes
     """
+
     def __init__(self, name, group=None, initcmds=(), initdagcmds=(), initattrs=None):
         self.name = name
         self.group = group
@@ -349,9 +369,10 @@ class HTCDag(networkx.DiGraph):
     name: `str`
         Name for DAG
     """
-    def __init__(self, data=None, name=''):
+
+    def __init__(self, data=None, name=""):
         super(HTCDag, self).__init__(data=data, name=name)
-        self.graph['attribs'] = dict()
+        self.graph["attribs"] = dict()
         self.run_id = None
 
     def __str__(self):
@@ -372,7 +393,7 @@ class HTCDag(networkx.DiGraph):
             DAG attributes
         """
         if attribs is not None:
-            self.graph['attribs'].update(attribs)
+            self.graph["attribs"].update(attribs)
 
     def add_job(self, job, parent_names=None, child_names=None):
         """Add an HTCJob to the HTCDag
@@ -424,11 +445,11 @@ class HTCDag(networkx.DiGraph):
         prefix: `str`
             Prefix path for dag filename to be combined with DAG name
         """
-        self.graph['dag_filename'] = os.path.join(prefix, f"{self.graph['name']}.dag")
+        self.graph["dag_filename"] = os.path.join(prefix, f"{self.graph['name']}.dag")
         os.makedirs(prefix, exist_ok=True)
-        with open(self.graph['dag_filename'], 'w') as dagfh:
+        with open(self.graph["dag_filename"], "w") as dagfh:
             for _, nodeval in self.nodes().items():
-                job = nodeval['data']
+                job = nodeval["data"]
                 job.write_submit_file(prefix)
                 job.write_dag_commands(dagfh)
             for edge in self.edges():
@@ -460,12 +481,12 @@ class HTCDag(networkx.DiGraph):
         """
         ver = htc_version()
         if ver >= "8.9.3":
-            sub = htcondor.Submit.from_dag(self.graph['dag_filename'], submit_options)
+            sub = htcondor.Submit.from_dag(self.graph["dag_filename"], submit_options)
         else:
-            sub = htc_submit_from_dag(self.graph['dag_filename'], submit_options)
+            sub = htc_submit_from_dag(self.graph["dag_filename"], submit_options)
 
         # add attributes to dag submission
-        for key, val in self.graph['attribs'].items():
+        for key, val in self.graph["attribs"].items():
             sub[f"+{key}"] = f'"{htc_escape(val)}"'
 
         # submit DAG to HTCondor's schedd
