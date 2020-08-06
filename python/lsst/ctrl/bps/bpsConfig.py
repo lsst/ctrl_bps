@@ -70,7 +70,7 @@ class BpsConfig(Config):
         # job, pipetask, block, archive, site, global
         if "includeConfigs" in mainCfg:
             for inc in [x.strip() for x in mainCfg["includeConfigs"].split(",")]:
-                _LOG.debug("Loading includeConfig %s" % inc)
+                _LOG.debug("Loading includeConfig %s", inc)
                 incConfig = Config(inc)
                 self.update(incConfig)
             mainCfg.__delitem__("includeConfigs")
@@ -86,7 +86,7 @@ class BpsConfig(Config):
         return BpsConfig(self)
 
     def __getitem__(self, name, opt=None):
-        _LOG.debug("GETITEM: %s, %s" % (name, opt))
+        _LOG.debug("GETITEM: %s, %s", name, opt)
 
         if opt is None:
             opt = {}
@@ -104,7 +104,7 @@ class BpsConfig(Config):
 
         Hierarchy rules: current vals, search object, search order of config sections
         """
-        _LOG.debug("search: initial key = '%s', opt = '%s'" % (key, opt))
+        _LOG.debug("search: initial key = '%s', opt = '%s'", key, opt)
 
         if opt is None:
             opt = {}
@@ -122,13 +122,13 @@ class BpsConfig(Config):
         # override with current values passed into function if given
         if "curvals" in opt:
             for ckey, cval in list(opt["curvals"].items()):
-                _LOG.debug("using specified curval %s = %s" % (ckey, cval))
+                _LOG.debug("using specified curval %s = %s", ckey, cval)
                 curvals[ckey] = cval
 
-        _LOG.debug("curvals = %s" % curvals)
+        _LOG.debug("curvals = %s", curvals)
 
         if key in curvals:
-            _LOG.debug("found %s in curvals" % (key))
+            _LOG.debug("found %s in curvals", key)
             found = True
             value = curvals[key]
         elif "searchobj" in opt and key in opt["searchobj"]:
@@ -137,30 +137,30 @@ class BpsConfig(Config):
         else:
             for sect in self.search_order:
                 if Config.__contains__(self, sect):
-                    _LOG.debug("Searching '%s' section for key '%s'" % (sect, key))
+                    _LOG.debug("Searching '%s' section for key '%s'", sect, key)
                     searchSect = Config.__getitem__(self, sect)
                     if "curr_" + sect in curvals:
                         currkey = curvals["curr_" + sect]
-                        _LOG.debug("currkey for section %s = %s" % (sect, currkey))
+                        _LOG.debug("currkey for section %s = %s", sect, currkey)
                         # searchSect = Config.__getitem__(searchSect, currkey)
                         if Config.__contains__(searchSect, currkey):
                             searchSect = Config.__getitem__(searchSect, currkey)
 
-                    _LOG.debug("%s %s" % (key, searchSect))
+                    _LOG.debug("%s %s", key, searchSect)
                     if Config.__contains__(searchSect, key):
                         found = True
                         value = Config.__getitem__(searchSect, key)
                         break
                 else:
-                    _LOG.warning("Missing search section '%s' while searching for '%s'" % (sect, key))
+                    _LOG.warning("Missing search section '%s' while searching for '%s'", sect, key)
 
             # lastly check root values
             if not found:
-                _LOG.debug("Searching root section for key '%s'" % (key))
+                _LOG.debug("Searching root section for key '%s'", key)
                 if Config.__contains__(self, key):
                     found = True
                     value = Config.__getitem__(self, key)
-                    _LOG.debug("root value='%s'" % (value))
+                    _LOG.debug("root value='%s'", value)
 
         if not found and "default" in opt:
             val = opt["default"]
@@ -174,14 +174,14 @@ class BpsConfig(Config):
             print("\n\n")
             raise KeyError("Error: Search failed (%s)" % key)
 
-        _LOG.debug("found=%s, value=%s" % (found, value))
+        _LOG.debug("found=%s, value=%s", found, value)
 
-        _LOG.debug("opt=%s %s" % (opt, type(opt)))
+        _LOG.debug("opt=%s %s", opt, type(opt))
         if found and isinstance(value, str) and opt.get("replaceVars", True):
-            _LOG.debug("before format=%s" % (value))
+            _LOG.debug("before format=%s", value)
             value = expandvars(value)  # must replace env vars before calling format
             value = self.formatter.format(value, self, opt)
-            _LOG.debug("after format=%s" % (value))
+            _LOG.debug("after format=%s", value)
 
         if found and isinstance(value, Config):
             value = BpsConfig(value)

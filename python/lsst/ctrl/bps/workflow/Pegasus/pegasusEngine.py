@@ -308,7 +308,7 @@ class PegasusWorkflow(object):
         cmdStr = " ".join(cmd)
         bufsize = 5000
         pegout = "%s/pegasus-plan.out" % self.workdir
-        _LOG.info("pegasus-plan output in %s" % pegout)
+        _LOG.info("pegasus-plan output in %s", pegout)
         with open(pegout, "w") as ppfh:
             process = subprocess.Popen(
                 shlex.split(cmdStr), shell=False, stdout=subprocess.PIPE, stderr=subprocess.STDOUT

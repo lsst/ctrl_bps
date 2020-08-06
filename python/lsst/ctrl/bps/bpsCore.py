@@ -83,10 +83,10 @@ def save_single_qgnode(qgnode, outFilename):
 def countQuantum(qgraph):
     cnt = 0
     for task_id, nodes in enumerate(qgraph):
-        _LOG.debug("%d task has %s quanta" % (task_id, len(nodes.quanta)))
+        _LOG.debug("%d task has %s quanta", task_id, len(nodes.quanta))
         cnt += len(nodes.quanta)
 
-    _LOG.debug("Total number of quanta = %d" % (cnt))
+    _LOG.debug("Total number of quanta = %d", cnt)
     return cnt
 
 
@@ -112,7 +112,7 @@ class BpsCore(object):
     def __init__(self, configFile, **kwargs):
         self.configLog(False, [])
         self.config = BpsConfig(configFile)
-        _LOG.debug("Core kwargs = '%s'" % kwargs)
+        _LOG.debug("Core kwargs = '%s'", kwargs)
         self.config[".global.timestamp"] = "{:%Y%m%dT%Hh%Mm%Ss}".format(datetime.datetime.now())
         if "uniqProcName" not in self.config:
             self.config[".global.uniqProcName"] = self.config["outCollection"].replace("/", "_")
@@ -123,7 +123,7 @@ class BpsCore(object):
             self.config.update(dct)
 
         self.submitPath = self.config["submitPath"]
-        _LOG.debug("submitPath = '%s'" % self.submitPath)
+        _LOG.debug("submitPath = '%s'", self.submitPath)
         print(self.submitPath)
 
         # make directories
@@ -182,7 +182,7 @@ class BpsCore(object):
     def _createQuantumGraph(self):
         """Create QuantumGraph
         """
-        _LOG.debug("submitPath = '%s'" % self.submitPath)
+        _LOG.debug("submitPath = '%s'", self.submitPath)
         self.qgraphFilename = "%s/%s.pickle" % (self.submitPath, self.config["uniqProcName"])
 
         # create cmdline
