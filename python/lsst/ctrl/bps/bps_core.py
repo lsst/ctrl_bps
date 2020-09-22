@@ -253,8 +253,6 @@ class BpsCore():
                 "QuantumGraph generation exited with non-zero exit code (%s)" % (process.returncode)
             )
 
-        self._read_quantum_graph()
-
         if self.config.get("saveDot", {"default": False}):
             draw_qgraph_html(self.qgraph, os.path.join(self.submit_path, "draw", "bpsgraph_quantum.dot"))
 
@@ -587,37 +585,47 @@ class BpsCore():
         """Create submission files but don't actually submit
         """
         subtime = time.time()
-        stime = time.time()
 
         # Un-pickling QGraph needs a dimensions universe defined in
         # registry. Easiest way to do it now is to initialize whole data
         # butler even if it isn't used. Butler requires run or collection
         # provided in constructor but in this case we do not care about
         # which collection to use so give it an empty name.
+        _LOG.info("Initializing Butler")
+        stime = time.time()
         self.butler = Butler(config=self.config["butlerConfig"], writeable=True)
         self.butler.registry.registerRun(self.config["outCollection"])
+        _LOG.info("Initializing Butler took %.2f seconds", time.time() - stime)
 
-        if "qgraph_file" in self.config["global"]:
-            _LOG.info("Copying and reading quantum graph (%s)", self.config["global"]["qgraph_file"])
-            self.qgraph_filename = "%s/%s" % (self.submit_path,
-                                              basename(self.config["global"]["qgraph_file"]))
-            shutil.copy2(self.config["global"]["qgraph_file"], self.qgraph_filename)
-            self._read_quantum_graph()
-            _LOG.info("Reading quantum graph took %.2f seconds", time.time() - stime)
+        found, filename = self.config.search("qgraph_file")
+        if found:
+            _LOG.info("Copying quantum graph (%s)", filename)
+            stime = time.time()
+            self.qgraph_filename = "%s/%s" % (self.submit_path, basename(filename))
+            shutil.copy2(filename, self.qgraph_filename)
+            _LOG.info("Copying quantum graph took %.2f seconds", time.time() - stime)
         else:
             _LOG.info("Creating quantum graph")
+            stime = time.time()
             self._create_quantum_graph()
             _LOG.info("Creating quantum graph took %.2f seconds", time.time() - stime)
 
+        _LOG.info("Reading quantum graph (%s)", filename)
+        stime = time.time()
+        self._read_quantum_graph()
+        _LOG.info("Reading quantum graph took %.2f seconds", time.time() - stime)
+
+        _LOG.info("Creating Generic Workflow")
         stime = time.time()
         self._create_generic_workflow()
+        self._create_generic_workflow_config()
         _LOG.info("Creating Generic Workflow took %.2f seconds", time.time() - stime)
 
-        self._create_generic_workflow_config()
-
         stime = time.time()
+        _LOG.info("Creating specific implementation of workflow")
         self._implement_workflow()
         _LOG.info("Creating specific implementation of workflow took %.2f seconds", time.time() - stime)
+
         _LOG.info("Total submission creation time = %.2f", time.time() - subtime)
 
     def submit(self):
