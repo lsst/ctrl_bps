@@ -175,13 +175,13 @@ class BpsCore():
         self.gen_wf_config = None
         self.workflow = None
 
-    def _create_qgraph_generation_cmdline(self):
-        """Create the command line to create QuantumGraph
+    def _create_cmdline_building_qgraph(self):
+        """Create the command for generating QuantumGraph from scratch.
 
-        RETURNS
+        Returns
         -------
-        cmdStr: `str`
-            String containing command to generate QuantumGraph
+        cmd : `str`
+            String representing the command to generate QuantumGraph.
         """
         cmd = ["pipetask"]
         cmd.append("qgraph")  # pipetask subcommand
@@ -225,17 +225,21 @@ class BpsCore():
         _LOG.debug("submit_path = '%s'", self.submit_path)
         self.qgraph_filename = "%s/%s.pickle" % (self.submit_path, self.config["uniqProcName"])
 
-        # create cmdline
-        cmdstr = self._create_qgraph_generation_cmdline()
-        _LOG.info(cmdstr)
+        args = {"curvals": {"qgraphfile": self.qgraph_filename}}
+        found, cmd = self.config.search("createQuantumGraph", opt=args)
+        if not found:
+            cmd = self._create_cmdline_building_qgraph()
+            _LOG.warning("command for generating Quantum Graph not found; "
+                         "generated one from scratch")
+        _LOG.info(cmd)
 
         bufsize = 5000
         with open("%s/quantumGraphGeneration.out" % self.submit_path, "w") as qqgfh:
-            qqgfh.write(cmdstr)
+            qqgfh.write(cmd)
             qqgfh.write("\n")
 
             process = subprocess.Popen(
-                shlex.split(cmdstr), shell=False, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+                shlex.split(cmd), shell=False, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
             )
             buf = os.read(process.stdout.fileno(), bufsize).decode()
             while process.poll is None or len(buf) != 0:
