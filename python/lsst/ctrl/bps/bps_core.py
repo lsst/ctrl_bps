@@ -22,6 +22,8 @@
 """Core functionality of BPS
 """
 
+__all__ = ("BpsCore",)
+
 import logging
 import subprocess
 import os
