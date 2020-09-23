@@ -66,6 +66,38 @@ log4j.appender.A1.layout.ConversionPattern={}
 _LOG = logging.getLogger()
 
 
+def execute(command, filename):
+    """Execute a command.
+
+    Parameters
+    ----------
+    command : `str`
+        String representing the command to execute.
+    filename : `str`
+        A file to which both stderr and stdout will be written to.
+
+    Returns
+    -------
+    exit_code : `int`
+        The exit code the command being executed finished with.
+    """
+    buffer_size = 5000
+    with open(filename, "w") as f:
+        f.write(command)
+        f.write("\n")
+        process = subprocess.Popen(
+            shlex.split(command), shell=False, stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT
+        )
+        buffer = os.read(process.stdout.fileno(), buffer_size).decode()
+        while process.poll is None or len(buffer) != 0:
+            f.write(buffer)
+            buffer = os.read(process.stdout.fileno(), buffer_size).decode()
+        process.stdout.close()
+        process.wait()
+    return process.returncode
+
+
 def pretty_dataset_label(orig_name):
     """Tweak dataset for a label
 
@@ -235,24 +267,11 @@ class BpsCore():
                          "generated one from scratch")
         _LOG.info(cmd)
 
-        bufsize = 5000
-        with open("%s/quantumGraphGeneration.out" % self.submit_path, "w") as qqgfh:
-            qqgfh.write(cmd)
-            qqgfh.write("\n")
-
-            process = subprocess.Popen(
-                shlex.split(cmd), shell=False, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
-            )
-            buf = os.read(process.stdout.fileno(), bufsize).decode()
-            while process.poll is None or len(buf) != 0:
-                qqgfh.write(buf)
-                buf = os.read(process.stdout.fileno(), bufsize).decode()
-            process.stdout.close()
-            process.wait()
-
-        if process.returncode != 0:
+        out = f"{self.submit_path}/quantumGraphGeneration.out"
+        status = execute(cmd, out)
+        if status != 0:
             raise RuntimeError(
-                "QuantumGraph generation exited with non-zero exit code (%s)" % (process.returncode)
+                "QuantumGraph generation exited with non-zero exit code (%s)" % (status)
             )
 
         if self.config.get("saveDot", {"default": False}):
