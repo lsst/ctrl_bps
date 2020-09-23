@@ -22,6 +22,8 @@
 """Core functionality of BPS
 """
 
+__all__ = ("BpsCore",)
+
 import logging
 import subprocess
 import os
@@ -62,6 +64,38 @@ log4j.appender.A1.layout.ConversionPattern={}
 """
 
 _LOG = logging.getLogger()
+
+
+def execute(command, filename):
+    """Execute a command.
+
+    Parameters
+    ----------
+    command : `str`
+        String representing the command to execute.
+    filename : `str`
+        A file to which both stderr and stdout will be written to.
+
+    Returns
+    -------
+    exit_code : `int`
+        The exit code the command being executed finished with.
+    """
+    buffer_size = 5000
+    with open(filename, "w") as f:
+        f.write(command)
+        f.write("\n")
+        process = subprocess.Popen(
+            shlex.split(command), shell=False, stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT
+        )
+        buffer = os.read(process.stdout.fileno(), buffer_size).decode()
+        while process.poll is None or len(buffer) != 0:
+            f.write(buffer)
+            buffer = os.read(process.stdout.fileno(), buffer_size).decode()
+        process.stdout.close()
+        process.wait()
+    return process.returncode
 
 
 def pretty_dataset_label(orig_name):
@@ -175,13 +209,13 @@ class BpsCore():
         self.gen_wf_config = None
         self.workflow = None
 
-    def _create_qgraph_generation_cmdline(self):
-        """Create the command line to create QuantumGraph
+    def _create_cmdline_building_qgraph(self):
+        """Create the command for generating QuantumGraph from scratch.
 
-        RETURNS
+        Returns
         -------
-        cmdStr: `str`
-            String containing command to generate QuantumGraph
+        cmd : `str`
+            String representing the command to generate QuantumGraph.
         """
         cmd = ["pipetask"]
         cmd.append("qgraph")  # pipetask subcommand
@@ -225,31 +259,20 @@ class BpsCore():
         _LOG.debug("submit_path = '%s'", self.submit_path)
         self.qgraph_filename = "%s/%s.pickle" % (self.submit_path, self.config["uniqProcName"])
 
-        # create cmdline
-        cmdstr = self._create_qgraph_generation_cmdline()
-        _LOG.info(cmdstr)
+        args = {"curvals": {"qgraphfile": self.qgraph_filename}}
+        found, cmd = self.config.search("createQuantumGraph", opt=args)
+        if not found:
+            cmd = self._create_cmdline_building_qgraph()
+            _LOG.warning("command for generating Quantum Graph not found; "
+                         "generated one from scratch")
+        _LOG.info(cmd)
 
-        bufsize = 5000
-        with open("%s/quantumGraphGeneration.out" % self.submit_path, "w") as qqgfh:
-            qqgfh.write(cmdstr)
-            qqgfh.write("\n")
-
-            process = subprocess.Popen(
-                shlex.split(cmdstr), shell=False, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
-            )
-            buf = os.read(process.stdout.fileno(), bufsize).decode()
-            while process.poll is None or len(buf) != 0:
-                qqgfh.write(buf)
-                buf = os.read(process.stdout.fileno(), bufsize).decode()
-            process.stdout.close()
-            process.wait()
-
-        if process.returncode != 0:
+        out = f"{self.submit_path}/quantumGraphGeneration.out"
+        status = execute(cmd, out)
+        if status != 0:
             raise RuntimeError(
-                "QuantumGraph generation exited with non-zero exit code (%s)" % (process.returncode)
+                "QuantumGraph generation exited with non-zero exit code (%s)" % (status)
             )
-
-        self._read_quantum_graph()
 
         if self.config.get("saveDot", {"default": False}):
             draw_qgraph_html(self.qgraph, os.path.join(self.submit_path, "draw", "bpsgraph_quantum.dot"))
@@ -583,37 +606,47 @@ class BpsCore():
         """Create submission files but don't actually submit
         """
         subtime = time.time()
-        stime = time.time()
 
         # Un-pickling QGraph needs a dimensions universe defined in
         # registry. Easiest way to do it now is to initialize whole data
         # butler even if it isn't used. Butler requires run or collection
         # provided in constructor but in this case we do not care about
         # which collection to use so give it an empty name.
+        _LOG.info("Initializing Butler")
+        stime = time.time()
         self.butler = Butler(config=self.config["butlerConfig"], writeable=True)
         self.butler.registry.registerRun(self.config["outCollection"])
+        _LOG.info("Initializing Butler took %.2f seconds", time.time() - stime)
 
-        if "qgraph_file" in self.config["global"]:
-            _LOG.info("Copying and reading quantum graph (%s)", self.config["global"]["qgraph_file"])
-            self.qgraph_filename = "%s/%s" % (self.submit_path,
-                                              basename(self.config["global"]["qgraph_file"]))
-            shutil.copy2(self.config["global"]["qgraph_file"], self.qgraph_filename)
-            self._read_quantum_graph()
-            _LOG.info("Reading quantum graph took %.2f seconds", time.time() - stime)
+        found, filename = self.config.search("qgraph_file")
+        if found:
+            _LOG.info("Copying quantum graph (%s)", filename)
+            stime = time.time()
+            self.qgraph_filename = "%s/%s" % (self.submit_path, basename(filename))
+            shutil.copy2(filename, self.qgraph_filename)
+            _LOG.info("Copying quantum graph took %.2f seconds", time.time() - stime)
         else:
             _LOG.info("Creating quantum graph")
+            stime = time.time()
             self._create_quantum_graph()
             _LOG.info("Creating quantum graph took %.2f seconds", time.time() - stime)
 
+        _LOG.info("Reading quantum graph (%s)", filename)
+        stime = time.time()
+        self._read_quantum_graph()
+        _LOG.info("Reading quantum graph took %.2f seconds", time.time() - stime)
+
+        _LOG.info("Creating Generic Workflow")
         stime = time.time()
         self._create_generic_workflow()
+        self._create_generic_workflow_config()
         _LOG.info("Creating Generic Workflow took %.2f seconds", time.time() - stime)
 
-        self._create_generic_workflow_config()
-
         stime = time.time()
+        _LOG.info("Creating specific implementation of workflow")
         self._implement_workflow()
         _LOG.info("Creating specific implementation of workflow took %.2f seconds", time.time() - stime)
+
         _LOG.info("Total submission creation time = %.2f", time.time() - subtime)
 
     def submit(self):
