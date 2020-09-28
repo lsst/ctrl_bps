@@ -313,7 +313,7 @@ class BpsCore():
                 tnode_name,
                 node_type=TASKNODE,
                 task_abbrev=task_def.label,
-                qgnode = node.nodeId,
+                qgnode=node.nodeId,
                 shape="box",
                 fillcolor="gray",
                 # style='"filled,bold"',
@@ -351,7 +351,6 @@ class BpsCore():
                         )
                     fnode_name = dsname_to_node_id[ds_name]
                     self.sci_graph.add_edge(tnode_name, fnode_name)
-
 
         if "pipeline" in self.config:
             self.pipeline = self.config["pipeline"].split(",")

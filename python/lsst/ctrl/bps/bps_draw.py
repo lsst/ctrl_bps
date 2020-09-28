@@ -39,7 +39,7 @@ def draw_networkx_dot(graph, outname):
     """
 
     # Note:  Leaving function here for now.  Want to move
-    #        more of the drawing attributes, etc here in 
+    #        more of the drawing attributes, etc here in
     #        the future.  If pygraphviz makes it into the
     #        stack can also use better layout functions.
 
