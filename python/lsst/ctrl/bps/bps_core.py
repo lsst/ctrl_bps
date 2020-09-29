@@ -130,20 +130,19 @@ def save_qg_subgraph(node_ids, qgraph, out_filename):
         Name of the output file
     """
 
-    if not isinstance(node_ids, Iterable):
+    # (disabling pylint warning because pylint bug
+    #  https://github.com/PyCQA/pylint/issues/3507)
+    if not isinstance(node_ids, Iterable):   # pylint: disable=W1116
         node_ids = (node_ids, )
 
     # create subgraph
-    node_list = []
-    for id_ in node_ids:
-        node_list.append(qgraph.getQuantumNodeByNodeId(id_))
-
-    qgraph2 = qgraph.subset(node_list)
+    qnodes = [qgraph.getQuantumNodeByNodeId(id_) for id_ in node_ids]
+    subgraph = qgraph.subset(qnodes)
 
     # output to file
     os.makedirs(os.path.dirname(out_filename), exist_ok=True)
     with open(out_filename, "wb") as outfh:
-        qgraph2.save(outfh)
+        subgraph.save(outfh)
 
 
 class BpsCore():
@@ -292,6 +291,11 @@ class BpsCore():
         dcnt = 0   # dataset ref node counter
 
         dsname_to_node_id = {}
+
+        # Using a dictionary to get an ordered "set" of
+        # pipeline task labels.  For efficiency reasons,
+        # creating this while traversing QuantumGraph,
+        # instead of re-traversing science graph later.
         pipeline_task_labels = {}
 
         for node in self.qgraph:
