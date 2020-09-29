@@ -263,14 +263,9 @@ class BpsCore():
     def _read_quantum_graph(self):
         """Read the QuantumGraph
         """
-
-        _LOG.info("Reading QuantumGraph: %s", self.qgraph_filename)
         with open(self.qgraph_filename, "rb") as infh:
             self.qgraph = QuantumGraph.load(infh, self.butler.registry.dimensions)
-        cnt = len(self.qgraph)
-        _LOG.info("Done reading QuantumGraph with %d nodes", cnt)
-
-        if cnt == 0:
+        if len(self.qgraph) == 0:
             raise RuntimeError("QuantumGraph is empty")
 
     def _create_science_graph(self):
@@ -619,10 +614,11 @@ class BpsCore():
             self._create_quantum_graph()
             _LOG.info("Creating quantum graph took %.2f seconds", time.time() - stime)
 
-        _LOG.info("Reading quantum graph (%s)", filename)
+        _LOG.info("Reading quantum graph (%s)", self.qgraph_filename)
         stime = time.time()
         self._read_quantum_graph()
-        _LOG.info("Reading quantum graph took %.2f seconds", time.time() - stime)
+        _LOG.info("Reading quantum graph with %d nodes took %.2f seconds", len(self.qgraph),
+                  time.time() - stime)
 
         _LOG.info("Creating Generic Workflow")
         stime = time.time()
