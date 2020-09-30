@@ -30,7 +30,6 @@ import os
 import datetime
 from os.path import expandvars, basename
 import re
-from typing import Iterable
 import pickle
 import shlex
 import shutil
@@ -45,6 +44,7 @@ except ImportError:
 
 import lsst.log
 from lsst.daf.butler import Butler
+from lsst.daf.butler.core.utils import iterable
 from lsst.pipe.base.graph import QuantumGraph
 from lsst.ctrl.bps.bps_config import BpsConfig
 from lsst.daf.butler.core.config import Loader
@@ -130,13 +130,8 @@ def save_qg_subgraph(node_ids, qgraph, out_filename):
         Name of the output file
     """
 
-    # (disabling pylint warning because pylint bug
-    #  https://github.com/PyCQA/pylint/issues/3507)
-    if not isinstance(node_ids, Iterable):   # pylint: disable=W1116
-        node_ids = (node_ids, )
-
     # create subgraph
-    qnodes = [qgraph.getQuantumNodeByNodeId(id_) for id_ in node_ids]
+    qnodes = [qgraph.getQuantumNodeByNodeId(id_) for id_ in iterable(node_ids)]
     subgraph = qgraph.subset(qnodes)
 
     # output to file
@@ -324,10 +319,10 @@ class BpsCore():
             # Make dataset ref nodes for inputs
             for ds_refs in quantum.inputs.values():
                 for ds_ref in ds_refs:
-                    ds_name = "%s+%s" % (ds_ref.datasetType.name, ds_ref.dataId)
+                    ds_name = f"{ds_ref.datasetType.name}+{ds_ref.dataId}"
                     if ds_name not in dsname_to_node_id:
                         dcnt += 1
-                        fnode_name = "ds%06d" % dcnt
+                        fnode_name = f"ds{dcnt:06}"
                         dsname_to_node_id[ds_name] = fnode_name
                         fnode_label = pretty_dataset_label(ds_name)
                         self.sci_graph.add_node(
@@ -339,10 +334,10 @@ class BpsCore():
             # Make dataset ref nodes for outputs
             for ds_refs in quantum.outputs.values():
                 for ds_ref in ds_refs:
-                    ds_name = "%s+%s" % (ds_ref.datasetType.name, ds_ref.dataId)
+                    ds_name = f"{ds_ref.datasetType.name}+{ds_ref.dataId}"
                     if ds_name not in dsname_to_node_id:
                         dcnt += 1
-                        fnode_name = "ds%06d" % dcnt
+                        fnode_name = f"ds{dcnt:06}"
                         dsname_to_node_id[ds_name] = fnode_name
                         fnode_label = pretty_dataset_label(ds_name)
                         self.sci_graph.add_node(
