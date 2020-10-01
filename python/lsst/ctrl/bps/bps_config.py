@@ -50,55 +50,41 @@ class BpsFormatter(string.Formatter):
 
 
 class BpsConfig(Config):
-    """Contains the configuration for a BPS submission
+    """Contains the configuration for a BPS submission.
 
     Parameters
     ----------
     other: `str`, `dict`, `Config`, `BpsConfig`
-        Path to a yaml file or a dict/Config/BpsConfig
-        containing configuration to copy
+        Path to a yaml file or a dict/Config/BpsConfig containing configuration
+        to copy.
     """
     def __init__(self, other):
+        # In BPS config, the same setting can be defined multiple times in
+        # different sections.  The sections are search in a pre-defined
+        # order. Hence, a value which is found first effectively overrides
+        # values in later sections, if any. To achieve this goal,
+        # the special methods __getitem__ and __contains__ were redefined to
+        # use a custom search function internally.  For this reason we can't
+        # use  super().__init__(other) as the super class defines its own
+        # __getitem__ which is utilized during the initialization process (
+        # e.g. in expressions like self[<key>]). However, this function will
+        # be overridden by the one defined here, in the subclass.  Instead
+        # we just initialize internal data structures and populate them
+        # using the inherited update() method which does not rely on super
+        # class __getitem__ method.
         super().__init__()
-        self.search_order = []
-        self.formatter = BpsFormatter()
+        try:
+            config = Config(other)
+        except RuntimeError:
+            raise RuntimeError("A BpsConfig could not be loaded from other: %s" % other)
+        self.update(config)
 
         if isinstance(other, BpsConfig):
-            super().__init__(other)
             self.search_order = copy.deepcopy(other.search_order)
             self.formatter = copy.deepcopy(other.formatter)
-        elif isinstance(other, Config):
-            super().__init__(other)
-        elif isinstance(other, str):
-            self._init_from_file(other)
-        elif isinstance(other, dict) and "config_file" in other:
-            self._init_from_file(other["config_file"])
         else:
-            raise RuntimeError("A BpsConfig could not be loaded from other: %s" % other)
-
-    def _init_from_file(self, config_file):
-        """Reads configuration from a yaml file
-
-        Parameters
-        ----------
-        config_file: `str`:
-            Filename for the yaml file containing BPS config
-        """
-        main_config = Config(config_file)
-
-        # job, pipetask, block, archive, site, global
-        if "includeConfigs" in main_config:
-            for inc in [x.strip() for x in main_config["includeConfigs"].split(",")]:
-                _LOG.debug("Loading includeConfig %s", inc)
-                incl_config = Config(inc)
-                self.update(incl_config)
-            main_config.__delitem__("includeConfigs")
-        else:
-            _LOG.debug("Given config does not have key 'includeConfigs'")
-
-        self.update(main_config)
-        self.search_order = SEARCH_ORDER
-        self.formatter = BpsFormatter()
+            self.search_order = SEARCH_ORDER
+            self.formatter = BpsFormatter()
 
     def copy(self):
         """Makes a copy of config
