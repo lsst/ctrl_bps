@@ -100,6 +100,7 @@ class HTCondorWorkflow(Workflow):
 
         def _handle_job_inputs(gen_workflow, jobcmds):
             """Add job input files from generic workflow to job
+
             Parameters
             ----------
             gen_workflow : `networkx.DiGraph`
@@ -107,17 +108,19 @@ class HTCondorWorkflow(Workflow):
             jobcmds : `RestrictedDict`
                 Commands for a htcondor job, updated with transfer of job inputs
             """
-            # inputs = [file_id for file_id in self.workflow_graph.predecessors(task_id)]
-            transinputs = []
-            # for file_id in inputs:
+            inputs = []
             for file_id in gen_workflow.predecessors(task_id):
                 file_attrs = gen_workflow.nodes[file_id]
                 is_ignored = file_attrs.get("ignore", False)
                 if not is_ignored:
-                    transinputs.append(file_attrs["pfn"])
+                    if "pfn" not in file_attrs:
+                        msg = f"Missing pfn in {task_id}-{file_id}'s file_attrs: {file_attrs}"
+                        _LOG.error(msg)
+                        raise KeyError(msg)
+                    inputs.append(file_attrs['pfn'])
 
-            if len(transinputs) > 0:
-                jobcmds["transfer_input_files"] = ",".join(transinputs)
+            if len(inputs) > 0:
+                jobcmds["transfer_input_files"] = ",".join(inputs)
 
         self.dag = HTCDag(name=self.workflow_config["uniqProcName"])
         self.dag.add_attribs(self.workflow_graph.graph["run_attrib"])

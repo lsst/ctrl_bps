@@ -26,6 +26,7 @@ __all__ = ("BpsCore",)
 
 import logging
 import subprocess
+import itertools
 import os
 import datetime
 from os.path import expandvars, basename
@@ -45,10 +46,9 @@ except ImportError:
 import lsst.log
 from lsst.daf.butler import Butler
 from lsst.pipe.base.graph import QuantumGraph
-from lsst.pipe.base.graph import QuantumGraphTaskNodes
 from lsst.ctrl.bps.bps_config import BpsConfig
 from lsst.daf.butler.core.config import Loader
-from lsst.ctrl.bps.bps_draw import draw_networkx_dot, draw_qgraph_html
+from lsst.ctrl.bps.bps_draw import draw_networkx_dot
 
 # Graph property
 FILENODE = 0
@@ -118,43 +118,25 @@ def pretty_dataset_label(orig_name):
     return new_name
 
 
-def save_single_qgnode(qgnode, out_filename):
-    """Save single quantum to file
+def save_qg_subgraph(qnodes, qgraph, out_filename):
+    """Save subgraph to file
 
     Parameters
     ----------
-    qgnode : QuantumGraph Node
-        Single quantum to save
+    qnodes : `lsst.pipe.base.graph.quantumNode.QuantumNode` or
+             iterable of `lsst.pipe.base.graph.quantumNode.QuantumNode`
+        QuantumNodes for Quanta inside given qgraph to save
     out_filename : `str`
         Name of the output file
     """
+
+    # create subgraph
+    subgraph = qgraph.subset(qnodes)
+
+    # output to file
     os.makedirs(os.path.dirname(out_filename), exist_ok=True)
-    qgraph2 = QuantumGraph()
-    qgraph2.append(qgnode)
-    with open(out_filename, "wb") as pickle_file:
-        pickle.dump(qgraph2, pickle_file)
-
-
-def count_quantum(qgraph):
-    """Count Quantum in the QuantumGraph
-
-    Parameters
-    ----------
-    qgraph : `QuantumGraph`
-        QuantumGraph that needs counting
-
-    Returns
-    -------
-    cnt : `int`
-        Number of Quantum
-    """
-    cnt = 0
-    for task_id, nodes in enumerate(qgraph):
-        _LOG.debug("%d task has %s quanta", task_id, len(nodes.quanta))
-        cnt += len(nodes.quanta)
-
-    _LOG.debug("Total number of quanta = %d", cnt)
-    return cnt
+    with open(out_filename, "wb") as outfh:
+        subgraph.save(outfh)
 
 
 class BpsCore():
@@ -190,8 +172,7 @@ class BpsCore():
             self.config.update(dct)
 
         self.submit_path = self.config["submitPath"]
-        _LOG.debug("submit_path = '%s'", self.submit_path)
-        print(self.submit_path)
+        _LOG.info("submit_path = '%s'", self.submit_path)
 
         # make directories
         os.makedirs(self.submit_path, exist_ok=True)
@@ -203,7 +184,6 @@ class BpsCore():
         self.pipeline = []
         self.qgraph_filename = None
         self.qgraph = None
-        self.qgnodes = None
         self.sci_graph = None
         self.gen_wf_graph = None
         self.gen_wf_config = None
@@ -274,16 +254,12 @@ class BpsCore():
                 "QuantumGraph generation exited with non-zero exit code (%s)" % (status)
             )
 
-        if self.config.get("saveDot", {"default": False}):
-            draw_qgraph_html(self.qgraph, os.path.join(self.submit_path, "draw", "bpsgraph_quantum.dot"))
-
     def _read_quantum_graph(self):
         """Read the QuantumGraph
         """
-        with open(self.qgraph_filename, "rb") as pickle_file:
-            self.qgraph = pickle.load(pickle_file)
-
-        if count_quantum(self.qgraph) == 0:
+        with open(self.qgraph_filename, "rb") as infh:
+            self.qgraph = QuantumGraph.load(infh, self.butler.registry.dimensions)
+        if len(self.qgraph) == 0:
             raise RuntimeError("QuantumGraph is empty")
 
     def _create_science_graph(self):
@@ -300,78 +276,71 @@ class BpsCore():
         _LOG.info("creating explicit science graph")
 
         self.sci_graph = networkx.DiGraph()
-        ncnt = 0
-        tcnt = 0
-        dcnt = 0
+        tcnt = 0   # task node counter
+        dcnt = 0   # dataset ref node counter
 
         dsname_to_node_id = {}
-        self.qgnodes = {}
-        pipeline = []
-        for task_id, nodes in enumerate(self.qgraph):
-            _LOG.debug(task_id)
-            task_def = nodes.taskDef
-            pipeline.append(task_def.label)
+
+        for node in self.qgraph:
+            _LOG.debug("type(node)=%s", type(node))
+            _LOG.debug("nodeId=%s", node.nodeId)
+
+            task_def = node.taskDef
 
             _LOG.debug("config=%s", task_def.config)
             _LOG.debug("taskClass=%s", task_def.taskClass)
             _LOG.debug("taskName=%s", task_def.taskName)
             _LOG.debug("label=%s", task_def.label)
-            for quantum in nodes.quanta:
-                _LOG.debug("actualInputs=%s", quantum.actualInputs)
-                _LOG.debug("id=%s", quantum.id)
-                _LOG.debug("run=%s", quantum.run)
-                _LOG.debug("initInputs=%s", quantum.initInputs)
-                ncnt += 1
-                tcnt += 1
-                # tnode_name = "task%d (%s)" % (ncnt, task_def.taskName)
-                tnode_name = "%06d" % (ncnt)
-                self.sci_graph.add_node(
-                    tnode_name,
-                    node_type=TASKNODE,
-                    task_def_id=task_id,
-                    task_abbrev=task_def.label,
-                    shape="box",
-                    fillcolor="gray",
-                    # style='"filled,bold"',
-                    style="filled",
-                    label=".".join(task_def.taskName.split(".")[-2:]),
-                )
-                quanta2 = [quantum]
-                self.qgnodes[tnode_name] = QuantumGraphTaskNodes(task_def, quanta2, quantum.initInputs, {})
 
-                # Make nodes for inputs
-                for ds_refs in quantum.predictedInputs.values():
-                    for ds_ref in ds_refs:
-                        ds_name = "%s+%s" % (ds_ref.datasetType.name, ds_ref.dataId)
-                        if ds_name not in dsname_to_node_id:
-                            ncnt += 1
-                            dcnt += 1
-                            dsname_to_node_id[ds_name] = ncnt
-                        fnode_name = "%06d" % dsname_to_node_id[ds_name]
-                        fnode_desk = pretty_dataset_label(ds_name)
-                        self.sci_graph.add_node(
-                            fnode_name, node_type=FILENODE, label=fnode_desk, shape="box", style="rounded"
-                        )
-                        self.sci_graph.add_edge(fnode_name, tnode_name)
-                # Make nodes for outputs
-                for ds_refs in quantum.outputs.values():
-                    for ds_ref in ds_refs:
-                        ds_name = "%s+%s" % (ds_ref.datasetType.name, ds_ref.dataId)
-                        if ds_name not in dsname_to_node_id:
-                            ncnt += 1
-                            dcnt += 1
-                            dsname_to_node_id[ds_name] = ncnt
-                        fnode_name = "%06d" % dsname_to_node_id[ds_name]
-                        fnode_desk = pretty_dataset_label(ds_name)
-                        self.sci_graph.add_node(
-                            fnode_name, node_type=FILENODE, label=fnode_desk, shape="box", style="rounded"
-                        )
-                        self.sci_graph.add_edge(tnode_name, fnode_name)
+            tcnt += 1
+
+            tnode_name = "%06d" % (node.nodeId.number)
+            self.sci_graph.add_node(
+                tnode_name,
+                node_type=TASKNODE,
+                task_abbrev=task_def.label,
+                qgnode=node,
+                shape="box",
+                fillcolor="gray",
+                # style='"filled,bold"',
+                style="filled",
+                label=".".join(task_def.taskName.split(".")[-2:]),
+            )
+            quantum = node.quantum
+
+            # Make dataset ref nodes for inputs
+            for ds_ref in itertools.chain.from_iterable(quantum.inputs.values()):
+                ds_name = f"{ds_ref.datasetType.name}+{ds_ref.dataId}"
+                if ds_name not in dsname_to_node_id:
+                    dcnt += 1
+                    fnode_name = f"ds{dcnt:06}"
+                    dsname_to_node_id[ds_name] = fnode_name
+                    fnode_label = pretty_dataset_label(ds_name)
+                    self.sci_graph.add_node(
+                        fnode_name, node_type=FILENODE, label=fnode_label, shape="box", style="rounded"
+                    )
+                fnode_name = dsname_to_node_id[ds_name]
+                self.sci_graph.add_edge(fnode_name, tnode_name)
+
+            # Make dataset ref nodes for outputs
+            for ds_ref in itertools.chain.from_iterable(quantum.outputs.values()):
+                ds_name = f"{ds_ref.datasetType.name}+{ds_ref.dataId}"
+                if ds_name not in dsname_to_node_id:
+                    dcnt += 1
+                    fnode_name = f"ds{dcnt:06}"
+                    dsname_to_node_id[ds_name] = fnode_name
+                    fnode_label = pretty_dataset_label(ds_name)
+                    self.sci_graph.add_node(
+                        fnode_name, node_type=FILENODE, label=fnode_label, shape="box", style="rounded"
+                    )
+                fnode_name = dsname_to_node_id[ds_name]
+                self.sci_graph.add_edge(tnode_name, fnode_name)
 
         if "pipeline" in self.config:
             self.pipeline = self.config["pipeline"].split(",")
         else:
-            self.pipeline = pipeline
+            self.pipeline = [task.label for task in self.qgraph.iterTaskGraph()]
+        _LOG.info("pipeline = %s", self.pipeline)
 
         _LOG.info("Number of sci_graph nodes: tasks=%d files=%d", tcnt, dcnt)
 
@@ -475,8 +444,8 @@ class BpsCore():
                 # add quantum pickle input data node
                 ncnt += 1
                 qcnt += 1
-                qnode_name = "%06d" % ncnt
-                qlfn = "quantum%s.pickle" % nodename
+                qnode_name = f"qgraph_{nodename}"
+                qlfn = f"quantum_{nodename}_{task_abbrev}.pickle"
                 q_filename = os.path.join(self.submit_path, "input", task_abbrev, qlfn)
                 lfn = basename(q_filename)
                 self.gen_wf_graph.add_node(
@@ -490,7 +459,7 @@ class BpsCore():
                     shape="box",
                     style="rounded",
                 )
-                save_single_qgnode(self.qgnodes[nodename], q_filename)
+                save_qg_subgraph(node["qgnode"], self.qgraph, q_filename)
 
                 self._update_task(task_abbrev, node, qlfn)
                 self.gen_wf_graph.add_edge(qnode_name, nodename)
@@ -503,12 +472,11 @@ class BpsCore():
                         init_nodes[task_abbrev] = {}
                         taskcnts[task_abbrev] += 1
                         ncnt += 1
-                        tnode_name = "%06d" % ncnt
+                        tnode_name = f"init_{task_abbrev}"
                         lfn = "%s_init" % task_abbrev
                         self.gen_wf_graph.add_node(
                             tnode_name,
                             node_type=TASKNODE,
-                            task_def_id=node["task_def_id"],
                             task_abbrev=task_abbrev,
                             shape="box",
                             fillcolor="gray",
@@ -631,10 +599,11 @@ class BpsCore():
             self._create_quantum_graph()
             _LOG.info("Creating quantum graph took %.2f seconds", time.time() - stime)
 
-        _LOG.info("Reading quantum graph (%s)", filename)
+        _LOG.info("Reading quantum graph (%s)", self.qgraph_filename)
         stime = time.time()
         self._read_quantum_graph()
-        _LOG.info("Reading quantum graph took %.2f seconds", time.time() - stime)
+        _LOG.info("Reading quantum graph with %d nodes took %.2f seconds", len(self.qgraph),
+                  time.time() - stime)
 
         _LOG.info("Creating Generic Workflow")
         stime = time.time()
