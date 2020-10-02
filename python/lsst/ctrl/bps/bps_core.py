@@ -26,6 +26,7 @@ __all__ = ("BpsCore",)
 
 import logging
 import subprocess
+import itertools
 import os
 import datetime
 from os.path import expandvars, basename
@@ -44,7 +45,6 @@ except ImportError:
 
 import lsst.log
 from lsst.daf.butler import Butler
-from lsst.daf.butler.core.utils import iterable
 from lsst.pipe.base.graph import QuantumGraph
 from lsst.ctrl.bps.bps_config import BpsConfig
 from lsst.daf.butler.core.config import Loader
@@ -118,20 +118,19 @@ def pretty_dataset_label(orig_name):
     return new_name
 
 
-def save_qg_subgraph(node_ids, qgraph, out_filename):
+def save_qg_subgraph(qnodes, qgraph, out_filename):
     """Save subgraph to file
 
     Parameters
     ----------
-    node_ids : `lsst.pipe.base.graph.quantumNode.NodeId` or
-               iterable of `lsst.pipe.base.graph.quantumNode.NodeId`
-        NodeIds for Quanta inside given qgraph to save
+    qnodes : `lsst.pipe.base.graph.quantumNode.QuantumNode` or
+             iterable of `lsst.pipe.base.graph.quantumNode.QuantumNode`
+        QuantumNodes for Quanta inside given qgraph to save
     out_filename : `str`
         Name of the output file
     """
 
     # create subgraph
-    qnodes = [qgraph.getQuantumNodeByNodeId(id_) for id_ in iterable(node_ids)]
     subgraph = qgraph.subset(qnodes)
 
     # output to file
@@ -282,18 +281,11 @@ class BpsCore():
 
         dsname_to_node_id = {}
 
-        # Using a dictionary to get an ordered "set" of
-        # pipeline task labels.  For efficiency reasons,
-        # creating this while traversing QuantumGraph,
-        # instead of re-traversing science graph later.
-        pipeline_task_labels = {}
-
         for node in self.qgraph:
             _LOG.debug("type(node)=%s", type(node))
             _LOG.debug("nodeId=%s", node.nodeId)
 
             task_def = node.taskDef
-            pipeline_task_labels[task_def.label] = True
 
             _LOG.debug("config=%s", task_def.config)
             _LOG.debug("taskClass=%s", task_def.taskClass)
@@ -307,7 +299,7 @@ class BpsCore():
                 tnode_name,
                 node_type=TASKNODE,
                 task_abbrev=task_def.label,
-                qgnode=node.nodeId,
+                qgnode=node,
                 shape="box",
                 fillcolor="gray",
                 # style='"filled,bold"',
@@ -317,39 +309,37 @@ class BpsCore():
             quantum = node.quantum
 
             # Make dataset ref nodes for inputs
-            for ds_refs in quantum.inputs.values():
-                for ds_ref in ds_refs:
-                    ds_name = f"{ds_ref.datasetType.name}+{ds_ref.dataId}"
-                    if ds_name not in dsname_to_node_id:
-                        dcnt += 1
-                        fnode_name = f"ds{dcnt:06}"
-                        dsname_to_node_id[ds_name] = fnode_name
-                        fnode_label = pretty_dataset_label(ds_name)
-                        self.sci_graph.add_node(
-                            fnode_name, node_type=FILENODE, label=fnode_label, shape="box", style="rounded"
-                        )
-                    fnode_name = dsname_to_node_id[ds_name]
-                    self.sci_graph.add_edge(fnode_name, tnode_name)
+            for ds_ref in itertools.chain.from_iterable(quantum.inputs.values()):
+                ds_name = f"{ds_ref.datasetType.name}+{ds_ref.dataId}"
+                if ds_name not in dsname_to_node_id:
+                    dcnt += 1
+                    fnode_name = f"ds{dcnt:06}"
+                    dsname_to_node_id[ds_name] = fnode_name
+                    fnode_label = pretty_dataset_label(ds_name)
+                    self.sci_graph.add_node(
+                        fnode_name, node_type=FILENODE, label=fnode_label, shape="box", style="rounded"
+                    )
+                fnode_name = dsname_to_node_id[ds_name]
+                self.sci_graph.add_edge(fnode_name, tnode_name)
 
             # Make dataset ref nodes for outputs
-            for ds_refs in quantum.outputs.values():
-                for ds_ref in ds_refs:
-                    ds_name = f"{ds_ref.datasetType.name}+{ds_ref.dataId}"
-                    if ds_name not in dsname_to_node_id:
-                        dcnt += 1
-                        fnode_name = f"ds{dcnt:06}"
-                        dsname_to_node_id[ds_name] = fnode_name
-                        fnode_label = pretty_dataset_label(ds_name)
-                        self.sci_graph.add_node(
-                            fnode_name, node_type=FILENODE, label=fnode_label, shape="box", style="rounded"
-                        )
-                    fnode_name = dsname_to_node_id[ds_name]
-                    self.sci_graph.add_edge(tnode_name, fnode_name)
+            for ds_ref in itertools.chain.from_iterable(quantum.outputs.values()):
+                ds_name = f"{ds_ref.datasetType.name}+{ds_ref.dataId}"
+                if ds_name not in dsname_to_node_id:
+                    dcnt += 1
+                    fnode_name = f"ds{dcnt:06}"
+                    dsname_to_node_id[ds_name] = fnode_name
+                    fnode_label = pretty_dataset_label(ds_name)
+                    self.sci_graph.add_node(
+                        fnode_name, node_type=FILENODE, label=fnode_label, shape="box", style="rounded"
+                    )
+                fnode_name = dsname_to_node_id[ds_name]
+                self.sci_graph.add_edge(tnode_name, fnode_name)
 
         if "pipeline" in self.config:
             self.pipeline = self.config["pipeline"].split(",")
         else:
-            self.pipeline = pipeline_task_labels.keys()
+            self.pipeline = [task.label for task in self.qgraph.iterTaskGraph()]
         _LOG.info("pipeline = %s", self.pipeline)
 
         _LOG.info("Number of sci_graph nodes: tasks=%d files=%d", tcnt, dcnt)

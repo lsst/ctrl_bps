@@ -113,11 +113,11 @@ class HTCondorWorkflow(Workflow):
                 file_attrs = gen_workflow.nodes[file_id]
                 is_ignored = file_attrs.get("ignore", False)
                 if not is_ignored:
-                    try:
-                        inputs.append(file_attrs["pfn"])
-                    except KeyError:
-                        _LOG.error("Missing pfn in %s-%s's file_attrs: %s", task_id, file_id, str(file_attrs))
-                        raise
+                    if "pfn" not in file_attrs:
+                        msg = f"Missing pfn in {task_id}-{file_id}'s file_attrs: {file_attrs}"
+                        _LOG.error(msg)
+                        raise KeyError(msg)
+                    inputs.append(file_attrs['pfn'])
 
             if len(inputs) > 0:
                 jobcmds["transfer_input_files"] = ",".join(inputs)
