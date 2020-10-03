@@ -50,6 +50,9 @@ from lsst.ctrl.bps.bps_config import BpsConfig
 from lsst.daf.butler.core.config import Loader
 from lsst.ctrl.bps.bps_draw import draw_networkx_dot
 
+# Config section search order
+BPS_SEARCH_ORDER = ["payload", "pipetask", "site", "global"]
+
 # Graph property
 FILENODE = 0
 TASKNODE = 1
@@ -160,7 +163,7 @@ class BpsCore():
 
     def __init__(self, configFile, **kwargs):
         self.config_log(False)
-        self.config = BpsConfig(configFile)
+        self.config = BpsConfig(configFile, BPS_SEARCH_ORDER)
         _LOG.debug("Core kwargs = '%s'", kwargs)
         self.config[".global.timestamp"] = "{:%Y%m%dT%Hh%Mm%Ss}".format(datetime.datetime.now())
         if "uniqProcName" not in self.config:

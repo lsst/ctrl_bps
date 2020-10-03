@@ -31,8 +31,6 @@ import string
 
 from lsst.daf.butler.core.config import Config
 
-SEARCH_ORDER = ["payload", "pipetask", "site", "global"]
-
 _LOG = logging.getLogger()
 
 
@@ -41,11 +39,11 @@ class BpsFormatter(string.Formatter):
     search options
     """
     def get_field(self, field_name, args, kwargs):
-        val = args[0].__getitem__(field_name, opt=args[1])
+        _, val = args[0].search(field_name, opt=args[1])
         return (val, field_name)
 
     def get_value(self, key, args, kwargs):
-        val = args[0].__getitem__(key, opt=args[1])
+        _, val = args[0].search(key, opt=args[1])
         return val
 
 
@@ -58,7 +56,7 @@ class BpsConfig(Config):
         Path to a yaml file or a dict/Config/BpsConfig containing configuration
         to copy.
     """
-    def __init__(self, other):
+    def __init__(self, other, search_order=None):
         # In BPS config, the same setting can be defined multiple times in
         # different sections.  The sections are search in a pre-defined
         # order. Hence, a value which is found first effectively overrides
@@ -83,7 +81,9 @@ class BpsConfig(Config):
             self.search_order = copy.deepcopy(other.search_order)
             self.formatter = copy.deepcopy(other.formatter)
         else:
-            self.search_order = SEARCH_ORDER
+            if search_order is None:
+                search_order = []
+            self.search_order = search_order
             self.formatter = BpsFormatter()
 
     def copy(self):
@@ -96,46 +96,37 @@ class BpsConfig(Config):
         """
         return BpsConfig(self)
 
-    def __getitem__(self, name, opt=None):
+    def __getitem__(self, name):
         """Returns the value from the config for the given name
 
         Parameters
         ----------
         name: `str`
             Key to look for in config
-        opt: `dict`, optional
-            Options to pass to search method
 
         Returns
         -------
         val: `str`, `int`, `BPSConfig`, ...
             Value from config if found
         """
-        _LOG.debug("GETITEM: %s, %s", name, opt)
-
-        if opt is None:
-            opt = {}
-
-        _, val = self.search(name, opt)
+        _, val = self.search(name, {})
 
         return val
 
-    def __contains__(self, name, opt=None):
+    def __contains__(self, name):
         """Checks whether name is in config
 
         Parameters
         ----------
         name: `str`
             Key to look for in config
-        opt: `dict`, optional
-            Options to pass to search method
 
         Returns
         -------
         found: `bool`
             Whether name was in config or not
         """
-        found, _ = self.search(name, opt)
+        found, _ = self.search(name, {})
         return found
 
     def search(self, key, opt=None):
@@ -150,6 +141,14 @@ class BpsConfig(Config):
             Key to look for in config
         opt: `dict`, optional
             Options to use while searching
+                curvals: `dict`, optional
+                    Means to pass in values for search order key (curr_<sectname>) or variable replacements
+                default: optional
+                    Value to return if not found
+                replaceVars: `bool`, default = True
+                    If search result is string, whether to replace variables inside it
+                required: `bool`, default = False
+                    If replacing variables, whether to raise exception if variable is undefined
 
         Returns
         -------
@@ -222,7 +221,7 @@ class BpsConfig(Config):
 
         if not found and opt.get("required", False):
             print("\n\nError: search for %s failed" % (key))
-            print("\tcurrent = ", Config.__getitem__(self, "current"))
+            print("\tcurrent = ", Config.get(self, "current"))
             print("\topt = ", opt)
             print("\tcurvals = ", curvals)
             print("\n\n")
