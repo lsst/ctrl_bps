@@ -132,23 +132,28 @@ class BpsConfig(Config):
     def search(self, key, opt=None):
         """Searches for key using given opt following hierarchy rules.
 
-        Hierarchy rules: current vals, search object, search order
-        of config sections.
+        Search hierarchy rules: current values, a given search object, and
+        search order of config sections.
 
         Parameters
         ----------
         key: `str`
-            Key to look for in config
+            Key to look for in config.
         opt: `dict`, optional
-            Options to use while searching
-                curvals: `dict`, optional
-                    Means to pass in values for search order key (curr_<sectname>) or variable replacements
-                default: optional
-                    Value to return if not found
-                replaceVars: `bool`, default = True
-                    If search result is string, whether to replace variables inside it
-                required: `bool`, default = False
-                    If replacing variables, whether to raise exception if variable is undefined
+            Options dictionary to use while searching.  All are optional.
+
+            ``"curvals"``
+                    Means to pass in values for search order key
+                    (curr_<sectname>) or variable replacements.
+                    (`dict`, optional)
+            ``"default"``
+                    Value to return if not found. (`Any`, optional)
+            ``"replaceVars"``
+                    If search result is string, whether to replace variables
+                    inside it. By default set to True. (`bool`)
+            ``"required"``
+                    If replacing variables, whether to raise exception if
+                    variable is undefined. By default set to False. (`bool`)
 
         Returns
         -------
@@ -221,7 +226,7 @@ class BpsConfig(Config):
 
         if not found and opt.get("required", False):
             print("\n\nError: search for %s failed" % (key))
-            print("\tcurrent = ", Config.get(self, "current"))
+            print("\tcurrent = ", self.get("current"))
             print("\topt = ", opt)
             print("\tcurvals = ", curvals)
             print("\n\n")
