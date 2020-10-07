@@ -1,0 +1,8 @@
+foo:
+  qux: 1
+bar:
+  qux: 2
+baz:
+  grault: ${GARPLY}/waldo
+  garply:
+    qux: 3
