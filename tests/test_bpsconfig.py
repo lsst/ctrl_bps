@@ -56,11 +56,13 @@ class TestBpsConfigConstructor(unittest.TestCase):
 
     def testFromBpsConfig(self):
         """Test initialization from other BpsConfig object."""
-        pass
+        c = BpsConfig(self.dictionary)
+        config = BpsConfig(c)
+        self.assertIn("foo", config)
 
     def testInvalidArg(self):
         """Test if exception is raised for an argument of unsupported type."""
-        sequence = ["foo", "bar", "baz"]
+        sequence = ["wibble", "wobble", "wubble", "flob"]
         with self.assertRaises(RuntimeError):
             BpsConfig(sequence)
 
@@ -84,9 +86,9 @@ class TestBpsConfigSearch(unittest.TestCase):
 
     def testCurrentValues(self):
         """Test if a current value overrides of the one in configuration."""
-        found, value = self.config.search("qux", opt={"curvals": {"qux": 3}})
+        found, value = self.config.search("qux", opt={"curvals": {"qux": -3}})
         self.assertEqual(found, True)
-        self.assertEqual(value, 3)
+        self.assertEqual(value, -3)
 
     def testSearchobjValues(self):
         """Test if a serachobj value overrides of the one in configuration."""
@@ -102,8 +104,8 @@ class TestBpsConfigSearch(unittest.TestCase):
         self.assertEqual(value, 3)
 
     def testDefault(self):
-        """Test if a default value are properly set."""
-        found, value = self.config.search("quux", opt={"default": 4})
+        """Test if a default value is properly set."""
+        found, value = self.config.search("plugh", opt={"default": 4})
         self.assertEqual(found, True)
         self.assertEqual(value, 4)
 
