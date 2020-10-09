@@ -36,6 +36,7 @@ import shlex
 import shutil
 import time
 import networkx
+from networkx import bipartite
 import yaml
 
 try:
@@ -44,7 +45,7 @@ except ImportError:
     from io import StringIO
 
 import lsst.log
-from lsst.daf.butler import Butler
+from lsst.daf.butler import DimensionUniverse
 from lsst.pipe.base.graph import QuantumGraph
 from lsst.ctrl.bps.bps_config import BpsConfig
 from lsst.daf.butler.core.config import Loader
@@ -184,7 +185,7 @@ class BpsCore():
             os.makedirs("%s/draw" % self.submit_path, exist_ok=True)
 
         self.butler = None
-        self.pipeline = []
+        self.pipeline_labels = []
         self.qgraph_filename = None
         self.qgraph = None
         self.sci_graph = None
@@ -220,7 +221,7 @@ class BpsCore():
         if "pipelineYaml" in self.config:
             cmd.append("-p %s" % (self.config["pipelineYaml"]))
         else:
-            for task_abbrev in [x.strip() for x in self.pipeline]:
+            for task_abbrev in [x.strip() for x in self.pipeline_labels]:
                 pipetask = self.config["pipetask"][task_abbrev]
                 cmd.append("-t %s:%s" % (pipetask["module"], task_abbrev))
                 if "configFile" in pipetask:
@@ -260,8 +261,9 @@ class BpsCore():
     def _read_quantum_graph(self):
         """Read the QuantumGraph
         """
+
         with open(self.qgraph_filename, "rb") as infh:
-            self.qgraph = QuantumGraph.load(infh, self.butler.registry.dimensions)
+            self.qgraph = QuantumGraph.load(infh, DimensionUniverse())
         if len(self.qgraph) == 0:
             raise RuntimeError("QuantumGraph is empty")
 
@@ -339,11 +341,11 @@ class BpsCore():
                 fnode_name = dsname_to_node_id[ds_name]
                 self.sci_graph.add_edge(tnode_name, fnode_name)
 
-        if "pipeline" in self.config:
-            self.pipeline = self.config["pipeline"].split(",")
+        if "pipelineLabels" in self.config:
+            self.pipeline_labels = self.config["pipelineLabels"].split(",")
         else:
-            self.pipeline = [task.label for task in self.qgraph.iterTaskGraph()]
-        _LOG.info("pipeline = %s", self.pipeline)
+            self.pipeline_labels = [task.label for task in self.qgraph.iterTaskGraph()]
+        _LOG.info("pipeline_labels = %s", self.pipeline_labels)
 
         _LOG.info("Number of sci_graph nodes: tasks=%d files=%d", tcnt, dcnt)
 
@@ -388,26 +390,88 @@ class BpsCore():
         if len(job_attribs) > 0:
             tnode["jobAttribs"] = job_attribs
 
-    def _link_init_nodes(self, init_nodes):
-        """Add graph edges for the init task and file nodes
+    def _add_workflow_init_nodes(self):
+        """ Add nodes to workflow graph that perform any initialization for the workflow.
 
-        Parameters
-        ----------
-        init_nodes: `dict`
-            Dict of task and file nodes for init tasks
+        Assumes initialization jobs must be new (and only) source in workflow graph.
         """
-        task_abbrev_list = [x.strip() for x in self.pipeline]
-        for abbrev_id, task_abbrev in enumerate(task_abbrev_list, 0):
-            if abbrev_id != 0:
-                # get current task's init task node
-                st_node_name = init_nodes[task_abbrev][TASKNODE]
+        # Create a workflow graph that will have task and file nodes necessary for
+        # initializing the pipeline execution
+        init_graph = self._create_workflow_init_graph()
+        _LOG.debug("init_graph nodes = %s", init_graph.nodes())
 
-                # get previous task's init output file node
-                prev_abbrev = task_abbrev_list[abbrev_id - 1]
-                sf_node_name = init_nodes[prev_abbrev][FILENODE]
+        # Find source nodes in workflow graph.
+        task_nodes = [n for n, d in self.gen_wf_graph.nodes(data=True) if d["node_type"] == TASKNODE]
+        task_graph = bipartite.projected_graph(self.gen_wf_graph, task_nodes)
+        task_sources = [n for n in task_graph if task_graph.in_degree(n) == 0]
+        _LOG.debug("workflow sources = %s", task_sources)
 
-                # add edge from prev output init node to current task node
-                self.gen_wf_graph.add_edge(sf_node_name, st_node_name)
+        # Find sink nodes of initonly graph.
+        init_sinks = [n for n in init_graph if init_graph.out_degree(n) == 0]
+        _LOG.debug("init sinks = %s", init_sinks)
+
+        # Add initonly nodes to Workflow graph and make new edges.
+        self.gen_wf_graph.add_nodes_from(init_graph.nodes(data=True))
+        self.gen_wf_graph.add_edges_from(init_graph.edges())
+        for source in task_sources:
+            for sink in init_sinks:
+                self.gen_wf_graph.add_edge(sink, source)
+
+    def _create_workflow_init_graph(self):
+        """Create workflow subgraph for running initialization job(s).
+        """
+        _LOG.info("creating init subgraph")
+        initgraph = networkx.DiGraph()
+
+        # create nodes for executing --init-only
+        tnode_name = f"pipetask_init"
+        lfn = "pipetask_init"
+        initgraph.add_node(
+            tnode_name,
+            node_type=TASKNODE,
+            task_abbrev="pipetask_init",
+            label="pipetask_init",
+            job_attrib={"bps_jobabbrev": "pipetask_init"},
+            shape="box",
+            fillcolor="gray",
+            # style='"filled,bold"',
+            style="filled",
+        )
+        self._update_task("pipetask_init", initgraph.nodes[tnode_name], self.qgraph_filename)
+
+        _LOG.info("creating init task input(s)")
+        lfn = basename(self.qgraph_filename)
+        qnode_name = lfn
+        initgraph.add_node(
+            qnode_name,
+            node_type=FILENODE,
+            lfn=lfn,
+            label=lfn,
+            pfn=self.qgraph_filename,
+            ignore=False,
+            data_type="quantum",
+            shape="box",
+            style="rounded",
+        )
+        initgraph.add_edge(qnode_name, tnode_name)
+
+        _LOG.info("creating init task output(s)")
+        # All outputs go to Butler.  So currently need dummy file node.
+        onode_name = "pipetask_init_outputs"
+        lfn = onode_name
+        initgraph.add_node(
+            onode_name,
+            node_type=FILENODE,
+            lfn=lfn,
+            label=lfn,
+            ignore=True,
+            data_type="science",
+            shape="box",
+            style="rounded",
+        )
+        initgraph.add_edge(tnode_name, onode_name)
+
+        return initgraph
 
     def _create_workflow_graph(self, gname):
         """Create workflow graph from the Science Graph that has information
@@ -429,7 +493,6 @@ class BpsCore():
         ncnt = networkx.number_of_nodes(self.gen_wf_graph)
         taskcnts = {}
         qcnt = 0
-        init_nodes = {}
         nodelist = list(self.gen_wf_graph.nodes())
         for nodename in nodelist:
             node = self.gen_wf_graph.nodes[nodename]
@@ -466,65 +529,15 @@ class BpsCore():
 
                 self._update_task(task_abbrev, node, qlfn)
                 self.gen_wf_graph.add_edge(qnode_name, nodename)
-
-                # add init job to setup graph
-                if self.config.get("runInit", "{default: False}"):
-                    if task_abbrev in init_nodes:
-                        tnode_name = init_nodes[task_abbrev][TASKNODE]
-                    else:
-                        init_nodes[task_abbrev] = {}
-                        taskcnts[task_abbrev] += 1
-                        ncnt += 1
-                        tnode_name = f"init_{task_abbrev}"
-                        lfn = "%s_init" % task_abbrev
-                        self.gen_wf_graph.add_node(
-                            tnode_name,
-                            node_type=TASKNODE,
-                            task_abbrev=task_abbrev,
-                            shape="box",
-                            fillcolor="gray",
-                            job_attrib={
-                                "bps_isjob": "True",
-                                "bps_project": self.config["project"],
-                                "bps_campaign": self.config["campaign"],
-                                "bps_run": gname,
-                                "bps_operator": self.config["operator"],
-                                "bps_payload": self.config["payloadName"],
-                                "bps_runsite": "TODO",
-                                "bps_jobabbrev": task_abbrev,
-                            },
-                            # style='"filled,bold"',
-                            style="filled",
-                            label=lfn,
-                        )
-                        _LOG.info("creating init task: %s", task_abbrev)
-                        tnode = self.gen_wf_graph.nodes[tnode_name]
-                        init_nodes[task_abbrev][TASKNODE] = tnode_name
-                        self._update_task("pipetask_init", tnode, qlfn)
-                        ncnt += 1
-                        fnode_name = "%06d" % ncnt
-                        self.gen_wf_graph.add_node(
-                            fnode_name,
-                            node_type=FILENODE,
-                            lfn=lfn,
-                            label=lfn,
-                            ignore=True,
-                            data_type=lfn,
-                            shape="box",
-                            style="rounded",
-                        )
-                        init_nodes[task_abbrev][FILENODE] = fnode_name
-                        self.gen_wf_graph.add_edge(tnode_name, fnode_name)
-                        self.gen_wf_graph.add_edge(qnode_name, tnode_name)
-                    self.gen_wf_graph.add_edge(fnode_name, nodename)
             else:
                 raise ValueError("Invalid node_type (%s)" % node["node_type"])
+
         if self.config.get("runInit", "{default: False}"):
-            self._link_init_nodes(init_nodes)
+            self._add_workflow_init_nodes()
 
         # save pipeline summary description to graph attributes
         run_summary = []
-        for task_abbrev in [x.strip() for x in self.pipeline]:
+        for task_abbrev in [x.strip() for x in self.pipeline_labels]:
             run_summary.append("%s:%d" % (task_abbrev, taskcnts[task_abbrev]))
         self.gen_wf_graph.graph["run_attrib"] = {
             "bps_run_summary": ";".join(run_summary),
@@ -577,17 +590,6 @@ class BpsCore():
         """Create submission files but don't actually submit
         """
         subtime = time.time()
-
-        # Un-pickling QGraph needs a dimensions universe defined in
-        # registry. Easiest way to do it now is to initialize whole data
-        # butler even if it isn't used. Butler requires run or collection
-        # provided in constructor but in this case we do not care about
-        # which collection to use so give it an empty name.
-        _LOG.info("Initializing Butler")
-        stime = time.time()
-        self.butler = Butler(config=self.config["butlerConfig"], writeable=True)
-        self.butler.registry.registerRun(self.config["outCollection"])
-        _LOG.info("Initializing Butler took %.2f seconds", time.time() - stime)
 
         found, filename = self.config.search("qgraph_file")
         if found:
