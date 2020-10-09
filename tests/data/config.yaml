@@ -1,8 +1,8 @@
 foo:
-  qux: 1
+  qux: 1                   # for testing search order (1)
 bar:
-  qux: 2
+  qux: 2                   # for testing search order (2)
 baz:
-  grault: ${GARPLY}/waldo
-  garply:
+  grault: ${GARPLY}/waldo  # for testing variable expansion
+  garply:                  # for testing subsection search
     qux: 3
