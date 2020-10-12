@@ -393,7 +393,8 @@ class BpsCore():
     def _add_workflow_init_nodes(self):
         """ Add nodes to workflow graph that perform any initialization for the workflow.
 
-        Assumes initialization jobs must be new (and only) source in workflow graph.
+        Assumes that all of the initialization should be executed prior to any of the
+        current workflow.
         """
         # Create a workflow graph that will have task and file nodes necessary for
         # initializing the pipeline execution
@@ -424,52 +425,48 @@ class BpsCore():
         initgraph = networkx.DiGraph()
 
         # create nodes for executing --init-only
-        tnode_name = f"pipetask_init"
-        lfn = "pipetask_init"
+        tnode_name = "pipetask_init"
         initgraph.add_node(
             tnode_name,
             node_type=TASKNODE,
-            task_abbrev="pipetask_init",
-            label="pipetask_init",
-            job_attrib={"bps_jobabbrev": "pipetask_init"},
+            task_abbrev=tnode_name,
+            label=tnode_name,
+            job_attrib={"bps_jobabbrev": tnode_name},
             shape="box",
             fillcolor="gray",
-            # style='"filled,bold"',
             style="filled",
         )
-        self._update_task("pipetask_init", initgraph.nodes[tnode_name], self.qgraph_filename)
+        self._update_task(tnode_name, initgraph.nodes[tnode_name], self.qgraph_filename)
 
         _LOG.info("creating init task input(s)")
-        lfn = basename(self.qgraph_filename)
-        qnode_name = lfn
+        fnode_name = basename(self.qgraph_filename)
         initgraph.add_node(
-            qnode_name,
+            fnode_name,
             node_type=FILENODE,
-            lfn=lfn,
-            label=lfn,
+            lfn=fnode_name,
+            label=fnode_name,
             pfn=self.qgraph_filename,
             ignore=False,
             data_type="quantum",
             shape="box",
             style="rounded",
         )
-        initgraph.add_edge(qnode_name, tnode_name)
+        initgraph.add_edge(fnode_name, tnode_name)
 
         _LOG.info("creating init task output(s)")
         # All outputs go to Butler.  So currently need dummy file node.
-        onode_name = "pipetask_init_outputs"
-        lfn = onode_name
+        fnode_name = "pipetask_init_outputs"
         initgraph.add_node(
-            onode_name,
+            fnode_name,
             node_type=FILENODE,
-            lfn=lfn,
-            label=lfn,
+            lfn=fnode_name,
+            label=fnode_name,
             ignore=True,
             data_type="science",
             shape="box",
             style="rounded",
         )
-        initgraph.add_edge(tnode_name, onode_name)
+        initgraph.add_edge(tnode_name, fnode_name)
 
         return initgraph
 
