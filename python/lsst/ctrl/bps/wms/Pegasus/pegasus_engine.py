@@ -31,13 +31,12 @@ import logging
 from Pegasus.DAX3 import ADAG, File, Job, Link, PFN, Executable, Profile, Namespace
 from Pegasus.catalogs import replica_catalog, sites_catalog, transformation_catalog
 from lsst.ctrl.bps.workflow.HTCondor.lssthtc import htc_write_attribs
-from lsst.ctrl.bps.workflow_engine import Workflow, WorkflowEngine
-from lsst.ctrl.bps.bps_core import FILENODE, TASKNODE
+from lsst.ctrl.bps.wms_service import WmsWorkflow, WmsServer
 
 _LOG = logging.getLogger()
 
 
-class PegasusEngine(WorkflowEngine):
+class PegasusService(WmsService):
     """Pegasus version of workflow engine
     Parameters
     ----------
@@ -54,10 +53,10 @@ class PegasusEngine(WorkflowEngine):
             The generic workflow graph (e.g., has executable name and arguments)
         """
 
-        return PegasusWorkflow(self.config, gen_workflow)
+        return PegasusWorkflow.fromGenericWorkflow(self.config, gen_workflow)
 
 
-class PegasusWorkflow(Workflow):
+class PegasusWorkflow(WmsWorkflow):
     """Single Pegasus Workflow
 
     Parameters
@@ -68,7 +67,10 @@ class PegasusWorkflow(Workflow):
         BPS configuration that includes necessary submit/runtime information
     """
     def __init__(self, config, gen_workflow):
-        super().__init__(config, gen_workflow)
+
+    def fromPickle
+    def fromGenericWorkflow(self, config, generic_workflow):
+        pegasus_workflow = PegasusWorkflow()
         self.workdir = self.workflow_config["workflowPath"]
         self.files = set(n for n, d in self.workflow_graph.nodes(data=True) if d["node_type"] == FILENODE)
         self.tasks = set(n for n, d in self.workflow_graph.nodes(data=True) if d["node_type"] == TASKNODE)

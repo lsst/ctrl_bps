@@ -23,69 +23,9 @@
 
 """Submit a run to a WMS"""
 
-import logging
-import argparse
 import sys
 
-from lsst.ctrl.bps.bps_core import BpsCore
-
-
-def parse_args(argv=None):
-    """Parse command line, and test for required arguments
-
-    Parameters
-    ----------
-    argv : `list`
-        List of strings containing the command-line arguments.
-
-    Returns
-    -------
-    args : `Namespace`
-        Command-line arguments converted into an object with attributes.
-    """
-    if argv is None:
-        argv = sys.argv[1:]
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--dryrun", action="store_true", dest="dryrun", required=False,
-                        help="If set, creates all files, but does not actually submit")
-    parser.add_argument("-d", "--debug", action="store_true", dest="debug", required=False,
-                        help="Set logging to debug level")
-    parser.add_argument("-v", "--verbose", action="store_true", dest="verbose", required=False,
-                        help="Set logging to info level")
-    parser.add_argument("config_file", action="store", default=None)
-    parser.add_argument("--overrides", action="store", dest="overrides", default="")
-    args = parser.parse_args(argv)
-    return args
-
-
-def main(argv):
-    """Program entry point.  Control process that iterates over each file
-
-    Parameters
-    ----------
-    argv : `list`
-        List of strings containing command line arguments.
-    """
-    if argv is None:
-        argv = sys.argv[1:]
-    args = parse_args(argv)
-
-    # set up logging
-    logging.basicConfig(format="%(levelname)s::%(asctime)s::%(message)s", datefmt="%m/%d/%Y %H:%M:%S")
-    _log = logging.getLogger()
-    if args.debug:
-        _log.setLevel(logging.DEBUG)
-    elif args.verbose:
-        _log.setLevel(logging.INFO)
-
-    bps = BpsCore(args.config_file, overrides=args.overrides)
-    bps.create_submission()
-    if not args.dryrun:
-        bps.submit()
-        print("Run Id: %s" % bps.get_id())
-    else:
-        print("dryrun set.  Skipping actual submission.")
-
+from lsst.ctrl.bps.bpsub_driver import bpsub
 
 if __name__ == "__main__":
-    main(sys.argv[1:])
+    bpsub(sys.argv[1:])

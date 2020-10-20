@@ -19,25 +19,42 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-"""Support for workflow engines"""
+"""Base classes for working with a specific WMS"""
 
 from abc import ABCMeta
 
 
-class WorkflowEngine:
-    """Support for generating WMS workflow
+class BaseWmsService:
+    """Interface for interactions with a specific WMS
     """
     def __init__(self, config):
         self.config = config
+        self.run_id = None
+        self.submit_path = None
 
-    def implement_workflow(self, gen_workflow):
+    def prepare(self, generic_workflow, path=None):
         """Create submission for a generic workflow
         in a specific WMS
         """
         raise NotImplementedError
 
+    def submit(self, wms_workflow):
+        """Submit a single WMS workflow
+        """
+        raise NotImplementedError
 
-class Workflow(metaclass=ABCMeta):
+    def status(self, wms_workflow_id=None):
+        """Query WMS for status of submitted WMS
+        """
+        raise NotImplementedError
+
+    def history(self, wms_workflow_id=None):
+        """Query WMS for status of completed WMS
+        """
+        raise NotImplementedError
+
+
+class BaseWmsWorkflow(metaclass=ABCMeta):
     """Interface for single workflow specific to a WMS
 
     Parameters
@@ -47,17 +64,18 @@ class Workflow(metaclass=ABCMeta):
     gen_workflow : `networkx.DiGraph`
         Generic workflow graph
     """
-    def __init__(self, config, gen_workflow):
-        self.workflow_config = config
-        self.workflow_graph = gen_workflow
+    def __init__(self, config):
+        self.config = config
         self.run_id = None
+        self.submit_path = None
 
-    def submit(self):
-        """Submit workflow to WMS
+    @classmethod
+    def from_generic_workflow(cls, generic_workflow, out_prefix):
+        """Create a WMS-specific workflow from a GenericWorkflow
         """
         raise NotImplementedError
 
-    def get_id(self):
-        """Return run id
-        """
-        return self.run_id
+    def write(self, out_prefix):
+        """ Write WMS files this particular workflow.  For WMS, which can output
+        files separately from the preparation."""
+        raise NotImplementedError

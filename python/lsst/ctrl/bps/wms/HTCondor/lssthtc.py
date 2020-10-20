@@ -21,6 +21,7 @@
 
 """ HTCondor DAGMan api """
 
+import itertools
 import os
 import re
 from collections.abc import MutableMapping
@@ -136,6 +137,7 @@ def htc_write_condor_file(filename, jobname, jobdict, jobattrib):
     jobattrib: `dict`
         Dictionary of job attribute key, value
     """
+    os.makedirs(os.path.dirname(filename), exist_ok=True)
     with open(filename, "w") as subfh:
         for key, val in jobdict.items():
             if key in HTC_QUOTE_KEYS:
@@ -171,7 +173,30 @@ def htc_version():
     return f"{int(version_info.group(1)):04}.{int(version_info.group(2)):04}.{int(version_info.group(3)):04}"
 
 
-def htc_submit_from_dag(dag_filename, submit_options=None):
+def htc_submit_dag(htc_dag, submit_options=None):
+    """Create DAG submission and submit
+    Parameters
+    ----------
+    submit_options: `dict`
+        Extra options for condor_submit_dag
+    """
+    ver = htc_version()
+    if ver >= "8.9.3":
+        sub = htcondor.Submit.from_dag(htc_dag.graph["dag_filename"], submit_options)
+    else:
+        sub = htc_submit_dag_old(htc_dag.graph["dag_filename"], submit_options)
+
+    # add attributes to dag submission
+    for key, val in htc_dag.graph["attr"].items():
+        sub[f"+{key}"] = f'"{htc_escape(val)}"'
+
+    # submit DAG to HTCondor's schedd
+    schedd = htcondor.Schedd()
+    with schedd.transaction() as txn:
+        htc_dag.run_id = sub.queue(txn)
+
+
+def htc_submit_dag_old(dag_filename, submit_options=None):
     """Call condor_submit_dag on given dag description file.
     (Use until using condor version with htcondor.Submit.from_dag)
 
@@ -324,17 +349,17 @@ class HTCJob:
             self.attrs = {}
         self.attrs.update(newattrs)
 
-    def write_submit_file(self, prefix):
+    def write_submit_file(self, submit_path):
         """Write job description to submit file
         Parameters
         ----------
         prefix: `str`
             Prefix path for the submit file
         """
-        subprefix = os.path.join(prefix, self.group)
-        os.makedirs(subprefix, exist_ok=True)
-        self.subfile = os.path.join(subprefix, f"{self.name}.sub")
-        htc_write_condor_file(self.subfile, self.name, self.cmds, self.attrs)
+        self.subfile = f"{self.name}.sub"
+        if self.group is not None:
+            self.subfile = os.path.join(self.group, self.subfile)
+        htc_write_condor_file(os.path.join(submit_path, self.subfile), self.name, self.cmds, self.attrs)
 
     def write_dag_commands(self, dagfh):
         """Write DAG commands for single job to output stream
@@ -371,9 +396,11 @@ class HTCDag(networkx.DiGraph):
     """
 
     def __init__(self, data=None, name=""):
-        super(HTCDag, self).__init__(data=data, name=name)
-        self.graph["attribs"] = dict()
-        self.run_id = None
+        super().__init__(data=data, name=name)
+
+        self.graph["attr"] = dict()
+        self.graph["run_id"] = None
+        self.graph["submit_path"] = None
 
     def __str__(self):
         """Represent basic DAG info as string
@@ -393,7 +420,7 @@ class HTCDag(networkx.DiGraph):
             DAG attributes
         """
         if attribs is not None:
-            self.graph["attribs"].update(attribs)
+            self.graph["attr"].update(attribs)
 
     def add_job(self, job, parent_names=None, child_names=None):
         """Add an HTCJob to the HTCDag
@@ -410,26 +437,24 @@ class HTCDag(networkx.DiGraph):
         self.add_node(job.name, data=job)
 
         if parent_names is not None:
-            for pname in parent_names:
-                self.add_job_relationship(pname, job.name)
+            self.add_job_relationships(parent_names, job.name)
 
         if child_names is not None:
-            for cname in child_names:
-                self.add_job_relationship(cname, job.name)
+            self.add_job_relationships(child_names, job.name)
 
-    def add_job_relationship(self, parent, child):
-        """Add graph edge between parent and child job
+    def add_job_relationships(self, parents, children):
+        """Add DAG edge between parents and children jobs.
         Parameters
         ----------
-        parent: `str`
-            Name of parent job
-        child: `str`
-            Name of child job
+        parents: list of `str`
+            Contains parent job name(s).
+        children: list of `str`
+            Contains children job name(s).
         """
-        self.add_edge(parent, child)
+        self.add_edges_from(itertools.product(parents, children))
 
     def del_job(self, jobname):
-        """Delete the job from the DAG
+        """Delete the job from the DAGelf.add_edges_from(itertools.product(iterable(parents), iterable(children)))
         Parameters
         ----------
         jobid: `str`
@@ -438,19 +463,20 @@ class HTCDag(networkx.DiGraph):
         # TODO need to handle edges
         self.remove_node(jobname)
 
-    def write(self, prefix):
+    def write(self, submit_path):
         """Write DAG to a file
         Parameters
         ----------
         prefix: `str`
             Prefix path for dag filename to be combined with DAG name
         """
-        self.graph["dag_filename"] = os.path.join(prefix, f"{self.graph['name']}.dag")
-        os.makedirs(prefix, exist_ok=True)
+        self.graph["submit_path"] = submit_path
+        self.graph["dag_filename"] = os.path.join(submit_path, f"{self.graph['name']}.dag")
+        os.makedirs(submit_path, exist_ok=True)
         with open(self.graph["dag_filename"], "w") as dagfh:
             for _, nodeval in self.nodes().items():
                 job = nodeval["data"]
-                job.write_submit_file(prefix)
+                job.write_submit_file(submit_path)
                 job.write_dag_commands(dagfh)
             for edge in self.edges():
                 dagfh.write(f"PARENT {edge[0]} CHILD {edge[1]}\n")
@@ -471,28 +497,6 @@ class HTCDag(networkx.DiGraph):
             data.dump(outfh)
         for edge in self.edges():
             outfh.write(f"PARENT {edge[0]} CHILD {edge[1]}\n")
-
-    def submit(self, submit_options=None):
-        """Create DAG submission and submit
-        Parameters
-        ----------
-        submit_options: `dict`
-            Extra options for condor_submit_dag
-        """
-        ver = htc_version()
-        if ver >= "8.9.3":
-            sub = htcondor.Submit.from_dag(self.graph["dag_filename"], submit_options)
-        else:
-            sub = htc_submit_from_dag(self.graph["dag_filename"], submit_options)
-
-        # add attributes to dag submission
-        for key, val in self.graph["attribs"].items():
-            sub[f"+{key}"] = f'"{htc_escape(val)}"'
-
-        # submit DAG to HTCondor's schedd
-        schedd = htcondor.Schedd()
-        with schedd.transaction() as txn:
-            self.run_id = sub.queue(txn)
 
     def write_dot(self, outname):
         """Write a dot version of HTCDAG

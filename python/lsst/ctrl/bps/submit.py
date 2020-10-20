@@ -19,10 +19,32 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import pkgutil
+"""Driver for submitting a prepared WMS-specific workflow
+"""
 
-__path__ = pkgutil.extend_path(__path__, __name__)
+import logging
 
-from .bps_config import *
-from .generic_workflow import GenericWorkflow, GenericWorkflowJob, GenericWorkflowFile
-from .clustered_quantum_graph import ClusteredQuantumGraph
+from .bps_utils import dynamically_load
+
+_LOG = logging.getLogger()
+
+
+def submit(config, wms_workflow, wms_service=None):
+    """Convert generic workflow to a workflow for a particular WMS.
+
+    Parameters
+    ----------
+    config: `lsst.ctrl.bps.bps_config.BpsConfig`
+        Configuration values to be used by submission.
+    wms_workflow: `lsst.ctrl.bps.wms_workflow.BaseWmsWorkflow`
+    wms_service: `lsst.ctrl.bps.wms_service.BaseWmsService` or None
+
+    Returns
+    -------
+    `lsst.ctrl.bps.wms_workflow`
+        WMS-specific workflow
+    """
+    if wms_service is None:
+        wms_service_class = dynamically_load(config[".global.wmsServiceClass"])
+        wms_service = wms_service_class(config)
+    return wms_service.submit(wms_workflow)
