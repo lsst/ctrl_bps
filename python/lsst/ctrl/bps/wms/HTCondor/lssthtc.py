@@ -298,7 +298,7 @@ class HTCJob:
     ----------
     name: `str`
         Name of the job
-    group: `str`
+    label: `str`
 
     initcmds: `RestrictedDict`
         Initial job commands for submit file
@@ -308,9 +308,9 @@ class HTCJob:
         Initial dictionary of job attributes
     """
 
-    def __init__(self, name, group=None, initcmds=(), initdagcmds=(), initattrs=None):
+    def __init__(self, name, label=None, initcmds=(), initdagcmds=(), initattrs=None):
         self.name = name
-        self.group = group
+        self.label = label
         self.cmds = RestrictedDict(HTC_VALID_JOB_KEYS, initcmds)
         self.dagcmds = RestrictedDict(HTC_VALID_JOB_DAG_KEYS, initdagcmds)
         self.attrs = initattrs
@@ -349,7 +349,7 @@ class HTCJob:
             self.attrs = {}
         self.attrs.update(newattrs)
 
-    def write_submit_file(self, submit_path):
+    def write_submit_file(self, submit_path, job_subdir=""):
         """Write job description to submit file
         Parameters
         ----------
@@ -357,8 +357,9 @@ class HTCJob:
             Prefix path for the submit file
         """
         self.subfile = f"{self.name}.sub"
-        if self.group is not None:
-            self.subfile = os.path.join(self.group, self.subfile)
+        job_subdir = job_subdir.format(self=self)
+        if job_subdir:
+            self.subfile = os.path.join(job_subdir, self.subfile)
         htc_write_condor_file(os.path.join(submit_path, self.subfile), self.name, self.cmds, self.attrs)
 
     def write_dag_commands(self, dagfh):
@@ -463,7 +464,7 @@ class HTCDag(networkx.DiGraph):
         # TODO need to handle edges
         self.remove_node(jobname)
 
-    def write(self, submit_path):
+    def write(self, submit_path, job_subdir=""):
         """Write DAG to a file
         Parameters
         ----------
@@ -476,7 +477,7 @@ class HTCDag(networkx.DiGraph):
         with open(self.graph["dag_filename"], "w") as dagfh:
             for _, nodeval in self.nodes().items():
                 job = nodeval["data"]
-                job.write_submit_file(submit_path)
+                job.write_submit_file(submit_path, job_subdir)
                 job.write_dag_commands(dagfh)
             for edge in self.edges():
                 dagfh.write(f"PARENT {edge[0]} CHILD {edge[1]}\n")

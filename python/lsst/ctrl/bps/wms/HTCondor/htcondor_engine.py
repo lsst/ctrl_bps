@@ -18,7 +18,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Interface between generic workflow graph to HTCondor workflow system
+"""Interface between generic workflow to HTCondor workflow system
 """
 import os
 import logging
@@ -33,26 +33,25 @@ _LOG = logging.getLogger()
 
 class HTCondorService(BaseWmsService):
     """HTCondor version of WMS service
-
-    Parameters
-    ----------
-    config : `lsst.ctrl.bps.BPSConfig`
-        BPS configuration that includes necessary submit/runtime information
     """
-    def prepare(self, generic_workflow, out_prefix=None):
-        """Convert generic workflow graph to an HTCondor DAG ready for submission
+    def prepare(self, config, generic_workflow, out_prefix=None):
+        """Convert generic workflow to an HTCondor DAG ready for submission
 
         Parameters
         ----------
+        config : `lsst.ctrl.bps.BPSConfig`
+            BPS configuration that includes necessary submit/runtime information
         generic_workflow : `GenericWorkflow`
             The generic workflow (e.g., has executable name and arguments)
+        out_prefix : `str`
+            The root directory into which all WMS-specific files are written
 
         Returns
         ----------
         condor_workflow : `HTCondorWorkflow`
         """
         _LOG.info("out_prefix = '%s'", out_prefix)
-        htc_workflow = HTCondorWorkflow.from_generic_workflow(generic_workflow, out_prefix)
+        htc_workflow = HTCondorWorkflow.from_generic_workflow(config, generic_workflow, out_prefix)
         htc_workflow.write(out_prefix)
         return htc_workflow
 
@@ -87,21 +86,22 @@ class HTCondorWorkflow(BaseWmsWorkflow):
 
     Parameters
     ----------
-    generic_workflow : `~lsst.ctrl.bps.generic_workflow.GenericWorkflow`
-        The generic workflow graph (e.g., has executable name and arguments)
+    name : `str`
+        Unique name for Workflow used when naming files
     config : `~lsst.ctrl.bps.BPSConfig`
         BPS configuration that includes necessary submit/runtime information
     """
-    def __init__(self, config=None):
-        super().__init__(config)
+    def __init__(self, name, config=None):
+        super().__init__(name, config)
         self.dag = None
 
     @classmethod
-    def from_generic_workflow(cls, generic_workflow, out_prefix):
-        """Convert workflow graph into whatever needed for submission to workflow system
+    def from_generic_workflow(cls, config, generic_workflow, out_prefix):
+        """Convert workflow into whatever needed for submission to workflow system
         """
-        htc_workflow = cls()
+        htc_workflow = cls(generic_workflow.name, config)
         htc_workflow.dag = HTCDag(name=generic_workflow.name)
+        _LOG.info("htcondor dag attribs %s", generic_workflow.run_attrs)
         htc_workflow.dag.add_attribs(generic_workflow.run_attrs)
 
         # Create all DAG jobs
@@ -118,7 +118,7 @@ class HTCondorWorkflow(BaseWmsWorkflow):
     def _create_job(self, generic_workflow, gwf_job, out_prefix):
         """Convert GenericWorkflow job nodes to DAG jobs
         """
-        htc_job = HTCJob(gwf_job.name)
+        htc_job = HTCJob(gwf_job.name, label=gwf_job.label)
 
         htc_job_cmds = {
             "universe": "vanilla",
@@ -130,33 +130,38 @@ class HTCondorWorkflow(BaseWmsWorkflow):
 
         htc_job_cmds.update(translate_job_cmds(gwf_job))
 
-        # job stdout, stderr, htcondor user log
-        # TODO: subdirs for jobs
+        # job stdout, stderr, htcondor user log.
         htc_job_cmds["output"] = f"{gwf_job.name}.$(Cluster).out"
         htc_job_cmds["error"] = f"{gwf_job.name}.$(Cluster).err"
         htc_job_cmds["log"] = f"{gwf_job.name}.$(Cluster).log"
+        for key in ("output", "error", "log"):
+            htc_job_cmds[key] = f"{gwf_job.name}.$(Cluster).{key[:3]}"
+            if gwf_job.label:
+                htc_job_cmds[key] = os.path.join(gwf_job.label, htc_job_cmds[key])
+            htc_job_cmds[key] = os.path.join("jobs", htc_job_cmds[key])
+            _LOG.info("HTCondor %s = %s", key, htc_job_cmds[key])
 
         htc_job_cmds.update(handle_job_inputs(generic_workflow, gwf_job.name, out_prefix))
 
-        # Add the job cmds dict to the job object
+        # Add the job cmds dict to the job object.
         htc_job.add_job_cmds(htc_job_cmds)
 
-        # Add run level attributes to job
+        # Add run level attributes to job.
         htc_job.add_job_attrs(generic_workflow.run_attrs)
 
-        # Add job attributes to job
+        # Add job attributes to job.
         htc_job.add_job_attrs(gwf_job.attrs)
 
         return htc_job
 
     def write(self, out_prefix):
-        """Output HTCondor DAGMan files needed for workflow submission
+        """Output HTCondor DAGMan files needed for workflow submission.
         """
         self.submit_path = out_prefix
         os.makedirs(out_prefix, exist_ok=True)
 
         # Write down the workflow in HTCondor format.
-        self.dag.write(out_prefix)
+        self.dag.write(out_prefix, "jobs/{self.label}")
 
 
 def translate_job_cmds(generic_workflow_job):
@@ -194,7 +199,7 @@ def translate_job_cmds(generic_workflow_job):
         jobcmds["arguments"] = cmd_parts[1]
 
     # Add extra "pass-thru" job commands
-    if len(generic_workflow_job.profile) > 0:
+    if generic_workflow_job.profile:
         for key, val in generic_workflow_job.profile.items():
             jobcmds[key] = val
 
@@ -207,17 +212,18 @@ def handle_job_inputs(generic_workflow: GenericWorkflow, job_name: str, out_pref
     Parameters
     ----------
     generic_workflow : `.GenericWorkflow`
-        The generic workflow graph (e.g., has executable name and arguments)
-    htc_commands : `dict`
-        Contains htc job commands related to input files
+        The generic workflow (e.g., has executable name and arguments)
+    job_name : `str`
+        Unique name for the job
+    out_prefix : `str`
+        The root directory into which all WMS-specific files are written
     """
     htc_commands = {}
     inputs = []
     for gwf_file in generic_workflow.get_job_inputs(job_name, data=True, transfer_only=True):
-        print(gwf_file)
         inputs.append(os.path.relpath(gwf_file.src_uri, out_prefix))
 
-    if len(inputs) > 0:
+    if inputs:
         htc_commands["transfer_input_files"] = ",".join(inputs)
         _LOG.info("transfer_input_files=%s", htc_commands['transfer_input_files'])
     return htc_commands

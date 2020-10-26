@@ -65,7 +65,7 @@ class GenericWorkflowFile:
 @dataclasses.dataclass
 class GenericWorkflowJob:
     name: str
-    label: str
+    label: Optional[str]
     cmdline: str
     request_memory: Optional[int]    # MB
     request_cpu: Optional[int]       # cores
@@ -84,6 +84,7 @@ class GenericWorkflowJob:
     post_cmdline: Optional[str]
     profile: Optional[dict]
     attrs: Optional[dict]
+    environment: Optional[dict]
     quantum_graph: Optional[QuantumGraph]
     quanta_summary: Optional[str]
 
@@ -109,11 +110,12 @@ class GenericWorkflowJob:
         self.post_cmdline = None
         self.profile = {}
         self.attrs = {}
+        self.environment = {}
         self.quantum_graph = None
-        self.quanta_summary = None
+        self.quanta_summary = ""
 
     __slots__ = ('name', 'label', 'mail_to', 'when_to_mail', 'cmdline', 'request_memory', 'request_cpu',
-                 'request_disk', 'request_walltime', 'compute_site', 'number_of_retries',
+                 'request_disk', 'request_walltime', 'compute_site', 'environment', 'number_of_retries',
                  'retry_unless_exit', 'abort_on_value', 'abort_return_value', 'priority',
                  'category', 'pre_cmdline', 'post_cmdline', 'profile', 'attrs',
                  'quantum_graph', 'quanta_summary')
@@ -121,31 +123,32 @@ class GenericWorkflowJob:
     def __hash__(self):
         return hash(self.name)
 
-    def __str__(self):
-        return f"GenericWorkflowJob(name={self.name})"
-
 
 class GenericWorkflow(nx.DiGraph):
-    # JobState = Enum("JobState", "PENDING RUNNING FINISHED FAILED TIMED_OUT FAILED_DEP")
-    # JobState.PENDING
-
     def __init__(self, name, incoming_graph_data=None, **attr):
         super().__init__(incoming_graph_data, **attr)
-        self.graph['name'] = name
-        self.graph['run_attrs'] = {}
-        self.graph['files'] = {}
+        self._name = name
+        self.run_attrs = {}
+        self._files = {}
+        self.run_id = None
 
     @property
     def name(self):
-        return self.graph['name']
+        return self._name
 
-    @property
-    def run_attrs(self):
-        return self.graph['run_attrs']
-
-    @property
-    def files(self):
-        return self.graph['files']
+    def get_files(self, data=False, transfer_only=True):
+        """
+        Need API in case change way files are stored (e.g., make workflow a bipartite graph with jobs and
+        files)
+        """
+        files = []
+        for filename, file in self._files.items():
+            if not transfer_only or file.wms_transfer:
+                if not data:
+                    files.append(filename)
+                else:
+                    files.append(file)
+        return files
 
     def add_job(self, job, parent_names=None, child_names=None):
         if not isinstance(job, GenericWorkflowJob):
@@ -158,13 +161,6 @@ class GenericWorkflow(nx.DiGraph):
 
     def add_node(self, node_for_adding, **attr):
         self.add_job(node_for_adding)
-
-    #def add_nodes_from(self, nodes_for_adding, **attr):
-    #    for n in nodes_for_adding:
-    #        if isinstance(n, tuple):
-    #            self.add_job(n[1])
-    #        else:
-    #            self.add_job(n)
 
     def add_job_relationships(self, parents, children):
         if parents is not None and children is not None:
@@ -200,33 +196,33 @@ class GenericWorkflow(nx.DiGraph):
         job_inputs = self.nodes[job_name]['inputs']
         for file in iterable(files):
             # Save the central copy
-            if file.name not in self.graph['files']:
-                self.graph['files'][file.name] = file
+            if file.name not in self._files:
+                self._files[file.name] = file
 
             # Save the job reference to the file
             job_inputs[file.name] = file
 
     def get_file(self, name):
-        return self.graph["files"][name]
+        return self._files[name]
 
     def get_job_inputs(self, job_name, data=True, transfer_only=False):
         job_inputs = self.nodes[job_name]['inputs']
         inputs = []
         for file_name in job_inputs:
-            file = self.graph['files'][file_name]
+            file = self._files[file_name]
             if not transfer_only or file.wms_transfer:
                 if not data:
                     inputs.append(file_name)
                 else:
-                    inputs.append(self.graph['files'][file_name])
+                    inputs.append(self._files[file_name])
         return inputs
 
     def add_job_outputs(self, job_name, files):
         job_outputs = self.nodes[job_name]['outputs']
         for file in files:
             # Save the central copy
-            if file.name not in self.graph['files']:
-                self.graph['files'][file.name] = file
+            if file.name not in self._files:
+                self._files[file.name] = file
             # Save the job reference to the file
             job_outputs[file.name] = file
 
@@ -234,12 +230,12 @@ class GenericWorkflow(nx.DiGraph):
         job_outputs = self.nodes[job_name]['outputs']
         outputs = []
         for file_name in job_outputs:
-            file = self.graph['files'][file_name]
+            file = self._files[file_name]
             if not transfer_only or file.wms_transfer:
                 if not data:
                     outputs.append(file_name)
                 else:
-                    outputs.append(self.graph['files'][file_name])
+                    outputs.append(self._files[file_name])
         return outputs
 
     def draw(self, stream, format_):

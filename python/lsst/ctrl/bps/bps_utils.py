@@ -54,10 +54,8 @@ def dynamically_load(name):
     -------
     The specified class ready to be instantiated
     """
-    mod_parts = name.split(".")
-    from_name = ".".join(mod_parts[0:-1])
-    import_name = mod_parts[-1]
-    _LOG.info("%s %s", from_name, import_name)
+    _LOG.info("Dynamically importing %s", name)
+    (from_name, import_name) = name.rsplit(".", 1)
     mod = import_module(from_name)
     return getattr(mod, import_name)
 

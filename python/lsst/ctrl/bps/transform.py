@@ -77,7 +77,6 @@ def group_clusters_into_jobs(config, clustered_quanta_graph, name):
         _LOG.debug("node_name=%s, type(qgraph)=%s", node_name, type(data["qgraph"]))
         job = GenericWorkflowJob(node_name)
         job.quantum_graph = data["qgraph"]
-        print(type(data))
         if "label" in data:
             job.label = data['label']
         generic_workflow.add_job(job)
@@ -104,9 +103,9 @@ def update_job(config, job):
                 else:
                     job_profile[key] = val
 
-    if len(job_profile) > 0:
+    if job_profile:
         job.profile = job_profile
-    if len(job_attribs) > 0:
+    if job_attribs:
         job.attrs = job_attribs
 
 
@@ -132,7 +131,7 @@ def add_workflow_init_nodes(config, generic_workflow):
     # Add initonly nodes to Workflow graph and make new edges.
     generic_workflow.add_nodes_from(init_workflow.nodes(data=True))
     generic_workflow.add_edges_from(init_workflow.edges())
-    generic_workflow.graph["files"].update(init_workflow.graph["files"])
+    generic_workflow._files.update(init_workflow._files)
     for source in workflow_sources:
         for sink in init_sinks:
             generic_workflow.add_edge(sink, source)
@@ -157,11 +156,13 @@ def create_init_workflow(config):
     # create job for executing --init-only
     job = GenericWorkflowJob("pipetask_init")
     job.cmdline = create_command(config, "pipetask_init", config[".bps_defined.run_qgraph_file"])
+    job.label = "init"
+    job.compute_site = config["computeSite"]
     init_workflow.add_job(job)
 
     _LOG.info("creating init task input(s)")
-    file_ = GenericWorkflowFile("run_quantum_graph", wms_transfer=True,
-                                src_uri=config[".bps_defined.run_qgraph_file"])
+    file_ = GenericWorkflowFile(os.path.basename(config[".bps_defined.run_qgraph_file"]),
+                                wms_transfer=True, src_uri=config[".bps_defined.run_qgraph_file"])
     init_workflow.add_job_inputs(job.name, file_)
 
     # All outputs (config, software versions, etc) go to Butler.
@@ -270,13 +271,14 @@ def create_job_values_aggregate(config, generic_workflow):
         # for running the Quantum and compute_site
         generic_workflow_job = data["job"]
         pipeline_labels = [task.label for task in generic_workflow_job.quantum_graph.iterTaskGraph()]
-        generic_workflow_job.quanta_summary = ','.join(pipeline_labels)
+        label_counts = dict.fromkeys(pipeline_labels, 0)
         job_request_cpus = 0
         job_request_memory = 0
         job_request_disk = 0
         job_request_walltime = 0
         for qnode in generic_workflow_job.quantum_graph:  # Assumes ordering
             task_def = qnode.taskDef
+            label_counts[task_def.label] += 1
             search_opt = {"curvals": {"curr_pipetask": task_def.label}, "required": False, "default":0}
             _, request_cpus = config.search("request_cpus", opt=search_opt)
             job_request_cpus = max(job_request_cpus, request_cpus)
@@ -286,6 +288,8 @@ def create_job_values_aggregate(config, generic_workflow):
             job_request_disk += request_disk
             _, request_walltime = config.search("request_walltime", opt=search_opt)
             job_request_walltime += request_walltime
+
+        generic_workflow_job.quanta_summary = ';'.join([f"{k}:{v}" for k,v in label_counts.items()])
 
         # save if non-zero
         if job_request_cpus != 0:
@@ -319,6 +323,7 @@ def create_generic_workflow(config, clustered_quanta_graph, name, out_prefix):
 
     if config.get("runInit", "{default: False}"):
         add_workflow_init_nodes(config, generic_workflow)
+    add_workflow_attributes(config, generic_workflow)
     return generic_workflow
 
 
@@ -335,27 +340,29 @@ def add_workflow_attributes(config, generic_workflow):
     # Save run quanta summary and other workflow attributes
     # to GenericWorkflow.
     run_quanta_counts = {}
-    for job in generic_workflow:
-        for job_summary_part in job.quanta_summary.split(';'):
-            (label, cnt) = job_summary_part.split(':')
-            if label not in run_quanta_counts:
-                run_quanta_counts[label] = 0
-            run_quanta_counts[label] += int(cnt)
+    for job_name in generic_workflow:
+        job = generic_workflow.get_job(job_name)
+        if job.quanta_summary:
+            for job_summary_part in job.quanta_summary.split(';'):
+                (label, cnt) = job_summary_part.split(':')
+                if label not in run_quanta_counts:
+                    run_quanta_counts[label] = 0
+                run_quanta_counts[label] += int(cnt)
 
     run_quanta_summary = []
     for label in run_quanta_counts:
         run_quanta_summary.append("%s:%d" % (label, run_quanta_counts[label]))
 
-    generic_workflow.graph["run_attrs"] = {
-        "run_summary": ";".join(run_quanta_summary),
-        "isjob": "True",
-        "project": config["project"],
-        "campaign": config["campaign"],
-        "run": generic_workflow.graph["name"],
-        "operator": config["operator"],
-        "payload": config["payloadName"],
-        "runsite": "TODO",
-        }
+    generic_workflow.run_attrs.update({
+        "bps_run_summary": ";".join(run_quanta_summary),
+        "bps_isjob": "True",
+        "bps_project": config["project"],
+        "bps_campaign": config["campaign"],
+        "bps_run": generic_workflow.name,
+        "bps_operator": config["operator"],
+        "bps_payload": config["payloadName"],
+        "bps_runsite": "TODO",
+        })
 
 
 def create_generic_workflow_config(config, out_prefix):

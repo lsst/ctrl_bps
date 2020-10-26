@@ -32,7 +32,7 @@ class BaseWmsService:
         self.run_id = None
         self.submit_path = None
 
-    def prepare(self, generic_workflow, path=None):
+    def prepare(self, config, generic_workflow, path=None):
         """Create submission for a generic workflow
         in a specific WMS
         """
@@ -64,18 +64,19 @@ class BaseWmsWorkflow(metaclass=ABCMeta):
     gen_workflow : `networkx.DiGraph`
         Generic workflow graph
     """
-    def __init__(self, config):
+    def __init__(self, name, config):
+        self.name = name
         self.config = config
         self.run_id = None
         self.submit_path = None
 
     @classmethod
-    def from_generic_workflow(cls, generic_workflow, out_prefix):
+    def from_generic_workflow(cls, config, generic_workflow):
         """Create a WMS-specific workflow from a GenericWorkflow
         """
         raise NotImplementedError
 
     def write(self, out_prefix):
-        """ Write WMS files this particular workflow.  For WMS, which can output
-        files separately from the preparation."""
+        """ Write WMS files for this particular workflow.
+        """
         raise NotImplementedError

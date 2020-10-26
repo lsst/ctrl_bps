@@ -111,7 +111,7 @@ def execute(command, filename):
             stderr=subprocess.STDOUT
         )
         buffer = os.read(process.stdout.fileno(), buffer_size).decode()
-        while process.poll is None or len(buffer) != 0:
+        while process.poll is None or not buffer:
             f.write(buffer)
             _LOG.info(buffer)
             buffer = os.read(process.stdout.fileno(), buffer_size).decode()

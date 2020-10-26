@@ -24,7 +24,8 @@
 
 import logging
 
-from .bps_utils import dynamically_load, save_qg_subgraph, WhenToSaveQuantumGraphs
+from .bps_utils import dynamically_load, save_qg_subgraph, WhenToSaveQuantumGraphs,\
+    create_job_quantum_graph_filename
 
 _LOG = logging.getLogger()
 
@@ -38,7 +39,8 @@ def prepare(config, generic_workflow, out_prefix):
         Contains configuration for BPS
     generic_workflow: `~lsst.ctrl.bps.generic_workflow.GenericWorkflow`
         Contains generic workflow
-
+    out_prefix: `str`
+        Contains directory to which any WMS-specific files should be written.
 
     Returns
     -------
@@ -47,7 +49,7 @@ def prepare(config, generic_workflow, out_prefix):
     """
     wms_service_class = dynamically_load(config[".global.wmsServiceClass"])
     wms_service = wms_service_class(config)
-    wms_workflow = wms_service.prepare(generic_workflow, out_prefix)
+    wms_workflow = wms_service.prepare(config, generic_workflow, out_prefix)
 
     # Save QuantumGraphs
     # (putting after call to prepare so don't write a bunch of files if prepare fails)
