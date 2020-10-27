@@ -1,0 +1,6 @@
+cmd:
+  import: lsst.ctrl.bps.cli.cmd
+  commands:
+    - prepare
+    - report
+    - submit

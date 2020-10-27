@@ -4,5 +4,6 @@ setupRequired(daf_butler)
 setupRequired(pipe_base)
 setupOptional(ctrl_mpexec)
 
+envPrepend(CTRL_BPS_PLUGINS, $CTRL_BPS_DIR/python/lsst/ctrl/bps/cli/resources.yaml)
 envPrepend(PYTHONPATH, ${PRODUCT_DIR}/python)
 envPrepend(PATH, ${PRODUCT_DIR}/bin)
