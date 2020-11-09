@@ -212,7 +212,8 @@ def htc_version():
     RuntimeError
         Raised if fail to parse htcondor API string.
     """
-    # $CondorVersion: 8.8.6 Nov 13 2019 BuildID: 489199 PackageID: 8.8.6-1 $
+    # Example string returned by htcondor.version:
+    #    $CondorVersion: 8.8.6 Nov 13 2019 BuildID: 489199 PackageID: 8.8.6-1 $
     version_info = re.match(r"\$CondorVersion: (\d+).(\d+).(\d+)", htcondor.version())
     if version_info is None:
         raise RuntimeError("Problems parsing condor version")
@@ -490,7 +491,7 @@ class HTCDag(networkx.DiGraph):
             HTCJob to add to the HTCDag
         parent_names : `Iterable` of `str`, optional
             Names of parent jobs
-        child_names: `Iterable` of `str`, optional
+        child_names : `Iterable` of `str`, optional
             Names of child jobs
         """
         assert isinstance(job, HTCJob)
@@ -507,9 +508,9 @@ class HTCDag(networkx.DiGraph):
 
         Parameters
         ----------
-        parents: list of `str`
+        parents : list of `str`
             Contains parent job name(s).
-        children: list of `str`
+        children : list of `str`
             Contains children job name(s).
         """
         self.add_edges_from(itertools.product(parents, children))
@@ -519,7 +520,7 @@ class HTCDag(networkx.DiGraph):
 
         Parameters
         ----------
-        job_name: `str`
+        job_name : `str`
             Name of job in DAG to delete
         """
         # Reconnect edges around node to delete
@@ -574,7 +575,7 @@ class HTCDag(networkx.DiGraph):
 
         Parameters
         ----------
-        filename: `str`
+        filename : `str`
             dot filename
         """
         pos = networkx.nx_agraph.graphviz_layout(self)
@@ -770,6 +771,7 @@ def read_node_status(path):
 
     Returns
     -------
+    dag_classad : `dict` or `classad.ClassAd`
         DAG summary information.
     """
     dag_classad = {}

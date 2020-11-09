@@ -47,11 +47,16 @@ _LOG = logging.getLogger()
 
 
 def report(argv):
-    """Program Entry point.
+    """Entry point for status report generation.
+
+    Parameters
+    ----------
+    argv : `list` of `str`
+        Command-line arguments to be parsed.
     """
     args = parse_args_report(argv)
 
-    # set up logging
+    # Set up logging.
     logging.basicConfig(format="%(levelname)s::%(asctime)s::%(message)s", datefmt="%m/%d/%Y %H:%M:%S")
     _log = logging.getLogger()
     if args.debug:
@@ -87,8 +92,8 @@ def parse_args_report(argv=None):
 
     Parameters
     ----------
-    argv : `list`
-        List of strings containing the command-line arguments.
+    argv : `list` of `str`
+        Command-line arguments.
 
     Returns
     -------
@@ -116,19 +121,19 @@ def parse_args_report(argv=None):
 
 
 def print_headers():
-    """Print headers
+    """Print headers.
     """
     print(SUMMARY_FMT.format("X", "STATE", "%S", "ID", "OPERATOR", "PRJ", "CMPGN", "PAYLOAD", "RUN"))
     print("-" * 119)
 
 
 def print_run(run_report):
-    """Print single run info
+    """Print single run info.
 
     Parameters
     ----------
     run_report : `WmsRunReport`
-        Information for single run
+        Information for single run.
     """
     # Flag any running workflow that might need human attention
     run_flag = ' '
@@ -158,18 +163,18 @@ def group_jobs_by_state(jobs):
 
     Parameters
     ----------
-    jobs : `list`
-        Jobs to divide into groups
+    jobs : `list` of `~lsst.ctrl.bps.wms_service.WmsJobReport`
+        Jobs to divide into groups based on state.
 
     Returns
     -------
     by_state : `dict`
-        Mapping of job state to a list of jobs .
+        Mapping of job state to a list of jobs.
     """
     _LOG.info("group_jobs_by_state: jobs=%s", jobs)
     by_state = dict.fromkeys(WmsStates)
     for state in by_state:
-        by_state[state] = []    # if added [] to from keys they shared single list
+        by_state[state] = []    # Note: If added [] to fromkeys(), they shared single list.
 
     for job in jobs:
         by_state[job.state].append(job)
@@ -181,8 +186,8 @@ def group_jobs_by_label(jobs):
 
     Parameters
     ----------
-    jobs : `list`
-        Jobs to divide into groups
+    jobs : `list` of `~lsst.ctrl.bps.wms_service.WmsJobReport`
+        Jobs to divide into groups based on label.
 
     Returns
     -------
@@ -198,19 +203,19 @@ def group_jobs_by_label(jobs):
 
 
 def print_single_run_summary(run_report):
-    """Print runtime info for single run including job summary per task abbrev
+    """Print runtime info for single run including job summary per task abbrev.
 
     Parameters
     ----------
     run_report : `~lsst.ctrl.bps.wms_service.WmsRunReport`
-        Summary runtime info for a run + runtime info for jobs
+        Summary runtime info for a run + runtime info for jobs.
     """
-    # Print normal run summary
+    # Print normal run summary.
     print_headers()
     print_run(run_report)
     print("\n\n")
 
-    # Print more run information
+    # Print more run information.
     print(f"Path: {run_report.path}\n")
 
     print(f"{'':35} {' | '.join([f'{s.name[:5]:5}' for s in WmsStates])}")

@@ -34,14 +34,16 @@ def submit(config, wms_workflow, wms_service=None):
 
     Parameters
     ----------
-    config: `lsst.ctrl.bps.bps_config.BpsConfig`
+    config : `~lsst.ctrl.bps.bps_config.BpsConfig`
         Configuration values to be used by submission.
-    wms_workflow: `lsst.ctrl.bps.wms_workflow.BaseWmsWorkflow`
-    wms_service: `lsst.ctrl.bps.wms_service.BaseWmsService` or None
+    wms_workflow : `~lsst.ctrl.bps.wms_workflow.BaseWmsWorkflow`
+        The workflow to submit.
+    wms_service : `~lsst.ctrl.bps.wms_service.BaseWmsService`, optional
+        The workflow management service to which the workflow should be submitted.
 
     Returns
     -------
-    `lsst.ctrl.bps.wms_workflow`
+    wms_workflow : `~lsst.ctrl.bps.wms_workflow.BaseWmsWorkflow`
         WMS-specific workflow
     """
     if wms_service is None:

@@ -54,7 +54,7 @@ def pre_transform(config, out_prefix=None):
     -------
     qgraph_filename : `str`
         Name of file containing QuantumGraph that was read into qgraph.
-    qgraph : `lsst.pipe.base.graph.QuantumGraph`
+    qgraph : `~lsst.pipe.base.graph.QuantumGraph`
         A QuantumGraph read in from pre-generated file or one that is the
         result of running code that generates it.
     """
@@ -161,17 +161,17 @@ def create_quantum_graph(config, out_prefix=None):
 
 
 def read_quantum_graph(qgraph_filename):
-    """Read the QuantumGraph from disk
+    """Read the QuantumGraph from disk.
 
     Parameters
     ----------
-    qgraph_filename: `str`
-        Name of file containing QuantumGraph to be used for workflow generation
+    qgraph_filename : `str`
+        Name of file containing QuantumGraph to be used for workflow generation.
 
     Returns
     -------
-    `lsst.pipe.base.graph.QuantumGraph`:
-        The QuantumGraph read from a file
+    qgraph : `~lsst.pipe.base.graph.QuantumGraph`
+        The QuantumGraph read from a file.
 
     Raises
     ------
@@ -195,7 +195,7 @@ def cluster_quanta(config, qgraph, name):
     qgraph : `~lsst.pipe.base.QuantumGraph`
         Original full QuantumGraph for the run.
     name : `str`
-        Name for the ClusteredQuantumGraph that will be generated
+        Name for the ClusteredQuantumGraph that will be generated.
 
     Returns
     -------

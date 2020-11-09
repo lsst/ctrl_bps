@@ -24,7 +24,7 @@
 
 import dataclasses
 import itertools
-from typing import Optional, Tuple, Union, Iterator, Any
+from typing import Optional
 import networkx as nx
 
 from lsst.daf.butler.core.utils import iterable
@@ -137,8 +137,11 @@ class GenericWorkflow(nx.DiGraph):
     ----------
     name : `str`
         Name of generic workflow.
-    incoming_graph_data : ` `, optional
-    attr : optional
+    incoming_graph_data : `Any`, optional
+        Data used to initialized graph that is passed through to nx.DiGraph
+        constructor.  Can be any type supported by networkx.DiGraph.
+    attr : `dict`
+        Keyword arguments passed through to nx.DiGraph constructor.
     """
     def __init__(self, name, incoming_graph_data=None, **attr):
         super().__init__(incoming_graph_data, **attr)
@@ -165,8 +168,11 @@ class GenericWorkflow(nx.DiGraph):
 
         Parameters
         ----------
-        data : `bool`
-        transfer_only : `bool`
+        data : `bool`, optional
+            Whether to return the file data as well as the file object name.
+        transfer_only : `bool`, optional
+            Whether to only return files for which a workflow management system
+            would be responsible for transferring.
 
         Returns
         -------
@@ -191,7 +197,7 @@ class GenericWorkflow(nx.DiGraph):
             Job to add to the generic workflow.
         parent_names : `list` of `str`, optional
             Names of jobs that are parents of given job
-        child_names: `list` of `str`, optional
+        child_names : `list` of `str`, optional
             Names of jobs that are children of given job
         """
         if not isinstance(job, GenericWorkflowJob):
@@ -220,22 +226,23 @@ class GenericWorkflow(nx.DiGraph):
 
         Parameters
         ----------
-        parents : `list`
+        parents : `list` of `str`
             Parent job names.
-        children : `list`
+        children : `list` of `str`
             Children job names.
         """
         if parents is not None and children is not None:
             self.add_edges_from(itertools.product(iterable(parents), iterable(children)))
 
-    def add_edges_from(self, ebunch_to_add: Union[Iterator[Tuple[Any, Any]], Iterator[Tuple[Any, ...]]],
-                       **attr):
+    def add_edges_from(self, ebunch_to_add, **attr):
         """Add several edges between jobs in the generic workflow.
 
         Parameters
         ----------
-        ebunch_to_add :
-        attr :
+        ebunch_to_add : Iterable of `tuple` of `str`
+            Iterable of job name pairs between which a dependency should be saved.
+        attr : keyword arguments, optional
+            Data can be assigned using keyword arguments (not currently used)
         """
         for edge_to_add in ebunch_to_add:
             self.add_edge(edge_to_add[0], edge_to_add[1], **attr)
@@ -249,7 +256,7 @@ class GenericWorkflow(nx.DiGraph):
             Name of parent job.
         v_of_edge : `str`
             Name of child job.
-        attr : ``
+        attr : keyword arguments, optional
             Attributes to save with edge.
         """
         if u_of_edge not in self:
@@ -268,7 +275,8 @@ class GenericWorkflow(nx.DiGraph):
 
         Returns
         -------
-            job : `~lsst.ctrl.bps.generic_workflow.GenericWorkflowJob`
+        job : `~lsst.ctrl.bps.generic_workflow.GenericWorkflowJob`
+            Job matching given job_name.
         """
         return self.nodes[job_name]['job']
 
@@ -280,7 +288,6 @@ class GenericWorkflow(nx.DiGraph):
         job_name : `str`
             Name of job to delete from workflow.
         """
-
         # Connect all parent jobs to all children jobs.
         parents = self.predecessors(job_name)
         children = self.successors(job_name)
@@ -296,8 +303,8 @@ class GenericWorkflow(nx.DiGraph):
         ----------
         job_name : `str`
             Name of job to which inputs should be added
-        files : `list`
-            File objects to be added as inputs to the specified job.
+        files : `~lsst.ctrl.bps.generic_workflow.GenericWorkflowFile` or `list`
+            File object(s) to be added as inputs to the specified job.
         """
         job_inputs = self.nodes[job_name]['inputs']
         for file in iterable(files):
@@ -387,7 +394,7 @@ class GenericWorkflow(nx.DiGraph):
 
         Returns
         -------
-        outputs: `list` of `~lsst.ctrl.bps.generic_workflow.GenericWorkflowFile`
+        outputs : `list` of `~lsst.ctrl.bps.generic_workflow.GenericWorkflowFile`
             Output files for the given job.
         """
         job_outputs = self.nodes[job_name]['outputs']
@@ -406,7 +413,7 @@ class GenericWorkflow(nx.DiGraph):
 
         Parameters
         ----------
-        stream : `IOBase`
+        stream : `str` or `io.BufferedIOBase`
             Stream to which the visualization should be written.
         format_ : `str`, optional
             Which visualization format to use.  It defaults to the format for
@@ -423,7 +430,7 @@ class GenericWorkflow(nx.DiGraph):
 
         Parameters
         ----------
-        stream : `IO` or `str`
+        stream : `str` or `io.BufferedIOBase`
             Stream to pass to the format-specific writer.  Accepts anything
             that the writer accepts.
 
@@ -441,7 +448,7 @@ class GenericWorkflow(nx.DiGraph):
 
         Parameters
         ----------
-        stream : `IO` or `str`
+        stream : `str` or `io.BufferedIOBase`
             Stream to pass to the format-specific loader. Accepts anything that
             the loader accepts.
         format_ : `str`, optional

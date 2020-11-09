@@ -54,11 +54,12 @@ class PegasusService(BaseWmsService):
         generic_workflow :  `~lsst.ctrl.bps.generic_workflow.GenericWorkflow`
             The generic workflow (e.g., has executable name and arguments)
         out_prefix : `str`
-            The root directory into which all WMS-specific files are written
+            The root directory into which all WMS-specific files are written.
 
         Returns
         ----------
         workflow : `~lsst.ctrl.bps.wms.pegasus.pegasus_service.PegasusWorkflow`
+            A workflow ready for Pegasus to run.
         """
         service_class = f"{self.__class__.__module__}.{self.__class__.__name__}"
         peg_workflow = PegasusWorkflow.from_generic_workflow(config, generic_workflow, out_prefix,
@@ -103,13 +104,13 @@ class PegasusService(BaseWmsService):
 
          Returns
          -------
-         run_reports: `dict` of `BaseWmsReport`
+         run_reports : `dict` of `BaseWmsReport`
              Status information for submitted WMS workflows
-         message: `str`
+         message : `str`
              Message to user on how to find more status information specific to WMS
          """
         htc_service = HTCondorService(self.config)
-        return htc_service.report(wms_workflow_id)
+        return htc_service.report(wms_workflow_id, user, hist, pass_thru)
 
 
 class PegasusWorkflow(BaseWmsWorkflow):
@@ -119,7 +120,7 @@ class PegasusWorkflow(BaseWmsWorkflow):
     ----------
     name : `str`
         Name of Workflow
-    config : `lsst.ctrl.bps.BPSConfig`
+    config : `~lsst.ctrl.bps.bps_config.BpsConfig`
         BPS configuration that includes necessary submit/runtime information
     """
     def __init__(self, name, config):
@@ -156,6 +157,7 @@ class PegasusWorkflow(BaseWmsWorkflow):
 
     @classmethod
     def from_generic_workflow(cls, config, generic_workflow, out_prefix, service_class):
+        # Docstring inherited.
         peg_workflow = cls(generic_workflow.name, config)
         peg_workflow.run_attrs = copy.deepcopy(generic_workflow.run_attrs)
         peg_workflow.run_attrs['bps_wms_service'] = service_class
@@ -184,7 +186,21 @@ class PegasusWorkflow(BaseWmsWorkflow):
         return peg_workflow
 
     def create_job(self, generic_workflow, gwf_job, peg_files):
-        """Create Pegasus job corresponding to given GenericWorkflow job.
+        """Create a Pegasus job corresponding to the given GenericWorkflow job.
+
+        Parameters
+        ----------
+        generic_workflow : `~lsst.ctrl.bps.generic_workflow.GenericWorkflow`
+            Generic workflow that is being converted.
+        gwf_job : `~lsst.ctrl.bps.generic_workflow.GenericWorkflowJob`
+            The generic job to convert to a Pegasus job.
+        peg_files : `dict` of `Pegasus.DAX3.File`
+            Pegasus Files needed when creating Pegasus Job.
+
+        Returns
+        -------
+        job : `Pegasus.DAX3.Job`
+            Pegasus job created from the generic workflow job.
         """
         _LOG.debug("GenericWorkflowJob=%s", gwf_job)
         _LOG.debug("%s gwf_job.cmdline = %s", gwf_job.name, gwf_job.cmdline)
@@ -251,6 +267,11 @@ class PegasusWorkflow(BaseWmsWorkflow):
 
         Note: SitesCatalog needs workdir at initialization to create local site for
         submit side directory where the output data from the workflow will be stored.
+
+        Parameters
+        ----------
+        out_prefix : `str`
+            Directory prefix for the site catalog file.
         """
         self.sites_catalog = sites_catalog.SitesCatalog(out_prefix, f"{self.name}_sites.xml")
 
@@ -275,6 +296,11 @@ class PegasusWorkflow(BaseWmsWorkflow):
 
     def write(self, out_prefix):
         """Write Pegasus Catalogs and DAX to files
+
+        Parameters
+        ----------
+        out_prefix : `str`
+            Directory prefix for all the Pegasus workflow files.
         """
         self.submit_path = out_prefix
 
@@ -371,6 +397,18 @@ class PegasusWorkflow(BaseWmsWorkflow):
 
     def _write_properties_file(self, out_prefix, filenames):
         """Write Pegasus Properties File
+
+        Parameters
+        ----------
+        out_prefix : `str`
+            Directory prefix for properties file.
+        filenames : `dict` of `str`
+            Mapping of Pegasus file keys to filenames.
+
+        Returns
+        -------
+        properties : `str`
+            Filename of the pegasus properties file.
         """
         properties = f"{self.name}_pegasus.properties"
         if out_prefix is not None:
@@ -392,9 +430,5 @@ class PegasusWorkflow(BaseWmsWorkflow):
             outfh.write("# Make Pegasus use links instead of transferring files.\n")
             outfh.write("pegasus.transfer.*.impl=Transfer\n")
             outfh.write("pegasus.transfer.links=true\n")
-
-            # outfh.write("# Use a timestamp as a name for the submit directory.\n")
-            # outfh.write("pegasus.dir.useTimestamp=true\n")
-            # outfh.write("pegasus.dir.storage.deep=true\n")
 
         return properties

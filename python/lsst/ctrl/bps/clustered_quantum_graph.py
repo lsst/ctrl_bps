@@ -74,16 +74,5 @@ class ClusteredQuantumGraph(networkx.DiGraph):
         super().add_node(name, **attr)
 
     def add_nodes_from(self, nodes_for_adding, **attr):
-        """Add multiple nodes.
-
-        Parameters
-        ----------
-        nodes_for_adding :
-        attr : keyword arguments, optional
-
-        Raises
-        -------
-        RuntimeError
-            Raised because this function should never be called.
-        """
-        raise RuntimeError("Multiple nodes should not have same qgraph attribute.")
+        # Docstring inherited from networkx.Digraph
+        raise TypeError("Multiple nodes should not have same qgraph attribute.")

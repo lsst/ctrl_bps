@@ -51,6 +51,7 @@ class HTCondorService(BaseWmsService):
         Returns
         ----------
         workflow : `~lsst.ctrl.bps.wms.htcondor.htcondor_service.HTCondorWorkflow`
+            HTCondor workflow ready to be run.
         """
         _LOG.debug("out_prefix = '%s'", out_prefix)
         workflow = HTCondorWorkflow.from_generic_workflow(config, generic_workflow, out_prefix,
@@ -142,8 +143,7 @@ class HTCondorWorkflow(BaseWmsWorkflow):
 
     @classmethod
     def from_generic_workflow(cls, config, generic_workflow, out_prefix, service_class):
-        """Convert workflow into whatever needed for submission to workflow system
-        """
+        # Docstring inherited
         htc_workflow = cls(generic_workflow.name, config)
         htc_workflow.dag = HTCDag(name=generic_workflow.name)
 
@@ -167,6 +167,22 @@ class HTCondorWorkflow(BaseWmsWorkflow):
     @staticmethod
     def _create_job(generic_workflow, gwf_job, run_attrs, out_prefix):
         """Convert GenericWorkflow job nodes to DAG jobs
+
+        Parameters
+        ----------
+        generic_workflow : `~lsst.ctrl.bps.generic_workflow.GenericWorkflow`
+            Generic workflow that is being converted.
+        gwf_job : `~lsst.ctrl.bps.generic_workflow.GenericWorkflowJob`
+            The generic job to convert to a Pegasus job.
+        run_attrs : `dict` [`str`: `str`]
+            Attributes common to entire run that should be added to job.
+        out_prefix : `str`
+            Directory prefix for HTCondor files.
+
+        Returns
+        -------
+        htc_job : `~lsst.ctrl.bps.wms.htcondor.lssthtc.HTCJob`
+            The HTCondor job equivalent to the given generic job.
         """
         htc_job = HTCJob(gwf_job.name, label=gwf_job.label)
 
@@ -210,6 +226,11 @@ class HTCondorWorkflow(BaseWmsWorkflow):
 
     def write(self, out_prefix):
         """Output HTCondor DAGMan files needed for workflow submission.
+
+        Parameters
+        ----------
+        out_prefix : `str`
+            Directory prefix for HTCondor files.
         """
         self.submit_path = out_prefix
         os.makedirs(out_prefix, exist_ok=True)
@@ -223,7 +244,8 @@ def translate_job_cmds(generic_workflow_job):
 
     Parameters
     ----------
-    generic_workflow_job
+    generic_workflow_job : `~lsst.ctrl.bps.generic_workflow.GenericWorkflowJob`
+       Generic workflow job that is being converted.
 
     Returns
     -------
@@ -260,17 +282,23 @@ def translate_job_cmds(generic_workflow_job):
     return jobcmds
 
 
-def handle_job_inputs(generic_workflow: GenericWorkflow, job_name: str, out_prefix):
-    """Add job input files from generic workflow to job
+def handle_job_inputs(generic_workflow: GenericWorkflow, job_name: str,
+                      out_prefix):
+    """Add job input files from generic workflow to job.
 
     Parameters
     ----------
     generic_workflow : `.GenericWorkflow`
-        The generic workflow (e.g., has executable name and arguments)
+        The generic workflow (e.g., has executable name and arguments).
     job_name : `str`
-        Unique name for the job
+        Unique name for the job.
     out_prefix : `str`
-        The root directory into which all WMS-specific files are written
+        The root directory into which all WMS-specific files are written.
+
+    Returns
+    -------
+    htc_commands : `dict` [`str`: `str`]
+        HTCondor commands for the job submission.
     """
     htc_commands = {}
     inputs = []

@@ -35,25 +35,25 @@ def single_quantum_clustering(config, qgraph, name):
 
     Parameters
     ----------
-    config : `lsst.ctrl.bps.bps_config.BpsConfig`
+    config : `~lsst.ctrl.bps.bps_config.BpsConfig`
         BPS configuration.
     qgraph : `~lsst.pipe.base.QuantumGraph`
-        QuantumGraph to break into clusters for ClusteredQuantumGraph
+        QuantumGraph to break into clusters for ClusteredQuantumGraph.
     name : `str`
-        Name to give to ClusteredQuantumGraph
+        Name to give to ClusteredQuantumGraph.
 
     Returns
     -------
-    clustered_quantum : `ClusteredQuantumGraph`
+    clustered_quantum : `~lsst.ctrl.bps.clustered_quantum_graph.ClusteredQuantumGraph`
         ClusteredQuantumGraph with single quantum per cluster created from
-        given QuantumGraph
+        given QuantumGraph.
     """
     clustered_quantum = ClusteredQuantumGraph(name=name)
 
-    # save mapping of quantum nodeNumber to name so don't have to create it multiple times
+    # Save mapping of quantum nodeNumber to name so don't have to create it multiple times.
     number_to_name = {}
 
-    # create cluster of single quantum
+    # Create cluster of single quantum.
     for quantum_node in qgraph:
         subgraph = qgraph.subset(quantum_node)
         label = quantum_node.taskDef.label
@@ -80,9 +80,9 @@ def single_quantum_clustering(config, qgraph, name):
 
         clustered_quantum.add_cluster(name, subgraph, label)
 
-    # add cluster dependencies
+    # Add cluster dependencies.
     for quantum_node in qgraph:
-        # get child nodes
+        # Get child nodes.
         children = qgraph.determineOutputsOfQuantumNode(quantum_node)
         for child in children:
             clustered_quantum.add_edge(number_to_name[quantum_node.nodeId.number],

@@ -35,29 +35,29 @@ def prepare(config, generic_workflow, out_prefix):
 
     Parameters
     ----------
-    config: `lsst.ctrl.bps.bps_config.BpsConfig`
-        Contains configuration for BPS
-    generic_workflow: `~lsst.ctrl.bps.generic_workflow.GenericWorkflow`
-        Contains generic workflow
-    out_prefix: `str`
+    config : `~lsst.ctrl.bps.bps_config.BpsConfig`
+        Contains configuration for BPS.
+    generic_workflow : `~lsst.ctrl.bps.generic_workflow.GenericWorkflow`
+        Contains generic workflow.
+    out_prefix : `str`
         Contains directory to which any WMS-specific files should be written.
 
     Returns
     -------
-    `lsst.ctrl.bps.wms_workflow`
-        WMS-specific workflow
+    wms_workflow : `~lsst.ctrl.bps.wms_workflow`
+        WMS-specific workflow.
     """
     wms_service_class = doImport(config["wmsServiceClass"])
     wms_service = wms_service_class(config)
     wms_workflow = wms_service.prepare(config, generic_workflow, out_prefix)
 
-    # Save QuantumGraphs
+    # Save QuantumGraphs.
     # (putting after call to prepare so don't write a bunch of files if prepare fails)
     found, when_to_save_job_qgraph = config.search('when_save_job_qgraph',
                                                    {'default': WhenToSaveQuantumGraphs.TRANSFORM})
     if found and when_to_save_job_qgraph == WhenToSaveQuantumGraphs.PREPARE:
         for job_name in generic_workflow.nodes():
             job = generic_workflow.get_job(job_name)
-            save_qg_subgraph(job.quantum_graph, create_job_quantum_graph_filename(config, job, out_prefix))
+            save_qg_subgraph(job.quantum_graph, create_job_quantum_graph_filename(job, out_prefix))
 
     return wms_workflow

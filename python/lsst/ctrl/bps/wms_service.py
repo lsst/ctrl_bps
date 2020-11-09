@@ -79,12 +79,15 @@ class WmsRunReport:
 
 
 class BaseWmsService:
-    """Interface for interactions with a specific WMS
+    """Interface for interactions with a specific WMS.
+
+    Parameters
+    ----------
+    config : `~lsst.ctrl.bps.bps_config.BpsConfig`
+        Configuration needed by the WMS service.
     """
     def __init__(self, config):
         self.config = config
-        self.run_id = None
-        self.submit_path = None
 
     def prepare(self, config, generic_workflow, out_prefix=None):
         """Create submission for a generic workflow for a specific WMS.
@@ -107,21 +110,23 @@ class BaseWmsService:
 
     def submit(self, workflow):
         """Submit a single WMS workflow
+
         Parameters
         ----------
-        workflow : `.BaseWmsWorkflow`
+        workflow : `~lsst.ctrl.bps.wms_service.BaseWmsWorkflow`
             Prepared WMS Workflow to submit for execution
         """
         raise NotImplementedError
 
     def report(self, wms_workflow_id=None, user=None, hist=0, pass_thru=None):
-        """Query WMS for status of submitted WMS workflows
+        """Query WMS for status of submitted WMS workflows.
+
         Parameters
         ----------
         wms_workflow_id : `int` or `str`, optional
             Id that can be used by WMS service to look up status.
         user : `str`, optional
-            Limit report to submissions by this particular user
+            Limit report to submissions by this particular user.
         hist : `int`, optional
             Number of days to expand report to include finished WMS workflows.
         pass_thru : `str`, optional
@@ -129,22 +134,23 @@ class BaseWmsService:
 
         Returns
         -------
-        run_reports: `dict` of `BaseWmsReport`
-            Status information for submitted WMS workflows
-        message: `str`
-            Message to user on how to find more status information specific to WMS
+        run_reports : `dict` of `~lsst.ctrl.bps.wms_service.BaseWmsReport`
+            Status information for submitted WMS workflows.
+        message : `str`
+            Message to user on how to find more status information specific to
+            this particular WMS.
         """
         raise NotImplementedError
 
 
 class BaseWmsWorkflow(metaclass=ABCMeta):
-    """Interface for single workflow specific to a WMS
+    """Interface for single workflow specific to a WMS.
 
     Parameters
     ----------
     name : `str`
         Unique name of workflow.
-    config : `BpsConfig`
+    config : `~lsst.ctrl.bps.bps_config.BpsConfig`
         Generic workflow config.
     """
     def __init__(self, name, config):
@@ -155,15 +161,16 @@ class BaseWmsWorkflow(metaclass=ABCMeta):
         self.submit_path = None
 
     @classmethod
-    def from_generic_workflow(cls, config, generic_workflow, out_prefix, service_class):
+    def from_generic_workflow(cls, config, generic_workflow, out_prefix,
+                              service_class):
         """Create a WMS-specific workflow from a GenericWorkflow
 
         Parameters
         ----------
-        config : `BpsConfig`
-            Configuration values needed for generating a WMS specific workflow
+        config : `~lsst.ctrl.bps.bps_config.BpsConfig`
+            Configuration values needed for generating a WMS specific workflow.
         generic_workflow : `~lsst.ctrl.bps.generic_workflow.GenericWorkflow`
-            Generic workflow
+            Generic workflow from which to create the WMS-specific one.
         out_prefix : `str`
             Root directory to be used for WMS workflow inputs and outputs
             as well as internal WMS files.
@@ -172,7 +179,8 @@ class BaseWmsWorkflow(metaclass=ABCMeta):
 
         Returns
         -------
-            A WMS specific workflow
+            wms_workflow : `~lsst.ctrl.bps.wms_service.BaseWmsWorkflow`
+                A WMS specific workflow
         """
 
         raise NotImplementedError
@@ -182,7 +190,7 @@ class BaseWmsWorkflow(metaclass=ABCMeta):
 
         Parameters
         ----------
-        out_prefix: `str`
+        out_prefix : `str`
             Root directory to be used for WMS workflow inputs and outputs
             as well as internal WMS files.
         """

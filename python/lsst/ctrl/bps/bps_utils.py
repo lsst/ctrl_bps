@@ -19,13 +19,12 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-"""Core functionality of BPS
+"""Misc supporting classes and functions for BPS.
 """
 
 import os
 import contextlib
 import logging
-from importlib import import_module
 from enum import Enum
 
 _LOG = logging.getLogger()
@@ -45,7 +44,7 @@ def chdir(path):
 
     Parameters
     ----------
-    path: `str`
+    path : `str`
         Path to be made current working directory
     """
     cur_dir = os.getcwd()
@@ -56,15 +55,16 @@ def chdir(path):
         os.chdir(cur_dir)
 
 
-def create_job_quantum_graph_filename(_, job, out_prefix=None):
+def create_job_quantum_graph_filename(job, out_prefix=None):
     """Create a filename to be used when storing the QuantumGraph
     for a job.
 
     Parameters
     ----------
-    _
-    job
-    out_prefix
+    job : `~lsst.ctrl.bps.generic_workflow.GenericWorkflowJob`
+        Job for which the QuantumGraph file is being saved.
+    out_prefix : `str`
+        Path prefix for the QuantumGraph filename.
 
     Returns
     -------
@@ -83,14 +83,14 @@ def create_job_quantum_graph_filename(_, job, out_prefix=None):
 
 
 def save_qg_subgraph(qgraph, out_filename):
-    """Save subgraph to file
+    """Save subgraph to file.
 
     Parameters
     ----------
     qgraph : `~lsst.pipe.base.graph.QuantumGraph`
-        QuantumGraph to save
+        QuantumGraph to save.
     out_filename : `str`
-        Name of the output file
+        Name of the output file.
     """
     if not os.path.exists(out_filename):
         _LOG.debug("Saving QuantumGraph with %d nodes to %s", len(qgraph), out_filename)
