@@ -28,101 +28,100 @@ import lsst.ctrl.bps.generic_workflow as gw
 
 class TestGenericWorkflowJob(unittest.TestCase):
     def testEquality(self):
-        job1 = gw.GenericWorkflowJob('job1', '/usr/bin/echo one')
-        job2 = gw.GenericWorkflowJob('job1', '/usr/bin/echo one')
+        job1 = gw.GenericWorkflowJob("job1")
+        job2 = gw.GenericWorkflowJob("job1")
         self.assertEqual(job1, job2)
 
 
 class TestGenericWorkflow(unittest.TestCase):
 
     def testAddJobDuplicate(self):
-        job1 = gw.GenericWorkflowJob('job1', '/usr/bin/echo one')
-        gwf = gw.GenericWorkflow(gname="mytest")
+        job1 = gw.GenericWorkflowJob("job1")
+        gwf = gw.GenericWorkflow("mytest")
         gwf.add_job(job1)
         with self.assertRaises(RuntimeError):
             gwf.add_job(job1)
 
     def testAddJobValid(self):
-        job1 = gw.GenericWorkflowJob('job1', '/usr/bin/echo one')
-        gwf = gw.GenericWorkflow(gname="mytest")
+        job1 = gw.GenericWorkflowJob("job1")
+        gwf = gw.GenericWorkflow("mytest")
         gwf.add_job(job1)
         self.assertEqual(1, gwf.number_of_nodes())
-        self.assertListEqual(['job1'], list(gwf))
-        getjob = gwf.get_job('job1')
+        self.assertListEqual(["job1"], list(gwf))
+        getjob = gwf.get_job("job1")
         self.assertEqual(job1, getjob)
 
     def testAddJobRelationshipsSingle(self):
-        job1 = gw.GenericWorkflowJob('job1', '/usr/bin/echo one')
-        job2 = gw.GenericWorkflowJob('job2', '/usr/bin/echo two')
-        gwf = gw.GenericWorkflow(gname="mytest")
+        job1 = gw.GenericWorkflowJob("job1")
+        job2 = gw.GenericWorkflowJob("job2")
+        gwf = gw.GenericWorkflow("mytest")
         gwf.add_job(job1)
         gwf.add_job(job2)
-        gwf.add_job_relationships('job1', 'job2')
-        self.assertListEqual([('job1', 'job2')], list(gwf.edges()))
+        gwf.add_job_relationships("job1", "job2")
+        self.assertListEqual([("job1", "job2")], list(gwf.edges()))
 
-    def testAddJobRelationshipsMultChild(self):
-        job1 = gw.GenericWorkflowJob('job1', '/usr/bin/echo one')
-        job2 = gw.GenericWorkflowJob('job2', '/usr/bin/echo two')
-        job3 = gw.GenericWorkflowJob('job3', '/usr/bin/echo three')
-        gwf = gw.GenericWorkflow(gname="mytest")
+    def testAddJobRelationshipsMultiChild(self):
+        job1 = gw.GenericWorkflowJob("job1")
+        job2 = gw.GenericWorkflowJob("job2")
+        job3 = gw.GenericWorkflowJob("job3")
+        gwf = gw.GenericWorkflow("mytest")
         gwf.add_job(job1)
         gwf.add_job(job2)
         gwf.add_job(job3)
-        gwf.add_job_relationships('job1', ['job2', 'job3'])
-        self.assertListEqual([('job1', 'job2'), ('job1', 'job3')], list(gwf.edges()))
+        gwf.add_job_relationships("job1", ["job2", "job3"])
+        self.assertListEqual([("job1", "job2"), ("job1", "job3")], list(gwf.edges()))
 
-    def testAddJobRelationshipsMultParents(self):
-        job1 = gw.GenericWorkflowJob('job1', '/usr/bin/echo one')
-        job2 = gw.GenericWorkflowJob('job2', '/usr/bin/echo two')
-        job3 = gw.GenericWorkflowJob('job3', '/usr/bin/echo three')
-        gwf = gw.GenericWorkflow(gname="mytest")
+    def testAddJobRelationshipsMultiParents(self):
+        job1 = gw.GenericWorkflowJob("job1")
+        job2 = gw.GenericWorkflowJob("job2")
+        job3 = gw.GenericWorkflowJob("job3")
+        gwf = gw.GenericWorkflow("mytest")
         gwf.add_job(job1)
         gwf.add_job(job2)
         gwf.add_job(job3)
-        gwf.add_job_relationships(['job1', 'job2'], 'job3')
-        self.assertListEqual([('job1', 'job3'), ('job2', 'job3')], list(gwf.edges()))
+        gwf.add_job_relationships(["job1", "job2"], "job3")
+        self.assertListEqual([("job1", "job3"), ("job2", "job3")], list(gwf.edges()))
 
     def testAddJobRelationshipsNone(self):
-        job1 = gw.GenericWorkflowJob('job1', '/usr/bin/echo one')
-        gwf = gw.GenericWorkflow(gname="mytest")
+        job1 = gw.GenericWorkflowJob("job1")
+        gwf = gw.GenericWorkflow("mytest")
         gwf.add_job(job1)
-        gwf.add_job_relationships(None, 'job1')
+        gwf.add_job_relationships(None, "job1")
         self.assertListEqual([], list(gwf.edges()))
-        gwf.add_job_relationships('job1', None)
+        gwf.add_job_relationships("job1", None)
         self.assertListEqual([], list(gwf.edges()))
 
     def testGetJobExists(self):
-        job1 = gw.GenericWorkflowJob('job1', '/usr/bin/echo one')
-        gwf = gw.GenericWorkflow(gname="mytest")
+        job1 = gw.GenericWorkflowJob("job1")
+        gwf = gw.GenericWorkflow("mytest")
         gwf.add_job(job1)
-        job2 = gwf.get_job('job1')
+        job2 = gwf.get_job("job1")
         self.assertIs(job1, job2)
 
     def testGetJobError(self):
-        job1 = gw.GenericWorkflowJob('job1', '/usr/bin/echo one')
-        gwf = gw.GenericWorkflow(gname="mytest")
+        job1 = gw.GenericWorkflowJob("job1")
+        gwf = gw.GenericWorkflow("mytest")
         gwf.add_job(job1)
         with self.assertRaises(KeyError):
-            _ = gwf.get_job('job_not_there')
+            _ = gwf.get_job("job_not_there")
 
     def testSaveInvalidFormat(self):
-        gwf = gw.GenericWorkflow(gname="mytest")
+        gwf = gw.GenericWorkflow("mytest")
         stream = io.BytesIO()
         with self.assertRaises(RuntimeError):
-            gwf.save(stream, 'badformat')
+            gwf.save(stream, "badformat")
 
     def testSavePickle(self):
-        gwf = gw.GenericWorkflow(gname="mytest")
-        job1 = gw.GenericWorkflowJob('job1', '/usr/bin/echo one')
-        job2 = gw.GenericWorkflowJob('job2', '/usr/bin/echo two')
+        gwf = gw.GenericWorkflow("mytest")
+        job1 = gw.GenericWorkflowJob("job1")
+        job2 = gw.GenericWorkflowJob("job2")
         gwf.add_job(job1)
         gwf.add_job(job2)
-        gwf.add_job_relationships('job1', 'job2')
+        gwf.add_job_relationships("job1", "job2")
         stream = io.BytesIO()
-        gwf.save(stream, 'pickle')
+        gwf.save(stream, "pickle")
         stream.seek(0)
-        gwf2 = gw.GenericWorkflow()
-        gwf2 = gw.GenericWorkflow.load(stream, 'pickle')
+        gwf2 = gw.GenericWorkflow.load(stream, "pickle")
         self.assertTrue(networkx.is_isomorphic(gwf, gwf2, node_match=iso.categorical_node_match("data",
                                                                                                 None)))
 

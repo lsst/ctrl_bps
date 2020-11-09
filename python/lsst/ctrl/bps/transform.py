@@ -25,8 +25,6 @@ generic workflow.
 
 import logging
 import os
-import re
-from dataclasses import fields
 
 from .bps_config import BpsConfig
 from .generic_workflow import GenericWorkflow, GenericWorkflowJob, GenericWorkflowFile
@@ -36,13 +34,16 @@ from .bps_utils import save_qg_subgraph, WhenToSaveQuantumGraphs, create_job_qua
 _LOG = logging.getLogger()
 
 
-def transform(config, clustered_quantum_graph, out_prefix):
+def transform(config, clustered_quantum_graph, prefix):
     """Transform a ClusteredQuantumGraph to a GenericWorkflow
 
     Parameters
     ----------
-    config : `.BPSConfig`
-    clustered_quantum_graph : `.ClusteredQuantumGraph`
+    config : `~lsst.ctrl.bps.bps_config.BPSConfig`
+        BPS configuration.
+    clustered_quantum_graph : `~lsst.ctrl.bps.clustered_quantum_graph.ClusteredQuantumGraph`
+    prefix : `str`
+        Root path for any output files
 
     Returns
     -------
@@ -54,8 +55,8 @@ def transform(config, clustered_quantum_graph, out_prefix):
     else:
         _, name = config.search('uniqProcName', opt={'required': True})
 
-    generic_workflow = create_generic_workflow(config, clustered_quantum_graph, name, out_prefix)
-    generic_workflow_config = create_generic_workflow_config(config, out_prefix)
+    generic_workflow = create_generic_workflow(config, clustered_quantum_graph, name, prefix)
+    generic_workflow_config = create_generic_workflow_config(config, prefix)
 
     # Save QuantumGraphs
     found, when_to_save_job_qgraph = config.search('when_save_job_qgraph',
@@ -65,20 +66,35 @@ def transform(config, clustered_quantum_graph, out_prefix):
             job = generic_workflow.get_job(job_name)
             if job.quantum_graph is not None:
                 save_qg_subgraph(job.quantum_graph,
-                                 create_job_quantum_graph_filename(config, job, out_prefix))
+                                 create_job_quantum_graph_filename(config, job, prefix))
 
     return generic_workflow, generic_workflow_config
 
 
-def group_clusters_into_jobs(config, clustered_quanta_graph, name):
+def group_clusters_into_jobs(clustered_quanta_graph, name):
+    """Group clusters of quanta into compute jobs.
+
+    Parameters
+    ----------
+    clustered_quanta_graph : `~lsst.ctrl.bps.clustered_quantum_graph.ClusteredQuantumGraph`
+        Graph where each node is a QuantumGraph of quanta that should be run inside single python execution.
+    name : `str`
+        Name of GenericWorkflow (typically unique by conventions).
+
+    Returns
+    -------
+    generic_workflow : `~lsst.ctrl.bps.generic_workflow.GenericWorkflow`
+        Skeleton of the generic workflow (job placeholders and job dependencies)
+    """
     generic_workflow = GenericWorkflow(name)
 
     for node_name, data in clustered_quanta_graph.nodes(data=True):
-        _LOG.debug("node_name=%s, type(qgraph)=%s", node_name, type(data["qgraph"]))
+        _LOG.debug("clustered_quanta_graph: node_name=%s, type(qgraph)=%s, label=%s", node_name,
+                   type(data["qgraph"]), data["label"])
         job = GenericWorkflowJob(node_name)
         job.quantum_graph = data["qgraph"]
         if "label" in data:
-            job.label = data['label']
+            job.label = data["label"]
         generic_workflow.add_job(job)
 
     # Create job dependencies
@@ -91,29 +107,37 @@ def group_clusters_into_jobs(config, clustered_quanta_graph, name):
 
 
 def update_job(config, job):
-    """Update job node with workflow info
-    """
-    job_profile = {}
-    job_attribs = {}
-    if "profile" in config["site"][job.compute_site]:
-        if "condor" in config["site"][job.compute_site]["profile"]:
-            for key, val in config["site"][job.compute_site]["profile"]["condor"].items():
-                if key.startswith("+"):
-                    job_attribs[key[1:]] = val
-                else:
-                    job_profile[key] = val
+    """Update given job with workflow attribute and profile values
 
-    if job_profile:
-        job.profile = job_profile
-    if job_attribs:
-        job.attrs = job_attribs
+    Parameters
+    ----------
+    config : `~lsst.ctrl.bps.bps_config.BpsConfig`
+        BPS configuration.
+    job : `~lsst.ctrl.bps.generic_workflow.GenericWorkflowJob`
+        Job to which the attributes and profile values should be added
+    """
+    key = f".site.{job.compute_site}.profile.condor"
+
+    if key in config:
+        for key, val in config[key].items():
+            if key.startswith("+"):
+                job.attrs[key[1:]] = val
+            else:
+                job.profile[key] = val
 
 
 def add_workflow_init_nodes(config, generic_workflow):
-    """ Add nodes to workflow graph that perform any initialization for the workflow.
+    """ Add nodes to workflow graph that perform initialization steps.
 
-    Assumes that all of the initialization should be executed prior to any of the
-    current workflow.
+    Assumes that all of the initialization should be executed prior to any
+    of the current workflow.
+
+    Parameters
+    ----------
+    config : `~lsst.ctrl.bps.bps_config.BpsConfig`
+        BPS configuration.
+    generic_workflow : `~lsst.ctrl.bps.generic_workflow.GenericWorkflow`
+        Generic workflow to which the initialization steps should be added.
     """
     # Create a workflow graph that will have task and file nodes necessary for
     # initializing the pipeline execution
@@ -142,15 +166,15 @@ def create_init_workflow(config):
 
     Parameters
     ----------
-    config : BpsConfig
-        bps configuration file.
+    config : `~lsst.ctrl.bps.bps_config.BpsConfig`
+        BPS configuration.
 
     Returns
     -------
-        init_workflow : GenericWorkflow
-            GenericWorkflow consisting of job(s) to initialize workflow
+    init_workflow : `~lsst.ctrl.bps.generic_workflow.GenericWorkflow`
+        GenericWorkflow consisting of job(s) to initialize workflow
     """
-    _LOG.info("creating init subgraph")
+    _LOG.debug("creating init subgraph")
     init_workflow = GenericWorkflow("init")
 
     # create job for executing --init-only
@@ -160,7 +184,7 @@ def create_init_workflow(config):
     job.compute_site = config["computeSite"]
     init_workflow.add_job(job)
 
-    _LOG.info("creating init task input(s)")
+    _LOG.debug("creating init task input(s)")
     file_ = GenericWorkflowFile(os.path.basename(config[".bps_defined.run_qgraph_file"]),
                                 wms_transfer=True, src_uri=config[".bps_defined.run_qgraph_file"])
     init_workflow.add_job_inputs(job.name, file_)
@@ -176,7 +200,7 @@ def create_command(config, label, qgraph_file):
 
     Parameters
     ----------
-    config : `BpsConfig`
+    config : `~lsst.ctrl.bps.bps_config.BPSConfig`
         Bps configuration.
     label : `str`
         Pipeline Task label used as key into config.
@@ -202,20 +226,22 @@ def create_command(config, label, qgraph_file):
     return command
 
 
-def create_job_values_universal(config, generic_workflow, out_prefix):
+def create_job_values_universal(config, generic_workflow, prefix):
     """Create job values.  Must be same value for every PipelineTask in QuantumGraph.
 
     Parameters
     ----------
-    config : `BpsConfig`
-        Bps configuration
+    config : `~lsst.ctrl.bps.bps_config.BPSConfig`
+        Bps configuration.
     generic_workflow : `GenericWorkflow`
+    prefix : `str`
+        Root path for any output files
     """
     for job_name, data in generic_workflow.nodes(data=True):
         # Verify workflow config values are same for all nodes in QuantumGraph
         # for running the Quantum and compute_site
         generic_workflow_job = data["job"]
-        data["qgraph_file"] = create_job_quantum_graph_filename(config, generic_workflow_job, out_prefix)
+        data["qgraph_file"] = create_job_quantum_graph_filename(config, generic_workflow_job, prefix)
         file_ = GenericWorkflowFile(os.path.basename(data["qgraph_file"]), wms_transfer=True,
                                     src_uri=data["qgraph_file"])
         generic_workflow.add_job_inputs(job_name, file_)
@@ -266,59 +292,54 @@ def create_job_values_aggregate(config, generic_workflow):
     config
     generic_workflow
     """
-    for job_name, data in generic_workflow.nodes(data=True):
+    for _, data in generic_workflow.nodes(data=True):
         # Verify workflow config values are same for all nodes in QuantumGraph
         # for running the Quantum and compute_site
-        generic_workflow_job = data["job"]
-        pipeline_labels = [task.label for task in generic_workflow_job.quantum_graph.iterTaskGraph()]
+        job = data["job"]
+
+        pipeline_labels = [task.label for task in job.quantum_graph.iterTaskGraph()]
         label_counts = dict.fromkeys(pipeline_labels, 0)
-        job_request_cpus = 0
-        job_request_memory = 0
-        job_request_disk = 0
-        job_request_walltime = 0
-        for qnode in generic_workflow_job.quantum_graph:  # Assumes ordering
-            task_def = qnode.taskDef
-            label_counts[task_def.label] += 1
-            search_opt = {"curvals": {"curr_pipetask": task_def.label}, "required": False, "default":0}
+
+        job.request_cpus = 0
+        job.request_memory = 0
+        job.request_disk = 0
+        job.request_walltime = 0
+
+        for qnode in job.quantum_graph:  # Assumes ordering
+            label_counts[qnode.taskDef.label] += 1
+
+            search_opt = {"curvals": {"curr_pipetask": qnode.taskDef.label}, "required": False, "default": 0}
             _, request_cpus = config.search("request_cpus", opt=search_opt)
-            job_request_cpus = max(job_request_cpus, request_cpus)
+            job.request_cpus = max(job.request_cpus, request_cpus)
             _, request_memory = config.search("request_memory", opt=search_opt)
-            job_request_memory = max(job_request_memory, request_memory)
+            job.request_memory = max(job.request_memory, request_memory)
             _, request_disk = config.search("request_walltime", opt=search_opt)
-            job_request_disk += request_disk
+            job.request_disk += request_disk
             _, request_walltime = config.search("request_walltime", opt=search_opt)
-            job_request_walltime += request_walltime
+            job.request_walltime += request_walltime
 
-        generic_workflow_job.quanta_summary = ';'.join([f"{k}:{v}" for k,v in label_counts.items()])
-
-        # save if non-zero
-        if job_request_cpus != 0:
-            generic_workflow_job.request_cpus = job_request_cpus
-        if job_request_memory != 0:
-            generic_workflow_job.request_memory = job_request_memory
-        if job_request_disk != 0:
-            generic_workflow_job.request_disk = job_request_disk
-        if job_request_walltime != 0:
-            generic_workflow_job.request_walltime = job_request_walltime
+        job.quanta_summary = ';'.join([f"{k}:{v}" for k, v in label_counts.items()])
 
 
-def create_generic_workflow(config, clustered_quanta_graph, name, out_prefix):
+def create_generic_workflow(config, clustered_quanta_graph, name, prefix):
     """Create a generic workflow from a ClusteredQuantumGraph such that it
     has information needed for WMS (e.g., command lines).
 
     Parameters
     ----------
-    config :
-        Command line arguments
+    config : `~lsst.ctrl.bps.bps_config.BPSConfig`
+        BPS configuration.
     clustered_quanta_graph : `ClusteredQuantumGraph`
         ClusteredQuantumGraph for running a specific pipeline on a
         specific payload
     name : `str`
         Name for the workflow (typically unique).
+    prefix : `str`
+        Root path for any output files
     """
 
-    generic_workflow = group_clusters_into_jobs(config, clustered_quanta_graph, name)
-    create_job_values_universal(config, generic_workflow, out_prefix)
+    generic_workflow = group_clusters_into_jobs(clustered_quanta_graph, name)
+    create_job_values_universal(config, generic_workflow, prefix)
     create_job_values_aggregate(config, generic_workflow)
 
     if config.get("runInit", "{default: False}"):
@@ -332,8 +353,8 @@ def add_workflow_attributes(config, generic_workflow):
 
     Parameters
     ----------
-    config : `BpsConfig`
-        Bps configuration
+    config : `~lsst.ctrl.bps.bps_config.BPSConfig`
+        Bps configuration.
     generic_workflow : `GenericWorkflow`
         Generic Workflow to which attributes should be added
     """
@@ -353,25 +374,25 @@ def add_workflow_attributes(config, generic_workflow):
     for label in run_quanta_counts:
         run_quanta_summary.append("%s:%d" % (label, run_quanta_counts[label]))
 
-    generic_workflow.run_attrs.update({
-        "bps_run_summary": ";".join(run_quanta_summary),
-        "bps_isjob": "True",
-        "bps_project": config["project"],
-        "bps_campaign": config["campaign"],
-        "bps_run": generic_workflow.name,
-        "bps_operator": config["operator"],
-        "bps_payload": config["payloadName"],
-        "bps_runsite": "TODO",
-        })
+    generic_workflow.run_attrs.update({"bps_run_summary": ";".join(run_quanta_summary),
+                                       "bps_isjob": "True",
+                                       "bps_project": config["project"],
+                                       "bps_campaign": config["campaign"],
+                                       "bps_run": generic_workflow.name,
+                                       "bps_operator": config["operator"],
+                                       "bps_payload": config["payloadName"],
+                                       "bps_runsite": "TODO"})
 
 
-def create_generic_workflow_config(config, out_prefix):
+def create_generic_workflow_config(config, prefix):
     """Create generic workflow configuration
 
     Parameters
     ----------
-    config : `BpsConfig`
-        Bps configuration
+    config : `~lsst.ctrl.bps.bps_config.BPSConfig`
+        Bps configuration.
+    prefix : `str`
+        Root path for any output files
 
     Returns
     -------
@@ -381,5 +402,5 @@ def create_generic_workflow_config(config, out_prefix):
 
     generic_workflow_config = BpsConfig(config)
     generic_workflow_config["workflowName"] = config["uniqProcName"]
-    generic_workflow_config["workflowPath"] = out_prefix
+    generic_workflow_config["workflowPath"] = prefix
     return generic_workflow_config

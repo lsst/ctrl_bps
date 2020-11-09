@@ -103,16 +103,16 @@ def execute(command, filename):
         The exit code the command being executed finished with.
     """
     buffer_size = 5000
-    with open(filename, "w") as f:
-        f.write(command)
-        f.write("\n")
+    with open(filename, "w") as fh:
+        fh.write(command)
+        fh.write("\n")
         process = subprocess.Popen(
             shlex.split(command), shell=False, stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT
         )
         buffer = os.read(process.stdout.fileno(), buffer_size).decode()
-        while process.poll is None or not buffer:
-            f.write(buffer)
+        while process.poll is None or buffer:
+            fh.write(buffer)
             _LOG.info(buffer)
             buffer = os.read(process.stdout.fileno(), buffer_size).decode()
         process.stdout.close()
@@ -150,12 +150,13 @@ def create_quantum_graph(config, out_prefix=None):
     _LOG.info(cmd)
 
     # Run QuantumGraph generation.
-    out = f"quantumGraphGeneration.out"
+    out = "quantumGraphGeneration.out"
     if out_prefix is not None:
         out = os.path.join(out_prefix, out)
     status = execute(cmd, out)
     if status != 0:
-        raise RuntimeError(f"QuantumGraph generation exited with non-zero exit code ({status})")
+        raise RuntimeError(f"QuantumGraph generation exited with non-zero exit code ({status})\n"
+                           f"Check {out} for more details.")
     return qgraph_filename
 
 
@@ -177,13 +178,29 @@ def read_quantum_graph(qgraph_filename):
     `RuntimeError`
         If the QuantumGraph contains 0 Quanta
     """
-    with open(qgraph_filename, "rb") as infh:
-        qgraph = QuantumGraph.load(infh, DimensionUniverse())
+    with open(qgraph_filename, "rb") as fh:
+        qgraph = QuantumGraph.load(fh, DimensionUniverse())
     if len(qgraph) == 0:
         raise RuntimeError("QuantumGraph is empty")
     return qgraph
 
 
 def cluster_quanta(config, qgraph, name):
+    """Call specified function to group quanta into clusters to be run together.
+
+    Parameters
+    ----------
+    config : `~lsst.ctrl.bps.bps_config.BpsConfig`
+        BPS configuration.
+    qgraph : `~lsst.pipe.base.QuantumGraph`
+        Original full QuantumGraph for the run.
+    name : `str`
+        Name for the ClusteredQuantumGraph that will be generated
+
+    Returns
+    -------
+    graph : `~lsst.ctrl.bps.clustered_quantum_graph.ClusteredQuantumGraph`
+        Generated ClusteredQuantumGraph.
+    """
     cluster_func = dynamically_load(config["cluster_algorithm"])
     return cluster_func(config, qgraph, name)

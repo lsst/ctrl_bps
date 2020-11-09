@@ -22,11 +22,13 @@
 """
 import os
 import logging
+from datetime import datetime, timedelta
 
-from ...bps_utils import chdir
-from .lssthtc import HTCDag, HTCJob, htc_submit_dag
-from ...wms_service import BaseWmsWorkflow, BaseWmsService
-from ...generic_workflow import GenericWorkflow
+from lsst.ctrl.bps.bps_utils import chdir
+from lsst.ctrl.bps.wms_service import BaseWmsWorkflow, BaseWmsService
+from lsst.ctrl.bps.generic_workflow import GenericWorkflow
+from .lssthtc import (htc_submit_dag, read_node_status, read_dag_node_log, condor_q, condor_history,
+                      HTCDag, HTCJob, htc_jobs_to_wms_report)
 
 _LOG = logging.getLogger()
 
@@ -39,46 +41,89 @@ class HTCondorService(BaseWmsService):
 
         Parameters
         ----------
-        config : `lsst.ctrl.bps.BPSConfig`
+        config : `~lsst.ctrl.bps.BPSConfig`
             BPS configuration that includes necessary submit/runtime information
-        generic_workflow : `GenericWorkflow`
+        generic_workflow :  `~lsst.ctrl.bps.generic_workflow.GenericWorkflow`
             The generic workflow (e.g., has executable name and arguments)
         out_prefix : `str`
             The root directory into which all WMS-specific files are written
 
         Returns
         ----------
-        condor_workflow : `HTCondorWorkflow`
+        workflow : `~lsst.ctrl.bps.wms.htcondor.htcondor_service.HTCondorWorkflow`
         """
-        _LOG.info("out_prefix = '%s'", out_prefix)
-        htc_workflow = HTCondorWorkflow.from_generic_workflow(config, generic_workflow, out_prefix)
-        htc_workflow.write(out_prefix)
-        return htc_workflow
+        _LOG.debug("out_prefix = '%s'", out_prefix)
+        workflow = HTCondorWorkflow.from_generic_workflow(config, generic_workflow, out_prefix,
+                                                          f"{self.__class__.__module__}."
+                                                          f"{self.__class__.__name__}")
+        workflow.write(out_prefix)
+        return workflow
 
-    def submit(self, htcondor_workflow):
-        """Submit a single WMS workflow
+    def submit(self, workflow):
+        """Submit a single HTCondor workflow
 
         Parameters
         ----------
-        htcondor_workflow : `HTCondorWorkflow`
+        workflow : `~lsst.ctrl.bps.wms_service.BaseWorkflow`
             A single HTCondor workflow to submit
         """
         # For workflow portability, internal paths are all relative
         # Need to submit to HTCondor from inside the
-        with chdir(htcondor_workflow.submit_path):
+        with chdir(workflow.submit_path):
             _LOG.info("Submitting from directory: %s", os.getcwd())
-            htc_submit_dag(htcondor_workflow.dag, dict())
-            htcondor_workflow.run_id = htcondor_workflow.dag.run_id
+            htc_submit_dag(workflow.dag, dict())
+            workflow.run_id = workflow.dag.run_id
 
-    def status(self, wms_workflow_id=None):
-        """condor_q results
-        """
-        raise NotImplementedError
+    def report(self, wms_workflow_id=None, user=None, hist=0, pass_thru=None):
+        """Return run information based upon given constraints.
 
-    def history(self, wms_workflow_id=None):
-        """condor_history results
+        Parameters
+        ----------
+        wms_workflow_id : `int` or `str`
+            Limit to specific run based on id.
+        user : `str`
+            Limit results to runs for this user.
+        hist : `float`
+            Limit history search to this many days.
+        pass_thru : `str`
+            Constraints to pass through to HTCondor.
+
+        Returns
+        -------
+        runs : `dict` of `~lsst.ctrl.bps.wms_service.WmsRunReport`
+            Information about runs from given job information.
+        message : `str`
+            Extra message for report command to print.  This could be pointers to documentation or
+            to WMS specific commands.
         """
-        raise NotImplementedError
+        message = ""
+
+        if wms_workflow_id and isinstance(wms_workflow_id, str) and not wms_workflow_id.isnumeric():
+            # assume wms_workflow_id is actually the path
+            # Try to read from logs
+            jobs = read_node_status(wms_workflow_id)
+            jobs.update(read_dag_node_log(wms_workflow_id))
+        else:
+            if wms_workflow_id:
+                constraint = f'(DAGManJobId == {int(wms_workflow_id)} || ClusterId == ' \
+                             f'{int(wms_workflow_id)})'
+            elif pass_thru:
+                constraint = pass_thru
+            else:
+                constraint = 'bps_isjob == "True"'
+                if user:
+                    constraint += f' && (Owner == "{user}" || bps_operator == "{user}")'
+            # check runs in queue
+            jobs = condor_q(constraint)
+
+            if hist:
+                epoch = (datetime.now() - timedelta(days=hist)).timestamp()
+                constraint += f'CompletionDate >= {epoch}'
+                hist_jobs = condor_history(constraint)
+                jobs.update(hist_jobs)
+
+        run_reports = htc_jobs_to_wms_report(jobs)
+        return run_reports, message
 
 
 class HTCondorWorkflow(BaseWmsWorkflow):
@@ -96,18 +141,22 @@ class HTCondorWorkflow(BaseWmsWorkflow):
         self.dag = None
 
     @classmethod
-    def from_generic_workflow(cls, config, generic_workflow, out_prefix):
+    def from_generic_workflow(cls, config, generic_workflow, out_prefix, service_class):
         """Convert workflow into whatever needed for submission to workflow system
         """
         htc_workflow = cls(generic_workflow.name, config)
         htc_workflow.dag = HTCDag(name=generic_workflow.name)
-        _LOG.info("htcondor dag attribs %s", generic_workflow.run_attrs)
+
+        _LOG.debug("htcondor dag attribs %s", generic_workflow.run_attrs)
         htc_workflow.dag.add_attribs(generic_workflow.run_attrs)
+        htc_workflow.dag.add_attribs({'bps_wms_service': service_class,
+                                      'bps_wms_workflow': f"{cls.__module__}.{cls.__name__}"})
 
         # Create all DAG jobs
         for job_name in generic_workflow:
             gwf_job = generic_workflow.get_job(job_name)
-            htc_job = htc_workflow._create_job(generic_workflow, gwf_job, out_prefix)
+            htc_job = HTCondorWorkflow._create_job(generic_workflow, gwf_job, generic_workflow.run_attrs,
+                                                   out_prefix)
             htc_workflow.dag.add_job(htc_job)
 
         # Add job dependencies to the DAG
@@ -115,7 +164,8 @@ class HTCondorWorkflow(BaseWmsWorkflow):
             htc_workflow.dag.add_job_relationships([job_name], generic_workflow.successors(job_name))
         return htc_workflow
 
-    def _create_job(self, generic_workflow, gwf_job, out_prefix):
+    @staticmethod
+    def _create_job(generic_workflow, gwf_job, run_attrs, out_prefix):
         """Convert GenericWorkflow job nodes to DAG jobs
         """
         htc_job = HTCJob(gwf_job.name, label=gwf_job.label)
@@ -139,7 +189,7 @@ class HTCondorWorkflow(BaseWmsWorkflow):
             if gwf_job.label:
                 htc_job_cmds[key] = os.path.join(gwf_job.label, htc_job_cmds[key])
             htc_job_cmds[key] = os.path.join("jobs", htc_job_cmds[key])
-            _LOG.info("HTCondor %s = %s", key, htc_job_cmds[key])
+            _LOG.debug("HTCondor %s = %s", key, htc_job_cmds[key])
 
         htc_job_cmds.update(handle_job_inputs(generic_workflow, gwf_job.name, out_prefix))
 
@@ -147,10 +197,14 @@ class HTCondorWorkflow(BaseWmsWorkflow):
         htc_job.add_job_cmds(htc_job_cmds)
 
         # Add run level attributes to job.
-        htc_job.add_job_attrs(generic_workflow.run_attrs)
+        htc_job.add_job_attrs(run_attrs)
 
         # Add job attributes to job.
+        _LOG.debug("gwf_job.attrs = %s", gwf_job.attrs)
         htc_job.add_job_attrs(gwf_job.attrs)
+        htc_job.add_job_attrs({"bps_job_name": gwf_job.name,
+                               "bps_job_label": gwf_job.label,
+                               "bps_job_quanta": gwf_job.quanta_summary})
 
         return htc_job
 
@@ -178,19 +232,19 @@ def translate_job_cmds(generic_workflow_job):
     """
     jobcmds = {}
 
-    if generic_workflow_job.mail_to is not None:
+    if generic_workflow_job.mail_to:
         jobcmds['notify_user'] = generic_workflow_job.mail_to
 
-    if generic_workflow_job.when_to_mail is not None:
+    if generic_workflow_job.when_to_mail:
         jobcmds['notification'] = generic_workflow_job.when_to_mail
 
-    if generic_workflow_job.request_disk is not None:
+    if generic_workflow_job.request_disk:
         jobcmds['request_disk'] = f"{generic_workflow_job.request_disk}MB"
 
-    if generic_workflow_job.request_memory is not None:
+    if generic_workflow_job.request_memory:
         jobcmds['request_memory'] = f"{generic_workflow_job.request_memory}MB"
 
-    if generic_workflow_job.priority is not None:
+    if generic_workflow_job.priority:
         jobcmds['priority'] = generic_workflow_job.priority
 
     cmd_parts = generic_workflow_job.cmdline.split(' ', 1)
@@ -225,5 +279,5 @@ def handle_job_inputs(generic_workflow: GenericWorkflow, job_name: str, out_pref
 
     if inputs:
         htc_commands["transfer_input_files"] = ",".join(inputs)
-        _LOG.info("transfer_input_files=%s", htc_commands['transfer_input_files'])
+        _LOG.debug("transfer_input_files=%s", htc_commands['transfer_input_files'])
     return htc_commands

@@ -47,7 +47,7 @@ def prepare(config, generic_workflow, out_prefix):
     `lsst.ctrl.bps.wms_workflow`
         WMS-specific workflow
     """
-    wms_service_class = dynamically_load(config[".global.wmsServiceClass"])
+    wms_service_class = dynamically_load(config["wmsServiceClass"])
     wms_service = wms_service_class(config)
     wms_workflow = wms_service.prepare(config, generic_workflow, out_prefix)
 

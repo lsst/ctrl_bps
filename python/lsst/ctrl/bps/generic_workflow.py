@@ -35,6 +35,8 @@ from .bps_draw import draw_networkx_dot
 
 @dataclasses.dataclass
 class GenericWorkflowFile:
+    """Information about a file that may be needed by various workflow
+    management services."""
     name: str
     wms_transfer: bool
     src_uri: str or None  # don't know that need ButlerURI
@@ -64,11 +66,14 @@ class GenericWorkflowFile:
 
 @dataclasses.dataclass
 class GenericWorkflowJob:
+    """Information about a job that may be needed by various workflow
+    management services.
+    """
     name: str
     label: Optional[str]
-    cmdline: str
+    cmdline: Optional[str]
     request_memory: Optional[int]    # MB
-    request_cpu: Optional[int]       # cores
+    request_cpus: Optional[int]       # cores
     request_disk: Optional[int]      # MB
     request_walltime: Optional[str]  # minutes
     compute_site: Optional[str]
@@ -94,7 +99,7 @@ class GenericWorkflowJob:
         self.label = None
         self.cmdline = None
         self.request_memory = None
-        self.request_cpu = None
+        self.request_cpus = None
         self.request_disk = None
         self.request_walltime = None
         self.compute_site = None
@@ -114,7 +119,7 @@ class GenericWorkflowJob:
         self.quantum_graph = None
         self.quanta_summary = ""
 
-    __slots__ = ('name', 'label', 'mail_to', 'when_to_mail', 'cmdline', 'request_memory', 'request_cpu',
+    __slots__ = ('name', 'label', 'mail_to', 'when_to_mail', 'cmdline', 'request_memory', 'request_cpus',
                  'request_disk', 'request_walltime', 'compute_site', 'environment', 'number_of_retries',
                  'retry_unless_exit', 'abort_on_value', 'abort_return_value', 'priority',
                  'category', 'pre_cmdline', 'post_cmdline', 'profile', 'attrs',
@@ -125,6 +130,16 @@ class GenericWorkflowJob:
 
 
 class GenericWorkflow(nx.DiGraph):
+    """A generic representation of a workflow used to submit to specific
+    workflow management systems.
+
+    Parameters
+    ----------
+    name : `str`
+        Name of generic workflow.
+    incoming_graph_data : ` `, optional
+    attr : optional
+    """
     def __init__(self, name, incoming_graph_data=None, **attr):
         super().__init__(incoming_graph_data, **attr)
         self._name = name
@@ -134,12 +149,29 @@ class GenericWorkflow(nx.DiGraph):
 
     @property
     def name(self):
+        """Retrieve name of generic workflow.
+
+        Returns
+        -------
+        name : `str`
+            Name of generic workflow.
+        """
         return self._name
 
     def get_files(self, data=False, transfer_only=True):
-        """
-        Need API in case change way files are stored (e.g., make workflow a bipartite graph with jobs and
-        files)
+        """Retrieve files from generic workflow.
+        Need API in case change way files are stored (e.g., make
+        workflow a bipartite graph with jobs and files nodes).
+
+        Parameters
+        ----------
+        data : `bool`
+        transfer_only : `bool`
+
+        Returns
+        -------
+        files : `list` of `~lsst.ctrl.bps.generic_workflow.GenericWorkflowFile`
+            Files from generic workflow meeting specifications.
         """
         files = []
         for filename, file in self._files.items():
@@ -151,6 +183,17 @@ class GenericWorkflow(nx.DiGraph):
         return files
 
     def add_job(self, job, parent_names=None, child_names=None):
+        """Add job to generic workflow.
+
+        Parameters
+        ----------
+        job : `~lsst.ctrl.bps.generic_workflow.GenericWorkflowJob`
+            Job to add to the generic workflow.
+        parent_names : `list` of `str`, optional
+            Names of jobs that are parents of given job
+        child_names: `list` of `str`, optional
+            Names of jobs that are children of given job
+        """
         if not isinstance(job, GenericWorkflowJob):
             raise RuntimeError(f"Invalid type for job to be added to GenericWorkflowGraph ({type(job)}).")
         if self.has_node(job.name):
@@ -160,18 +203,55 @@ class GenericWorkflow(nx.DiGraph):
         self.add_job_relationships(job.name, child_names)
 
     def add_node(self, node_for_adding, **attr):
+        """Override networkx function to call more specific add_job function.
+
+        Parameters
+        ----------
+        node_for_adding : `~lsst.ctrl.bps.generic_workflow.GenericWorkflowJob`
+            Job to be added to generic workflow.
+        attr :
+            Needed to match original networkx function, but not used.
+        """
         self.add_job(node_for_adding)
 
     def add_job_relationships(self, parents, children):
+        """Add dependencies between parent and child jobs.  All parents will
+        be connected to all children.
+
+        Parameters
+        ----------
+        parents : `list`
+            Parent job names.
+        children : `list`
+            Children job names.
+        """
         if parents is not None and children is not None:
             self.add_edges_from(itertools.product(iterable(parents), iterable(children)))
 
     def add_edges_from(self, ebunch_to_add: Union[Iterator[Tuple[Any, Any]], Iterator[Tuple[Any, ...]]],
                        **attr):
+        """Add several edges between jobs in the generic workflow.
+
+        Parameters
+        ----------
+        ebunch_to_add :
+        attr :
+        """
         for edge_to_add in ebunch_to_add:
             self.add_edge(edge_to_add[0], edge_to_add[1], **attr)
 
     def add_edge(self, u_of_edge: str, v_of_edge: str, **attr):
+        """Add edge connecting jobs in workflow.
+
+        Parameters
+        ----------
+        u_of_edge : `str`
+            Name of parent job.
+        v_of_edge : `str`
+            Name of child job.
+        attr : ``
+            Attributes to save with edge.
+        """
         if u_of_edge not in self:
             raise RuntimeError(f"{u_of_edge} not in GenericWorkflow")
         if v_of_edge not in self:
@@ -179,10 +259,27 @@ class GenericWorkflow(nx.DiGraph):
         super().add_edge(u_of_edge, v_of_edge, **attr)
 
     def get_job(self, job_name: str):
+        """Retrieve job by name from workflow.
+
+        Parameters
+        ----------
+        job_name : `str`
+            Name of job to retrieve.
+
+        Returns
+        -------
+            job : `~lsst.ctrl.bps.generic_workflow.GenericWorkflowJob`
+        """
         return self.nodes[job_name]['job']
 
     def del_job(self, job_name: str):
-        # Delete job from generic workflow leaving connected graph.
+        """Delete job from generic workflow leaving connected graph.
+
+        Parameters
+        ----------
+        job_name : `str`
+            Name of job to delete from workflow.
+        """
 
         # Connect all parent jobs to all children jobs.
         parents = self.predecessors(job_name)
@@ -193,6 +290,15 @@ class GenericWorkflow(nx.DiGraph):
         self.remove_node(job_name)
 
     def add_job_inputs(self, job_name: str, files):
+        """Add files as inputs to specified job.
+
+        Parameters
+        ----------
+        job_name : `str`
+            Name of job to which inputs should be added
+        files : `list`
+            File objects to be added as inputs to the specified job.
+        """
         job_inputs = self.nodes[job_name]['inputs']
         for file in iterable(files):
             # Save the central copy
@@ -203,9 +309,38 @@ class GenericWorkflow(nx.DiGraph):
             job_inputs[file.name] = file
 
     def get_file(self, name):
+        """Retrieve a file object by name.
+
+        Parameters
+        ----------
+        name : `str`
+            Name of file object
+
+        Returns
+        -------
+        file_ : `~lsst.ctrl.bps.generic_workflow.GenericWorkflowFile`
+            File matching given name.
+        """
         return self._files[name]
 
     def get_job_inputs(self, job_name, data=True, transfer_only=False):
+        """Return the input files for the given job.
+
+        Parameters
+        ----------
+        job_name : `str`
+            Name of the job.
+        data : `bool`, optional
+            Whether to return the file data as well as the file object name.
+        transfer_only : `bool`, optional
+            Whether to only return files for which a workflow management system
+            would be responsible for transferring.
+
+        Returns
+        -------
+        inputs : `list` of `~lsst.ctrl.bps.generic_workflow.GenericWorkflowFile`
+            Input files for the given job.
+        """
         job_inputs = self.nodes[job_name]['inputs']
         inputs = []
         for file_name in job_inputs:
@@ -218,6 +353,15 @@ class GenericWorkflow(nx.DiGraph):
         return inputs
 
     def add_job_outputs(self, job_name, files):
+        """Add output files to a job.
+
+        Parameters
+        ----------
+        job_name : `str`
+            Name of job to which the files should be added as outputs.
+        files : `list` of `~lsst.ctrl.bps.generic_workflow.GenericWorkflowFile`
+            File objects to be added as outputs for specified job.
+        """
         job_outputs = self.nodes[job_name]['outputs']
         for file in files:
             # Save the central copy
@@ -227,6 +371,25 @@ class GenericWorkflow(nx.DiGraph):
             job_outputs[file.name] = file
 
     def get_job_outputs(self, job_name, data=True, transfer_only=False):
+        """Return the output files for the given job.
+
+        Parameters
+        ----------
+        job_name : `str`
+            Name of the job.
+        data : `bool`
+            Whether to return the file data as well as the file object name.
+            It defaults to `True` thus returning file data as well.
+        transfer_only : `bool`
+            Whether to only return files for which a workflow management system
+            would be responsible for transferring.  It defaults to `False` thus
+            returning all output files.
+
+        Returns
+        -------
+        outputs: `list` of `~lsst.ctrl.bps.generic_workflow.GenericWorkflowFile`
+            Output files for the given job.
+        """
         job_outputs = self.nodes[job_name]['outputs']
         outputs = []
         for file_name in job_outputs:
@@ -238,7 +401,17 @@ class GenericWorkflow(nx.DiGraph):
                     outputs.append(self._files[file_name])
         return outputs
 
-    def draw(self, stream, format_):
+    def draw(self, stream, format_="dot"):
+        """Output generic workflow in a visualization format.
+
+        Parameters
+        ----------
+        stream : `IOBase`
+            Stream to which the visualization should be written.
+        format_ : `str`, optional
+            Which visualization format to use.  It defaults to the format for
+            the dot program.
+        """
         draw_funcs = {'dot': draw_networkx_dot}
         if format_ in draw_funcs:
             draw_funcs[format_](self, stream)
@@ -246,13 +419,24 @@ class GenericWorkflow(nx.DiGraph):
             raise RuntimeError(f"Unknown draw format ({format_}")
 
     def save(self, stream, format_='pickle'):
+        """Save the generic workflow in a format that is loadable.
+
+        Parameters
+        ----------
+        stream : `IO` or `str`
+            Stream to pass to the format-specific writer.  Accepts anything
+            that the writer accepts.
+
+        format_ : `str`, optional
+            Format in which to write the data. It defaults to pickle format.
+        """
         if format_ == 'pickle':
             nx.write_gpickle(self, stream)
         else:
             raise RuntimeError(f"Unknown format ({format_})")
 
     @classmethod
-    def load(cls, stream, format_):
+    def load(cls, stream, format_="pickle"):
         """Load a GenericWorkflow from the given stream
 
         Parameters
@@ -260,12 +444,13 @@ class GenericWorkflow(nx.DiGraph):
         stream : `IO` or `str`
             Stream to pass to the format-specific loader. Accepts anything that
             the loader accepts.
-        format_ : `str`
-            Format of data to expect when loading from stream.
+        format_ : `str`, optional
+            Format of data to expect when loading from stream.  It defaults
+            to pickle format.
 
         Returns
         -------
-        generic_workflow : GenericWorkflow
+        generic_workflow : `~lsst.ctrl.bps.generic_workflow.GenericWorkflow`
             Generic workflow loaded from the given stream
         """
         if format_ == 'pickle':
@@ -274,5 +459,7 @@ class GenericWorkflow(nx.DiGraph):
         raise RuntimeError(f"Unknown format ({format_})")
 
     def validate(self):
+        """Run checks to ensure this is still a valid generic workflow graph.
+        """
         # Make sure a directed acyclic graph
         assert nx.algorithms.dag.is_directed_acyclic_graph(self)

@@ -86,6 +86,11 @@ class BpsConfig(Config):
             self.search_order = search_order
             self.formatter = BpsFormatter()
 
+        # Make sure search sections exist
+        for key in self.search_order:
+            if not Config.__contains__(self, key):
+                self[key] = {}
+
     def copy(self):
         """Makes a copy of config
 
@@ -210,7 +215,7 @@ class BpsConfig(Config):
                         value = Config.__getitem__(search_sect, key)
                         break
                 else:
-                    _LOG.warning("Missing search section '%s' while searching for '%s'", sect, key)
+                    _LOG.debug("Missing search section '%s' while searching for '%s'", sect, key)
 
             # lastly check root values
             if not found:

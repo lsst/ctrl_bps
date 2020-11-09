@@ -22,6 +22,7 @@
 """Support for using Pegasus WMS"""
 
 import os
+import copy
 import re
 import subprocess
 import shlex
@@ -30,37 +31,54 @@ import logging
 
 from Pegasus.DAX3 import ADAG, File, Job, Link, PFN, Executable, Profile, Namespace
 from Pegasus.catalogs import replica_catalog, sites_catalog, transformation_catalog
-from ...bps_utils import chdir
-from ..HTCondor.lssthtc import htc_write_attribs
-from ...wms_service import BaseWmsService, BaseWmsWorkflow
+
+from lsst.ctrl.bps.bps_utils import chdir
+from lsst.ctrl.bps.wms_service import BaseWmsService, BaseWmsWorkflow
+from lsst.ctrl.bps.wms.htcondor.lssthtc import htc_write_attribs
+from lsst.ctrl.bps.wms.htcondor.htcondor_service import HTCondorService
 
 _LOG = logging.getLogger()
 
 
 class PegasusService(BaseWmsService):
     """Pegasus version of workflow engine
-    Parameters
-    ----------
-    config : `lsst.ctrl.bps.BPSConfig`
-        BPS configuration that includes necessary submit/runtime information
     """
     def prepare(self, config, generic_workflow, out_prefix=None):
         """Create submission for a generic workflow
         in a specific WMS
+
+        Parameters
+        ----------
+        config : `~lsst.ctrl.bps.BPSConfig`
+            BPS configuration that includes necessary submit/runtime information
+        generic_workflow :  `~lsst.ctrl.bps.generic_workflow.GenericWorkflow`
+            The generic workflow (e.g., has executable name and arguments)
+        out_prefix : `str`
+            The root directory into which all WMS-specific files are written
+
+        Returns
+        ----------
+        workflow : `~lsst.ctrl.bps.wms.pegasus.pegasus_service.PegasusWorkflow`
         """
-        peg_workflow = PegasusWorkflow.from_generic_workflow(config, generic_workflow)
+        service_class = f"{self.__class__.__module__}.{self.__class__.__name__}"
+        peg_workflow = PegasusWorkflow.from_generic_workflow(config, generic_workflow, out_prefix,
+                                                             service_class)
         peg_workflow.write(out_prefix)
-        peg_workflow._run_pegasus_plan(out_prefix, generic_workflow.run_attrs)
+        peg_workflow.run_pegasus_plan(out_prefix, generic_workflow.run_attrs)
         return peg_workflow
 
-
-    def submit(self, peg_workflow):
+    def submit(self, workflow):
         """Submit a single WMS workflow
+
+        Parameters
+        ----------
+        workflow : `~lsst.ctrl.bps.wms_service.BaseWorkflow`
+            A single HTCondor workflow to submit
         """
-        with chdir(peg_workflow.submit_path):
+        with chdir(workflow.submit_path):
             _LOG.info("Submitting from directory: %s", os.getcwd())
-            command = f"pegasus-run {peg_workflow.run_id}"
-            with open(f"{peg_workflow.name}_pegasus-run.out", "w") as outfh:
+            command = f"pegasus-run {workflow.run_id}"
+            with open(f"{workflow.name}_pegasus-run.out", "w") as outfh:
                 process = subprocess.Popen(shlex.split(command), shell=False, stdout=outfh,
                                            stderr=subprocess.STDOUT)
                 process.wait()
@@ -70,15 +88,28 @@ class PegasusService(BaseWmsService):
 
         # Note: No need to save run id as the same as the run id generated when running pegasus-plan earlier
 
-    def status(self, wms_workflow_id=None):
-        """Query WMS for status of submitted WMS
-        """
-        raise NotImplementedError
+    def report(self, wms_workflow_id=None, user=None, hist=0, pass_thru=None):
+        """Query WMS for status of submitted WMS workflows
+         Parameters
+         ----------
+         wms_workflow_id : `int` or `str`, optional
+             Id that can be used by WMS service to look up status.
+         user : `str`, optional
+             Limit report to submissions by this particular user
+         hist : `int`, optional
+             Number of days to expand report to include finished WMS workflows.
+         pass_thru : `str`, optional
+             Additional arguments to pass through to the specific WMS service.
 
-    def history(self, wms_workflow_id=None):
-        """Query WMS for status of completed WMS
-        """
-        raise NotImplementedError
+         Returns
+         -------
+         run_reports: `dict` of `BaseWmsReport`
+             Status information for submitted WMS workflows
+         message: `str`
+             Message to user on how to find more status information specific to WMS
+         """
+        htc_service = HTCondorService(self.config)
+        return htc_service.report(wms_workflow_id)
 
 
 class PegasusWorkflow(BaseWmsWorkflow):
@@ -86,8 +117,8 @@ class PegasusWorkflow(BaseWmsWorkflow):
 
     Parameters
     ----------
-    gen_workflow : `networkx.DiGraph`
-        The generic workflow graph (e.g., has executable name and arguments)
+    name : `str`
+        Name of Workflow
     config : `lsst.ctrl.bps.BPSConfig`
         BPS configuration that includes necessary submit/runtime information
     """
@@ -95,6 +126,7 @@ class PegasusWorkflow(BaseWmsWorkflow):
         # config, run_id, submit_path
         super().__init__(name, config)
         self.dax = ADAG(name)
+        self.run_attrs = None
 
         self.replica_catalog = None
         self.sites_catalog = None
@@ -123,15 +155,24 @@ class PegasusWorkflow(BaseWmsWorkflow):
         # with a given output directory.
 
     @classmethod
-    def from_generic_workflow(cls, config, generic_workflow):
+    def from_generic_workflow(cls, config, generic_workflow, out_prefix, service_class):
         peg_workflow = cls(generic_workflow.name, config)
+        peg_workflow.run_attrs = copy.deepcopy(generic_workflow.run_attrs)
+        peg_workflow.run_attrs['bps_wms_service'] = service_class
+        peg_workflow.run_attrs['bps_wms_workflow'] = f"{cls.__module__}.{cls.__name__}"
 
-        peg_files = peg_workflow._create_peg_files(generic_workflow.get_files(data=True, transfer_only=True))
+        # Create initial Pegasus File objects for all files that WMS must handle
+        peg_files = {}
+        for gwf_file in generic_workflow.get_files(data=True, transfer_only=True):
+            if gwf_file.wms_transfer:
+                peg_file = File(gwf_file.name)
+                peg_file.addPFN(PFN(f"file://{gwf_file.src_uri}", "local"))
+                peg_files[gwf_file.name] = peg_file
 
         # Add jobs to the DAX.
         for job_name in generic_workflow:
             gwf_job = generic_workflow.get_job(job_name)
-            job = peg_workflow._create_job(generic_workflow, gwf_job, peg_files)
+            job = peg_workflow.create_job(generic_workflow, gwf_job, peg_files)
             peg_workflow.dax.addJob(job)
 
         # Add job dependencies to the DAX.
@@ -142,75 +183,62 @@ class PegasusWorkflow(BaseWmsWorkflow):
 
         return peg_workflow
 
-    def _create_peg_files(self, gwf_files):
-        """Create Pegasus File objects for all files
-        """
-        peg_files = {}
-        for gwf_file in gwf_files:
-            if gwf_file.wms_transfer:
-                peg_file = File(gwf_file.name)
-                peg_file.addPFN(PFN(f"file://{gwf_file.src_uri}", "local"))
-                peg_files[gwf_file.name] = peg_file
-        return peg_files
-
-    def _create_peg_executable(self, exec_name, compute_site):
-        # search_opts = {'curvals': {'site': compute_site}, 'default': None}
-        # arch = self.config.search("arch", opt=search_opts)
-        # os = self.config.search("os", opt=search_opts)
-        # executable = Executable(exec_name, arch=arch, os=os, installed=True)
-
-        executable = Executable(os.path.basename(exec_name), installed=True)
-        executable.addPFN(PFN(f"file://{exec_name}", compute_site))
-        return executable
-
-    def _create_job(self, generic_workflow, gwf_job, peg_files):
+    def create_job(self, generic_workflow, gwf_job, peg_files):
         """Create Pegasus job corresponding to given GenericWorkflow job.
         """
-        _LOG.info("GenericWorkflowJob=%s", gwf_job)
-
-        # Add job command line arguments replacing any file name with
-        # respective Pegasus file object.
-
-        args = gwf_job.cmdline.split()
+        _LOG.debug("GenericWorkflowJob=%s", gwf_job)
+        _LOG.debug("%s gwf_job.cmdline = %s", gwf_job.name, gwf_job.cmdline)
+        cmd_parts = gwf_job.cmdline.split(' ', 1)
 
         # Save transformation.
-        self.transformation_catalog.add(self._create_peg_executable(args[0], gwf_job.compute_site))
+        executable = Executable(os.path.basename(cmd_parts[0]), installed=True)
+        executable.addPFN(PFN(f"file://{cmd_parts[0]}", gwf_job.compute_site))
+        self.transformation_catalog.add(executable)
 
         # Create Pegasus Job.
-        job = Job(os.path.basename(args[0]), id=gwf_job.name, node_label=gwf_job.label)
+        job = Job(os.path.basename(cmd_parts[0]), id=gwf_job.name, node_label=gwf_job.label)
 
-        # Pegasus Job Arguments must include executable
+        # Replace filenames on command line with corresponding Pegasus File object
+        if len(cmd_parts) > 1:
+            args = cmd_parts[1].split()
+            logical_file_names = list(set(peg_files) & set(args))
+            if logical_file_names:
+                indices = [args.index(lfn) for lfn in logical_file_names]
+                for idx, lfn in zip(indices, logical_file_names):
+                    args[idx] = peg_files[lfn]
 
-        # Must replace filenames on command line with corresponding Pegasus File object
-        logical_file_names = list(set(peg_files) & set(args))
-        if logical_file_names:
-            indices = [args.index(lfn) for lfn in logical_file_names]
-            for idx, lfn in zip(indices, logical_file_names):
-                args[idx] = peg_files[lfn]
-
-        job.addArguments(*args)
+            job.addArguments(*args)
+        else:
+            _LOG.warning("Job %s does not have any arguments", gwf_job.name)
 
         # Add extra job attributes
-        for key, val in gwf_job.profile.items():
-            job.addProfile(Profile(Namespace.CONDOR, key, val))
+        for key, value in gwf_job.profile.items():
+            job.addProfile(Profile(Namespace.CONDOR, key, value))
 
-        for key, val in gwf_job.environment.items():
-            job.addProfile(Profile("env", key, val))
+        for key, value in gwf_job.environment.items():
+            job.addProfile(Profile(Namespace.ENV, key, value))
 
-        for key, val in gwf_job.attrs.items():
-            job.addProfile(Profile(Namespace.CONDOR, key=f"+{key}", value=f'"{val}"'))
+        # Add run attributes
+        for key, value in self.run_attrs.items():
+            job.addProfile(Profile(Namespace.CONDOR, key=f"+{key}", value=f'"{value}"'))
+
+        for key, value in gwf_job.attrs.items():
+            _LOG.debug("create_job: attrs = %s", gwf_job.attrs)
+            job.addProfile(Profile(Namespace.CONDOR, key=f"+{key}", value=f'"{value}"'))
+
+        job.addProfile(Profile(Namespace.CONDOR, key="+bps_job_name", value=f'"{gwf_job.name}"'))
+        job.addProfile(Profile(Namespace.CONDOR, key="+bps_job_label", value=f'"{gwf_job.label}"'))
+        job.addProfile(Profile(Namespace.CONDOR, key="+bps_job_quanta", value=f'"{gwf_job.quanta_summary}"'))
 
         # Specify job's inputs.
-        inputs = generic_workflow.get_job_inputs(gwf_job.name, data=True, transfer_only=True)
-        for gwf_file in inputs:
+        for gwf_file in generic_workflow.get_job_inputs(gwf_job.name, data=True, transfer_only=True):
             peg_file = peg_files[gwf_file.name]
             job.uses(peg_file, link=Link.INPUT)
             for pfn in peg_file.pfns:
                 self.replica_catalog.add(peg_file.name, pfn.url, pfn.site)
 
         # Specify job's outputs
-        outputs = generic_workflow.get_job_outputs(gwf_job.name, data=True, transfer_only=True)
-        for gwf_file in outputs:
+        for gwf_file in generic_workflow.get_job_outputs(gwf_job.name, data=True, transfer_only=True):
             peg_file = peg_files[gwf_file.name]
             job.uses(peg_file, link=Link.OUTPUT)
             for pfn in peg_file.pfns:
@@ -231,7 +259,7 @@ class PegasusWorkflow(BaseWmsWorkflow):
         for site, site_data in self.config["site"].items():
             self.sites_catalog.add_site(site, arch=site_data["arch"], os=site_data["os"])
             if "directory" in site_data:
-                # hack because no Python API
+                # Workaround because no Python API
                 dir_dict = {}
                 for site_dir in site_data["directory"]:
                     dir_dict[site_dir] = {"path": site_data["directory"][site_dir]["path"]}
@@ -242,6 +270,8 @@ class PegasusWorkflow(BaseWmsWorkflow):
                 for pname, pdata in site_data["profile"].items():
                     for key, val in pdata.items():
                         self.sites_catalog.add_site_profile(site, namespace=pname, key=key, value=val)
+            self.sites_catalog.add_site_profile(site, namespace=Namespace.DAGMAN, key="NODE_STATUS_FILE",
+                                                value=f"{self.name}.node_status")
 
     def write(self, out_prefix):
         """Write Pegasus Catalogs and DAX to files
@@ -292,31 +322,31 @@ class PegasusWorkflow(BaseWmsWorkflow):
 
         self.properties_filename = self._write_properties_file(out_prefix, filenames)
 
-    def _run_pegasus_plan(self, out_prefix, run_attr):
+    def run_pegasus_plan(self, out_prefix, run_attr):
         """Execute pegasus-plan to convert DAX to HTCondor DAG for submission
+
+        Parameters
+        ----------
+        out_prefix : `str`
+            Root directory in which to output all files
+        run_attr : `dict`
+            Attributes to add to main DAG
         """
-        cmd = ["pegasus-plan"]
-        cmd.append("--verbose")
-        cmd.append(f"--conf {self.properties_filename}")
-        cmd.append(f"--dax {self.dax_filename}")
-        cmd.append(f"--dir {out_prefix}/peg")
-        cmd.append("--cleanup none")
-        cmd.append(f"--sites {self.config['computeSite']}")
-        cmd.append(f"--input-dir {out_prefix}/input --output-dir {out_prefix}/output")
-        cmd_str = " ".join(cmd)
-        bufsize = 5000
-        _LOG.info("Plan command: %s", cmd_str)
+        cmd = f"pegasus-plan --verbose --conf {self.properties_filename} --dax {self.dax_filename} --dir " \
+              f"{out_prefix}/peg --cleanup none --sites {self.config['computeSite']} " \
+              f"--input-dir {out_prefix}/input --output-dir {out_prefix}/output"
+        _LOG.debug("Plan command: %s", cmd)
         pegout = f"{self.submit_path}/{self.name}_pegasus-plan.out"
         with chdir(self.submit_path):
-            _LOG.info("pegasus-plan in directory: %s", os.getcwd())
-            _LOG.info("pegasus-plan output in %s", pegout)
+            _LOG.debug("pegasus-plan in directory: %s", os.getcwd())
+            _LOG.debug("pegasus-plan output in %s", pegout)
             with open(pegout, "w") as pegfh:
-                pegfh.write(f"Command: {cmd_str}\n\n")
-                process = subprocess.run(shlex.split(cmd_str), shell=False, stdout=pegfh,
-                                         stderr=subprocess.STDOUT)
+                pegfh.write(f"Command: {cmd}\n\n")
+                process = subprocess.run(shlex.split(cmd), shell=False, stdout=pegfh,
+                                         stderr=subprocess.STDOUT, check=False)
                 if process.returncode != 0:
                     print(f"Error trying to generate Pegasus files.  See {pegout}.")
-                    raise RuntimeError("pegasus-plan exited with non-zero exit code (%s)" % process.returncode)
+                    raise RuntimeError(f"pegasus-plan exited with non-zero exit code ({process.returncode})")
 
             # Grab run id from pegasus-plan output and save
             with open(pegout, "r") as pegfh:
@@ -327,17 +357,17 @@ class PegasusWorkflow(BaseWmsWorkflow):
                         break
 
         # Hack - Using profile in sites.xml doesn't add run attributes to DAG submission
-        # file (see _define_sites). So adding them here:
+        # file. So adding them here:
         if run_attr is not None:
             subname = f'{self.run_id}/{self.name}-0.dag.condor.sub'
             shutil.copyfile(subname, subname + ".orig")
-            with open(subname + ".orig", "r") as insubfh:
-                with open(subname, "w") as outsubfh:
-                    for line in insubfh:
+            with open(subname + ".orig", "r") as infh:
+                with open(subname, "w") as outfh:
+                    for line in infh:
                         if line.strip() == "queue":
-                            htc_write_attribs(outsubfh, run_attr)
-                            htc_write_attribs(outsubfh, {"bps_joblabel": "DAG"})
-                        outsubfh.write(line)
+                            htc_write_attribs(outfh, run_attr)
+                            htc_write_attribs(outfh, {"bps_job_label": "DAG"})
+                        outfh.write(line)
 
     def _write_properties_file(self, out_prefix, filenames):
         """Write Pegasus Properties File

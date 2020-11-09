@@ -20,7 +20,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """Class definitions for a Clustered QuantumGraph where a node
-in the graph can itself be a QuantumGraph.
+in the graph is a QuantumGraph.
 """
 
 import networkx
@@ -28,8 +28,21 @@ from lsst.pipe.base import QuantumGraph
 
 
 class ClusteredQuantumGraph(networkx.DiGraph):
+    """Graph where node in the graph is a QuantumGraph
+    """
 
     def add_cluster(self, name, qgraph, label=None):
+        """Add a cluster of quanta as a node in the graph.
+
+        Parameters
+        ----------
+        name : `str`
+            Node name which must be unique in the graph.
+        qgraph : `~lsst.pipe.base.QuantumGraph`
+            QuantumGraph containing the quanta in the cluster.
+        label : `str`
+            Label for the cluster.  Can be used in grouping clusters.
+        """
         self.add_node(name, qgraph=qgraph, label=label)
 
     def add_node(self, node_for_adding, **attr):
@@ -61,4 +74,16 @@ class ClusteredQuantumGraph(networkx.DiGraph):
         super().add_node(name, **attr)
 
     def add_nodes_from(self, nodes_for_adding, **attr):
+        """Add multiple nodes.
+
+        Parameters
+        ----------
+        nodes_for_adding :
+        attr : keyword arguments, optional
+
+        Raises
+        -------
+        RuntimeError
+            Raised because this function should never be called.
+        """
         raise RuntimeError("Multiple nodes should not have same qgraph attribute.")

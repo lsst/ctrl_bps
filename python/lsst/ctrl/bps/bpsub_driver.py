@@ -22,6 +22,7 @@
 """Driver for the submission of a run.
 """
 
+import getpass
 import logging
 import time
 import os
@@ -38,7 +39,7 @@ from .submit import submit
 from .bps_draw import draw_networkx_dot
 
 # Config section search order
-BPS_SEARCH_ORDER = ["payload", "pipetask", "site", "global", "bps_defined"]
+BPS_SEARCH_ORDER = ["payload", "pipetask", "site", "bps_defined"]
 
 # logging properties
 _LOG_PROP = """\
@@ -117,6 +118,8 @@ def create_submission(config):
     config[".bps_defined.timestamp"] = "{:%Y%m%dT%Hh%Mm%Ss}".format(datetime.datetime.now())
     if "uniqProcName" not in config:
         config[".bps_defined.uniqProcName"] = config["outCollection"].replace("/", "_")
+    if "operator" not in config:
+        config[".bps_defined.operator"] = getpass.getuser()
 
     # make submit directory to contain all outputs
     submit_path = config["submitPath"]

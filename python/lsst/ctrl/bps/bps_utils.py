@@ -38,6 +38,7 @@ class WhenToSaveQuantumGraphs(Enum):
     PREPARE = 3
     SUBMIT = 4
 
+
 def dynamically_load(name):
     """Import at runtime given name.
 
@@ -54,7 +55,7 @@ def dynamically_load(name):
     -------
     The specified class ready to be instantiated
     """
-    _LOG.info("Dynamically importing %s", name)
+    _LOG.debug("Dynamically importing %s", name)
     (from_name, import_name) = name.rsplit(".", 1)
     mod = import_module(from_name)
     return getattr(mod, import_name)
@@ -62,6 +63,13 @@ def dynamically_load(name):
 
 @contextlib.contextmanager
 def chdir(path):
+    """A chdir function that can be used inside a context.
+
+    Parameters
+    ----------
+    path: `str`
+        Path to be made current working directory
+    """
     cur_dir = os.getcwd()
     os.chdir(path)
     try:
@@ -71,6 +79,20 @@ def chdir(path):
 
 
 def create_job_quantum_graph_filename(_, job, out_prefix=None):
+    """Create a filename to be used when storing the QuantumGraph
+    for a job.
+
+    Parameters
+    ----------
+    _
+    job
+    out_prefix
+
+    Returns
+    -------
+    full_filename : `str`
+        The filename for the job's QuantumGraph.
+    """
     name_parts = []
     if out_prefix is not None:
         name_parts.append(out_prefix)
@@ -78,7 +100,7 @@ def create_job_quantum_graph_filename(_, job, out_prefix=None):
     if job.label is not None:
         name_parts.append(job.label)
     name_parts.append(f"quantum_{job.name}.pickle")
-    full_filename = os.path.join(*name_parts)
+    full_filename = os.path.join("", *name_parts)
     return full_filename
 
 
@@ -93,10 +115,10 @@ def save_qg_subgraph(qgraph, out_filename):
         Name of the output file
     """
     if not os.path.exists(out_filename):
-        _LOG.info("Saving QuantumGraph with %d nodes to %s", len(qgraph), out_filename)
+        _LOG.debug("Saving QuantumGraph with %d nodes to %s", len(qgraph), out_filename)
         if len(os.path.dirname(out_filename)) > 0:
             os.makedirs(os.path.dirname(out_filename), exist_ok=True)
-        with open(out_filename, "wb") as outfh:
-            qgraph.save(outfh)
+        with open(out_filename, "wb") as fh:
+            qgraph.save(fh)
     else:
         _LOG.debug("Skipping saving QuantumGraph to %s because already exists.", out_filename)

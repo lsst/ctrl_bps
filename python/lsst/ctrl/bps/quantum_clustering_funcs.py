@@ -21,19 +21,26 @@
 
 """Functions that convert QuantumGraph into ClusteredQuantumGraph
 """
+import re
+import logging
+from collections import defaultdict
 
 from .clustered_quantum_graph import ClusteredQuantumGraph
 
+_LOG = logging.getLogger()
 
-def single_quantum_clustering(_, qgraph, name):
+
+def single_quantum_clustering(config, qgraph, name):
     """Create clusters with only single quantum.
 
     Parameters
     ----------
-    _ : `lsst.ctrl.bps.bps_config.BpsConfig`
-        Not used in this function
+    config : `lsst.ctrl.bps.bps_config.BpsConfig`
+        BPS configuration.
     qgraph : `~lsst.pipe.base.QuantumGraph`
         QuantumGraph to break into clusters for ClusteredQuantumGraph
+    name : `str`
+        Name to give to ClusteredQuantumGraph
 
     Returns
     -------
@@ -43,20 +50,42 @@ def single_quantum_clustering(_, qgraph, name):
     """
     clustered_quantum = ClusteredQuantumGraph(name=name)
 
-    name_pattern = "{:08d}"
+    # save mapping of quantum nodeNumber to name so don't have to create it multiple times
+    number_to_name = {}
 
     # create cluster of single quantum
     for quantum_node in qgraph:
         subgraph = qgraph.subset(quantum_node)
         label = quantum_node.taskDef.label
-        clustered_quantum.add_cluster(name_pattern.format(quantum_node.nodeId.number), subgraph, label)
+        found, template = config.search('template_dataid', opt={'curvals': {'curr_pipetask': label},
+                                                                'replaceVars': False})
+        if found:
+            template = "{node_number}_{label}_" + template
+        else:
+            template = "{node_number:08d}"
+
+        # Note: Can't quite reuse lsst.daf.butler.core.fileTemplates.FileTemplate as don't
+        # want to require datasetType (and run) in the template.  Use defaultdict to handle
+        # the missing values in template.
+        data_id = quantum_node.quantum.dataId
+        info = defaultdict(lambda: '', {k: data_id.get(k) for k in data_id.graph.names})
+        info['label'] = label
+        info['node_number'] = quantum_node.nodeId.number
+        _LOG.debug("template = %s", template)
+        _LOG.debug("info for template = %s", info)
+        name = template.format_map(info)
+        name = re.sub('_+', '_', name)
+        _LOG.debug("template name = %s", name)
+        number_to_name[quantum_node.nodeId.number] = name
+
+        clustered_quantum.add_cluster(name, subgraph, label)
 
     # add cluster dependencies
     for quantum_node in qgraph:
         # get child nodes
         children = qgraph.determineOutputsOfQuantumNode(quantum_node)
         for child in children:
-            clustered_quantum.add_edge(name_pattern.format(quantum_node.nodeId.number),
-                                       name_pattern.format(child.nodeId.number))
+            clustered_quantum.add_edge(number_to_name[quantum_node.nodeId.number],
+                                       number_to_name[child.nodeId.number])
 
     return clustered_quantum

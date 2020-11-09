@@ -45,6 +45,6 @@ def submit(config, wms_workflow, wms_service=None):
         WMS-specific workflow
     """
     if wms_service is None:
-        wms_service_class = dynamically_load(config[".global.wmsServiceClass"])
+        wms_service_class = dynamically_load(config["wmsServiceClass"])
         wms_service = wms_service_class(config)
     return wms_service.submit(wms_workflow)
