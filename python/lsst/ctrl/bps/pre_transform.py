@@ -104,15 +104,15 @@ def execute(command, filename):
     """
     buffer_size = 5000
     with open(filename, "w") as fh:
-        fh.write(command)
-        fh.write("\n")
+        print(command, file=fh)
+        print("\n", file=fh)  # Note: want a blank line
         process = subprocess.Popen(
             shlex.split(command), shell=False, stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT
         )
         buffer = os.read(process.stdout.fileno(), buffer_size).decode()
         while process.poll is None or buffer:
-            fh.write(buffer)
+            print(buffer, end='', file=fh)
             _LOG.info(buffer)
             buffer = os.read(process.stdout.fileno(), buffer_size).decode()
         process.stdout.close()

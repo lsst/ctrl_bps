@@ -165,7 +165,7 @@ def htc_write_attribs(stream, attrs):
         HTCondor job attributes (dictionary of attribute key, value)
     """
     for key, value in attrs.items():
-        stream.write(f'+{key} = "{htc_escape(value)}"\n')
+        print(f'+{key} = "{htc_escape(value)}"', file=stream)
 
 
 def htc_write_condor_file(filename, job_name, job, job_attrs):
@@ -186,17 +186,17 @@ def htc_write_condor_file(filename, job_name, job, job_attrs):
     with open(filename, "w") as fh:
         for key, value in job.items():
             if key in HTC_QUOTE_KEYS:
-                fh.write(f'{key}="{htc_escape(value)}"\n')
+                print(f'{key}="{htc_escape(value)}"', file=fh)
             else:
-                fh.write(f"{key}={value}\n")
+                print(f"{key}={value}", file=fh)
         for key in ["output", "error", "log"]:
             if key not in job:
                 filename = f"{job_name}.$(Cluster).${key[:3]}"
-                fh.write(f"{key}={filename}\n")
+                print(f"{key}={filename}", file=fh)
 
         if job_attrs is not None:
             htc_write_attribs(fh, job_attrs)
-        fh.write("queue\n")
+        print("queue", file=fh)
 
 
 def htc_version():
@@ -310,37 +310,29 @@ def htc_write_job_commands(stream, name, jobs):
         DAG job keys and values.
     """
     if "pre" in jobs:
-        stream.write(
-            f"SCRIPT {jobs['pre'].get('defer', '')} PRE {name}"
-            f"{jobs['pre']['executable']} {jobs['pre'].get('arguments', '')}"
-            f"\n"
-        )
+        print(f"SCRIPT {jobs['pre'].get('defer', '')} PRE {name}"
+              f"{jobs['pre']['executable']} {jobs['pre'].get('arguments', '')}", file=stream)
 
     if "post" in jobs:
-        stream.write(
-            f"SCRIPT {jobs['post'].get('defer', '')} PRE {name}"
-            f"{jobs['post']['executable']} {jobs['post'].get('arguments', '')}"
-            f"\n"
-        )
+        print(f"SCRIPT {jobs['post'].get('defer', '')} PRE {name}"
+              f"{jobs['post']['executable']} {jobs['post'].get('arguments', '')}", file=stream)
 
     if "vars" in jobs:
         for key, value in jobs["vars"]:
-            stream.write(f'VARS {name} {key}="{htc_escape(value)}"\n')
+            print(f'VARS {name} {key}="{htc_escape(value)}"', file=stream)
 
     if "pre_skip" in jobs:
-        stream.write(f"PRE_SKIP {name} {jobs['pre_skip']}")
+        print(f"PRE_SKIP {name} {jobs['pre_skip']}", file=stream)
 
     if "retry" in jobs:
-        stream.write(f"RETRY {name} {jobs['retry']} ")
+        print(f"RETRY {name} {jobs['retry']} ", end='', file=stream)
         if "retry_unless_exit" in jobs:
-            stream.write(f"UNLESS-EXIT {jobs['retry_unless_exit']}")
-        stream.write("\n")
+            print(f"UNLESS-EXIT {jobs['retry_unless_exit']}", end='', file=stream)
+        print("\n", file=stream)
 
     if "abort_dag_on" in jobs:
-        stream.write(
-            f"ABORT-DAG-ON {name} {jobs['abort_dag_on']['node_exit']}"
-            f" RETURN {jobs['abort_dag_on']['abort_exit']}\n"
-        )
+        print(f"ABORT-DAG-ON {name} {jobs['abort_dag_on']['node_exit']}"
+              f" RETURN {jobs['abort_dag_on']['abort_exit']}", file=stream)
 
 
 class HTCJob:
@@ -427,7 +419,7 @@ class HTCJob:
         stream : `IO` or `str`
             Output Stream
         """
-        stream.write(f"JOB {self.name} {self.subfile}\n")
+        print(f"JOB {self.name} {self.subfile}", file=stream)
         htc_write_job_commands(stream, self.name, self.dagcmds)
 
     def dump(self, fh):
@@ -544,15 +536,15 @@ class HTCDag(networkx.DiGraph):
         self.graph["submit_path"] = submit_path
         self.graph["dag_filename"] = os.path.join(submit_path, f"{self.graph['name']}.dag")
         os.makedirs(submit_path, exist_ok=True)
-        with open(self.graph["dag_filename"], "w") as dagfh:
+        with open(self.graph["dag_filename"], "w") as fh:
             for _, nodeval in self.nodes().items():
                 job = nodeval["data"]
                 job.write_submit_file(submit_path, job_subdir)
-                job.write_dag_commands(dagfh)
+                job.write_dag_commands(fh)
             for edge in self.edges():
-                dagfh.write(f"PARENT {edge[0]} CHILD {edge[1]}\n")
-            dagfh.write(f"DOT {self.name}.dot\n")
-            dagfh.write(f"NODE_STATUS_FILE {self.name}.node_status\n")
+                print(f"PARENT {edge[0]} CHILD {edge[1]}", file=fh)
+            print(f"DOT {self.name}.dot", file=fh)
+            print(f"NODE_STATUS_FILE {self.name}.node_status", file=fh)
 
     def dump(self, fh):
         """Dump DAG info to output stream.
@@ -563,12 +555,12 @@ class HTCDag(networkx.DiGraph):
             Where to dump DAG info as text.
         """
         for key, value in self.graph:
-            print(f"{key}={value}")
+            print(f"{key}={value}", file=fh)
         for name, data in self.nodes().items():
-            fh.write(f"{name}:\n")
+            print(f"{name}:", file=fh)
             data.dump(fh)
         for edge in self.edges():
-            fh.write(f"PARENT {edge[0]} CHILD {edge[1]}\n")
+            print(f"PARENT {edge[0]} CHILD {edge[1]}", file=fh)
 
     def write_dot(self, filename):
         """Write a dot version of the DAG.

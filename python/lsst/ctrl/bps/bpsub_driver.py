@@ -123,7 +123,6 @@ def create_submission(config):
 
     # make submit directory to contain all outputs
     submit_path = config["submitPath"]
-    _LOG.info("submit_path = '%s'", submit_path)
     os.makedirs(submit_path, exist_ok=True)
     config[".bps_defined.submit_path"] = submit_path
 

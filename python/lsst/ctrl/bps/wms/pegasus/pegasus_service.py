@@ -367,7 +367,7 @@ class PegasusWorkflow(BaseWmsWorkflow):
             _LOG.debug("pegasus-plan in directory: %s", os.getcwd())
             _LOG.debug("pegasus-plan output in %s", pegout)
             with open(pegout, "w") as pegfh:
-                pegfh.write(f"Command: {cmd}\n\n")
+                print(f"Command: {cmd}\n", file=pegfh)  # Note: want blank line
                 process = subprocess.run(shlex.split(cmd), shell=False, stdout=pegfh,
                                          stderr=subprocess.STDOUT, check=False)
                 if process.returncode != 0:
@@ -390,10 +390,11 @@ class PegasusWorkflow(BaseWmsWorkflow):
             with open(subname + ".orig", "r") as infh:
                 with open(subname, "w") as outfh:
                     for line in infh:
-                        if line.strip() == "queue":
+                        line = line.strip()
+                        if line == "queue":
                             htc_write_attribs(outfh, run_attr)
                             htc_write_attribs(outfh, {"bps_job_label": "DAG"})
-                        outfh.write(line)
+                        print(line, file=outfh)
 
     def _write_properties_file(self, out_prefix, filenames):
         """Write Pegasus Properties File
@@ -414,21 +415,21 @@ class PegasusWorkflow(BaseWmsWorkflow):
         if out_prefix is not None:
             properties = os.path.join(out_prefix, properties)
         with open(properties, "w") as outfh:
-            outfh.write("# This tells Pegasus where to find the Site Catalog.\n")
-            outfh.write(f"pegasus.catalog.site.file={filenames['sites']}\n")
+            print("# This tells Pegasus where to find the Site Catalog.", file=outfh)
+            print(f"pegasus.catalog.site.file={filenames['sites']}", file=outfh)
 
-            outfh.write("# This tells Pegasus where to find the Replica Catalog.\n")
-            outfh.write(f"pegasus.catalog.replica.file={filenames['replica']}\n")
+            print("# This tells Pegasus where to find the Replica Catalog.", file=outfh)
+            print(f"pegasus.catalog.replica.file={filenames['replica']}", file=outfh)
 
-            outfh.write("# This tells Pegasus where to find the Transformation Catalog.\n")
-            outfh.write("pegasus.catalog.transformation=Text\n")
-            outfh.write(f"pegasus.catalog.transformation.file={filenames['transformation']}\n")
+            print("# This tells Pegasus where to find the Transformation Catalog.", file=outfh)
+            print("pegasus.catalog.transformation=Text")
+            print(f"pegasus.catalog.transformation.file={filenames['transformation']}", file=outfh)
 
-            outfh.write("# Run Pegasus in shared file system mode.\n")
-            outfh.write("pegasus.data.configuration=sharedfs\n")
+            print("# Run Pegasus in shared file system mode.", file=outfh)
+            print("pegasus.data.configuration=sharedfs", file=outfh)
 
-            outfh.write("# Make Pegasus use links instead of transferring files.\n")
-            outfh.write("pegasus.transfer.*.impl=Transfer\n")
-            outfh.write("pegasus.transfer.links=true\n")
+            print("# Make Pegasus use links instead of transferring files.", file=outfh)
+            print("pegasus.transfer.*.impl=Transfer", file=outfh)
+            print("pegasus.transfer.links=true", file=outfh)
 
         return properties

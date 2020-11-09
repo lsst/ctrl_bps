@@ -171,7 +171,7 @@ def group_jobs_by_state(jobs):
     by_state : `dict`
         Mapping of job state to a list of jobs.
     """
-    _LOG.info("group_jobs_by_state: jobs=%s", jobs)
+    _LOG.debug("group_jobs_by_state: jobs=%s", jobs)
     by_state = dict.fromkeys(WmsStates)
     for state in by_state:
         by_state[state] = []    # Note: If added [] to fromkeys(), they shared single list.
