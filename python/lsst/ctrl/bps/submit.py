@@ -24,7 +24,7 @@
 
 import logging
 
-from .bps_utils import dynamically_load
+from lsst.utils import doImport
 
 _LOG = logging.getLogger()
 
@@ -45,6 +45,6 @@ def submit(config, wms_workflow, wms_service=None):
         WMS-specific workflow
     """
     if wms_service is None:
-        wms_service_class = dynamically_load(config["wmsServiceClass"])
+        wms_service_class = doImport(config["wmsServiceClass"])
         wms_service = wms_service_class(config)
     return wms_service.submit(wms_workflow)

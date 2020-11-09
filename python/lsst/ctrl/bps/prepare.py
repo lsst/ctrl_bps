@@ -24,8 +24,8 @@
 
 import logging
 
-from .bps_utils import dynamically_load, save_qg_subgraph, WhenToSaveQuantumGraphs,\
-    create_job_quantum_graph_filename
+from lsst.utils import doImport
+from .bps_utils import save_qg_subgraph, WhenToSaveQuantumGraphs, create_job_quantum_graph_filename
 
 _LOG = logging.getLogger()
 
@@ -47,7 +47,7 @@ def prepare(config, generic_workflow, out_prefix):
     `lsst.ctrl.bps.wms_workflow`
         WMS-specific workflow
     """
-    wms_service_class = dynamically_load(config["wmsServiceClass"])
+    wms_service_class = doImport(config["wmsServiceClass"])
     wms_service = wms_service_class(config)
     wms_workflow = wms_service.prepare(config, generic_workflow, out_prefix)
 

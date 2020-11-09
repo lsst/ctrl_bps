@@ -39,28 +39,6 @@ class WhenToSaveQuantumGraphs(Enum):
     SUBMIT = 4
 
 
-def dynamically_load(name):
-    """Import at runtime given name.
-
-    Late import allows BPS to keep package dependencies minimal.
-    Also allows users to use their own subclasses without requiring
-    changes to BPS code.
-
-    Parameters
-    ----------
-    name: `str`
-        Name of class or function to load.  Must include full module path.
-
-    Returns
-    -------
-    The specified class ready to be instantiated
-    """
-    _LOG.debug("Dynamically importing %s", name)
-    (from_name, import_name) = name.rsplit(".", 1)
-    mod = import_module(from_name)
-    return getattr(mod, import_name)
-
-
 @contextlib.contextmanager
 def chdir(path):
     """A chdir function that can be used inside a context.

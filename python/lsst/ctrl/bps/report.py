@@ -29,8 +29,8 @@ import argparse
 import logging
 import sys
 
+from lsst.utils import doImport
 from .wms_service import WmsStates
-from .bps_utils import dynamically_load
 
 SUMMARY_FMT = "{:1} {:>10} {:>3} {:>8} {:10} {:5} {:8} {:10} {:<50}"
 
@@ -57,7 +57,7 @@ def report(argv):
     if args.debug:
         _log.setLevel(logging.DEBUG)
 
-    wms_service_class = dynamically_load(args.wms_service)
+    wms_service_class = doImport(args.wms_service)
     wms_service = wms_service_class({})
 
     # If reporting on single run, increase history until code better mechanism for handling

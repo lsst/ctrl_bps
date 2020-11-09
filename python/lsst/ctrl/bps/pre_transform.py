@@ -33,7 +33,7 @@ import time
 
 from lsst.daf.butler import DimensionUniverse
 from lsst.pipe.base.graph import QuantumGraph
-from .bps_utils import dynamically_load
+from lsst.utils import doImport
 
 _LOG = logging.getLogger()
 
@@ -202,5 +202,5 @@ def cluster_quanta(config, qgraph, name):
     graph : `~lsst.ctrl.bps.clustered_quantum_graph.ClusteredQuantumGraph`
         Generated ClusteredQuantumGraph.
     """
-    cluster_func = dynamically_load(config["cluster_algorithm"])
+    cluster_func = doImport(config["cluster_algorithm"])
     return cluster_func(config, qgraph, name)

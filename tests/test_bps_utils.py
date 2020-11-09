@@ -22,31 +22,11 @@ import os
 import shutil
 import tempfile
 import unittest
-import abc
-from types import FunctionType
 
-from lsst.ctrl.bps.bps_utils import dynamically_load, chdir
+from lsst.ctrl.bps.bps_utils import chdir
 
 
 TESTDIR = os.path.abspath(os.path.dirname(__file__))
-
-
-class TestDynamicallyLoad(unittest.TestCase):
-
-    def testSuccessfulLoadFunc(self):
-        name = "lsst.ctrl.bps.submit.submit"
-        test_func = dynamically_load(name)
-        self.assertIsInstance(test_func, FunctionType)
-
-    def testSuccessfulLoadClass(self):
-        name = "lsst.ctrl.bps.bps_config.BpsConfig"
-        test_class = dynamically_load(name)
-        self.assertIsInstance(test_class, abc.ABCMeta)
-
-    def testFailingLoad(self):
-        name = "lsst.ctrl.bps.not_there"
-        with self.assertRaises(AttributeError):
-            _ = dynamically_load(name)
 
 
 class TestChdir(unittest.TestCase):
