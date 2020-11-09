@@ -130,10 +130,6 @@ def print_run(run_report):
     run_report : `WmsRunReport`
         Information for single run
     """
-    #_LOG.debug("Failed = %s", run_report)
-    #print(run_report.job_state_counts.get(WmsStates.FAILED, 0))
-    #sys.exit(1)
-
     # Flag any running workflow that might need human attention
     run_flag = ' '
     if run_report.state == WmsStates.RUNNING:

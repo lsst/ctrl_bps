@@ -118,7 +118,7 @@ class HTCondorService(BaseWmsService):
 
             if hist:
                 epoch = (datetime.now() - timedelta(days=hist)).timestamp()
-                constraint += f'CompletionDate >= {epoch}'
+                constraint += f' && (CompletionDate >= {epoch})'
                 hist_jobs = condor_history(constraint)
                 jobs.update(hist_jobs)
 

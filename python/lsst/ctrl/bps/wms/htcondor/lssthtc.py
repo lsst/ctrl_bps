@@ -648,7 +648,7 @@ def htc_jobs_to_wms_report(jobs):
                                   run_summary=job.get('bps_run_summary', None),
                                   state=htc_job_status_to_wms_state(job),
                                   jobs=[],
-                                  total_number_jobs=job.get('DAG_NodesTotal', 0),
+                                  total_number_jobs=0,
                                   job_state_counts={})
 
             save_node_status(report, job)
@@ -715,7 +715,8 @@ def condor_history(constraint=None, schedd=None):
     """
     if not schedd:
         schedd = htcondor.Schedd()
-    joblist = schedd.history(constraint=constraint, projection=[], match=-1)
+    _LOG.debug("condor_history constraint = %s", constraint)
+    joblist = schedd.history(constraint, projection=[], match=-1)
 
     # convert list to dictionary
     jobads = {}
@@ -723,6 +724,7 @@ def condor_history(constraint=None, schedd=None):
         del jobinfo['Environment']
         jobads[jobinfo['ClusterId']] = jobinfo
 
+    _LOG.debug("condor_history returned %d jobs", len(jobads))
     return jobads
 
 
@@ -738,6 +740,7 @@ def save_node_status(run_report, node_status):
     """
     if 'DAG_NodesReady' not in node_status:
         node_status = read_node_status(node_status['Iwd'])
+        _LOG.debug("node_status from file: %s", node_status)
 
     run_report.job_state_counts = {
         WmsStates.UNREADY: node_status.get('DAG_NodesUnready', 0),
@@ -747,10 +750,14 @@ def save_node_status(run_report, node_status):
         WmsStates.FAILED: node_status.get('DAG_NodesFailed', 0),
         WmsStates.MISFIT: node_status.get('DAG_NodesPre', 0) + node_status.get('DAG_NodesPost', 0)}
 
+    _LOG.debug("job_state_counts: %s", run_report.job_state_counts)
+
     # Fill in missing states
     for state in WmsStates:
         if state not in run_report.job_state_counts:
             run_report.job_state_counts[state] = 0
+
+    run_report.total_number_jobs = node_status.get('DAG_NodesTotal', node_status.get('NodesTotal', 0))
 
 
 def read_node_status(path):
@@ -776,6 +783,11 @@ def read_node_status(path):
                 dag_classad = classad.parseNext(infh)  # pylint: disable=E1101
         except OSError:
             pass
+
+        # inside normal classads they are prefaced with DAG_
+        for key in dag_classad:
+            if key.startswith("Nodes"):
+                dag_classad[f"DAG_{key}"] = dag_classad[key]
     else:
         _LOG.debug("Didn't find a *.node_status file in %s", path)
 
