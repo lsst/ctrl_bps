@@ -105,6 +105,11 @@ class RestrictedDict(MutableMapping):
         Strings that are valid keys.
     init_data : `dict` or `RestrictedDict`, optional
         Initial data.
+
+    Raises
+    ------
+    KeyError
+        If invalid key(s) in init_data.
     """
     def __init__(self, valid_keys, init_data=()):
         self.valid_keys = valid_keys
@@ -112,9 +117,38 @@ class RestrictedDict(MutableMapping):
         self.update(init_data)
 
     def __getitem__(self, key):
+        """Returns value for given key if exists.
+
+        Parameters
+        ----------
+        key : `str`
+            Identifier for value to return.
+
+        Returns
+        -------
+        value : `Any`
+            Value associated with given key.
+
+        Raises
+        ------
+        KeyError
+            If key doesn't exist.
+        """
         return self.data[key]
 
     def __delitem__(self, key):
+        """Deletes value for given key if exists.
+
+        Parameters
+        ----------
+        key : `str`
+            Identifier for value to delete.
+
+        Raises
+        ------
+        KeyError
+            If key doesn't exist.
+        """
         del self.data[key]
 
     def __setitem__(self, key, value):
@@ -123,7 +157,14 @@ class RestrictedDict(MutableMapping):
         Parameters
         ----------
         key : `str`
-        value : `object`
+            Identifier to associate with given value.
+        value : `Any`
+            Value to store.
+
+        Raises
+        ------
+        KeyError
+            If key is invalid.
         """
         if key not in self.valid_keys:
             raise KeyError(f"Invalid key {key}")
@@ -148,6 +189,7 @@ def htc_escape(value):
         String that needs to have characters escaped.
 
     Returns
+    -------
     new_value : `str`
         Given string with characters escaped.
     """

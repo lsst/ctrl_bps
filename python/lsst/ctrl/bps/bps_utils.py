@@ -63,8 +63,9 @@ def create_job_quantum_graph_filename(job, out_prefix=None):
     ----------
     job : `~lsst.ctrl.bps.generic_workflow.GenericWorkflowJob`
         Job for which the QuantumGraph file is being saved.
-    out_prefix : `str`
-        Path prefix for the QuantumGraph filename.
+    out_prefix : `str`, optional
+        Path prefix for the QuantumGraph filename.  If no
+        out_prefix is given, uses current working directory.
 
     Returns
     -------

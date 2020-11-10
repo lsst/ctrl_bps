@@ -40,7 +40,7 @@ class ClusteredQuantumGraph(networkx.DiGraph):
             Node name which must be unique in the graph.
         qgraph : `~lsst.pipe.base.QuantumGraph`
             QuantumGraph containing the quanta in the cluster.
-        label : `str`
+        label : `str`, optional
             Label for the cluster.  Can be used in grouping clusters.
         """
         self.add_node(name, qgraph=qgraph, label=label)
@@ -56,8 +56,6 @@ class ClusteredQuantumGraph(networkx.DiGraph):
             be a padded node counter.
         attr :
             Attributes to be saved with node in graph
-            attr.qgraph : `~lsst.pipe.base.QuantumGraph`
-                QuantumGraph to be stored in graph node
         """
         if isinstance(node_for_adding, QuantumGraph):
             name = f"{len(self) + 1:06d}"  # create cluster name by counter

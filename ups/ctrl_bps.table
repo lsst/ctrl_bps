@@ -1,5 +1,8 @@
-# ctrl_mpexec includes daf_butler, etc
-setupRequired(ctrl_mpexec)
+setupRequired(sconsUtils)
+setupRequired(utils)
+setupRequired(daf_butler)
+setupRequired(pipe_base)
+setupOptional(ctrl_mpexec)
 
 envPrepend(PYTHONPATH, ${PRODUCT_DIR}/python)
 envPrepend(PATH, ${PRODUCT_DIR}/bin)
