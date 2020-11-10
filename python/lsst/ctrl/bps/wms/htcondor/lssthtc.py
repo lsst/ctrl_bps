@@ -653,8 +653,16 @@ def htc_jobs_to_wms_report(jobs):
             try:
                 runs[job['DAGManJobID']].jobs.append(report)
             except KeyError:
-                raise KeyError(f"Missing dagman job for job {job['ClusterID']}.  Double check "
-                               f"report constraints.") from None
+                # Temporary fix in case history constraint quit in middle of run
+                # Should change main code to first query DAG jobs then query their jobs
+                missing_job = condor_history(f"(ClusterID == {job['DAGManJobID']})")
+                missing_run = htc_jobs_to_wms_report(missing_job)
+                runs[missing_run[0].wms_id] = missing_run[0]
+                try:
+                    runs[job['DAGManJobID']].jobs.append(report)
+                except KeyError:
+                    raise KeyError(f"Missing dagman job for job {job['ClusterID']}.  Double check "
+                                   f"report constraints.") from None
 
     _LOG.debug(list(runs.values()))
     return list(runs.values())
