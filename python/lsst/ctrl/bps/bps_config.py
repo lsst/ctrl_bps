@@ -52,9 +52,11 @@ class BpsConfig(Config):
 
     Parameters
     ----------
-    other: `str`, `dict`, `Config`, `BpsConfig`
+    other : `str`, `dict`, `Config`, `BpsConfig`
         Path to a yaml file or a dict/Config/BpsConfig containing configuration
         to copy.
+    search_order : `list` of `str`, optional
+        Root section names in the order in which they should be searched.
     """
     def __init__(self, other, search_order=None):
         # In BPS config, the same setting can be defined multiple times in
@@ -86,12 +88,17 @@ class BpsConfig(Config):
             self.search_order = search_order
             self.formatter = BpsFormatter()
 
+        # Make sure search sections exist
+        for key in self.search_order:
+            if not Config.__contains__(self, key):
+                self[key] = {}
+
     def copy(self):
         """Makes a copy of config
 
         Returns
         -------
-        copy: `BpsConfig`
+        copy : `~lsst.ctrl.bps.bps_config.BpsConfig`
             A duplicate of itself
         """
         return BpsConfig(self)
@@ -101,12 +108,12 @@ class BpsConfig(Config):
 
         Parameters
         ----------
-        name: `str`
+        name : `str`
             Key to look for in config
 
         Returns
         -------
-        val: `str`, `int`, `BPSConfig`, ...
+        val : `str`, `int`, `~lsst.ctrl.bps.bps_config.BPSConfig`, ...
             Value from config if found
         """
         _, val = self.search(name, {})
@@ -114,16 +121,16 @@ class BpsConfig(Config):
         return val
 
     def __contains__(self, name):
-        """Checks whether name is in config
+        """Checks whether name is in config.
 
         Parameters
         ----------
-        name: `str`
-            Key to look for in config
+        name : `str`
+            Key to look for in config.
 
         Returns
         -------
-        found: `bool`
+        found : `bool`
             Whether name was in config or not
         """
         found, _ = self.search(name, {})
@@ -137,9 +144,9 @@ class BpsConfig(Config):
 
         Parameters
         ----------
-        key: `str`
+        key : `str`
             Key to look for in config.
-        opt: `dict`, optional
+        opt : `dict`, optional
             Options dictionary to use while searching.  All are optional.
 
             ``"curvals"``
@@ -157,9 +164,9 @@ class BpsConfig(Config):
 
         Returns
         -------
-        found: `bool`
+        found : `bool`
             Whether name was in config or not
-        value: `str`, `int`, `BpsConfig`, ...
+        value : `str`, `int`, `BpsConfig`, ...
             Value from config if found
         """
         _LOG.debug("search: initial key = '%s', opt = '%s'", key, opt)
@@ -210,7 +217,7 @@ class BpsConfig(Config):
                         value = Config.__getitem__(search_sect, key)
                         break
                 else:
-                    _LOG.warning("Missing search section '%s' while searching for '%s'", sect, key)
+                    _LOG.debug("Missing search section '%s' while searching for '%s'", sect, key)
 
             # lastly check root values
             if not found:

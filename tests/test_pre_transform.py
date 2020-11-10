@@ -22,7 +22,9 @@ import os
 import shutil
 import tempfile
 import unittest
-import lsst.ctrl.bps.bps_core as bps
+
+from lsst.ctrl.bps.bps_config import BpsConfig
+from lsst.ctrl.bps.pre_transform import execute, create_quantum_graph
 
 
 TESTDIR = os.path.abspath(os.path.dirname(__file__))
@@ -38,34 +40,18 @@ class TestExecute(unittest.TestCase):
 
     def testSuccessfulExecution(self):
         """Test exit status if command succeeded."""
-        status = bps.execute('true', self.file.name)
+        status = execute('true', self.file.name)
         self.assertIn('true', self.file.read())
         self.assertEqual(status, 0)
 
     def testFailingExecution(self):
         """Test exit status if command failed."""
-        status = bps.execute('false', self.file.name)
+        status = execute('false', self.file.name)
         self.assertIn('false', self.file.read())
         self.assertNotEqual(status, 0)
 
 
-class TestPrettyPrinting(unittest.TestCase):
-
-    def setUp(self):
-        pass
-
-    def tearDown(self):
-        pass
-
-    def testDatasetLabelFormatting(self):
-        """Test if a task label is properly formatted."""
-        original = "'raw+{band: i, instrument: HSC, detector: 17}'"
-        expected = "'raw\nband=i\n instrument=HSC\n detector=17'"
-        result = bps.pretty_dataset_label(original)
-        self.assertEqual(result, expected)
-
-
-class TestBpsCore(unittest.TestCase):
+class TestCreatingQuantumGraph(unittest.TestCase):
 
     def setUp(self):
         self.tmpdir = tempfile.mkdtemp(dir=TESTDIR)
@@ -76,28 +62,22 @@ class TestBpsCore(unittest.TestCase):
     def testCreatingQuantumGraph(self):
         """Test if a config command creates appropriately named pickle file."""
         settings = {
-            "global": {
-                "createQuantumGraph": "touch {qgraphfile}",
-                "submitPath": self.tmpdir,
-            }
+            "createQuantumGraph": "touch {qgraphfile}",
+            "submitPath": self.tmpdir,
         }
-        config = bps.BpsConfig(settings, search_order=["global"])
-        core = bps.BpsCore(config)
-        core._create_quantum_graph()
+        config = BpsConfig(settings, search_order=[])
+        create_quantum_graph(config, self.tmpdir)
         self.assertTrue(os.path.exists(os.path.join(self.tmpdir, ".pickle")))
 
     def testCreatingQuantumGraphFailure(self):
         """Test if an exception is raised when creating quantum graph fails."""
         settings = {
-            "global": {
-                "createQuantumGraph": "false",
-                "submitPath": self.tmpdir,
-            }
+            "createQuantumGraph": "false",
+            "submitPath": self.tmpdir,
         }
-        config = bps.BpsConfig(settings, search_order=["global"])
-        core = bps.BpsCore(config)
+        config = BpsConfig(settings, search_order=[])
         with self.assertRaises(RuntimeError):
-            core._create_quantum_graph()
+            create_quantum_graph(config, self.tmpdir)
 
 
 if __name__ == "__main__":

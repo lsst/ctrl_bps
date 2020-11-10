@@ -18,11 +18,38 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+import os
+import shutil
+import tempfile
+import unittest
 
-import pkgutil
+from lsst.ctrl.bps.bps_utils import chdir
 
-__path__ = pkgutil.extend_path(__path__, __name__)
 
-from .bps_config import *
-from .generic_workflow import GenericWorkflow, GenericWorkflowJob, GenericWorkflowFile
-from .clustered_quantum_graph import ClusteredQuantumGraph
+TESTDIR = os.path.abspath(os.path.dirname(__file__))
+
+
+class TestChdir(unittest.TestCase):
+
+    def setUp(self):
+        self.cwd = os.getcwd()
+        self.tmpdir = tempfile.mkdtemp(dir=TESTDIR)
+
+    def tearDown(self):
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def testSuccessfulChdir(self):
+        self.assertNotEqual(os.getcwd(), self.tmpdir)
+        with chdir(self.tmpdir):
+            self.assertEqual(os.getcwd(), self.tmpdir)
+        self.assertNotEqual(os.getcwd(), self.tmpdir)
+
+    def testFailingChdir(self):
+        dir_not_there = os.path.join(self.tmpdir, "notthere")
+        with self.assertRaises(FileNotFoundError):
+            with chdir(dir_not_there):
+                pass   # should not get here
+
+
+if __name__ == "__main__":
+    unittest.main()

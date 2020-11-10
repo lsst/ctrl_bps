@@ -19,45 +19,34 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-"""Support for workflow engines"""
+"""Driver for submitting a prepared WMS-specific workflow
+"""
 
-from abc import ABCMeta
+import logging
 
+from lsst.utils import doImport
 
-class WorkflowEngine:
-    """Support for generating WMS workflow
-    """
-    def __init__(self, config):
-        self.config = config
-
-    def implement_workflow(self, gen_workflow):
-        """Create submission for a generic workflow
-        in a specific WMS
-        """
-        raise NotImplementedError
+_LOG = logging.getLogger()
 
 
-class Workflow(metaclass=ABCMeta):
-    """Interface for single workflow specific to a WMS
+def submit(config, wms_workflow, wms_service=None):
+    """Convert generic workflow to a workflow for a particular WMS.
 
     Parameters
     ----------
-    config : `BpsConfig`
-        Generic workflow config
-    gen_workflow : `networkx.DiGraph`
-        Generic workflow graph
+    config : `~lsst.ctrl.bps.bps_config.BpsConfig`
+        Configuration values to be used by submission.
+    wms_workflow : `~lsst.ctrl.bps.wms_workflow.BaseWmsWorkflow`
+        The workflow to submit.
+    wms_service : `~lsst.ctrl.bps.wms_service.BaseWmsService`, optional
+        The workflow management service to which the workflow should be submitted.
+
+    Returns
+    -------
+    wms_workflow : `~lsst.ctrl.bps.wms_workflow.BaseWmsWorkflow`
+        WMS-specific workflow
     """
-    def __init__(self, config, gen_workflow):
-        self.workflow_config = config
-        self.workflow_graph = gen_workflow
-        self.run_id = None
-
-    def submit(self):
-        """Submit workflow to WMS
-        """
-        raise NotImplementedError
-
-    def get_id(self):
-        """Return run id
-        """
-        return self.run_id
+    if wms_service is None:
+        wms_service_class = doImport(config["wmsServiceClass"])
+        wms_service = wms_service_class(config)
+    return wms_service.submit(wms_workflow)
