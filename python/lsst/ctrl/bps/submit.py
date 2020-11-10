@@ -76,7 +76,17 @@ def submit(config, wms_workflow, wms_service=None):
 
 
 def create_submission(config):
-    """Create submission files but don't actually submit
+    """Create submission files but don't actually submit.
+
+    Parameters
+    ----------
+    config : `~lsst.ctrl.bps.bps_config.BpsConfig`
+        Batch Processing service configuration.
+
+    Returns
+    -------
+    wms_workflow : `~lsst.ctrl.bps.wms_workflow`
+        WMS-specific workflow.
     """
     subtime = time.time()
 
