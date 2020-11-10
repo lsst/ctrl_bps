@@ -19,7 +19,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import click
-from lsst.daf.butler.cli.opt import log_level_option, long_log_option
+from lsst.daf.butler.cli.opt import log_level_option
 from lsst.daf.butler.cli.utils import cli_handle_exception
 from .. import opt
 from .. import script

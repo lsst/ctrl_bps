@@ -30,7 +30,7 @@ class BpsCli(LoaderCLI):
 
 @click.command(cls=BpsCli,
                context_settings=dict(help_option_names=["-h", "--help"]))
-@log_level_option()
+@log_level_option(default=["WARNING"])
 @long_log_option()
 def cli(log_level, long_log):
     pass
