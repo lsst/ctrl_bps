@@ -25,12 +25,10 @@ Note: Expectations are that future reporting effort will revolve around
    LSST oriented database tables.
 """
 
-import argparse
 import logging
-import sys
 
-from lsst.utils import doImport
 from .wms_service import WmsStates
+
 
 SUMMARY_FMT = "{:1} {:>10} {:>3} {:>8} {:10} {:5} {:8} {:10} {:<50}"
 
@@ -44,80 +42,6 @@ log4j.appender.A1.layout.ConversionPattern={}
 """
 
 _LOG = logging.getLogger()
-
-
-def report(argv):
-    """Entry point for status report generation.
-
-    Parameters
-    ----------
-    argv : `list` of `str`
-        Command-line arguments to be parsed.
-    """
-    args = parse_args_report(argv)
-
-    # Set up logging.
-    logging.basicConfig(format="%(levelname)s::%(asctime)s::%(message)s", datefmt="%m/%d/%Y %H:%M:%S")
-    _log = logging.getLogger()
-    if args.debug:
-        _log.setLevel(logging.DEBUG)
-
-    wms_service_class = doImport(args.wms_service)
-    wms_service = wms_service_class({})
-
-    # If reporting on single run, increase history until code better mechanism for handling
-    # completed jobs.
-    if args.run_id:
-        hist_days = max(args.hist_days, 2)
-    else:
-        hist_days = args.hist_days
-
-    runs, message = wms_service.report(args.run_id, args.user, hist_days, args.pass_thru)
-
-    if args.run_id:
-        if not runs:
-            print(f"No information found for id='{args.run_id}'.")
-            print(f"Double check id and retry with a larger --hist value (currently: {args.hist_days})")
-        for run in runs:
-            print_single_run_summary(run)
-    else:
-        print_headers()
-        for run in sorted(runs, key=lambda j: j.wms_id):
-            print_run(run)
-    print(message)
-
-
-def parse_args_report(argv=None):
-    """Parse command line, and test for required arguments
-
-    Parameters
-    ----------
-    argv : `list` of `str`
-        Command-line arguments.
-
-    Returns
-    -------
-    args : `Namespace`
-        Command-line arguments converted into an object with attributes.
-    """
-    if argv is None:
-        argv = sys.argv[1:]
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-d", action="store_true", dest="debug", required=False,
-                        help="Turn on debugging messages")
-    parser.add_argument("--wms", action="store", dest="wms_service", required=False,
-                        help="Workload Management System service class",
-                        default="lsst.ctrl.bps.wms.htcondor.htcondor_service.HTCondorService")
-    parser.add_argument("--user", action="store", dest="user", required=False,
-                        help="Restrict report to specific user")
-    parser.add_argument("--id", action="store", dest="run_id", required=False,
-                        help="Restrict report to specific WMS run id")
-    parser.add_argument("--hist", action="store", dest="hist_days", required=False,
-                        type=float, default=0, help="Search WMS history X days for completed info")
-    parser.add_argument("--pass-thru", action="store", dest="pass_thru", required=False,
-                        help="Pass the given string to the WMS service class")
-    args = parser.parse_args(argv)
-    return args
 
 
 def print_headers():

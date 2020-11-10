@@ -20,7 +20,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 from lsst.daf.butler.cli.cliLog import CliLog
 from ...bps_config import BpsConfig
-from ...bpsub_driver import BPS_SEARCH_ORDER, create_submission
+from ...submit import BPS_SEARCH_ORDER, create_submission
 
 
 def _prepare(config_file, log_level, **kwargs):
