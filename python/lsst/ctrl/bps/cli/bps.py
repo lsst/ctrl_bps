@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 # This file is part of ctrl_bps.
 #
 # Developed for the LSST Data Management System.
@@ -20,12 +18,23 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+import click
+from lsst.daf.butler.cli.butler import LoaderCLI
+from lsst.daf.butler.cli.opt import log_level_option, long_log_option
 
-"""Report status of runs submitted to a WMS"""
 
-import sys
+class BpsCli(LoaderCLI):
 
-from lsst.ctrl.bps.report import report
+    localCmdPkg = "lsst.ctrl.bps.cli.cmd"
 
-if __name__ == "__main__":
-    report(sys.argv[1:])
+
+@click.command(cls=BpsCli,
+               context_settings=dict(help_option_names=["-h", "--help"]))
+@log_level_option(default=["WARNING"])
+@long_log_option()
+def cli(log_level, long_log):
+    pass
+
+
+def main():
+    return cli()

@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 # This file is part of ctrl_bps.
 #
 # Developed for the LSST Data Management System.
@@ -19,13 +17,11 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+from lsst.daf.butler.cli.utils import MWArgumentDecorator
 
-"""Submit a run to a WMS"""
 
-import sys
-
-from lsst.ctrl.bps.bpsub_driver import bpsub
-
-if __name__ == "__main__":
-    bpsub(sys.argv[1:])
+config_file_argument = MWArgumentDecorator(
+    "config_file",
+    help="CONFIG_FILE is the file with Batch Processing Service configuration."
+)
