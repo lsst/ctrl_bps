@@ -30,8 +30,8 @@ def _report(log_level, wms_service, user, run_id, hist_days, pass_thru):
     ----------
     log_level : `str`
         Per-component logging levels, each item in the list is a tuple
-        (component, level), `component` is a logger name or an empty string
-        or `None` for root logger, `level` is a logging level name, one of
+        (component, level), ``component`` is a logger name or an empty string
+        or `None` for root logger, ``level`` is a logging level name, one of
         CRITICAL, ERROR, WARNING, INFO, DEBUG (case insensitive).
     wms_service : `str`
         Name of the class.

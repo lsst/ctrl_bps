@@ -34,8 +34,8 @@ def _submit(config, workflow, log_level, **kwargs):
         workflow management system.
     log_level : `list` of `tuple`
         Per-component logging levels, each item in the list is a tuple
-        (component, level), `component` is a logger name or an empty string
-        or `None` for root logger, `level` is a logging level name, one of
+        (component, level), ``component`` is a logger name or an empty string
+        or `None` for root logger, ``level`` is a logging level name, one of
         CRITICAL, ERROR, WARNING, INFO, DEBUG (case insensitive).
     """
     if log_level is not None:
