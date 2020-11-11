@@ -31,7 +31,7 @@ from .. import script
 def transform(*args, **kwargs):
     """Transform a quantum graph to a workflow graph.
     """
-    pass
+    raise NotImplementedError
 
 
 @click.command()
