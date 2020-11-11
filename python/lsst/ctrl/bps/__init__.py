@@ -23,6 +23,7 @@ import pkgutil
 
 __path__ = pkgutil.extend_path(__path__, __name__)
 
-from .bps_config import *
+from .bps_config import BpsConfig, BpsFormatter
 from .generic_workflow import GenericWorkflow, GenericWorkflowJob, GenericWorkflowFile
 from .clustered_quantum_graph import ClusteredQuantumGraph
+from .version import *
