@@ -129,7 +129,7 @@ keep you going:
 
    operator: jdoe
    pipelineYaml: "${OBS_SUBARU_DIR}/pipelines/DRP.yaml:processCcd"
-   template_dataid: "{tract}_{patch}_{band}_{visit}_{exposure}_{detector}"
+   templateDataId: "{tract}_{patch}_{band}_{visit}_{exposure}_{detector}"
    project: dev
    campaign: quick
    submitPath: ${PWD}/submit/{outCollection}
@@ -146,13 +146,13 @@ keep you going:
      dataQuery: exposure=903342 AND detector=10
 
    pipetask:
-     pipetask_init:
+     pipetaskInit:
        runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask --long-log run -b {butlerConfig} -i {inCollection} --output-run {outCollection} --init-only --skip-existing --register-dataset-types --qgraph {qgraph_file} --no-versions"
      assembleCoadd:
        requestMemory: 8GB
 
    wmsServiceClass: lsst.ctrl.bps.wms.htcondor.htcondor_service.HTCondorService
-   cluster_algorithm: lsst.ctrl.bps.quantum_clustering_funcs.single_quantum_clustering
+   clusterAlgorithm: lsst.ctrl.bps.quantum_clustering_funcs.single_quantum_clustering
    createQuantumGraph: '${CTRL_MPEXEC_DIR}/bin/pipetask qgraph -d "{dataQuery}" -b {butlerConfig} -i {inCollection} -p {pipelineYaml} -q {qgraphfile} --qgraph-dot {qgraphfile}.dot'
    runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask --long-log run -b {butlerConfig} -i {inCollection} --output-run {outCollection} --extend-run --skip-init-writes --qgraph {qgraph_file} --no-versions"
 
@@ -170,7 +170,7 @@ or a pre-made pickle file with a quantum graph, for example
 
 .. code-block:: YAML
 
-   qgraph_file: ci_hsc_qgraph_w_2020_31.pickle
+   qgraphFile: ci_hsc_qgraph_w_2020_31.pickle
 
 .. warning::
 
@@ -354,7 +354,7 @@ Required settings
 Reserved keywords
 ^^^^^^^^^^^^^^^^^
 
-**gqraph_file**
+**gqraphFile**
     Name of the file with a pre-made pickled Quantum Graph.
 
     Such a file is an alterntative way to describe a science pipeline.

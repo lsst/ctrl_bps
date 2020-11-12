@@ -62,7 +62,7 @@ class TestCreatingQuantumGraph(unittest.TestCase):
     def testCreatingQuantumGraph(self):
         """Test if a config command creates appropriately named pickle file."""
         settings = {
-            "createQuantumGraph": "touch {qgraphfile}",
+            "createQuantumGraph": "touch {qgraphFile}",
             "submitPath": self.tmpdir,
         }
         config = BpsConfig(settings, search_order=[])

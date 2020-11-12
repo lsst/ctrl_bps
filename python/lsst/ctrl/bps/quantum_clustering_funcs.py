@@ -57,8 +57,8 @@ def single_quantum_clustering(config, qgraph, name):
     for quantum_node in qgraph:
         subgraph = qgraph.subset(quantum_node)
         label = quantum_node.taskDef.label
-        found, template = config.search('template_dataid', opt={'curvals': {'curr_pipetask': label},
-                                                                'replaceVars': False})
+        found, template = config.search('templateDataId', opt={'curvals': {'curr_pipetask': label},
+                                                               'replaceVars': False})
         if found:
             template = "{node_number}_{label}_" + template
         else:

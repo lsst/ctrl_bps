@@ -180,8 +180,8 @@ def create_init_workflow(config):
     init_workflow = GenericWorkflow("init")
 
     # create job for executing --init-only
-    job = GenericWorkflowJob("pipetask_init")
-    job.cmdline = create_command(config, "pipetask_init", config[".bps_defined.run_qgraph_file"])
+    job = GenericWorkflowJob("pipetaskInit")
+    job.cmdline = create_command(config, "pipetaskInit", config[".bps_defined.run_qgraph_file"])
     job.label = "init"
     job.compute_site = config["computeSite"]
     init_workflow.add_job(job)
@@ -214,7 +214,7 @@ def create_command(config, label, qgraph_file):
     command : `str`
         String containing command line.
     """
-    search_opt = {"curvals": {"curr_pipetask": label, "qgraph_file": qgraph_file}, "required": False}
+    search_opt = {"curvals": {"curr_pipetask": label, "qgraphFile": qgraph_file}, "required": False}
     found, command = config.search("runQuantumCommand", opt=search_opt)
     # Allow older Exec Args separation.
     if not found:
