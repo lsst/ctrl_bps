@@ -12,20 +12,30 @@ Prerequisites
    `SQLite3`__ is fine for small runs like **ci_hsc_gen3** if have POSIX
    filesystem.  For larger runs, use `PostgreSQL`__.
 
-#. HTCondor pool.
+#. HTCondor's `Python bindings`__.
 
-#. HTCondor API.
+#. A workflow management service.
+
+   Currently, two workflow management services are supported HTCondor's
+   `DAGMan`__ and `Pegasus WMS`__.  Both of them requires an HTCondor cluster.  NCSA hosts a few of such clusters, see `this`__ page for details.
+
 
 .. __: https://www.sqlite.org/index.html
 .. __: https://www.postgresql.org
+.. __: https://htcondor.readthedocs.io/en/latest/apis/python-bindings/index.html
+.. __: https://htcondor.readthedocs.io/en/latest/users-manual/dagman-workflows.html#dagman-workflows
+.. __: https://pegasus.isi.edu
+.. __: https://developer.lsst.io/services/batch.html
 
 .. _bps-installation:
 
 Installing Batch Processing Service
 -----------------------------------
 
-Install the Batch Processing Service package, ``ctrl_bps``, similarly to any
-other LSST package:
+Starting from LSST Stack version ``w_2020_45``, the package providing Batch
+Processing Service, `ctrl_bps`_, comes with ``lsst_distrib``.  However, if
+you'd like to  try out its latest features, you may install a bleeding edge
+version similarly to any other LSST package:
 
 .. code-block:: bash
 
@@ -35,6 +45,9 @@ other LSST package:
    scons
 
 .. _bps-data-repository:
+
+
+.. _ctrl_bps: https://github.com/lsst/ctrl_bps
 
 Creating Butler repository
 --------------------------
@@ -63,67 +76,51 @@ when installing an LSST package:
    git checkout w_2020_45  # checkout the branch matching the software branch you are using
    setup -k -r .
    scons
-   
-Note that running ``scons`` registers all of the inputs *and* runs the
-pipeline.  To prevent ``scons`` from running the pipeline, edit
-``bin/run_demo.sh``, add
-
-.. code-block:: bash
-
-   exit 3
-
-before the first ``pipetask`` command, and then run ``scons``.
-
-If you see output similar to the one below
-
-.. code-block:: bash
-
-   scons: Reading SConscript files ...
-   EUPS integration: enabled
-   scons: done reading SConscript files.
-   scons: Building targets ...
-   bin/run_demo.sh
-   + '[' '!' -f DATA_REPO/butler.yaml ']'
-   + butler create DATA_REPO
-   + butler register-instrument DATA_REPO lsst.obs.subaru.HyperSuprimeCam
-   + '[' '!' -d DATA_REPO/HSC/calib ']'
-   + butler import DATA_REPO /home/mxk/lsstsw/stack/pipelines_check/input_data --export-file /home/mxk/lsstsw/stack/pipelines_check/input_data/export.yaml --skip-dimensions instrument,physical_filter,detector
-   ++ find -L DATA_REPO/HSC/raw -type f
-   find: ‘DATA_REPO/HSC/raw’: No such file or directory
-   + '[' -z '' ']'
-   + butler ingest-raws DATA_REPO input_data/HSC/raw/all/raw/r/HSC-R/
-   ingest INFO: Successfully extracted metadata from 1 file with 0 failures
-   ingest INFO: Exposure HSC:HSCA90334200 ingested successfully
-   ingest INFO: Successfully processed data from 1 exposure with 0 failures from exposure registration and 0 failures from file ingest.
-   ingest INFO: Ingested 1 distinct Butler dataset
-   + butler define-visits DATA_REPO HSC --collections HSC/raw/all
-   defineVisits INFO: Preprocessing data IDs.
-   defineVisits INFO: Registering visit_system 0: one-to-one.
-   defineVisits INFO: Grouping 1 exposure(s) into visits.
-   defineVisits INFO: Computing regions and other metadata for 1 visit(s).
-   + exit 3
-   scons: *** [DATA_REPO/shared/ci_hsc_output] Error 3
-   scons: building terminated because of errors.
-
-then you’ve successfully made the **pipelines_check** dataset repository.
 
 .. _pipelines_check: https://github.com/lsst/pipelines_check
 
 .. _bps-submission:
 
-Preparing a submission
-----------------------
-
-Configuring the Batch Processing Service
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Defining a submission
+---------------------
 
 BPS configuration files are YAML files with some reserved keywords and some
 special features.  They are meant to be syntactically flexible to allow users
-figure out what works best for them.
+figure out what works best for them.  The syntax and features of a BPS
+configuration file are described in greater detail in
+:ref:`bps-configuration-file`.  Below is just a minimal example to keep you
+going.
 
-The syntax and features of a BPS configuration file are described in greater
-detail in :ref:`bps-configuration-file`.  Below is just a minimal example to
-keep you going:
+There are groups of information needed to define a submission to the Batch
+Production Service.  They include the pipeline definition, the payload
+(information about the data in the run), submission and runtime configuration.
+
+Describe a pipeline to BPS by telling it where to find either the pipeline YAML
+file (recommended)
+
+.. code-block:: YAML
+
+   pipelineYaml: "${OBS_SUBARU_DIR}/pipelines/DRP.yaml:processCcd"
+
+or a pre-made pickle file with a quantum graph, for example
+
+.. code-block:: YAML
+
+   qgraphFile: pipelines_check_w_2020_45.pickle
+
+.. warning::
+
+   The pickle file with a quantum graph are not portable. The file must be
+   crated by the same stack being used when running BPS *and* it can be only
+   used on the machine with the same environment.
+
+The payload information should be familiar too as it is mostly the information
+normally used on the pipetask command line (input collections, output
+collections, etc).
+
+The remaining information tells bps which workflow management system is being
+used, how to convert Datasets and Pipetasks into compute jobs and what
+resources those compute jobs need.
 
 .. code-block:: YAML
 
@@ -137,6 +134,8 @@ keep you going:
    requestMemory: 2GB
    requestCpus: 1
 
+   # Make sure these values correspond to ones in the bin/run_demo.sh's
+   # pipetask command line.
    payload:
      runInit: true
      payloadName: pcheck
@@ -156,28 +155,6 @@ keep you going:
    createQuantumGraph: '${CTRL_MPEXEC_DIR}/bin/pipetask qgraph -d "{dataQuery}" -b {butlerConfig} -i {inCollection} -p {pipelineYaml} -q {qgraphfile} --qgraph-dot {qgraphfile}.dot'
    runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask --long-log run -b {butlerConfig} -i {inCollection} --output-run {outCollection} --extend-run --skip-init-writes --qgraph {qgraph_file} --no-versions"
 
-Describing a pipeline
-^^^^^^^^^^^^^^^^^^^^^
-
-Describe a pipeline to BPS by telling it where to find either the pipeline YAML
-file (recommended)
-
-.. code-block:: YAML
-
-   pipelineYaml: ${CI_HSC_GEN3_DIR}/pipelines/CiHsc.yaml
-
-or a pre-made pickle file with a quantum graph, for example
-
-.. code-block:: YAML
-
-   qgraphFile: ci_hsc_qgraph_w_2020_31.pickle
-
-.. warning::
-
-   The pickle file with a quantum graph are not portable. The file must be
-   crated by the same stack being used when running BPS *and* it can be only
-   used on the machine with the same environment.
-
 .. _bps-submit:
 
 Submitting a run
@@ -187,17 +164,18 @@ Submit a run for execution with
 
 .. code-block:: bash
 
-   bps submit bps-ci_hsc.yaml
+   bps submit example.yaml
 
 If submission was successfully, it will output something like this:
 
 .. code-block:: bash
 
-   Submit dir: /home/mxk/tmp/bps/submit/shared/pipecheck/20201111T13h34m08s
+   Submit dir: /home/jdoe/tmp/bps/submit/shared/pipecheck/20201111T13h34m08s
    Run Id: 176261
 
-Adding ``-v`` option to the command line outputs more information especially
-for those wanting to watch how long the various submission stages take. 
+Adding ``--log-level INFO`` option to the command line outputs more information
+especially for those wanting to watch how long the various submission stages
+take. 
 
 .. _bps-report:
 
@@ -218,6 +196,16 @@ which should display run summary similar to the one below ::
 	-----------------------------------------------------------------------------------------------------------------------
 	     RUNNING   0   176270 jdoe       dev   quick    pcheck     shared_pipecheck_20201111T14h59m26s
 
+To see results regarding past submissions, use ``bps report --hist X``  where
+``X`` is the number of days past day to look at (can be a fraction).  For
+example ::
+
+	$ bps report --hist 1
+		STATE  %S       ID OPERATOR   PRJ   CMPGN    PAYLOAD    RUN                                               
+	-----------------------------------------------------------------------------------------------------------------------
+	   FAILED   0   176263 jdoe       dev   quick    pcheck     shared_pipecheck_20201111T13h51m59s               
+	SUCCEEDED 100   176265 jdoe       dev   quick    pcheck     shared_pipecheck_20201111T13h59m26s               
+
 Use ``bps report --help`` to see all currently supported options.
 
 .. _bps-terminate:
@@ -231,13 +219,13 @@ the `condor_rm`__ or `pegasus-remove`__.  Both take the ``runId`` printed by
 
 .. code-block:: bash
 
-   condor_rm <runId>               # HTCondor
-   pegasus-remove <pegasus runId>  # Pegasus WMS
+   condor_rm 176270       # HTCondor
+   pegasus-remove 176270  # Pegasus WMS
 
-``bps report`` also prints the ``RunId`` usable by ``condor_rm``.  
+``bps report`` also prints the ``runId`` usable by ``condor_rm``.  
 
 If you want to just clobber all of the runs that you have currently submitted,
-you can just do the following no matter if using HTCondor or Pegasus plugin: 
+you can just do the following no matter if using HTCondor or Pegasus WMS plugin:
 
 .. code-block:: bash
 
@@ -289,17 +277,25 @@ order from most specific to general is: ``payload``, ``pipetask``, and ``site``.
 
 **pipetask**
     subsections are pipetask labels where can override/set runtime settings for
-    particular pipetasks (currently no Quantum-specific settings).  One good
-    example is required ``memory.site`` settings for the each compute site.
+    particular pipetasks (currently no Quantum-specific settings).
 
-Required settings
-^^^^^^^^^^^^^^^^^
+Supported settings
+^^^^^^^^^^^^^^^^^^
 
 **butlerConfig**
     Location of the Butler configuration file needed by BPS to create run
     collection entry in Butler dataset repository
 
-``campaign``
+**campaign**
+    A label used to group submissions together.  May be used for
+    grouping submissions for particular deliverable (e.g., a JIRA issue number,
+    a milestone, etc.). Can be used as variable in output collection name.
+    Displayed in ``bps report`` output.
+
+**clusterAlgorithm**
+    Algorithm to use to group Quanta into single Python executions that can
+    share in-memory datastore.  Currently, just uses single quanta executions,
+    but this is here for future growth.
 
 **computeSite**
     Specification of the compute site where to run the workflow and which site
@@ -308,23 +304,28 @@ Required settings
 **createQuantumGraph**
     The command line specifiction for generating Quantum Graphs.
 
-``operator``
+**operator**
+    Name of the Operator who made a submission.  Displayed in bps report
+    output.  Defaults to the Operator's username.
 
 **pipelineYaml**
     Location of the YAML file describing the science pipeline.
 
-``project``
+**project**
+    Another label for groups of submissions.  May be used to differentiate
+    between test submissions from production submissions.  Can be used as a
+    variable in the output collection name.  Displayed in ``bps report``
+    output.
 
-
-**requestMemory**
+**requestMemory**, optional
     Amount of memory single Quantum execution of a particular pipetask will
     need (e.g., 2GB).
 
-**requestCpus**
+**requestCpus**, optional
     Number of cpus that a single Quantum execution of a particular pipetask
     will need (e.g., 1).
 
-``uniqProcName``
+**uniqProcName**
     Used when giving names to graphs, default names to output files, etc.  If
     not specified by user, BPS tries to use ``outCollection`` with '/' replaced
     with '_'.
@@ -332,14 +333,17 @@ Required settings
 **submitPath**
     Directory where the output files of ``bps prepare`` go.
 
-**runQunatumCommand**
-    The command line specification for running a Quantum.
+**runQuantumCommand**
+    The command line specification for running a Quantum. Must start with
+    executable name (a full path if using HTCondor plugin) followed by options
+    and arguments.  May contain other variables defined in the configuration
+    file.
 
 **runInit**
     Whether to add a ``pipetask --init-only`` to the workflow or not. If true,
-    expects there to be a pipetask section called **pipetask_init** which
-    contains the ``runQuantumExec`` and ``runQuantumArgs`` for the ``pipetask
-    --init-only``. For example
+    expects there to be a **pipetask** section called **pipetaskInit** which
+    contains the ``runQuantumCommand`` for the ``pipetask --init-only``. For
+    example
 
     .. code-block:: YAML
 
@@ -351,37 +355,55 @@ Required settings
            runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask --long-log run -b {butlerConfig} -i {inCollection} --output-run {outCollection} --init-only --skip-existing --register-dataset-types --qgraph {qgraph_file} --no-versions"
            requestMemory: 2GB
 
+**templateDataId**
+    Template to use when creating job names (and HTCondor plugin then uses for
+    job output filenames).
+
+**wmsServiceClass**
+    Workload Management Service plugin to use. For example
+
+    .. code-block:: YAML
+
+       wmsServiceClass: lsst.ctrl.bps.wms.htcondor.htcondor_service.HTCondorService  # HTCondor
+
 Reserved keywords
 ^^^^^^^^^^^^^^^^^
 
 **gqraphFile**
     Name of the file with a pre-made pickled Quantum Graph.
 
-    Such a file is an alterntative way to describe a science pipeline.
-    However, contrary to YAML specification, it is not portable.
+    Such a file is an alternative way to describe a science pipeline.
+    However, contrary to YAML specification, it is currently not portable.
 
 **timestamp**
     Created automatically by BPS at submit time that can be used in the user
-    specification of other values (e.g., in output collection names so that can
-    repeatedly submit the same BPS configuration without changing anything)
+    specification of other values (e.g., in output collection names so that one
+    can repeatedly submit the same BPS configuration without changing anything)
 
+.. note::
+
+   Any values shown in the example configuration file, but not covered in this
+   section are examples of user-defined variables (e.g. ``inCollection``) and
+   are notrequired by BPS.
 
 .. _bps-troubleshooting:
 
 Troubleshooting
 ---------------
 
-Where is stdout/stderr from pipleline tasks?
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Where is stdout/stderr from pipeline tasks?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 For now, stdout/stderr can be found in files in the submit run directory.
 
 HTCondor
 """"""""
 
+The names are of the format:
+
 .. code-block:: bash
 
-   <quantum graph nodeNumber>_<task label>_<templateDataId>[.<htcondor job id>.[sub|out|err|log]
+   <run submit dir>/jobs/<task label>/<quantum graph nodeNumber>_<task label>_<templateDataId>[.<htcondor job id>.[sub|out|err|log]
 
 Pegasus WMS
 """""""""""
@@ -402,7 +424,7 @@ Here are some advanced debugging tips:
    during QuantumGraph generation.  The QuantumGraph generation command line
    and output will be in ``quantumGraphGeneration.out`` in the submit run
    directory, e.g.
-   ``submit/shared/ci_hsc_output/20200806T00h22m26s/quantumGraphGeneration.out``.
+   ``submit/shared/pipecheck/20200806T00h22m26s/quantumGraphGeneration.out``.
 
 #. Check the ``*.dag.dagman.out`` for errors (in particular for ``ERROR: submit
    attempt failed``).
