@@ -143,7 +143,7 @@ def create_quantum_graph(config, out_prefix=None):
         qgraph_filename = os.path.join(out_prefix, qgraph_filename)
 
     # Get QuantumGraph generation command.
-    search_opt = {"curvals": {"qgraphfile": qgraph_filename}}
+    search_opt = {"curvals": {"qgraphFile": qgraph_filename}}
     found, cmd = config.search("createQuantumGraph", opt=search_opt)
     if not found:
         _LOG.error("command for generating QuantumGraph not found")
@@ -202,5 +202,5 @@ def cluster_quanta(config, qgraph, name):
     graph : `~lsst.ctrl.bps.clustered_quantum_graph.ClusteredQuantumGraph`
         Generated ClusteredQuantumGraph.
     """
-    cluster_func = doImport(config["cluster_algorithm"])
+    cluster_func = doImport(config["clusterAlgorithm"])
     return cluster_func(config, qgraph, name)
