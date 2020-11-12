@@ -9,23 +9,23 @@ Prerequisites
 
 #. Shared database.
 
-   `SQLite3`__ is fine for small runs like **ci_hsc_gen3** if have POSIX
-   filesystem.  For larger runs, use `PostgreSQL`__.
-
-#. HTCondor's `Python bindings`__.
+   `SQLite3`_ is fine for small runs like **ci_hsc_gen3** if have POSIX
+   filesystem.  For larger runs, use `PostgreSQL`_.
 
 #. A workflow management service.
 
    Currently, two workflow management services are supported HTCondor's
-   `DAGMan`__ and `Pegasus WMS`__.  Both of them requires an HTCondor cluster.  NCSA hosts a few of such clusters, see `this`__ page for details.
+   `DAGMan`_ and `Pegasus WMS`_.  Both of them requires an HTCondor cluster.
+   NCSA hosts a few of such clusters, see `this`_ page for details.
 
+#. HTCondor's Python `bindings`_ (if using `HTCondor`_) or `Pegasus WMS`_.
 
-.. __: https://www.sqlite.org/index.html
-.. __: https://www.postgresql.org
-.. __: https://htcondor.readthedocs.io/en/latest/apis/python-bindings/index.html
-.. __: https://htcondor.readthedocs.io/en/latest/users-manual/dagman-workflows.html#dagman-workflows
-.. __: https://pegasus.isi.edu
-.. __: https://developer.lsst.io/services/batch.html
+.. _SQLite3: https://www.sqlite.org/index.html
+.. _PostgreSQL: https://www.postgresql.org
+.. _DAGMan: https://htcondor.readthedocs.io/en/latest/users-manual/dagman-workflows.html#dagman-workflows
+.. _Pegasus WMS: https://pegasus.isi.edu
+.. _bindings: https://htcondor.readthedocs.io/en/latest/apis/python-bindings/index.html
+.. _this: https://developer.lsst.io/services/batch.html
 
 .. _bps-installation:
 
@@ -118,7 +118,7 @@ The payload information should be familiar too as it is mostly the information
 normally used on the pipetask command line (input collections, output
 collections, etc).
 
-The remaining information tells bps which workflow management system is being
+The remaining information tells BPS which workflow management system is being
 used, how to convert Datasets and Pipetasks into compute jobs and what
 resources those compute jobs need.
 
@@ -305,7 +305,7 @@ Supported settings
     The command line specifiction for generating Quantum Graphs.
 
 **operator**
-    Name of the Operator who made a submission.  Displayed in bps report
+    Name of the Operator who made a submission.  Displayed in ``bps report``
     output.  Defaults to the Operator's username.
 
 **pipelineYaml**
@@ -384,7 +384,7 @@ Reserved keywords
 
    Any values shown in the example configuration file, but not covered in this
    section are examples of user-defined variables (e.g. ``inCollection``) and
-   are notrequired by BPS.
+   are not required by BPS.
 
 .. _bps-troubleshooting:
 
