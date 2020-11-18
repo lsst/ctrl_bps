@@ -122,38 +122,11 @@ The remaining information tells BPS which workflow management system is being
 used, how to convert Datasets and Pipetasks into compute jobs and what
 resources those compute jobs need.
 
-.. code-block:: YAML
 
-   operator: jdoe
-   pipelineYaml: "${OBS_SUBARU_DIR}/pipelines/DRP.yaml:processCcd"
-   templateDataId: "{tract}_{patch}_{band}_{visit}_{exposure}_{detector}"
-   project: dev
-   campaign: quick
-   submitPath: ${PWD}/submit/{outCollection}
-   computeSite: ncsapool
-   requestMemory: 2GB
-   requestCpus: 1
+.. literalinclude:: pipelines_check.yaml
+   :language: YAML
+   :caption: ${CTRL_BPS_DIR}/doc/lsst.ctrl.bps/pipelines_check.yaml
 
-   # Make sure these values correspond to ones in the bin/run_demo.sh's
-   # pipetask command line.
-   payload:
-     runInit: true
-     payloadName: pcheck
-     butlerConfig: ${PIPELINES_CHECK_DIR}/DATA_REPO/butler.yaml
-     inCollection: HSC/calib,HSC/raw/all,refcats
-     outCollection: "shared/pipecheck/{timestamp}"
-     dataQuery: exposure=903342 AND detector=10
-
-   pipetask:
-     pipetaskInit:
-       runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask --long-log run -b {butlerConfig} -i {inCollection} --output-run {outCollection} --init-only --skip-existing --register-dataset-types --qgraph {qgraphFile} --no-versions"
-     assembleCoadd:
-       requestMemory: 8GB
-
-   wmsServiceClass: lsst.ctrl.bps.wms.htcondor.htcondor_service.HTCondorService
-   clusterAlgorithm: lsst.ctrl.bps.quantum_clustering_funcs.single_quantum_clustering
-   createQuantumGraph: '${CTRL_MPEXEC_DIR}/bin/pipetask qgraph -d "{dataQuery}" -b {butlerConfig} -i {inCollection} -p {pipelineYaml} -q {qgraphFile} --qgraph-dot {qgraphFile}.dot'
-   runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask --long-log run -b {butlerConfig} -i {inCollection} --output-run {outCollection} --extend-run --skip-init-writes --qgraph {qgraphFile} --no-versions"
 
 .. _bps-submit:
 
@@ -279,6 +252,51 @@ order from most specific to general is: ``payload``, ``pipetask``, and ``site``.
     subsections are pipetask labels where can override/set runtime settings for
     particular pipetasks (currently no Quantum-specific settings).
 
+**site**
+    settings for specific sites can be set here.  Subsections are site names
+    which are matched to ``computeSite``.  The following are examples for 
+    specifying values needed to match jobs to glideins.
+
+.. code-block:: YAML
+   :caption: HTCondor plugin example
+
+   site:
+     acsws02:
+       profile:
+         condor:
+           requirements: "(GLIDEIN_NAME == &quot;test_gname&quot;)"
+           +GLIDEIN_NAME: "test_gname"
+
+
+.. code-block:: YAML
+   :caption: Pegasus plugin example
+
+   site:
+     acsws02:
+       arch: x86_64
+       os: LINUX
+       directory:
+         shared-scratch:
+           path: /work/shared-scratch/${USER}
+           file-server:
+             operation: all
+             url: file:///work/shared-scratch/${USER}
+       profile:
+         pegasus:
+           style: condor
+           auxillary.local: true
+         condor:
+           universe: vanilla
+           getenv: true
+           requirements: '(ALLOCATED_NODE_SET == &quot;${NODESET}&quot;)'
+           +JOB_NODE_SET: '&quot;${NODESET}&quot;'
+         dagman:
+           retry: 0
+         env:
+           PEGASUS_HOME: /usr/local/pegasus/current
+
+
+
 Supported settings
 ^^^^^^^^^^^^^^^^^^
 
@@ -318,8 +336,8 @@ Supported settings
     output.
 
 **requestMemory**, optional
-    Amount of memory single Quantum execution of a particular pipetask will
-    need (e.g., 2GB).
+    Amount of memory, in MB, a single Quantum execution of a particular pipetask
+    will need (e.g., 2048).
 
 **requestCpus**, optional
     Number of cpus that a single Quantum execution of a particular pipetask
@@ -353,7 +371,7 @@ Supported settings
        pipetask:
          pipetask_init:
            runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask --long-log run -b {butlerConfig} -i {inCollection} --output-run {outCollection} --init-only --skip-existing --register-dataset-types --qgraph {qgraph_file} --no-versions"
-           requestMemory: 2GB
+           requestMemory: 2048
 
 **templateDataId**
     Template to use when creating job names (and HTCondor plugin then uses for

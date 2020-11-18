@@ -45,7 +45,7 @@ def pre_transform(config, out_prefix=None):
     Parameters
     ----------
     config : `.bps_config.BpsConfig`
-        Configuration values for BPS.  In particular, looking for qgraph_file.
+        Configuration values for BPS.  In particular, looking for qgraphFile.
     out_prefix : `str` or None
         Output path for the QuantumGraph and stdout/stderr from generating
         the QuantumGraph.
@@ -59,7 +59,7 @@ def pre_transform(config, out_prefix=None):
         result of running code that generates it.
     """
     # Check to see if user provided pre-generated QuantumGraph.
-    found, input_qgraph_filename = config.search("qgraph_file")
+    found, input_qgraph_filename = config.search("qgraphFile")
     if found:
         if out_prefix is not None:
             # Save a copy of the QuantumGraph file in out_prefix.

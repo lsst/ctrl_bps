@@ -227,6 +227,15 @@ class PegasusWorkflow(BaseWmsWorkflow):
         else:
             _LOG.warning("Job %s does not have any arguments", gwf_job.name)
 
+        if gwf_job.request_memory:  # MB
+            job.addProfile(Profile(Namespace.CONDOR, "request_memory", gwf_job.request_memory))
+        if gwf_job.request_cpus:  # cores
+            job.addProfile(Profile(Namespace.CONDOR, "request_cpus", gwf_job.request_cpus))
+        if gwf_job.request_disk:  # MB
+            job.addProfile(Profile(Namespace.CONDOR, "request_disk", gwf_job.request_disk))
+        if gwf_job.priority:  # MB
+            job.addProfile(Profile(Namespace.CONDOR, "priority", gwf_job.priority))
+
         # Add extra job attributes
         for key, value in gwf_job.profile.items():
             job.addProfile(Profile(Namespace.CONDOR, key, value))
@@ -422,7 +431,7 @@ class PegasusWorkflow(BaseWmsWorkflow):
             print(f"pegasus.catalog.replica.file={filenames['replica']}", file=outfh)
 
             print("# This tells Pegasus where to find the Transformation Catalog.", file=outfh)
-            print("pegasus.catalog.transformation=Text")
+            print("pegasus.catalog.transformation=Text", file=outfh)
             print(f"pegasus.catalog.transformation.file={filenames['transformation']}", file=outfh)
 
             print("# Run Pegasus in shared file system mode.", file=outfh)
