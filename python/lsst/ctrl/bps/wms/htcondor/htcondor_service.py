@@ -28,7 +28,7 @@ from lsst.ctrl.bps.bps_utils import chdir
 from lsst.ctrl.bps.wms_service import BaseWmsWorkflow, BaseWmsService
 from lsst.ctrl.bps.generic_workflow import GenericWorkflow
 from .lssthtc import (htc_submit_dag, read_node_status, read_dag_node_log, condor_q, condor_history,
-                      HTCDag, HTCJob, htc_jobs_to_wms_report)
+                      HTCDag, HTCJob, htc_jobs_to_wms_report, htc_escape)
 
 _LOG = logging.getLogger()
 
@@ -277,7 +277,7 @@ def translate_job_cmds(generic_workflow_job):
     # Add extra "pass-thru" job commands
     if generic_workflow_job.profile:
         for key, val in generic_workflow_job.profile.items():
-            jobcmds[key] = val
+            jobcmds[key] = htc_escape(val)
 
     return jobcmds
 

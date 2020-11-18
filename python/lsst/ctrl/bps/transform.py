@@ -54,14 +54,14 @@ def transform(config, clustered_quantum_graph, prefix):
     if 'name' in clustered_quantum_graph.graph and clustered_quantum_graph.graph['name'] is not None:
         name = clustered_quantum_graph.graph['name']
     else:
-        _, name = config.search('uniqProcName', opt={'required': True})
+        _, name = config.search("uniqProcName", opt={"required": True})
 
     generic_workflow = create_generic_workflow(config, clustered_quantum_graph, name, prefix)
     generic_workflow_config = create_generic_workflow_config(config, prefix)
 
     # Save QuantumGraphs.
-    found, when_to_save_job_qgraph = config.search('when_save_job_qgraph',
-                                                   {'default': WhenToSaveQuantumGraphs.TRANSFORM})
+    found, when_to_save_job_qgraph = config.search("whenSaveJobQgraph",
+                                                   {"default": WhenToSaveQuantumGraphs.TRANSFORM})
     if found and when_to_save_job_qgraph == WhenToSaveQuantumGraphs.TRANSFORM:
         for job_name in generic_workflow.nodes():
             job = generic_workflow.get_job(job_name)
@@ -184,6 +184,12 @@ def create_init_workflow(config):
     job.cmdline = create_command(config, "pipetaskInit", config[".bps_defined.run_qgraph_file"])
     job.label = "init"
     job.compute_site = config["computeSite"]
+    search_opt = {"curvals": {"curr_pipetask": "pipetaskInit"}, "required": False, "default": 0}
+    job.request_cpus = int(config.search("requestCpus", opt=search_opt)[1])
+    job.request_memory = int(config.search("requestMemory", opt=search_opt)[1])
+    job.request_disk = int(config.search("requestDisk", opt=search_opt)[1])
+    job.request_walltime = int(config.search("requestWalltime", opt=search_opt)[1])
+    update_job(config, job)
     init_workflow.add_job(job)
 
     _LOG.debug("creating init task input(s)")
@@ -315,14 +321,14 @@ def create_job_values_aggregate(config, generic_workflow):
             label_counts[qnode.taskDef.label] += 1
 
             search_opt = {"curvals": {"curr_pipetask": qnode.taskDef.label}, "required": False, "default": 0}
-            _, request_cpus = config.search("request_cpus", opt=search_opt)
-            job.request_cpus = max(job.request_cpus, request_cpus)
-            _, request_memory = config.search("request_memory", opt=search_opt)
-            job.request_memory = max(job.request_memory, request_memory)
-            _, request_disk = config.search("request_walltime", opt=search_opt)
-            job.request_disk += request_disk
-            _, request_walltime = config.search("request_walltime", opt=search_opt)
-            job.request_walltime += request_walltime
+            _, request_cpus = config.search("requestCpus", opt=search_opt)
+            job.request_cpus = max(job.request_cpus, int(request_cpus))
+            _, request_memory = config.search("requestMemory", opt=search_opt)
+            job.request_memory = max(job.request_memory, int(request_memory))
+            _, request_disk = config.search("requestDisk", opt=search_opt)
+            job.request_disk += int(request_disk)
+            _, request_walltime = config.search("requestWalltime", opt=search_opt)
+            job.request_walltime += int(request_walltime)
 
         job.quanta_summary = ';'.join([f"{k}:{v}" for k, v in label_counts.items()])
 

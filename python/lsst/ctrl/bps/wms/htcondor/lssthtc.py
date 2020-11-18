@@ -193,7 +193,7 @@ def htc_escape(value):
     new_value : `str`
         Given string with characters escaped.
     """
-    return value.replace("\\", "\\\\").replace('"', '\\"').replace("'", "''")
+    return value.replace("\\", "\\\\").replace('"', '\\"').replace("'", "''").replace("&quot;", '"')
 
 
 def htc_write_attribs(stream, attrs):

@@ -53,8 +53,8 @@ def prepare(config, generic_workflow, out_prefix):
 
     # Save QuantumGraphs.
     # (putting after call to prepare so don't write a bunch of files if prepare fails)
-    found, when_to_save_job_qgraph = config.search('when_save_job_qgraph',
-                                                   {'default': WhenToSaveQuantumGraphs.TRANSFORM})
+    found, when_to_save_job_qgraph = config.search("whenSaveJobQgraph",
+                                                   {"default": WhenToSaveQuantumGraphs.TRANSFORM})
     if found and when_to_save_job_qgraph == WhenToSaveQuantumGraphs.PREPARE:
         for job_name in generic_workflow.nodes():
             job = generic_workflow.get_job(job_name)

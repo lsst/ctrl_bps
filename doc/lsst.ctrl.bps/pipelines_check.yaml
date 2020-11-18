@@ -1,0 +1,29 @@
+pipelineYaml: "${OBS_SUBARU_DIR}/pipelines/DRP.yaml:processCcd"
+templateDataId: "{tract}_{patch}_{band}_{visit}_{exposure}_{detector}"
+project: dev
+campaign: quick
+submitPath: ${PWD}/submit/{outCollection}
+computeSite: ncsapool
+requestMemory: 2048
+requestCpus: 1
+
+# Make sure these values correspond to ones in the bin/run_demo.sh's
+# pipetask command line.
+payload:
+  runInit: true
+  payloadName: pcheck
+  butlerConfig: ${PIPELINES_CHECK_DIR}/DATA_REPO/butler.yaml
+  inCollection: HSC/calib,HSC/raw/all,refcats
+  outCollection: "shared/pipecheck/{timestamp}"
+  dataQuery: exposure=903342 AND detector=10
+
+pipetask:
+  pipetaskInit:
+    runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask --long-log run -b {butlerConfig} -i {inCollection} --output-run {outCollection} --init-only --skip-existing --register-dataset-types --qgraph {qgraphFile} --clobber-partial-outputs --no-versions"
+  assembleCoadd:
+    requestMemory: 8192
+
+wmsServiceClass: lsst.ctrl.bps.wms.htcondor.htcondor_service.HTCondorService
+clusterAlgorithm: lsst.ctrl.bps.quantum_clustering_funcs.single_quantum_clustering
+createQuantumGraph: '${CTRL_MPEXEC_DIR}/bin/pipetask qgraph -d "{dataQuery}" -b {butlerConfig} -i {inCollection} -p {pipelineYaml} -q {qgraphFile} --qgraph-dot {qgraphFile}.dot'
+runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask --long-log run -b {butlerConfig} -i {inCollection} --output-run {outCollection} --extend-run --skip-init-writes --qgraph {qgraphFile} --clobber-partial-outputs --no-versions"
