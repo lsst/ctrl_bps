@@ -254,48 +254,45 @@ order from most specific to general is: ``payload``, ``pipetask``, and ``site``.
 
 **site**
     settings for specific sites can be set here.  Subsections are site names
-    which are matched to ``computeSite``.  The following are examples for 
+    which are matched to ``computeSite``.  The following are examples for
     specifying values needed to match jobs to glideins.
 
-.. code-block:: YAML
-   :caption: HTCondor plugin example
+    .. code-block:: YAML
+       :caption: HTCondor plugin example
 
-   site:
-     acsws02:
-       profile:
-         condor:
-           requirements: "(GLIDEIN_NAME == &quot;test_gname&quot;)"
-           +GLIDEIN_NAME: "test_gname"
+       site:
+         acsws02:
+           profile:
+             condor:
+               requirements: "(GLIDEIN_NAME == &quot;test_gname&quot;)"
+               +GLIDEIN_NAME: "test_gname"
 
+    .. code-block:: YAML
+       :caption: Pegasus plugin example
 
-.. code-block:: YAML
-   :caption: Pegasus plugin example
-
-   site:
-     acsws02:
-       arch: x86_64
-       os: LINUX
-       directory:
-         shared-scratch:
-           path: /work/shared-scratch/${USER}
-           file-server:
-             operation: all
-             url: file:///work/shared-scratch/${USER}
-       profile:
-         pegasus:
-           style: condor
-           auxillary.local: true
-         condor:
-           universe: vanilla
-           getenv: true
-           requirements: '(ALLOCATED_NODE_SET == &quot;${NODESET}&quot;)'
-           +JOB_NODE_SET: '&quot;${NODESET}&quot;'
-         dagman:
-           retry: 0
-         env:
-           PEGASUS_HOME: /usr/local/pegasus/current
-
-
+       site:
+         acsws02:
+           arch: x86_64
+           os: LINUX
+           directory:
+             shared-scratch:
+               path: /work/shared-scratch/${USER}
+               file-server:
+                 operation: all
+                 url: file:///work/shared-scratch/${USER}
+           profile:
+             pegasus:
+               style: condor
+               auxillary.local: true
+             condor:
+               universe: vanilla
+               getenv: true
+               requirements: '(ALLOCATED_NODE_SET == &quot;${NODESET}&quot;)'
+               +JOB_NODE_SET: '&quot;${NODESET}&quot;'
+             dagman:
+               retry: 0
+             env:
+               PEGASUS_HOME: /usr/local/pegasus/current
 
 Supported settings
 ^^^^^^^^^^^^^^^^^^
