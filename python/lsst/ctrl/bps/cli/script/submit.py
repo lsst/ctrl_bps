@@ -18,11 +18,10 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-from lsst.daf.butler.cli.cliLog import CliLog
 from ...submit import submit
 
 
-def _submit(config, workflow, log_level, **kwargs):
+def _submit(config, workflow, **kwargs):
     """Submit workflow for execution.
 
     Parameters
@@ -32,13 +31,6 @@ def _submit(config, workflow, log_level, **kwargs):
     workflow : `lsst.ctrl.bps.wms_workflow.BaseWmsWorkflow`
         Representation of the abstract/scientific workflow specific to a given
         workflow management system.
-    log_level : `list` of `tuple`
-        Per-component logging levels, each item in the list is a tuple
-        (component, level), ``component`` is a logger name or an empty string
-        or `None` for root logger, ``level`` is a logging level name, one of
-        CRITICAL, ERROR, WARNING, INFO, DEBUG (case insensitive).
     """
-    if log_level is not None:
-        CliLog.setLogLevels(log_level)
     submit(config, workflow)
     print(f"Run Id: {workflow.run_id}")

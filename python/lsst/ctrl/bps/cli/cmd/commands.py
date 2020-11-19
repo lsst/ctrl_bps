@@ -19,33 +19,35 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import click
-from lsst.daf.butler.cli.opt import log_level_option
-from lsst.daf.butler.cli.utils import cli_handle_exception
+from lsst.daf.butler.cli.utils import MWCommand, cli_handle_exception
 from .. import opt
 from .. import script
 
 
-@click.command()
+class BpsCommand(MWCommand):
+    """Command subclass with bps-command specific overrides."""
+
+    extra_epilog = "See 'bps --help' for more options."
+
+
+@click.command(cls=BpsCommand)
 @opt.config_file_argument(required=True)
-@log_level_option()
 def transform(*args, **kwargs):
     """Transform a quantum graph to a workflow graph.
     """
     raise NotImplementedError
 
 
-@click.command()
+@click.command(cls=BpsCommand)
 @opt.config_file_argument(required=True)
-@log_level_option()
 def prepare(*args, **kwargs):
     """Prepare a workflow for submission.
     """
     cli_handle_exception(script.prepare, *args, **kwargs)
 
 
-@click.command()
+@click.command(cls=BpsCommand)
 @opt.config_file_argument(required=True)
-@log_level_option()
 def submit(*args, **kwargs):
     """Submit a workflow for execution.
     """
@@ -54,8 +56,7 @@ def submit(*args, **kwargs):
                          **kwargs)
 
 
-@click.command()
-@log_level_option()
+@click.command(cls=BpsCommand)
 @click.option("--wms", "wms_service",
               default="lsst.ctrl.bps.wms.htcondor.htcondor_service.HTCondorService",
               help="Workload Management System service class")
