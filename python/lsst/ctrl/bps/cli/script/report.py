@@ -18,21 +18,15 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-from lsst.daf.butler.cli.cliLog import CliLog
 from lsst.utils import doImport
 from ...report import print_headers, print_run, print_single_run_summary
 
 
-def _report(log_level, wms_service, user, run_id, hist_days, pass_thru):
+def _report(wms_service, user, run_id, hist_days, pass_thru):
     """Print out summary of jobs submitted for execution.
 
     Parameters
     ----------
-    log_level : `str`
-        Per-component logging levels, each item in the list is a tuple
-        (component, level), ``component`` is a logger name or an empty string
-        or `None` for root logger, ``level`` is a logging level name, one of
-        CRITICAL, ERROR, WARNING, INFO, DEBUG (case insensitive).
     wms_service : `str`
         Name of the class.
     user : `str`
@@ -44,9 +38,6 @@ def _report(log_level, wms_service, user, run_id, hist_days, pass_thru):
     pass_thru : `str`
         A string to pass directly to the WMS service class.
     """
-    if log_level is not None:
-        CliLog.setLogLevels(log_level)
-
     wms_service_class = doImport(wms_service)
     wms_service = wms_service_class({})
 

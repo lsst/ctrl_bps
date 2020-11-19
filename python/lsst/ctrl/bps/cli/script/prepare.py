@@ -18,23 +18,17 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-from lsst.daf.butler.cli.cliLog import CliLog
 from ...bps_config import BpsConfig
 from ...submit import BPS_SEARCH_ORDER, create_submission
 
 
-def _prepare(config_file, log_level, **kwargs):
+def _prepare(config_file, **kwargs):
     """Create a workflow for a specific workflow management system.
 
     Parameters
     ----------
     config_file : `str`
         Name of the configuration file.
-    log_level : `str`
-        Per-component logging levels, each item in the list is a tuple
-        (component, level), ``component`` is a logger name or an empty string
-        or `None` for root logger, ``level`` is a logging level name, one of
-        CRITICAL, ERROR, WARNING, INFO, DEBUG (case insensitive).
 
     Returns
     -------
@@ -44,8 +38,6 @@ def _prepare(config_file, log_level, **kwargs):
         Representation of the abstract/scientific workflow specific to a given
         workflow management system.
     """
-    if log_level is not None:
-        CliLog.setLogLevels(log_level)
     config = BpsConfig(config_file, BPS_SEARCH_ORDER)
     workflow = create_submission(config)
     print(f"Submit dir: {workflow.submit_path}")
