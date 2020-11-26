@@ -14,7 +14,7 @@ payload:
   payloadName: pcheck
   butlerConfig: ${PIPELINES_CHECK_DIR}/DATA_REPO/butler.yaml
   inCollection: HSC/calib,HSC/raw/all,refcats
-  outCollection: "shared/pipecheck/{timestamp}"
+  outCollection: "u/${USER}/pipelines_check/{timestamp}"
   dataQuery: exposure=903342 AND detector=10
 
 pipetask:

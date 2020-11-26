@@ -122,11 +122,9 @@ The remaining information tells BPS which workflow management system is being
 used, how to convert Datasets and Pipetasks into compute jobs and what
 resources those compute jobs need.
 
-
 .. literalinclude:: pipelines_check.yaml
    :language: YAML
    :caption: ${CTRL_BPS_DIR}/doc/lsst.ctrl.bps/pipelines_check.yaml
-
 
 .. _bps-submit:
 

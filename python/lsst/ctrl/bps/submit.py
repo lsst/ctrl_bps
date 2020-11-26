@@ -23,13 +23,13 @@
 """
 
 import getpass
-import datetime
 import logging
 import os
 import pickle
 import time
 
 from lsst.utils import doImport
+from lsst.obs.base import Instrument
 
 from .bps_draw import draw_networkx_dot
 from .pre_transform import pre_transform, cluster_quanta
@@ -90,7 +90,7 @@ def create_submission(config):
     """
     subtime = time.time()
 
-    config[".bps_defined.timestamp"] = "{:%Y%m%dT%Hh%Mm%Ss}".format(datetime.datetime.now())
+    config[".bps_defined.timestamp"] = Instrument.makeCollectionTimestamp()
     if "uniqProcName" not in config:
         config[".bps_defined.uniqProcName"] = config["outCollection"].replace("/", "_")
     if "operator" not in config:
