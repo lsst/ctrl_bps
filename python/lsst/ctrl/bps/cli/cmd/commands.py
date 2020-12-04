@@ -19,7 +19,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import click
-from lsst.daf.butler.cli.utils import MWCommand, cli_handle_exception
+from lsst.daf.butler.cli.utils import MWCommand
 from .. import opt
 from .. import script
 
@@ -43,7 +43,7 @@ def transform(*args, **kwargs):
 def prepare(*args, **kwargs):
     """Prepare a workflow for submission.
     """
-    cli_handle_exception(script.prepare, *args, **kwargs)
+    script.prepare(*args, **kwargs)
 
 
 @click.command(cls=BpsCommand)
@@ -51,9 +51,8 @@ def prepare(*args, **kwargs):
 def submit(*args, **kwargs):
     """Submit a workflow for execution.
     """
-    config, workflow = cli_handle_exception(script.prepare, *args, **kwargs)
-    cli_handle_exception(script.submit, config=config, workflow=workflow,
-                         **kwargs)
+    config, workflow = script.prepare(*args, **kwargs)
+    script.submit(config=config, workflow=workflow, **kwargs)
 
 
 @click.command(cls=BpsCommand)
@@ -72,4 +71,4 @@ def submit(*args, **kwargs):
 def report(*args, **kwargs):
     """Display execution status for submitted workflows.
     """
-    cli_handle_exception(script.report, *args, **kwargs)
+    script.report(*args, **kwargs)
