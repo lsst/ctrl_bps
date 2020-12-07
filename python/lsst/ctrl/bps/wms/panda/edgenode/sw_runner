@@ -1,0 +1,8 @@
+#!/bin/bash
+echo "I am in container"
+cd /tmp;
+export HOME=/tmp;
+export S3_ENDPOINT_URL=https://storage.googleapis.com
+. /opt/lsst/software/stack/loadLSST.bash;
+setup lsst_distrib;
+eval "$(/usr/bin/python $3/cmd_line_encoder.py $1 $2)"
