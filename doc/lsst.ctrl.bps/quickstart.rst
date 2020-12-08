@@ -102,15 +102,15 @@ file (recommended)
 
    pipelineYaml: "${OBS_SUBARU_DIR}/pipelines/DRP.yaml:processCcd"
 
-or a pre-made pickle file with a quantum graph, for example
+or a pre-made file containing a serialized QuantumGraph, for example
 
 .. code-block:: YAML
 
-   qgraphFile: pipelines_check_w_2020_45.pickle
+   qgraphFile: pipelines_check_w_2020_45.qgraph
 
 .. warning::
 
-   The pickle file with a quantum graph are not portable. The file must be
+   The file with a serialized QuantumGraph is not portable. The file must be
    crated by the same stack being used when running BPS *and* it can be only
    used on the machine with the same environment.
 
@@ -255,8 +255,9 @@ order from most specific to general is: ``payload``, ``pipetask``, and ``site``.
     which are matched to ``computeSite``.  The following are examples for
     specifying values needed to match jobs to glideins.
 
+    HTCondor plugin example:
+
     .. code-block:: YAML
-       :caption: HTCondor plugin example
 
        site:
          acsws02:
@@ -265,8 +266,9 @@ order from most specific to general is: ``payload``, ``pipetask``, and ``site``.
                requirements: "(GLIDEIN_NAME == &quot;test_gname&quot;)"
                +GLIDEIN_NAME: "test_gname"
 
+    Pegasus plugin example:
+
     .. code-block:: YAML
-       :caption: Pegasus plugin example
 
        site:
          acsws02:
@@ -315,7 +317,7 @@ Supported settings
     settings to use in ``bps prepare``).
 
 **createQuantumGraph**
-    The command line specifiction for generating Quantum Graphs.
+    The command line specification for generating QuantumGraphs.
 
 **operator**
     Name of the Operator who made a submission.  Displayed in ``bps report``
@@ -383,7 +385,7 @@ Reserved keywords
 ^^^^^^^^^^^^^^^^^
 
 **gqraphFile**
-    Name of the file with a pre-made pickled Quantum Graph.
+    Name of the file with a pre-made, serialized QuantumGraph.
 
     Such a file is an alternative way to describe a science pipeline.
     However, contrary to YAML specification, it is currently not portable.
