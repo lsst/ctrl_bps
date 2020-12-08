@@ -78,7 +78,7 @@ def create_job_quantum_graph_filename(job, out_prefix=None):
     name_parts.append("inputs")
     if job.label is not None:
         name_parts.append(job.label)
-    name_parts.append(f"quantum_{job.name}.pickle")
+    name_parts.append(f"quantum_{job.name}.qgraph")
     full_filename = os.path.join("", *name_parts)
     return full_filename
 

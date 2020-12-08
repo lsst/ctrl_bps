@@ -60,17 +60,17 @@ class TestCreatingQuantumGraph(unittest.TestCase):
         shutil.rmtree(self.tmpdir, ignore_errors=True)
 
     def testCreatingQuantumGraph(self):
-        """Test if a config command creates appropriately named pickle file."""
+        """Test if a config command creates appropriately named qgraph file."""
         settings = {
             "createQuantumGraph": "touch {qgraphFile}",
             "submitPath": self.tmpdir,
         }
         config = BpsConfig(settings, search_order=[])
         create_quantum_graph(config, self.tmpdir)
-        self.assertTrue(os.path.exists(os.path.join(self.tmpdir, ".pickle")))
+        self.assertTrue(os.path.exists(os.path.join(self.tmpdir, ".qgraph")))
 
     def testCreatingQuantumGraphFailure(self):
-        """Test if an exception is raised when creating quantum graph fails."""
+        """Test if an exception is raised when creating qgraph file fails."""
         settings = {
             "createQuantumGraph": "false",
             "submitPath": self.tmpdir,
