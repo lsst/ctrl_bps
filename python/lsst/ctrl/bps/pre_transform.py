@@ -138,7 +138,7 @@ def create_quantum_graph(config, out_prefix=None):
         Name of file containing generated QuantumGraph
     """
     # Create name of file to store QuantumGraph.
-    qgraph_filename = f"{config['uniqProcName']}.pickle"
+    qgraph_filename = f"{config['uniqProcName']}.qgraph"
     if out_prefix is not None:
         qgraph_filename = os.path.join(out_prefix, qgraph_filename)
 
