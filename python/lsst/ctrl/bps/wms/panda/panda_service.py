@@ -83,10 +83,10 @@ class PanDAService(BaseWmsService):
         for idx, task in enumerate(workflow.generated_tasks):
             work = DomaLSSTWork(
                 executable=self.add_decoder_prefix(task.executable),
-                primary_input_collection=
-                {'scope': 'pseudo_dataset', 'name': 'pseudo_input_collection#'+str(idx)},
-                output_collections=
-                [{'scope': 'pseudo_dataset', 'name': 'pseudo_output_collection#'+str(idx)}],
+                primary_input_collection={'scope': 'pseudo_dataset',
+                                          'name': 'pseudo_input_collection#'+str(idx)},
+                output_collections=[{'scope': 'pseudo_dataset',
+                                     'name': 'pseudo_output_collection#'+str(idx)}],
                 log_collections=[], dependency_map=task.dependencies,
                 task_name=task.name,
                 task_queue=task.queue)
