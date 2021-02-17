@@ -4,11 +4,10 @@ templateDataId: "{tract}_{patch}_{band}_{visit}_{exposure}_{detector}"
 project: dev
 campaign: quick
 submitPath: ${PWD}/submit/{outCollection}
-container_obs_subaru_dir: "/opt/lsst/software/stack/stack/current/Linux64/obs_subaru/19.0.0-93-g17da4283+8b1c2ba858/"
-container_obs_panda_edge_node_dir: "/opt/lsst/software/stack/stack/current/Linux64/ctrl_bps/master-g7fa0b7801f+97740c1739/python/lsst/ctrl/bps/wms/panda/edgenode"
+container_obs_panda_edge_node_dir: "/opt/lsst/software/stack/stack/current/Linux64/ctrl_bps/21.0.0-6-g55737e1+e68d6e10c0/python/lsst/ctrl/bps/wms/panda/edgenode"
 
-computing_queue: BNL_OSG_SPHENIX
-computing_queue_himem: BNL_OSG_SPHENIX
+computing_queue: DOMA_LSST_GOOGLE_TEST
+computing_queue_himem: DOMA_LSST_GOOGLE_TEST_HIMEM
 himem_steps: ['makeWarp', 'assembleCoadd', 'deblend', 'measure', 'pipetaskInit']
 maxwalltime: 90000
 maxattempt: 5
@@ -16,8 +15,7 @@ maxattempt: 5
 payload:
   runInit: true
   payloadName: pcheck
-  #butlerConfig: ${PIPELINES_CHECK_DIR}/DATA_REPO/butler.yaml
-  butlerConfig: s3://ci_hsc_w_2020_48/butler.yaml
+  butlerConfig: s3://ci_hsc_w_2020_50/butler.yaml
 
   #inCollection: HSC/defaults
   inCollection: HSC/calib,HSC/raw/all,HSC/masks,refcats,skymaps
@@ -26,19 +24,15 @@ payload:
   dataQuery: "skymap='discrete/ci_hsc' AND tract=0 AND patch=69"
 
   #cloud settings:
-  #sw_image: "docker://lsstsqre/centos:7-stack-lsst_distrib-w_2020_48"
-  sw_image: "docker://spodolsky/centos:7-stack-lsst_distrib-w_2020_48"
-  aws_access_key: GOOGXYZ
-  aws_secret_access_key: "XYZ"
-  bucket: "s3://ci_hsc_w_2020_48"
+  sw_image: "docker://spodolsky/centos:7-stack-lsst_distrib-w_2021_03"
+  bucket: "s3://ci_hsc_w_2020_50"
   s3_endpoint_url: "https://storage.googleapis.com"
   payload_folder: payload
-  singulatiry_prefix: '"cd /tmp;export HOME=/tmp;export S3_ENDPOINT_URL={s3_endpoint_url};export AWS_ACCESS_KEY_ID={aws_access_key}; export AWS_SECRET_ACCESS_KEY={aws_secret_access_key}; . /opt/lsst/software/stack/loadLSST.bash; setup lsst_distrib -t w_2020_48;'
   runner_command: 'singularity exec --no-home --cleanenv {sw_image} {container_obs_panda_edge_node_dir}/sw_runner _cmd_line_ ${{IN/L}} "{container_obs_panda_edge_node_dir}" >&2;'
 
 pipetask:
   pipetaskInit:
-    runQuantumCommand: 'export AWS_ACCESS_KEY_ID={aws_access_key};export AWS_SECRET_ACCESS_KEY={aws_secret_access_key};pipetask run -b {butlerConfig}  --input {inCollection} --output-run {outCollection} --init-only --clobber-partial-outputs --skip-existing --register-dataset-types --qgraph {bucket}/{payload_folder}/{uniqProcName}/${{IN/L}} --no-versions'
+    runQuantumCommand: 'pipetask run -b {butlerConfig}  --input {inCollection} --output-run {outCollection} --init-only --clobber-partial-outputs --skip-existing --register-dataset-types --qgraph {bucket}/{payload_folder}/{uniqProcName}/${{IN/L}} --no-versions'
   assembleCoadd:
     requestMemory: 8
 
@@ -46,4 +40,4 @@ pipetask:
 wmsServiceClass: lsst.ctrl.bps.wms.panda.panda_service.PanDAService
 clusterAlgorithm: lsst.ctrl.bps.quantum_clustering_funcs.single_quantum_clustering
 createQuantumGraph: '${CTRL_MPEXEC_DIR}/bin/pipetask qgraph -d "{dataQuery}" -b {butlerConfig} -i {inCollection} -p {pipelineYaml} -q {qgraphFile} --qgraph-dot {qgraphFile}.dot'
-runQuantumCommand: 'export AWS_ACCESS_KEY_ID={aws_access_key};export AWS_SECRET_ACCESS_KEY={aws_secret_access_key};pipetask run -b {butlerConfig}  --input {inCollection} --output-run {outCollection} --extend-run --skip-init-writes --clobber-partial-outputs --qgraph {bucket}/{payload_folder}/{uniqProcName}/${{IN/L}}'
+runQuantumCommand: 'pipetask run -b {butlerConfig}  --input {inCollection} --output-run {outCollection} --extend-run --skip-init-writes --clobber-partial-outputs --qgraph {bucket}/{payload_folder}/{uniqProcName}/${{IN/L}}'

@@ -1,8 +1,9 @@
 #!/bin/bash
-echo "I am in container"
+# This is a starter script needed to initialize basic Rubin software environment inside the container and execute
+# the actual command line after decoding from hexed strings
 cd /tmp;
 export HOME=/tmp;
 export S3_ENDPOINT_URL=https://storage.googleapis.com
 . /opt/lsst/software/stack/loadLSST.bash;
 setup lsst_distrib;
-eval "$(/usr/bin/python $3/cmd_line_encoder.py $1 $2)"
+eval "$(/usr/bin/python $3/cmd_line_decoder.py $1 $2)"

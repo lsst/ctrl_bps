@@ -1,16 +1,38 @@
-class LSSTTask(object):
-    name = None
-    step = None
-    queue = None
-    executable = None
-    maxwalltime = None
-    maxattempt = None
-    lfns = []
-    local_pfns = []
-    dependencies = []
+"""
+
+"""
+from dataclasses import dataclass
+
+@dataclass
+class RubinTask:
+    """
+    Holds parameters needed to define a PanDA task
+    """
+    name: str = None
+    step: str = None
+    queue: str = None
+    executable: str = None
+    maxwalltime: int = None
+    maxattempt: int = None
+    lfns: list = None
+    local_pfns: list = None
+    dependencies: list = None
 
 
 class IDDSWorkflowGenerator:
+    """
+    Class generates a iDDS workflow to be submitted into PanDA. Workflow includes definition of each task and
+    definition of dependencies for each task input.
+
+    Parameters
+    ----------
+    bps_workflow : `~lsst.ctrl.bps.generic_workflow.GenericWorkflow`
+            The generic workflow constructed by BPS system
+
+    config : `~lsst.ctrl.bps.BPSConfig`
+            BPS configuration that includes necessary submit/runtime information, sufficiently defined in YAML file
+            supplied in `submit` command
+    """
     def __init__(self, bps_workflow, config):
         self.bps_workflow = bps_workflow
         self.bps_config = config
@@ -40,18 +62,18 @@ class IDDSWorkflowGenerator:
         other_task_cmd_line = self.pick_non_init_cmdline()
 
         for task_step, jobs in tasks_dependency_map.items():
-            task = LSSTTask()
+            task = RubinTask()
             task.step = task_step
             task.name = self.define_task_name(task.step)
             task.queue = self.computing_queue_himem if task_step in self.himem_tasks else self.computing_queue
-            task.lfns = list(jobs.keys())
+            task.lfns = list(jobs)
             task.local_pfns = self.tasks_inputs[task.name]
             task.maxattempt = self.maxattempt
             task.maxwalltime = self.maxwalltime
 
             # We take the commandline only from first job  because PanDA uses late binding and
             # command line for each job in task is equal to each other in exception to the processing
-            # file name which is substitutes by PanDA
+            # file name which is substituted by PanDA
             if task_step == 'pipetaskInit':
                 task.executable = init_task_cmd_line
             else:
@@ -74,12 +96,6 @@ class IDDSWorkflowGenerator:
                 }
                 dependencies.append(job_dep)
             task.dependencies = dependencies
-
-    def define_execution_command(self):
-        exec_str = ""
-        if self.bps_config.get("computing_queue") == 'docker':
-            pass
-        return exec_str
 
     def create_raw_jobs_dependency_map(self):
         dependency_map = {}
