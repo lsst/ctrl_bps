@@ -26,15 +26,10 @@ from lsst.ctrl.bps.wms.panda.idds_tasks import IDDSWorkflowGenerator
 from lsst.daf.butler import ButlerURI
 from idds.workflow.workflow import Workflow as IDDS_client_workflow
 from idds.doma.workflow.domalsstwork import DomaLSSTWork
-from idds.common.utils import get_rest_host, DictClassEncoder
 import idds.common.constants as idds_constants
 import idds.common.utils as idds_utils
 import pandatools.idds_api
 import binascii
-
-import pickle
-
-
 
 _LOG = logging.getLogger()
 
@@ -88,8 +83,10 @@ class PanDAService(BaseWmsService):
         for idx, task in enumerate(workflow.generated_tasks):
             work = DomaLSSTWork(
                 executable=self.add_decoder_prefix(task.executable),
-                primary_input_collection={'scope': 'pseudo_dataset', 'name': 'pseudo_input_collection#'+str(idx)},
-                output_collections=[{'scope': 'pseudo_dataset', 'name': 'pseudo_output_collection#'+str(idx)}],
+                primary_input_collection=
+                {'scope': 'pseudo_dataset', 'name': 'pseudo_input_collection#'+str(idx)},
+                output_collections=
+                [{'scope': 'pseudo_dataset', 'name': 'pseudo_output_collection#'+str(idx)}],
                 log_collections=[], dependency_map=task.dependencies,
                 task_name=task.name,
                 task_queue=task.queue)
@@ -104,7 +101,8 @@ class PanDAService(BaseWmsService):
             'priority': 0,
             'lifetime': 30,
             'workload_id': idds_client_workflow.get_workload_id(),
-            'request_metadata': {'workload_id': idds_client_workflow.get_workload_id(), 'workflow': idds_client_workflow}
+            'request_metadata': {'workload_id': idds_client_workflow.get_workload_id(),
+                                 'workflow': idds_client_workflow}
         }
         primary_init_work = idds_client_workflow.get_primary_initial_collection()
         if primary_init_work:
