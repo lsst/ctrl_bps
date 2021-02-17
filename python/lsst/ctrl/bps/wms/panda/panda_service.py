@@ -24,18 +24,23 @@ import logging
 from lsst.ctrl.bps.wms_service import BaseWmsWorkflow, BaseWmsService
 from lsst.ctrl.bps.wms.panda.idds_tasks import IDDSWorkflowGenerator
 from lsst.daf.butler import ButlerURI
-
-from idds.client.workflowmanager import WorkflowManager as IDDS_workflow_manager
 from idds.workflow.workflow import Workflow as IDDS_client_workflow
 from idds.doma.workflow.domalsstwork import DomaLSSTWork
-from idds.common.utils import get_rest_host
+from idds.common.utils import get_rest_host, DictClassEncoder
+import idds.common.constants as idds_constants
+import idds.common.utils as idds_utils
+import pandatools.idds_api
 import binascii
+
+import pickle
+
+
 
 _LOG = logging.getLogger()
 
 
 class PanDAService(BaseWmsService):
-    """HTCondor version of WMS service
+    """PanDA version of WMS service
     """
     def prepare(self, config, generic_workflow, out_prefix=None):
         """Convert generic workflow to an PanDA iDDS ready for submission
@@ -79,23 +84,41 @@ class PanDAService(BaseWmsService):
             A single PanDA iDDS workflow to submit
         """
         idds_client_workflow = IDDS_client_workflow()
-        for task in workflow.generated_tasks:
+
+        for idx, task in enumerate(workflow.generated_tasks):
             work = DomaLSSTWork(
                 executable=self.add_decoder_prefix(task.executable),
-                primary_input_collection={'scope': 'pseudo_dataset', 'name': 'pseudo_input_collection#1'},
-                output_collections=[{'scope': 'pseudo_dataset', 'name': 'pseudo_output_collection#1'}],
+                primary_input_collection={'scope': 'pseudo_dataset', 'name': 'pseudo_input_collection#'+str(idx)},
+                output_collections=[{'scope': 'pseudo_dataset', 'name': 'pseudo_output_collection#'+str(idx)}],
                 log_collections=[], dependency_map=task.dependencies,
                 task_name=task.name,
                 task_queue=task.queue)
             idds_client_workflow.add_work(work)
-        host = get_rest_host()
-        idds_workflow_manager = IDDS_workflow_manager(host=host)
-        request_id = idds_workflow_manager.submit(idds_client_workflow)
+        idds_request = {
+            'scope': 'workflow',
+            'name': idds_client_workflow.get_name(),
+            'requester': 'panda',
+            'request_type': idds_constants.RequestType.Workflow,
+            'transform_tag': 'workflow',
+            'status': idds_constants.RequestStatus.New,
+            'priority': 0,
+            'lifetime': 30,
+            'workload_id': idds_client_workflow.get_workload_id(),
+            'request_metadata': {'workload_id': idds_client_workflow.get_workload_id(), 'workflow': idds_client_workflow}
+        }
+        primary_init_work = idds_client_workflow.get_primary_initial_collection()
+        if primary_init_work:
+            idds_request['scope'] = primary_init_work['scope']
+            idds_request['name'] = primary_init_work['name']
+        c = pandatools.idds_api.get_api(idds_utils.json_dumps)
+        request_id = c.add_request(**idds_request)
         _LOG.info("Submitted into iDDs with request id=%i", request_id)
         workflow.run_id = request_id
 
     def report(self, wms_workflow_id=None, user=None, hist=0, pass_thru=None):
-        """Return run information based upon given constraints.
+        """
+        Stub for future implementation of the report method
+        Expected to return run information based upon given constraints.
 
         Parameters
         ----------
