@@ -38,6 +38,7 @@ _LOG = logging.getLogger(__name__)
 class PanDAService(BaseWmsService):
     """PanDA version of WMS service
     """
+
     def prepare(self, config, generic_workflow, out_prefix=None):
         """Convert generic workflow to an PanDA iDDS ready for submission
 
@@ -114,9 +115,9 @@ class PanDAService(BaseWmsService):
             work = DomaLSSTWork(
                 executable=self.add_decoder_prefix(task.executable),
                 primary_input_collection={'scope': 'pseudo_dataset',
-                                          'name': 'pseudo_input_collection#'+str(idx)},
+                                          'name': 'pseudo_input_collection#' + str(idx)},
                 output_collections=[{'scope': 'pseudo_dataset',
-                                     'name': 'pseudo_output_collection#'+str(idx)}],
+                                     'name': 'pseudo_output_collection#' + str(idx)}],
                 log_collections=[], dependency_map=task.dependencies,
                 task_name=task.name,
                 task_queue=task.queue)
@@ -194,7 +195,7 @@ class PandaBpsWmsWorkflow(BaseWmsWorkflow):
         workflow_generator = IDDSWorkflowGenerator(generic_workflow, config)
         idds_workflow.generated_tasks = workflow_generator.define_tasks()
         cloud_prefix = config['bucket'] + '/' + \
-                       config['payload_folder'] + '/' + config['workflowName'] + '/'
+            config['payload_folder'] + '/' + config['workflowName'] + '/'
         for task in idds_workflow.generated_tasks:
             cls.copy_pickles_into_cloud(task.local_pfns, cloud_prefix)
         _LOG.debug("panda dag attribs %s", generic_workflow.run_attrs)
