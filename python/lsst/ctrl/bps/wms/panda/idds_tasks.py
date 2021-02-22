@@ -49,14 +49,41 @@ class IDDSWorkflowGenerator:
         self.maxattempt = v
 
     def define_task_name(self, step):
-        return self.bps_config.get('workflowName') + '_' + step
+        """Return task name as a combination of the workflow name (unique across workflows) and
+        processing step name.
+
+        Parameters
+        ----------
+        step : `str`
+            Processing step name
+
+        Returns
+        -------
+        Task name : `str`
+            Computed task name
+        """
+        return self.bps_config['workflowName'] + '_' + step
 
     def pick_non_init_cmdline(self):
+        """Returns a command line for a task other than initialization
+
+        Returns
+        -------
+        Command Line : `str`
+            Picked command line
+        """
         for node_name in self.bps_workflow.nodes:
             if node_name != 'pipetaskInit':
                 return self.bps_workflow.nodes[node_name]['job'].cmdline
 
     def define_tasks(self):
+        """ Provide tasks definition sufficient for PanDA submission
+
+        Returns
+        -------
+        tasks : `list` of `RubinTask`
+            Tasks filled with parameters provided in workflow configuration and generated pipeline.
+        """
         tasks = []
         raw_dependency_map = self.create_raw_jobs_dependency_map()
         tasks_dependency_map = self.split_map_over_tasks(raw_dependency_map)
@@ -73,7 +100,7 @@ class IDDSWorkflowGenerator:
             task.maxattempt = self.maxattempt
             task.maxwalltime = self.maxwalltime
 
-            # We take the commandline only from first job  because PanDA uses late binding and
+            # We take the commandline only from the first job because PanDA uses late binding and
             # command line for each job in task is equal to each other in exception to the processing
             # file name which is substituted by PanDA
             if task_step == 'pipetaskInit':
@@ -85,6 +112,20 @@ class IDDSWorkflowGenerator:
         return tasks
 
     def add_dependencies(self, tasks, tasks_dependency_map):
+        """ Add the dependency list to a task definition. This list defines all inputs of a task and how that
+        inputs depend on upstream processing steps
+
+        Parameters
+        ----------
+        tasks : `list` of `RubinTask`
+            Tasks to be filled with dependency information
+
+        tasks_dependency_map : `dict` of dependencies dictionary
+
+        Returns
+        -------
+        Method modifies items in the tasks list provided as an argument
+        """
         for task in tasks:
             jobs = tasks_dependency_map[task.step]
             dependencies = []
@@ -100,6 +141,13 @@ class IDDSWorkflowGenerator:
             task.dependencies = dependencies
 
     def create_raw_jobs_dependency_map(self):
+        """ Compute the DAG nodes dependency map (node - list of nodes) for each node in the workflow DAG
+
+        Returns
+        -------
+        dependency_map : `dict` of `node-dependencies` pairs.
+            For each node in workflow DAG computed its dependencies (other nodes).
+        """
         dependency_map = {}
         for edge in self.bps_workflow.in_edges():
             dependency_map.setdefault(edge[1], []).append(edge[0])
@@ -111,6 +159,26 @@ class IDDSWorkflowGenerator:
         return dependency_map
 
     def split_map_over_tasks(self, raw_dependency_map):
+        """ Groups nodes performing same operations into tasks. For each task define inputs and its
+        dependencies.
+
+        This is a structure to be filled out in function
+        taskname: dependencies = [
+                 {"name": "filename0",
+                  "dependencies":[{"task": "task1", "inputname":"filename0", "available": False"},],
+                  "submitted": False}
+        ]
+
+        Parameters
+        ----------
+        raw_dependency_map : `dict` of
+            Pairs node-list of directly connected upstream nodes
+
+        Returns
+        -------
+        tasks_dependency_map : `dict` of `str`: `list`
+            Dict of tasks/correspondent dependencies
+        """
         tasks_dependency_map = {}
         for job, dependency in raw_dependency_map.items():
             file_name = self.get_input_file(job)
@@ -125,15 +193,19 @@ class IDDSWorkflowGenerator:
         return job_name.split("_")[1] if len(job_name.split("_")) > 1 else job_name
 
     def split_dependencies_by_tasks(self, dependencies):
-        """
-        This is a structure to be filled out in function
-        dependencies = [
-                 {"name": "filename0",
-                  "dependencies":[{"task": "task1", "inputname":"filename0", "available": False"},],
-                  "submitted": False}
-        ]
-        """
+        """ Group the list of dependencies by tasks where dependencies comes from.
 
+        Parameters
+        ----------
+        dependencies : `list` of dicts
+            Each dictionary in the list contains information about dependency: task,inputname,available
+
+        Returns
+        -------
+        dependencies_by_tasks : `dict` of `str`: `list`
+            Dict of tasks/dependency files comes from that task
+
+        """
         dependencies_by_tasks = {}
         for dependency in dependencies:
             dependencies_by_tasks.setdefault(self.define_task_name(
@@ -141,4 +213,15 @@ class IDDSWorkflowGenerator:
         return dependencies_by_tasks
 
     def get_input_file(self, job_name):
+        """ Extracts the quantum graph file needed for a job
+
+        Parameters
+        ----------
+        job_name: `str`
+            the name of the node in workflow DAG
+
+        Returns
+        -------
+        quantum graph file name
+        """
         return next(iter(self.bps_workflow.nodes.get(job_name).get("inputs")))

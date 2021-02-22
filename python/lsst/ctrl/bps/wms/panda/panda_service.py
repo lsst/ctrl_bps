@@ -21,6 +21,8 @@
 
 import os
 import logging
+import binascii
+
 from lsst.ctrl.bps.wms_service import BaseWmsWorkflow, BaseWmsService
 from lsst.ctrl.bps.wms.panda.idds_tasks import IDDSWorkflowGenerator
 from lsst.daf.butler import ButlerURI
@@ -29,9 +31,8 @@ from idds.doma.workflow.domalsstwork import DomaLSSTWork
 import idds.common.constants as idds_constants
 import idds.common.utils as idds_utils
 import pandatools.idds_api
-import binascii
 
-_LOG = logging.getLogger()
+_LOG = logging.getLogger(__name__)
 
 
 class PanDAService(BaseWmsService):
@@ -51,20 +52,49 @@ class PanDAService(BaseWmsService):
 
         Returns
         ----------
-        workflow : `~lsst.ctrl.bps.wms.htcondor.htcondor_service.HTCondorWorkflow`
-            HTCondor workflow ready to be run.
+        workflow : `~lsst.ctrl.bps.wms.panda.panda_service.PandaBpsWmsWorkflow`
+            PanDA workflow ready to be run.
         """
         _LOG.debug("out_prefix = '%s'", out_prefix)
-        workflow = PanDABPSWMSWorkflow.from_generic_workflow(config, generic_workflow, out_prefix,
+        workflow = PandaBpsWmsWorkflow.from_generic_workflow(config, generic_workflow, out_prefix,
                                                              f"{self.__class__.__module__}."
                                                              f"{self.__class__.__name__}")
         workflow.write(out_prefix)
         return workflow
 
     def convert_exec_string_to_hex(self, cmdline):
+        """
+        Converts the command line into hex representation. This step is currently involved because large
+        blocks of command lines including special symbols passed to the pilot/container. To make sure the 1
+        to 1 matching and pass by the special symbol stripping performed by the Pilot we applied the
+        hexing.
+
+        Parameters
+        ----------
+        cmdline: `str`
+            UTF-8 command line string
+
+        Returns
+        -------
+            Hex representation of string
+        """
         return binascii.hexlify(cmdline.encode()).decode("utf-8")
 
     def add_decoder_prefix(self, cmdline):
+        """
+        Compose the command line sent to the pilot from the functional part (the actual SW running) and the
+        middleware part (containers invocation)
+
+        Parameters
+        ----------
+        cmdline: `str`
+            UTF-8 based functional part of the command line
+
+        Returns
+        -------
+            Full command line to be executed on the edge node
+        """
+
         cmdline_hex = self.convert_exec_string_to_hex(cmdline)
         decoder_prefix = self.config.get('runner_command')
         decoder_prefix = decoder_prefix.replace("_cmd_line_", str(cmdline_hex))
@@ -142,31 +172,53 @@ class PanDAService(BaseWmsService):
         return run_reports, message
 
 
-class PanDABPSWMSWorkflow(BaseWmsWorkflow):
+class PandaBpsWmsWorkflow(BaseWmsWorkflow):
+    """
+    A single Panda based workflow
+    Parameters
+    ----------
+    name : `str`
+        Unique name for Workflow
+    config : `~lsst.ctrl.bps.BPSConfig`
+        BPS configuration that includes necessary submit/runtime information
+    """
+
     def __init__(self, name, config=None):
         super().__init__(name, config)
         self.generated_tasks = None
 
     @classmethod
     def from_generic_workflow(cls, config, generic_workflow, out_prefix, service_class):
+        # Docstring inherited from parent class
         idds_workflow = cls(generic_workflow.name, config)
         workflow_generator = IDDSWorkflowGenerator(generic_workflow, config)
         idds_workflow.generated_tasks = workflow_generator.define_tasks()
+        cloud_prefix = config['bucket'] + '/' + \
+                       config['payload_folder'] + '/' + config['workflowName'] + '/'
         for task in idds_workflow.generated_tasks:
-            cloud_prefix = config.get('bucket') + '/' + \
-                config.get('payload_folder') + '/' + config.get('workflowName') + '/'
-            cls.copy_pickles_in_cloud(task.local_pfns, cloud_prefix)
+            cls.copy_pickles_into_cloud(task.local_pfns, cloud_prefix)
         _LOG.debug("panda dag attribs %s", generic_workflow.run_attrs)
         return idds_workflow
 
-    @classmethod
-    def copy_pickles_in_cloud(cls, local_pfns, cloud_prefix):
+    @staticmethod
+    def copy_pickles_into_cloud(local_pfns, cloud_prefix):
+        """
+        Brings locally generated pickle files into Cloud for further utilization them on the egde nodes.
+        Parameters
+        ----------
+        local_pfns: `str`
+            Local path to the file to be copied
+
+        cloud_prefix: `str`
+            Path on the cloud, including access protocol, bucket name to place files
+        """
         for src_path in local_pfns:
             src = ButlerURI(src_path)
-            target = ButlerURI(cloud_prefix + '/' + os.path.basename(src_path))
-            target.transfer_from(src, transfer="copy")
+            target_base_uri = ButlerURI(cloud_prefix)
+            target = target_base_uri.join(os.path.basename(src_path))
+            target.transfer_from(src)
 
     def write(self, out_prefix):
-        self.submit_path = out_prefix
-        os.makedirs(out_prefix, exist_ok=True)
-        # We should put here the output
+        """
+        Not yet implemented
+        """
