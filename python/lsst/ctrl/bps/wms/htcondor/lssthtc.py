@@ -181,19 +181,24 @@ class RestrictedDict(MutableMapping):
 
 
 def htc_escape(value):
-    """Escape characters in given string based upon HTCondor syntax.
+    """Escape characters in given value based upon HTCondor syntax.
 
     Parameter
     ----------
-    value : `str`
-        String that needs to have characters escaped.
+    value : `Any`
+        Value that needs to have characters escaped if string
 
     Returns
     -------
-    new_value : `str`
-        Given string with characters escaped.
+    new_value : `Any`
+        Given value with characters escaped appropriate for HTCondor if string.
     """
-    return value.replace("\\", "\\\\").replace('"', '\\"').replace("'", "''").replace("&quot;", '"')
+    if isinstance(value, str):
+        newval = value.replace('"', '""').replace("'", "''").replace("&quot;", '"')
+    else:
+        newval = value
+
+    return newval
 
 
 def htc_write_attribs(stream, attrs):
@@ -207,7 +212,12 @@ def htc_write_attribs(stream, attrs):
         HTCondor job attributes (dictionary of attribute key, value)
     """
     for key, value in attrs.items():
-        print(f'+{key} = "{htc_escape(value)}"', file=stream)
+        if isinstance(value, str):
+            pval = f'"{htc_escape(value)}"'
+        else:
+            pval = value
+
+        print(f'+{key} = {pval}', file=stream)
 
 
 def htc_write_condor_file(filename, job_name, job, job_attrs):
