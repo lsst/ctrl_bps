@@ -3,9 +3,10 @@
 This configuration only affects single-package Sphinx documentation builds.
 """
 
-from documenteer.sphinxconfig.stackconf import build_package_configs
-import lsst.ctrl.bps
+from documenteer.conf.pipelinespkg import *  # noqa: F403, import *
 
-
-_g = globals()
-_g.update(build_package_configs(project_name="ctrl_bps", version=lsst.ctrl.bps.version.__version__))
+project = "ctrl_bps"
+html_theme_options["logotext"] = project     # noqa: F405, unknown name
+html_title = project
+html_short_title = project
+doxylink = {}

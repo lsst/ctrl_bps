@@ -100,7 +100,7 @@ file (recommended)
 
 .. code-block:: YAML
 
-   pipelineYaml: "${OBS_SUBARU_DIR}/pipelines/DRP.yaml:processCcd"
+   pipelineYaml: "${OBS_SUBARU_DIR}/pipelines/DRP.yaml#processCcd"
 
 or a pre-made file containing a serialized QuantumGraph, for example
 
@@ -367,7 +367,7 @@ Supported settings
 
        pipetask:
          pipetask_init:
-           runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask --long-log run -b {butlerConfig} -i {inCollection} --output-run {outCollection} --init-only --skip-existing --register-dataset-types --qgraph {qgraph_file} --no-versions"
+           runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask --long-log run -b {butlerConfig} -i {inCollection} --output-run {outCollection} --init-only --skip-existing --register-dataset-types --qgraph {qgraphFile} --no-versions"
            requestMemory: 2048
 
 **templateDataId**

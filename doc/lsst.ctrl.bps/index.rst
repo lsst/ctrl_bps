@@ -39,3 +39,4 @@ Python API reference
 .. automodapi:: lsst.ctrl.bps
    :no-main-docstr:
    :no-inheritance-diagram:
+   :no-inherited-members:
