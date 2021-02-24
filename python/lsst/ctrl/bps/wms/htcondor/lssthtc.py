@@ -186,7 +186,7 @@ def htc_escape(value):
     Parameter
     ----------
     value : `Any`
-        Value that needs to have characters escaped if string
+        Value that needs to have characters escaped if string.
 
     Returns
     -------
@@ -212,6 +212,7 @@ def htc_write_attribs(stream, attrs):
         HTCondor job attributes (dictionary of attribute key, value)
     """
     for key, value in attrs.items():
+        # Make sure strings are syntactically correct for HTCondor.
         if isinstance(value, str):
             pval = f'"{htc_escape(value)}"'
         else:
