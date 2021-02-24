@@ -1,4 +1,4 @@
-pipelineYaml: "${OBS_SUBARU_DIR}/pipelines/DRP.yaml:processCcd"
+pipelineYaml: "${OBS_SUBARU_DIR}/pipelines/DRP.yaml#processCcd"
 templateDataId: "{tract}_{patch}_{band}_{visit}_{exposure}_{detector}"
 project: dev
 campaign: quick
