@@ -367,8 +367,10 @@ Supported settings
 
        pipetask:
          pipetask_init:
-           runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask --long-log run -b {butlerConfig} -i {inCollection} --output-run {outCollection} --init-only --skip-existing --register-dataset-types --qgraph {qgraphFile} --no-versions"
+           runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask --long-log run -b {butlerConfig} -i {inCollection} --output {output} --output-run {outCollection} --init-only --skip-existing --register-dataset-types --qgraph {qgraphFile} --no-versions"
            requestMemory: 2048
+
+    The above example command uses both ``--output`` and ``--output-run``.  The ``--output`` option creates the Chained collection if it doesn't already exist.  The ``--output-run`` option saves the unique Run collection that is also passed to all other compute jobs (i.e., one Run collection per submission).  If using both here, must include both ``--output`` and ``--output-run`` in the other ``runQuantumCommand``.
 
 **templateDataId**
     Template to use when creating job names (and HTCondor plugin then uses for
