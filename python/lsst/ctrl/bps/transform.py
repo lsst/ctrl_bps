@@ -220,7 +220,9 @@ def create_command(config, label, qgraph_file):
     command : `str`
         String containing command line.
     """
-    search_opt = {"curvals": {"curr_pipetask": label, "qgraphFile": qgraph_file}, "required": False}
+    search_opt = {"curvals": {"curr_pipetask": label,
+                              "qgraphFile": os.path.basename(qgraph_file)},
+                  "required": False}
     found, command = config.search("runQuantumCommand", opt=search_opt)
     # Allow older Exec Args separation.
     if not found:
