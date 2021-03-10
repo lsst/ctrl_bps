@@ -220,7 +220,17 @@ def create_command(config, label, qgraph_file):
     command : `str`
         String containing command line.
     """
-    search_opt = {"curvals": {"curr_pipetask": label, "qgraphFile": qgraph_file}, "required": False}
+    search_opt = {"curvals": {"curr_pipetask": label},
+                  "required": False}
+
+    # Temporary check until lazy command creation in DM-27009
+    found, use_shared = config.search("bpsUseShared", opt=search_opt)
+    if found and use_shared:
+        qfile = qgraph_file
+    else:
+        qfile = os.path.basename(qgraph_file)
+
+    search_opt["curvals"]["qgraphFile"] = qfile
     found, command = config.search("runQuantumCommand", opt=search_opt)
     # Allow older Exec Args separation.
     if not found:

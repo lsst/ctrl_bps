@@ -79,6 +79,7 @@ HTC_VALID_JOB_KEYS = {
     "universe",
     "executable",
     "arguments",
+    "environment",
     "log",
     "error",
     "output",

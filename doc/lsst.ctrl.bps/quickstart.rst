@@ -383,6 +383,11 @@ Supported settings
 
        wmsServiceClass: lsst.ctrl.bps.wms.htcondor.htcondor_service.HTCondorService  # HTCondor
 
+**bpsUseShared**
+    Whether to put full submit-time path to QuantumGraph file in command line
+    because the WMS plugin requires shared filesystem.  Defaults to False.
+    HTCondor and Pegasus plugins do not need this value.
+
 Reserved keywords
 ^^^^^^^^^^^^^^^^^
 
