@@ -30,7 +30,7 @@ import logging
 from .wms_service import WmsStates
 
 
-SUMMARY_FMT = "{:1} {:>10} {:>3} {:>8} {:10} {:5} {:8} {:10} {:<50}"
+SUMMARY_FMT = "{:1} {:>10} {:>3} {:>9} {:10} {:10} {:20} {:20} {:<60}"
 
 # logging properties
 _LOG_PROP = """\
@@ -48,7 +48,7 @@ def print_headers():
     """Print headers.
     """
     print(SUMMARY_FMT.format("X", "STATE", "%S", "ID", "OPERATOR", "PRJ", "CMPGN", "PAYLOAD", "RUN"))
-    print("-" * 119)
+    print("-" * 156)
 
 
 def print_run(run_report):
@@ -78,8 +78,8 @@ def print_run(run_report):
         percent_succeeded = f"{int(succeeded / run_report.total_number_jobs * 100)}"
 
     print(SUMMARY_FMT.format(run_flag, run_report.state.name, percent_succeeded, run_report.wms_id,
-                             run_report.operator[:10], run_report.project, run_report.campaign,
-                             run_report.payload, run_report.run[:50]))
+                             run_report.operator[:10], run_report.project[:10], run_report.campaign[:20],
+                             run_report.payload[:20], run_report.run[:60]))
 
 
 def group_jobs_by_state(jobs):
@@ -142,35 +142,41 @@ def print_single_run_summary(run_report):
     # Print more run information.
     print(f"Path: {run_report.path}\n")
 
-    print(f"{'':35} {' | '.join([f'{s.name[:5]:5}' for s in WmsStates])}")
-    print(f"{'Total':35} {' | '.join([f'{run_report.job_state_counts[s]:5}' for s in WmsStates])}")
-    print("-" * (38 + 8 * len(run_report.job_state_counts)))
-
-    # Print job level info by print counts of jobs by label and WMS state.
-    by_label_totals = {}
-    if run_report.run_summary:
-        for part in run_report.run_summary.split(';'):
-            label, count = part.split(':')
-            by_label_totals[label] = int(count)
+    print(f"{'':35} {' | '.join([f'{s.name[:6]:6}' for s in WmsStates])}")
+    print(f"{'Total':35} {' | '.join([f'{run_report.job_state_counts[s]:6}' for s in WmsStates])}")
+    print("-" * (35 + 3 + (6 + 2) * (len(run_report.job_state_counts) + 1)))
 
     by_label = group_jobs_by_label(run_report.jobs)
-    for label in by_label:
-        by_label_state = group_jobs_by_state(by_label[label])
-        _LOG.debug("by_label_state = %s", by_label_state)
-        counts = dict.fromkeys(WmsStates)
-        for state in WmsStates:
-            counts[state] = len(by_label_state[state])
 
-        if label in by_label_totals:
+    # Print job level info by print counts of jobs by label and WMS state.
+    label_order = []
+    by_label_totals = {}
+    if run_report.run_summary:
+        # Workaround until get pipetaskInit job into run_summary
+        if not run_report.run_summary.startswith('pipetaskInit'):
+            label_order.append('pipetaskInit')
+            by_label_totals['pipetaskInit'] = 1
+        for part in run_report.run_summary.split(';'):
+            label, count = part.split(':')
+            label_order.append(label)
+            by_label_totals[label] = int(count)
+    else:
+        print("Warning: Cannot determine order of pipeline.  Instead printing alphabetical.")
+        label_order = sorted(by_label.keys())
+
+    for label in label_order:
+        counts = dict.fromkeys(WmsStates, 0)
+        if label in by_label:
+            by_label_state = group_jobs_by_state(by_label[label])
+            _LOG.debug("by_label_state = %s", by_label_state)
+            counts = dict.fromkeys(WmsStates)
+            for state in WmsStates:
+                counts[state] = len(by_label_state[state])
+        elif label in by_label_totals:
             already_counted = sum(counts.values())
             if already_counted != by_label_totals[label]:
                 counts[WmsStates.UNREADY] += by_label_totals[label] - already_counted
-        print(f"{label[:35]:35} {' | '.join([f'{counts[s]:5}' for s in WmsStates])}")
-
-    # Print out lines for labels not yet printed.
-    for label in by_label_totals:
-        if label not in by_label:
-            counts = dict.fromkeys(WmsStates, 0)
-            counts[WmsStates.UNREADY] = by_label_totals[label]
-            print(f"{label[:35]:35} {' | '.join([f'{counts[s]:5}' for s in WmsStates])}")
+        else:
+            counts = dict.fromkeys(WmsStates, -1)
+        print(f"{label[:35]:35} {' | '.join([f'{counts[s]:6}' for s in WmsStates])}")
     print("\n")

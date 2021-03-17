@@ -25,28 +25,33 @@ assuming DAG is easily broken into levels where there are 1-1 or all-to-all
 relationships to nodes in next level.  LSST workflows are more complicated.
 """
 
-__all__ = ["DagStatus", "JobStatus", "RestrictedDict", "HTCJob", "HTCDag", "htc_escape", "htc_write_attribs",
-           "htc_write_condor_file", "htc_version", "htc_submit_dag", "htc_submit_dag_old",
-           "htc_write_job_commands", "htc_job_status_to_wms_state", "htc_jobs_to_wms_report", "condor_q",
-           "condor_history", "save_node_status", "read_node_status", "read_dag_node_log"]
+__all__ = ["DagStatus", "JobStatus", "RestrictedDict", "HTCJob", "HTCDag", "htc_escape",
+           "htc_write_attribs", "htc_write_condor_file", "htc_version", "htc_submit_dag",
+           "condor_q", "condor_history", "read_dag_status",
+           "summary_from_dag", "read_dag_log", "read_node_status", "read_dag_nodes_log",
+           "htc_check_dagman_output"]
 
 import itertools
-import glob
 import os
 import re
 import json
 import logging
+from collections import defaultdict
 from collections.abc import MutableMapping
 from enum import IntEnum
+from pathlib import Path
 import pprint
 import subprocess
 import networkx
-import htcondor
 import classad
+import htcondor
 
-from ...wms_service import WmsRunReport, WmsJobReport, WmsStates
+# from ...wms_service import WmsRunReport, WmsJobReport, WmsStates
 
 _LOG = logging.getLogger()
+
+
+MISSING_ID = -99999
 
 
 class DagStatus(IntEnum):
@@ -72,6 +77,34 @@ class JobStatus(IntEnum):
     HELD = 5	                # Held
     TRANSFERRING_OUTPUT = 6     # Transferring_Output
     SUSPENDED = 7	            # Suspended
+
+
+class NodeStatus(IntEnum):
+    """HTCondor's statuses for DAGman nodes.
+    """
+    # (STATUS_NOT_READY): At least one parent has not yet finished or the node is a FINAL node.
+    NOT_READY = 0
+
+    # (STATUS_READY): All parents have finished, but the node is not yet running.
+    READY = 1
+
+    # (STATUS_PRERUN): The node’s PRE script is running.
+    PRERUN = 2
+
+    # (STATUS_SUBMITTED): The node’s HTCondor job(s) are in the queue.
+    #                     StatusDetails = "not_idle" -> running.
+    #                     JobProcsHeld = 1-> hold.
+    #                     JobProcsQueued = 1 -> idle.
+    SUBMITTED = 3
+
+    # (STATUS_POSTRUN): The node’s POST script is running.
+    POSTRUN = 4
+
+    # (STATUS_DONE): The node has completed successfully.
+    DONE = 5
+
+    # (STATUS_ERROR): The node has failed. StatusDetails has info (e.g., ULOG_JOB_ABORTED for deleted job).
+    ERROR = 6
 
 
 HTC_QUOTE_KEYS = {"environment"}
@@ -288,7 +321,7 @@ def htc_submit_dag(htc_dag, submit_options=None):
     if ver >= "8.9.3":
         sub = htcondor.Submit.from_dag(htc_dag.graph["dag_filename"], submit_options)
     else:
-        sub = htc_submit_dag_old(htc_dag.graph["dag_filename"], submit_options)
+        sub = _htc_submit_dag_old(htc_dag.graph["dag_filename"], submit_options)
 
     # add attributes to dag submission
     for key, value in htc_dag.graph["attr"].items():
@@ -300,7 +333,7 @@ def htc_submit_dag(htc_dag, submit_options=None):
         htc_dag.run_id = sub.queue(txn)
 
 
-def htc_submit_dag_old(dag_filename, submit_options=None):
+def _htc_submit_dag_old(dag_filename, submit_options=None):
     """Call condor_submit_dag on given dag description file.
     (Use until using condor version with htcondor.Submit.from_dag)
 
@@ -351,7 +384,7 @@ def htc_submit_dag_old(dag_filename, submit_options=None):
     return sub
 
 
-def htc_write_job_commands(stream, name, jobs):
+def _htc_write_job_commands(stream, name, jobs):
     """Output the DAGMan job lines for single job in DAG.
 
     Parameters
@@ -474,7 +507,7 @@ class HTCJob:
             Output Stream
         """
         print(f"JOB {self.name} {self.subfile}", file=stream)
-        htc_write_job_commands(stream, self.name, self.dagcmds)
+        _htc_write_job_commands(stream, self.name, self.dagcmds)
 
     def dump(self, fh):
         """Dump job information to output stream.
@@ -629,99 +662,6 @@ class HTCDag(networkx.DiGraph):
         networkx.drawing.nx_pydot.write_dot(self, filename)
 
 
-def htc_job_status_to_wms_state(job):
-    """Convert HTCondor job status to generic wms state.
-
-    Parameters
-    ----------
-    job : `dict`
-        HTCondor job information.  (Need more than just status if completed.)
-
-    Returns
-    -------
-    wms_state : `WmsStates`
-        The equivalent WmsState to given job's status.
-    """
-    job_status = int(job['JobStatus'])
-    wms_state = WmsStates.MISFIT
-
-    _LOG.debug("htc_job_status_to_wms_state: job_status = %s", job_status)
-    if job_status == JobStatus.IDLE:
-        wms_state = WmsStates.PENDING
-    elif job_status == JobStatus.RUNNING:
-        wms_state = WmsStates.RUNNING
-    elif job_status == JobStatus.REMOVED:
-        wms_state = WmsStates.DELETED
-    elif job_status == JobStatus.COMPLETED:
-        if job['ExitBySignal'] or job['ExitCode'] or job.get('ExitSignal', 0) or job.get('DAG_Status', 0):
-            wms_state = WmsStates.FAILED
-        else:
-            wms_state = WmsStates.SUCCEEDED
-    elif job_status == JobStatus.HELD:
-        wms_state = WmsStates.HELD
-
-    return wms_state
-
-
-def htc_jobs_to_wms_report(jobs):
-    """Convert HTCondor job information to WmsRunReport information.
-
-    Parameters
-    ----------
-    jobs : `dict`
-        Mapping of HTCondor job id to HTCondor job info
-
-    Returns
-    -------
-    runs : `dict` of `~lsst.ctrl.bps.wms_service.WmsRunReport`
-        Information about runs from given job information.
-    """
-    runs = {}
-    for job_id in sorted(jobs):
-        job = jobs[job_id]
-        owner = job.get("bps_operator", None)
-        if not owner:
-            owner = job["Owner"]
-        if 'DAGManJobID' not in job:
-            # Is a dagman job and is the top job in the run
-            report = WmsRunReport(wms_id=job['ClusterID'],
-                                  path=job['Iwd'],
-                                  label=job.get('bps_job_label', "MISS"),
-                                  run=job.get('bps_run', "MISS"),
-                                  project=job.get('bps_project', "MISS"),
-                                  campaign=job.get('bps_campaign', "MISS"),
-                                  payload=job.get('bps_payload', "MISS"),
-                                  operator=owner,
-                                  run_summary=job.get('bps_run_summary', None),
-                                  state=htc_job_status_to_wms_state(job),
-                                  jobs=[],
-                                  total_number_jobs=0,
-                                  job_state_counts={})
-
-            save_node_status(report, job)
-            runs[job['ClusterID']] = report
-        else:
-            report = WmsJobReport(job['ClusterID'], job['DAGNodeName'],
-                                  job.get('bps_job_label', job['DAGNodeName']),
-                                  htc_job_status_to_wms_state(job))
-            try:
-                runs[job['DAGManJobID']].jobs.append(report)
-            except KeyError:
-                # Temporary fix in case history constraint quit in middle of run
-                # Should change main code to first query DAG jobs then query their jobs
-                missing_job = condor_history(f"(ClusterID == {job['DAGManJobID']})")
-                missing_run = htc_jobs_to_wms_report(missing_job)
-                runs[missing_run[0].wms_id] = missing_run[0]
-                try:
-                    runs[job['DAGManJobID']].jobs.append(report)
-                except KeyError:
-                    raise KeyError(f"Missing dagman job for job {job['ClusterID']}.  Double check "
-                                   f"report constraints.") from None
-
-    _LOG.debug(list(runs.values()))
-    return list(runs.values())
-
-
 def condor_q(constraint=None, schedd=None):
     """Query HTCondor for current jobs.
 
@@ -748,7 +688,9 @@ def condor_q(constraint=None, schedd=None):
     jobads = {}
     for jobinfo in joblist:
         del jobinfo['Environment']
-        jobads[jobinfo['ClusterId']] = jobinfo
+        del jobinfo['Env']
+
+        jobads[f"{jobinfo['ClusterId']}.{jobinfo['ProcId']}"] = dict(jobinfo)
 
     return jobads
 
@@ -777,45 +719,88 @@ def condor_history(constraint=None, schedd=None):
     jobads = {}
     for jobinfo in joblist:
         del jobinfo['Environment']
-        jobads[jobinfo['ClusterId']] = jobinfo
+        del jobinfo['Env']
+        jobads[f"{jobinfo['ClusterId']}.{jobinfo['ProcId']}"] = dict(jobinfo)
 
     _LOG.debug("condor_history returned %d jobs", len(jobads))
     return jobads
 
 
-def save_node_status(run_report, node_status):
-    """Save node status information to the run_report
+def summary_from_dag(dir_name):
+    """Build bps_run_summary string from dag file.
 
     Parameters
     ----------
-    run_report : `~lsst.ctrl.bps.wms_service.WmsRunReport`
-        Where to save the node status information.
-    node_status : `dict` or `classad.ClassAd`
-        HTCondor node status information.
+    dir_name : `str`
+        Path that includes dag file for a run.
+
+    Returns
+    -------
+    summary : `str`
+        Semi-colon separated list of job labels and counts.
+        (Same format as saved in dag classad.)
+    job_name_to_label : `dict` of `str`
+        Mapping of job names to job labels
     """
-    if 'DAG_NodesReady' not in node_status:
-        node_status = read_node_status(node_status['Iwd'])
-        _LOG.debug("node_status from file: %s", node_status)
+    dag = next(Path(dir_name).glob("*.dag"))
 
-    run_report.job_state_counts = {
-        WmsStates.UNREADY: node_status.get('DAG_NodesUnready', 0),
-        WmsStates.READY: node_status.get('DAG_NodesReady', 0),
-        WmsStates.HELD: node_status.get('JobProcsHeld', 0),
-        WmsStates.SUCCEEDED: node_status.get('DAG_NodesDone', 0),
-        WmsStates.FAILED: node_status.get('DAG_NodesFailed', 0),
-        WmsStates.MISFIT: node_status.get('DAG_NodesPre', 0) + node_status.get('DAG_NodesPost', 0)}
+    # Later code depends upon insertion order
+    counts = defaultdict(int)
+    job_name_to_pipetask = {}
+    try:
+        with open(dag, "r") as fh:
+            for line in fh:
+                if line.startswith("JOB"):
+                    m = re.match(r"JOB ([^\s]+) jobs/([^/]+)/", line)
+                    if m:
+                        label = m.group(2)
+                        if label == "init":
+                            label = "pipetaskInit"
+                        job_name_to_pipetask[m.group(1)] = label
+                        counts[label] += 1
+                    else:   # Check if Pegasus submission
+                        m = re.match(r"JOB ([^\s]+) ([^\s]+)", line)
+                        if m:
+                            label = pegasus_name_to_label(m.group(1))
+                            job_name_to_pipetask[m.group(1)] = label
+                            counts[label] += 1
+                        else:
+                            _LOG.warning("Parse DAG: unmatched job line: %s", line)
+    except (OSError, PermissionError, StopIteration):
+        pass
 
-    _LOG.debug("job_state_counts: %s", run_report.job_state_counts)
-
-    # Fill in missing states
-    for state in WmsStates:
-        if state not in run_report.job_state_counts:
-            run_report.job_state_counts[state] = 0
-
-    run_report.total_number_jobs = node_status.get('DAG_NodesTotal', node_status.get('NodesTotal', 0))
+    summary = ';'.join([f"{name}:{counts[name]}" for name in counts])
+    _LOG.debug("summary_from_dag: %s %s", summary, job_name_to_pipetask)
+    return summary, job_name_to_pipetask
 
 
-def read_node_status(path):
+def pegasus_name_to_label(name):
+    """Convert pegasus job name to a label for the report.
+
+    Parameters
+    ----------
+    name : `str`
+        Name of job.
+
+    Returns
+    -------
+    label : `str`
+        Label for job.
+    """
+    label = "UNK"
+    if name.startswith("create_dir") or name.startswith("stage_in") or name.startswith("stage_out"):
+        label = "pegasus"
+    else:
+        m = re.match(r"pipetask_(\d+_)?([^_]+)", name)
+        if m:
+            label = m.group(2)
+            if label == "init":
+                label = "pipetaskInit"
+
+    return label
+
+
+def read_dag_status(wms_path):
     """Read the node status file for DAG summary information
 
     Parameters
@@ -825,51 +810,123 @@ def read_node_status(path):
 
     Returns
     -------
-    dag_classad : `dict` or `classad.ClassAd`
+    dag_classad : `dict`
         DAG summary information.
     """
     dag_classad = {}
 
     # while this is probably more up to date than dag classad, only read from file if need to.
-    node_stat_files = glob.glob(os.path.join(path, "*.node_status"))
-    if node_stat_files:
-        _LOG.debug("Reading Node Status File %s", node_stat_files[0])
+    try:
         try:
-            with open(node_stat_files[0], 'r') as infh:
+            node_stat_file = next(Path(wms_path).glob("*.node_status"))
+            _LOG.debug("Reading Node Status File %s", node_stat_file)
+            with open(node_stat_file, 'r') as infh:
                 dag_classad = classad.parseNext(infh)  # pylint: disable=E1101
-        except OSError:
+        except StopIteration:
             pass
 
-        # inside normal classads they are prefaced with DAG_
-        for key in dag_classad:
-            if key.startswith("Nodes"):
-                dag_classad[f"DAG_{key}"] = dag_classad[key]
-    else:
-        _LOG.debug("Didn't find a *.node_status file in %s", path)
-
-    if not dag_classad:
-        # Pegasus check here
-        try:
-            metrics_files = glob.glob(os.path.join(path, "*.dag.metrics"))
-            if metrics_files:
-                with open(metrics_files[0], "r") as infh:
+        if not dag_classad:
+            # Pegasus check here
+            try:
+                metrics_file = next(Path(wms_path).glob("*.dag.metrics"))
+                with open(metrics_file, "r") as infh:
                     metrics = json.load(infh)
                 dag_classad["NodesTotal"] = metrics.get("jobs", 0)
                 dag_classad["NodesFailed"] = metrics.get("jobs_failed", 0)
                 dag_classad["NodesDone"] = metrics.get("jobs_succeeded", 0)
-        except OSError:
-            pass
+                dag_classad["pegasus_version"] = metrics.get("planner_version", "")
+            except StopIteration:
+                pass
+    except (OSError, PermissionError):
+        pass
 
-    return dag_classad
+    _LOG.debug("read_dag_status: %s", dag_classad)
+    return dict(dag_classad)
 
 
-def read_dag_node_log(filename):
+def read_node_status(wms_path):
+    """Read entire node status file.
+
+    Parameters
+    ----------
+    wms_path : `str`
+        Path that includes node status file for a run.
+
+    Returns
+    -------
+    dag_classad : `dict` or `classad.ClassAd`
+        DAG summary information.
+    """
+    # Get jobid info from other places to fill in gaps in info from node_status
+    _, job_name_to_pipetask = summary_from_dag(wms_path)
+    wms_workflow_id, loginfo = read_dag_log(wms_path)
+    loginfo = read_dag_nodes_log(wms_path)
+    _LOG.debug("loginfo = %s", loginfo)
+    job_name_to_id = {}
+    for jid, jinfo in loginfo.items():
+        if "LogNotes" in jinfo:
+            m = re.match(r"DAG Node: ([^\s]+)", jinfo["LogNotes"])
+            if m:
+                job_name_to_id[m.group(1)] = jid
+
+    try:
+        node_status = next(Path(wms_path).glob("*.node_status"))
+    except StopIteration:
+        return loginfo
+
+    jobs = {}
+    fake_id = -1.0   # For nodes that do not yet have a job id, give fake one
+    try:
+        with open(node_status, 'r') as fh:
+            ads = classad.parseAds(fh)
+
+            for jclassad in ads:
+                if jclassad['Type'] == "DagStatus":
+                    # skip DAG summary
+                    pass
+                elif 'Node' not in jclassad:
+                    if jclassad['Type'] != "StatusEnd":
+                        _LOG.debug("Key 'Node' not in classad: %s", jclassad)
+                    break
+                else:
+                    if jclassad['Node'] in job_name_to_pipetask:
+                        try:
+                            label = job_name_to_pipetask[jclassad['Node']]
+                        except KeyError:
+                            _LOG.error("%s not in %s", jclassad["Node"], job_name_to_pipetask.keys())
+                            raise
+                    elif '_' in jclassad['Node']:
+                        label = jclassad['Node'].split('_')[1]
+                    else:
+                        label = jclassad['Node']
+
+                    # Make job info as if came from condor_q
+                    if jclassad["Node"] in job_name_to_id:
+                        job_id = job_name_to_id[jclassad['Node']]
+                    else:
+                        job_id = str(fake_id)
+                        fake_id -= 1
+
+                    job = dict(jclassad)
+                    job["ClusterId"] = int(float(job_id))
+                    job["DAGManJobID"] = wms_workflow_id
+                    job["DAGNodeName"] = jclassad['Node']
+                    job["bps_job_label"] = label
+
+                    jobs[str(job_id)] = job
+    except (OSError, PermissionError):
+        pass
+
+    return jobs
+
+
+def read_dag_log(wms_path):
     """Read job information from the DAGMan log file.
 
     Parameters
     ----------
-    filename : `str`
-        Name of the DAGMan log file.
+    wms_path : `str`
+        Path containing the DAGMan log file.
 
     Returns
     -------
@@ -877,11 +934,45 @@ def read_dag_node_log(filename):
         HTCondor job information read from the log file mapped to HTCondor
         job id.
     """
-    if not filename.endswith(".log"):
-        filename = glob.glob(os.path.join(filename, "*.dag.nodes.log"))[-1]
-
+    filename = next(Path(wms_path).glob("*.dag.dagman.log"))
     _LOG.debug("dag node log filename: %s", filename)
-    job_event_log = htcondor.JobEventLog(filename)
+
+    job_event_log = htcondor.JobEventLog(str(filename))
+    info = {}
+    wms_workflow_id = 0
+    for event in job_event_log.events(stop_after=0):
+        id_ = f"{event['Cluster']}.{event['Proc']}"
+        if id_ not in info:
+            info[id_] = {}
+            wms_workflow_id = id_   # taking last job id in case of restarts
+        info[id_].update(event)
+        info[id_][f"{event.type.name.lower()}_time"] = event["EventTime"]
+
+    # only save latest DAG job
+    dag_info = {wms_workflow_id: info[wms_workflow_id]}
+    for job in dag_info.values():
+        _tweak_log_info(filename, job)
+
+    return wms_workflow_id, dag_info
+
+
+def read_dag_nodes_log(wms_path):
+    """Read job information from the DAGMan nodes log file.
+
+    Parameters
+    ----------
+    wms_path : `str`
+        Path containing the DAGMan nodes log file.
+
+    Returns
+    -------
+    info : `dict`
+        HTCondor job information read from the log file mapped to HTCondor
+        job id.
+    """
+    filename = next(Path(wms_path).glob("*.dag.nodes.log"))
+    _LOG.debug("dag node log filename: %s", filename)
+    job_event_log = htcondor.JobEventLog(str(filename))
     info = {}
     for event in job_event_log.events(stop_after=0):
         id_ = f"{event['Cluster']}.{event['Proc']}"
@@ -889,4 +980,71 @@ def read_dag_node_log(filename):
             info[id_] = {}
         info[id_].update(event)
         info[id_][f"{event.type.name.lower()}_time"] = event["EventTime"]
+
+    # add more condor_q-like info to info parsed from log file
+    for job in info.values():
+        _tweak_log_info(filename, job)
     return info
+
+
+def _tweak_log_info(filename, job):
+    _LOG.debug("_tweak_log_info: %s %s", filename, job)
+    try:
+        job["ClusterId"] = job["Cluster"]
+        job["Iwd"] = str(filename.parent)
+        job["Owner"] = filename.owner()
+        if job["MyType"] == "ExecuteEvent":
+            job["JobStatus"] = JobStatus.RUNNING
+        elif job["MyType"] == "JobTerminatedEvent" or job["MyType"] == "PostScriptTerminatedEvent":
+            job["JobStatus"] = JobStatus.COMPLETED
+            try:
+                if not job["TerminatedNormally"]:
+                    if "ReturnValue" in job:
+                        job['ExitCode'] = job["ReturnValue"]
+                        job['ExitBySignal'] = False
+                    elif "TerminatedBySignal" in job:
+                        job['ExitBySignal'] = True
+                        job['ExitSignal'] = job['TerminatedBySignal']
+                    else:
+                        _LOG.warning("Could not determine exit status for completed job: %s", job)
+            except KeyError as ex:
+                _LOG.error("Could not determine exit status for job (missing %s): %s", str(ex), job)
+        elif job["MyType"] == "SubmitEvent":
+            job["JobStatus"] = JobStatus.IDLE
+        else:
+            _LOG.debug("Unknown log event type: %s", job["MyType"])
+    except KeyError:
+        _LOG.error("Missing key in job: %s", job)
+        raise
+
+
+def htc_check_dagman_output(wms_path):
+    """Check the DAGman output for error messages.
+
+    Parameter
+    ----------
+    wms_path : `str`
+        Directory containing the DAGman output file.
+
+    Returns
+    -------
+    message : `str`
+        Message containing error messages from the DAGman output.  Empty string if
+        no messages.
+    """
+    message = ""
+    filename = next(Path(wms_path).glob("*.dag.dagman.out"))
+
+    try:
+        _LOG.debug("dag output filename: %s", filename)
+        with open(filename, "r") as fh:
+            last_submit_failed = ""
+            for line in fh:
+                m = re.match(r"(\d\d/\d\d/\d\d \d\d:\d\d:\d\d) Job submit try \d+/\d+ failed", line)
+                if m:
+                    last_submit_failed = m.group(1)
+        if last_submit_failed:
+            message = f"Warn: Job submission issues (last: {last_submit_failed})"
+    except (IOError, PermissionError):
+        message = f"Warn: Could not read dagman output file from {wms_path}."
+    return message
