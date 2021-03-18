@@ -60,16 +60,16 @@ def print_run(run_report):
         Information for single run.
     """
     # Flag any running workflow that might need human attention
-    run_flag = ' '
+    run_flag = " "
     if run_report.state == WmsStates.RUNNING:
         if run_report.job_state_counts.get(WmsStates.FAILED, 0):
-            run_flag = 'F'
+            run_flag = "F"
         elif run_report.job_state_counts.get(WmsStates.DELETED, 0):
-            run_flag = 'D'
+            run_flag = "D"
         elif run_report.job_state_counts.get(WmsStates.HELD, 0):
-            run_flag = 'H'
+            run_flag = "H"
 
-    percent_succeeded = 'UNK'
+    percent_succeeded = "UNK"
     _LOG.debug("total_number_jobs = %s", run_report.total_number_jobs)
     _LOG.debug("run_report.job_state_counts = %s", run_report.job_state_counts)
     if run_report.total_number_jobs:
@@ -153,11 +153,11 @@ def print_single_run_summary(run_report):
     by_label_totals = {}
     if run_report.run_summary:
         # Workaround until get pipetaskInit job into run_summary
-        if not run_report.run_summary.startswith('pipetaskInit'):
-            label_order.append('pipetaskInit')
-            by_label_totals['pipetaskInit'] = 1
-        for part in run_report.run_summary.split(';'):
-            label, count = part.split(':')
+        if not run_report.run_summary.startswith("pipetaskInit"):
+            label_order.append("pipetaskInit")
+            by_label_totals["pipetaskInit"] = 1
+        for part in run_report.run_summary.split(";"):
+            label, count = part.split(":")
             label_order.append(label)
             by_label_totals[label] = int(count)
     else:

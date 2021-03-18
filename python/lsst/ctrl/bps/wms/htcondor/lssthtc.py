@@ -27,9 +27,9 @@ relationships to nodes in next level.  LSST workflows are more complicated.
 
 __all__ = ["DagStatus", "JobStatus", "RestrictedDict", "HTCJob", "HTCDag", "htc_escape",
            "htc_write_attribs", "htc_write_condor_file", "htc_version", "htc_submit_dag",
-           "condor_q", "condor_history", "read_dag_status",
+           "condor_q", "condor_history", "read_dag_status", "MISSING_ID",
            "summary_from_dag", "read_dag_log", "read_node_status", "read_dag_nodes_log",
-           "htc_check_dagman_output"]
+           "htc_check_dagman_output", "pegasus_name_to_label"]
 
 import itertools
 import os
@@ -252,7 +252,7 @@ def htc_write_attribs(stream, attrs):
         else:
             pval = value
 
-        print(f'+{key} = {pval}', file=stream)
+        print(f"+{key} = {pval}", file=stream)
 
 
 def htc_write_condor_file(filename, job_name, job, job_attrs):
@@ -687,8 +687,8 @@ def condor_q(constraint=None, schedd=None):
     # convert list to dictionary
     jobads = {}
     for jobinfo in joblist:
-        del jobinfo['Environment']
-        del jobinfo['Env']
+        del jobinfo["Environment"]
+        del jobinfo["Env"]
 
         jobads[f"{jobinfo['ClusterId']}.{jobinfo['ProcId']}"] = dict(jobinfo)
 
@@ -718,8 +718,8 @@ def condor_history(constraint=None, schedd=None):
     # convert list to dictionary
     jobads = {}
     for jobinfo in joblist:
-        del jobinfo['Environment']
-        del jobinfo['Env']
+        del jobinfo["Environment"]
+        del jobinfo["Env"]
         jobads[f"{jobinfo['ClusterId']}.{jobinfo['ProcId']}"] = dict(jobinfo)
 
     _LOG.debug("condor_history returned %d jobs", len(jobads))
@@ -769,7 +769,7 @@ def summary_from_dag(dir_name):
     except (OSError, PermissionError, StopIteration):
         pass
 
-    summary = ';'.join([f"{name}:{counts[name]}" for name in counts])
+    summary = ";".join([f"{name}:{counts[name]}" for name in counts])
     _LOG.debug("summary_from_dag: %s %s", summary, job_name_to_pipetask)
     return summary, job_name_to_pipetask
 
@@ -820,7 +820,7 @@ def read_dag_status(wms_path):
         try:
             node_stat_file = next(Path(wms_path).glob("*.node_status"))
             _LOG.debug("Reading Node Status File %s", node_stat_file)
-            with open(node_stat_file, 'r') as infh:
+            with open(node_stat_file, "r") as infh:
                 dag_classad = classad.parseNext(infh)  # pylint: disable=E1101
         except StopIteration:
             pass
@@ -836,7 +836,14 @@ def read_dag_status(wms_path):
                 dag_classad["NodesDone"] = metrics.get("jobs_succeeded", 0)
                 dag_classad["pegasus_version"] = metrics.get("planner_version", "")
             except StopIteration:
-                pass
+                try:
+                    metrics_file = next(Path(wms_path).glob("*.metrics"))
+                    with open(metrics_file, "r") as infh:
+                        metrics = json.load(infh)
+                    dag_classad["NodesTotal"] = metrics["wf_metrics"]["total_jobs"]
+                    dag_classad["pegasus_version"] = metrics.get("version", "")
+                except StopIteration:
+                    pass
     except (OSError, PermissionError):
         pass
 
@@ -868,6 +875,7 @@ def read_node_status(wms_path):
             m = re.match(r"DAG Node: ([^\s]+)", jinfo["LogNotes"])
             if m:
                 job_name_to_id[m.group(1)] = jid
+                jinfo["DAGNodeName"] = m.group(1)
 
     try:
         node_status = next(Path(wms_path).glob("*.node_status"))
@@ -877,32 +885,32 @@ def read_node_status(wms_path):
     jobs = {}
     fake_id = -1.0   # For nodes that do not yet have a job id, give fake one
     try:
-        with open(node_status, 'r') as fh:
+        with open(node_status, "r") as fh:
             ads = classad.parseAds(fh)
 
             for jclassad in ads:
-                if jclassad['Type'] == "DagStatus":
+                if jclassad["Type"] == "DagStatus":
                     # skip DAG summary
                     pass
-                elif 'Node' not in jclassad:
-                    if jclassad['Type'] != "StatusEnd":
+                elif "Node" not in jclassad:
+                    if jclassad["Type"] != "StatusEnd":
                         _LOG.debug("Key 'Node' not in classad: %s", jclassad)
                     break
                 else:
-                    if jclassad['Node'] in job_name_to_pipetask:
+                    if jclassad["Node"] in job_name_to_pipetask:
                         try:
-                            label = job_name_to_pipetask[jclassad['Node']]
+                            label = job_name_to_pipetask[jclassad["Node"]]
                         except KeyError:
                             _LOG.error("%s not in %s", jclassad["Node"], job_name_to_pipetask.keys())
                             raise
-                    elif '_' in jclassad['Node']:
-                        label = jclassad['Node'].split('_')[1]
+                    elif "_" in jclassad["Node"]:
+                        label = jclassad["Node"].split("_")[1]
                     else:
-                        label = jclassad['Node']
+                        label = jclassad["Node"]
 
                     # Make job info as if came from condor_q
                     if jclassad["Node"] in job_name_to_id:
-                        job_id = job_name_to_id[jclassad['Node']]
+                        job_id = job_name_to_id[jclassad["Node"]]
                     else:
                         job_id = str(fake_id)
                         fake_id -= 1
@@ -910,7 +918,7 @@ def read_node_status(wms_path):
                     job = dict(jclassad)
                     job["ClusterId"] = int(float(job_id))
                     job["DAGManJobID"] = wms_workflow_id
-                    job["DAGNodeName"] = jclassad['Node']
+                    job["DAGNodeName"] = jclassad["Node"]
                     job["bps_job_label"] = label
 
                     jobs[str(job_id)] = job
@@ -1000,11 +1008,11 @@ def _tweak_log_info(filename, job):
             try:
                 if not job["TerminatedNormally"]:
                     if "ReturnValue" in job:
-                        job['ExitCode'] = job["ReturnValue"]
-                        job['ExitBySignal'] = False
+                        job["ExitCode"] = job["ReturnValue"]
+                        job["ExitBySignal"] = False
                     elif "TerminatedBySignal" in job:
-                        job['ExitBySignal'] = True
-                        job['ExitSignal'] = job['TerminatedBySignal']
+                        job["ExitBySignal"] = True
+                        job["ExitSignal"] = job["TerminatedBySignal"]
                     else:
                         _LOG.warning("Could not determine exit status for completed job: %s", job)
             except KeyError as ex:

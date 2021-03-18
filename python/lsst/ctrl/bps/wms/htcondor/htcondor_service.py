@@ -37,7 +37,6 @@ from .lssthtc import (htc_submit_dag, read_node_status, read_dag_log, condor_q, 
                       htc_check_dagman_output, MISSING_ID, pegasus_name_to_label)
 
 _LOG = logging.getLogger()
-COUNT_ERROR = -99999
 
 
 class HTCondorService(BaseWmsService):
@@ -87,7 +86,7 @@ class HTCondorService(BaseWmsService):
 
         Parameters
         ----------
-        wms_workflow_id : `int` or `str`
+        wms_workflow_id : `str`
             Limit to specific run based on id.
         user : `str`
             Limit results to runs for this user.
@@ -107,6 +106,8 @@ class HTCondorService(BaseWmsService):
         message = ""
 
         if wms_workflow_id:
+            # Explicitly checking if wms_workflow_id can be converted to a float instead
+            # of using try/except to avoid catching a different ValueError from _report_from_id
             try:
                 float(wms_workflow_id)
                 is_float = True
@@ -118,7 +119,7 @@ class HTCondorService(BaseWmsService):
             else:
                 run_reports, message = _report_from_path(wms_workflow_id)
         else:
-            run_reports, message = summary_report(user, hist, pass_thru)
+            run_reports, message = _summary_report(user, hist, pass_thru)
         _LOG.debug("report: %s, %s", run_reports, message)
 
         return list(run_reports.values()), message
@@ -146,8 +147,8 @@ class HTCondorWorkflow(BaseWmsWorkflow):
 
         _LOG.debug("htcondor dag attribs %s", generic_workflow.run_attrs)
         htc_workflow.dag.add_attribs(generic_workflow.run_attrs)
-        htc_workflow.dag.add_attribs({'bps_wms_service': service_class,
-                                      'bps_wms_workflow': f"{cls.__module__}.{cls.__name__}"})
+        htc_workflow.dag.add_attribs({"bps_wms_service": service_class,
+                                      "bps_wms_workflow": f"{cls.__module__}.{cls.__name__}"})
 
         # Create all DAG jobs
         for job_name in generic_workflow:
@@ -252,21 +253,21 @@ def _translate_job_cmds(generic_workflow_job):
     jobcmds = {}
 
     if generic_workflow_job.mail_to:
-        jobcmds['notify_user'] = generic_workflow_job.mail_to
+        jobcmds["notify_user"] = generic_workflow_job.mail_to
 
     if generic_workflow_job.when_to_mail:
-        jobcmds['notification'] = generic_workflow_job.when_to_mail
+        jobcmds["notification"] = generic_workflow_job.when_to_mail
 
     if generic_workflow_job.request_disk:
-        jobcmds['request_disk'] = f"{generic_workflow_job.request_disk}MB"
+        jobcmds["request_disk"] = f"{generic_workflow_job.request_disk}MB"
 
     if generic_workflow_job.request_memory:
-        jobcmds['request_memory'] = f"{generic_workflow_job.request_memory}MB"
+        jobcmds["request_memory"] = f"{generic_workflow_job.request_memory}MB"
 
     if generic_workflow_job.priority:
-        jobcmds['priority'] = generic_workflow_job.priority
+        jobcmds["priority"] = generic_workflow_job.priority
 
-    cmd_parts = generic_workflow_job.cmdline.split(' ', 1)
+    cmd_parts = generic_workflow_job.cmdline.split(" ", 1)
     jobcmds["executable"] = cmd_parts[0]
     if len(cmd_parts) > 1:
         jobcmds["arguments"] = cmd_parts[1]
@@ -303,7 +304,7 @@ def _handle_job_inputs(generic_workflow: GenericWorkflow, job_name: str, out_pre
 
     if inputs:
         htc_commands["transfer_input_files"] = ",".join(inputs)
-        _LOG.debug("transfer_input_files=%s", htc_commands['transfer_input_files'])
+        _LOG.debug("transfer_input_files=%s", htc_commands["transfer_input_files"])
     return htc_commands
 
 
@@ -349,14 +350,14 @@ def _report_from_id(wms_workflow_id, hist):
     message : `str`
         Message to be printed with the summary report.
     """
-    constraint = f'(DAGManJobId == {int(float(wms_workflow_id))} || ClusterId == ' \
-                 f'{int(float(wms_workflow_id))})'
+    constraint = f"(DAGManJobId == {int(float(wms_workflow_id))} || ClusterId == " \
+                 f"{int(float(wms_workflow_id))})"
     jobs = condor_q(constraint)
     if hist:
         epoch = (datetime.now() - timedelta(days=hist)).timestamp()
-        constraint += f' && (CompletionDate >= {epoch} || JobFinishedHookDone >= {epoch})'
+        constraint += f" && (CompletionDate >= {epoch} || JobFinishedHookDone >= {epoch})"
         hist_jobs = condor_history(constraint)
-        update_jobs(jobs, hist_jobs)
+        _update_jobs(jobs, hist_jobs)
 
     # keys in dictionary will be strings of format "ClusterId.ProcId"
     wms_workflow_id = str(wms_workflow_id)
@@ -364,8 +365,8 @@ def _report_from_id(wms_workflow_id, hist):
         wms_workflow_id += ".0"
 
     if wms_workflow_id in jobs:
-        _, path_jobs, message = _get_info_from_path(jobs[wms_workflow_id]['Iwd'])
-        update_jobs(jobs, path_jobs)
+        _, path_jobs, message = _get_info_from_path(jobs[wms_workflow_id]["Iwd"])
+        _update_jobs(jobs, path_jobs)
         run_reports = _create_detailed_report_from_jobs(wms_workflow_id, jobs)
     else:
         run_reports = {}
@@ -395,13 +396,13 @@ def _get_info_from_path(wms_path):
     try:
         wms_workflow_id, jobs = read_dag_log(wms_path)
         _LOG.debug("_get_info_from_path: from dag log %s = %s", wms_workflow_id, jobs)
-        update_jobs(jobs, read_node_status(wms_path))
+        _update_jobs(jobs, read_node_status(wms_path))
         _LOG.debug("_get_info_from_path: after node status %s = %s", wms_workflow_id, jobs)
 
         # Add more info for DAGman job
         job = jobs[wms_workflow_id]
         job.update(read_dag_status(wms_path))
-        job['total_jobs'], job['state_counts'] = _get_job_state_counts(job)
+        job["total_jobs"], job["state_counts"] = _get_state_counts_from_jobs(wms_workflow_id, jobs)
         if "bps_run" not in job:
             _add_run_info(wms_path, job)
 
@@ -451,14 +452,14 @@ def _create_detailed_report_from_jobs(wms_workflow_id, jobs):
                           run_summary=_get_run_summary(dag_job),
                           state=_htc_status_to_wms_state(dag_job),
                           jobs=[],
-                          total_number_jobs=dag_job['total_jobs'],
-                          job_state_counts=dag_job['state_counts'])
+                          total_number_jobs=dag_job["total_jobs"],
+                          job_state_counts=dag_job["state_counts"])
 
     try:
         for job in jobs.values():
             if job["ClusterId"] != int(float(wms_workflow_id)):
                 job_report = WmsJobReport(wms_id=job["ClusterId"],
-                                          name=job["DAGNodeName"],
+                                          name=job.get("DAGNodeName", str(job["ClusterId"])),
                                           label=job.get("bps_job_label",
                                                         pegasus_name_to_label(job["DAGNodeName"])),
                                           state=_htc_status_to_wms_state(job))
@@ -474,7 +475,7 @@ def _create_detailed_report_from_jobs(wms_workflow_id, jobs):
     return run_reports
 
 
-def summary_report(user, hist, pass_thru):
+def _summary_report(user, hist, pass_thru):
     """Gather run information to be used in generating summary reports.
 
     Parameters
@@ -510,27 +511,27 @@ def summary_report(user, hist, pass_thru):
 
     if hist:
         epoch = (datetime.now() - timedelta(days=hist)).timestamp()
-        constraint += f' && (CompletionDate >= {epoch} || JobFinishedHookDone >= {epoch})'
+        constraint += f" && (CompletionDate >= {epoch} || JobFinishedHookDone >= {epoch})"
         hist_jobs = condor_history(constraint)
-        update_jobs(jobs, hist_jobs)
+        _update_jobs(jobs, hist_jobs)
 
     _LOG.debug("Job ids from queue and history %s", jobs.keys())
 
     # Have list of DAGMan jobs, need to get run_report info
     run_reports = {}
     for job in jobs.values():
-        total_jobs, state_counts = _get_job_state_counts(job)
+        total_jobs, state_counts = _get_state_counts_from_dag_job(job)
         # if didn't get from queue information (e.g., Kerberos bug),
         # try reading from file
-        if total_jobs == COUNT_ERROR:
+        if total_jobs == 0:
             try:
-                job.update(read_dag_status(job['Iwd']))
-                total_jobs, state_counts = _get_job_state_counts(job)
+                job.update(read_dag_status(job["Iwd"]))
+                total_jobs, state_counts = _get_state_counts_from_dag_job(job)
             except StopIteration:
                 pass   # don't kill report can't find htcondor files
 
         if "bps_run" not in job:
-            _add_run_info(job['Iwd'], job)
+            _add_run_info(job["Iwd"], job)
         report = WmsRunReport(wms_id=job.get("ClusterId", MISSING_ID),
                               path=job["Iwd"],
                               label=job.get("bps_job_label", "MISS"),
@@ -583,7 +584,7 @@ def _add_run_info(wms_path, job):
                         m = re.match(r"\+(bps_[^\s]+)\s*=\s*(.+)$", line)
                         if m:
                             _LOG.debug("Matching line: %s", line)
-                            job[m.group(1)] = m.group(2).replace('"', '')
+                            job[m.group(1)] = m.group(2).replace('"', "")
                         else:
                             _LOG.debug("Could not parse attribute: %s", line)
         except StopIteration:
@@ -632,13 +633,13 @@ def _get_run_summary(job):
     """
     summary = job.get("bps_run_summary", None)
     if not summary:
-        summary, _ = summary_from_dag(job['Iwd'])
+        summary, _ = summary_from_dag(job["Iwd"])
         if not summary:
             _LOG.warning("Could not get run summary for htcondor job: %s", job)
     _LOG.debug("_get_run_summary: summary=%s", summary)
 
     # Workaround sometimes using init vs pipetaskInit
-    summary = summary.replace('init:', 'pipetaskInit')
+    summary = summary.replace("init:", "pipetaskInit:")
 
     if "pegasus_version" in job and "pegasus" not in summary:
         summary += ";pegasus:0"
@@ -646,7 +647,7 @@ def _get_run_summary(job):
     return summary
 
 
-def _get_job_state_counts(job):
+def _get_state_counts_from_jobs(wms_workflow_id, jobs):
     """Count number of jobs per WMS state.
 
     Parameters
@@ -662,46 +663,69 @@ def _get_job_state_counts(job):
         Keys are the different WMS states and values are counts of jobs
         that are in that WMS state.
     """
-    _LOG.debug("_get_job_state_counts: job = %s %s", type(job), len(job))
-    state_counts = {}
-    if 'DAG_NodesReady' in job:
+    counts = dict.fromkeys(WmsStates, 0)
+
+    for jid, jinfo in jobs.items():
+        if jid != wms_workflow_id:
+            counts[_htc_status_to_wms_state(jinfo)] += 1
+
+    total_counted = sum(counts.values())
+    if "NodesTotal" in jobs[wms_workflow_id]:
+        total_jobs = jobs[wms_workflow_id]["NodesTotal"]
+    else:
+        total_jobs = total_counted
+
+    counts[WmsStates.UNREADY] += total_jobs - total_counted
+
+    return total_jobs, counts
+
+
+def _get_state_counts_from_dag_job(job):
+    """Count number of jobs per WMS state.
+
+    Parameters
+    ----------
+    job : `dict` [`str`, `Any`]
+        HTCondor dag job information.
+
+    Returns
+    -------
+    total_count : `int`
+        Total number of dag nodes.
+    state_counts : `dict` [`WmsStates`, `int`]
+        Keys are the different WMS states and values are counts of jobs
+        that are in that WMS state.
+    """
+    _LOG.debug("_get_state_counts_from_dag_job: job = %s %s", type(job), len(job))
+    state_counts = dict.fromkeys(WmsStates, 0)
+    if "DAG_NodesReady" in job:
         state_counts = {
-            WmsStates.UNREADY: job.get('DAG_NodesUnready', COUNT_ERROR),
-            WmsStates.READY: job.get('DAG_NodesReady', COUNT_ERROR),
-            WmsStates.HELD: job.get('JobProcsHeld', COUNT_ERROR),
-            WmsStates.SUCCEEDED: job.get('DAG_NodesDone', COUNT_ERROR),
-            WmsStates.FAILED: job.get('DAG_NodesFailed', COUNT_ERROR),
-            WmsStates.MISFIT: job.get('DAG_NodesPre', 0) + job.get('DAG_NodesPost', 0)}
-        total_jobs = job.get('DAG_NodesTotal')
-        _LOG.debug("_get_job_state_counts: from DAG_* keys, total_jobs = %s", total_jobs)
-    elif 'NodesFailed' in job:
+            WmsStates.UNREADY: job.get("DAG_NodesUnready", 0),
+            WmsStates.READY: job.get("DAG_NodesReady", 0),
+            WmsStates.HELD: job.get("JobProcsHeld", 0),
+            WmsStates.SUCCEEDED: job.get("DAG_NodesDone", 0),
+            WmsStates.FAILED: job.get("DAG_NodesFailed", 0),
+            WmsStates.MISFIT: job.get("DAG_NodesPre", 0) + job.get("DAG_NodesPost", 0)}
+        total_jobs = job.get("DAG_NodesTotal")
+        _LOG.debug("_get_state_counts_from_dag_job: from DAG_* keys, total_jobs = %s", total_jobs)
+    elif "NodesFailed" in job:
         state_counts = {
-            WmsStates.UNREADY: job.get('NodesUnready', COUNT_ERROR),
-            WmsStates.READY: job.get('NodesReady', COUNT_ERROR),
-            WmsStates.HELD: job.get('JobProcsHeld', COUNT_ERROR),
-            WmsStates.SUCCEEDED: job.get('NodesDone', COUNT_ERROR),
-            WmsStates.FAILED: job.get('NodesFailed', COUNT_ERROR),
-            WmsStates.MISFIT: job.get('NodesPre', 0) + job.get('NodesPost', 0)}
+            WmsStates.UNREADY: job.get("NodesUnready", 0),
+            WmsStates.READY: job.get("NodesReady", 0),
+            WmsStates.HELD: job.get("JobProcsHeld", 0),
+            WmsStates.SUCCEEDED: job.get("NodesDone", 0),
+            WmsStates.FAILED: job.get("NodesFailed", 0),
+            WmsStates.MISFIT: job.get("NodesPre", 0) + job.get("NodesPost", 0)}
         try:
-            total_jobs = job.get('NodesTotal')
+            total_jobs = job.get("NodesTotal")
         except KeyError as ex:
             _LOG.error("Job missing %s. job = %s", str(ex), job)
             raise
-        _LOG.debug("_get_job_state_counts: from NODES* keys, total_jobs = %s", total_jobs)
+        _LOG.debug("_get_state_counts_from_dag_job: from NODES* keys, total_jobs = %s", total_jobs)
     else:
         # With Kerberos job auth and Kerberos bug, if warning would be printed for every DAG
-        _LOG.debug("Can't get job state counts %s", job['Iwd'])
-        for state in WmsStates:
-            if state not in state_counts:
-                state_counts[state] = COUNT_ERROR
-        total_jobs = COUNT_ERROR
-
-    _LOG.debug("state_counts: %s", state_counts)
-
-    # Fill in missing states
-    for state in WmsStates:
-        if state not in state_counts:
-            state_counts[state] = 0
+        _LOG.debug("Can't get job state counts %s", job["Iwd"])
+        total_jobs = 0
 
     _LOG.debug("total_jobs = %s, state_counts: %s", total_jobs, state_counts)
     return total_jobs, state_counts
@@ -741,9 +765,9 @@ def _htc_job_status_to_wms_state(job):
     wms_state : `WmsStates`
         The equivalent WmsState to given job's status.
     """
-    _LOG.debug("htc_job_status_to_wms_state: %s=%s, %s", job["ClusterId"], job['JobStatus'],
-               type(job['JobStatus']))
-    job_status = int(job['JobStatus'])
+    _LOG.debug("htc_job_status_to_wms_state: %s=%s, %s", job["ClusterId"], job["JobStatus"],
+               type(job["JobStatus"]))
+    job_status = int(job["JobStatus"])
     wms_state = WmsStates.MISFIT
 
     _LOG.debug("htc_job_status_to_wms_state: job_status = %s", job_status)
@@ -754,9 +778,9 @@ def _htc_job_status_to_wms_state(job):
     elif job_status == JobStatus.REMOVED:
         wms_state = WmsStates.DELETED
     elif job_status == JobStatus.COMPLETED:
-        if job.get('ExitBySignal', False) or job.get('ExitCode', 0) or \
-                job.get('ExitSignal', 0) or job.get('DAG_Status', 0) or \
-                job.get('ReturnValue', 0):
+        if job.get("ExitBySignal", False) or job.get("ExitCode", 0) or \
+                job.get("ExitSignal", 0) or job.get("DAG_Status", 0) or \
+                job.get("ReturnValue", 0):
             wms_state = WmsStates.FAILED
         else:
             wms_state = WmsStates.SUCCEEDED
@@ -805,7 +829,7 @@ def _htc_node_status_to_wms_state(job):
     return wms_state
 
 
-def update_jobs(jobs1, jobs2):
+def _update_jobs(jobs1, jobs2):
     """Update jobs1 with info in jobs2.
 
     (Basically an update for nested dictionaries.)
