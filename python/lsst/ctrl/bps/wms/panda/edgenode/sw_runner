@@ -4,6 +4,10 @@
 cd /tmp;
 export HOME=/tmp;
 export S3_ENDPOINT_URL=https://storage.googleapis.com
+export AWS_ACCESS_KEY_ID=$(</cloudcreds/SINGULARITYENV_AWS_ACCESS_KEY_ID)
+export AWS_SECRET_ACCESS_KEY=$(</cloudcreds/SINGULARITYENV_AWS_SECRET_ACCESS_KEY)
+export PGPASSWORD=$(</cloudcreds/SINGULARITYENV_PGPASSWORD)
 . /opt/lsst/software/stack/loadLSST.bash;
 setup lsst_distrib;
-eval "$(/usr/bin/python $3/cmd_line_decoder.py $1 $2)"
+echo "$(/usr/bin/python $3/cmd_line_decoder.py $1 $2)"
+eval "$(/usr/bin/python $3/cmd_line_decoder.py $1 $2) >&2"
