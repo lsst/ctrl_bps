@@ -18,6 +18,8 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+"""Main function for report subcommand
+"""
 from lsst.utils import doImport
 from ...report import print_headers, print_run, print_single_run_summary
 
@@ -45,8 +47,6 @@ def _report(wms_service, user, run_id, hist_days, pass_thru):
     # for handling completed jobs is available.
     if run_id:
         hist_days = max(hist_days, 2)
-    else:
-        hist_days = hist_days
 
     runs, message = wms_service.report(run_id, user, hist_days, pass_thru)
 

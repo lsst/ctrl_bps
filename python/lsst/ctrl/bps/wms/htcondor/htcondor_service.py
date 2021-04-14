@@ -28,6 +28,7 @@ import re
 import logging
 from datetime import datetime, timedelta
 from pathlib import Path
+import htcondor
 
 from lsst.ctrl.bps.bps_utils import chdir
 from lsst.ctrl.bps.wms_service import BaseWmsWorkflow, BaseWmsService, WmsRunReport, WmsJobReport, WmsStates
@@ -81,6 +82,83 @@ class HTCondorService(BaseWmsService):
             htc_submit_dag(workflow.dag, dict())
             workflow.run_id = workflow.dag.run_id
 
+    def list_submitted_jobs(self, wms_id=None, user=None, require_bps=True, pass_thru=None):
+        """Query WMS for list of submitted WMS workflows/jobs.  This should
+        be a quick lookup function to create list of jobs ids for cancel
+        and other functions.
+
+        Parameters
+        ----------
+        wms_id : `int` or `str`, optional
+            Id that can be used by WMS service to look up workflow/job.
+        user : `str`, optional
+            Limit list to submissions by this particular user.
+        require_bps : `bool`
+            Limit list to submissions via bps.
+        pass_thru : `str`, optional
+            Additional arguments to pass through to the specific WMS service.
+
+        Returns
+        -------
+        job_ids : `list` of `Any`
+            Only job ids to be used by cancel and other functions.  Typically
+            this means top-level jobs (i.e., not children jobs).
+        """
+        _LOG.debug("list_submitted_jobs params: wms_id=%s, user=%s, require_bps=%s, pass_thru=%s",
+                   wms_id, user, require_bps, pass_thru)
+        constraint = ""
+
+        if wms_id is None:
+            if user is not None:
+                constraint = f'(Owner == "{user}")'
+        else:
+            # If wms_id represents path, get numeric id
+            try:
+                cluster_id = int(float(wms_id))
+            except ValueError:
+                wms_path = Path(wms_id)
+                if wms_path.exists():
+                    try:
+                        cluster_id, _ = read_dag_log(wms_id)
+                        cluster_id = int(float(cluster_id))
+                    except StopIteration:
+                        cluster_id = 0
+                else:
+                    cluster_id = 0
+
+            if cluster_id != 0:
+                constraint = f"(DAGManJobId == {int(float(cluster_id))} || ClusterId == " \
+                             f"{int(float(cluster_id))})"
+
+        if require_bps:
+            constraint += ' && (bps_isjob == "True")'
+
+        if pass_thru:
+            if "-forcex" in pass_thru:
+                pass_thru_2 = pass_thru.replace("-forcex", "")
+                if pass_thru_2 and not pass_thru_2.isspace():
+                    constraint += f"&& ({pass_thru_2})"
+            else:
+                constraint += f" && ({pass_thru})"
+
+        _LOG.debug("constraint = %s", constraint)
+        jobs = condor_q(constraint)
+
+        # prune child jobs where DAG job is in queue (i.e., aren't orphans)
+        job_ids = []
+        for job_id, jinfo in jobs.items():
+            _LOG.debug("job_id=%s DAGManJobId=%s", job_id, jinfo.get("DAGManJobId", "None"))
+            if "DAGManJobId" not in jinfo:    # orphaned job
+                job_ids.append(job_id)
+            else:
+                _LOG.debug("Looking for %s", f"{jinfo['DAGManJobId']}.0")
+                _LOG.debug("\tin jobs.keys() = %s", jobs.keys())
+                if f"{jinfo['DAGManJobId']}.0" not in jobs:
+                    job_ids.append(job_id)
+
+        _LOG.debug("job_ids = %s", job_ids)
+        return job_ids
+
     def report(self, wms_workflow_id=None, user=None, hist=0, pass_thru=None):
         """Return run information based upon given constraints.
 
@@ -123,6 +201,60 @@ class HTCondorService(BaseWmsService):
         _LOG.debug("report: %s, %s", run_reports, message)
 
         return list(run_reports.values()), message
+
+    def cancel(self, wms_id=None, pass_thru=None):
+        """Cancel single submitted workflow.
+
+        Parameters
+        ----------
+        wms_id : `str`
+            Cancel workflow matching WMS workflow id/path.
+        pass_thru : `str`
+            Constraints to pass through to HTCondor.
+
+        Returns
+        --------
+        deleted : `bool`
+            Whether successful deletion or not.  Currently, if any doubt or any
+            individual jobs not deleted, return False.
+        message : `str`
+            Any message from WMS (e.g., error details).
+        """
+        _LOG.debug("Canceling wms_id = %s", wms_id)
+
+        cluster_id = _wms_id_to_cluster(wms_id)
+        if cluster_id == 0:
+            deleted = False
+            message = "Invalid id"
+        else:
+            _LOG.debug("Canceling cluster_id = %s", cluster_id)
+            schedd = htcondor.Schedd()
+            constraint = f"ClusterId == {cluster_id}"
+            if "-forcex" in pass_thru:
+                pass_thru_2 = pass_thru.replace("-forcex", "")
+                if pass_thru_2 and not pass_thru_2.isspace():
+                    constraint += f"&& ({pass_thru_2})"
+                _LOG.debug("JobAction.RemoveX constraint = %s", constraint)
+                results = schedd.act(htcondor.JobAction.RemoveX, constraint)
+            else:
+                if pass_thru:
+                    constraint += f"&& ({pass_thru})"
+                _LOG.debug("JobAction.Remove constraint = %s", constraint)
+                results = schedd.act(htcondor.JobAction.Remove, constraint)
+            _LOG.debug("Remove results: %s", results)
+
+            if results['TotalSuccess'] > 0 and results['TotalError'] == 0:
+                deleted = True
+                message = ""
+            else:
+                deleted = False
+                if results['TotalSuccess'] == 0 and results['TotalError'] == 0:
+                    message = "no such bps job in batch queue"
+                else:
+                    message = f"unknown problems deleting: {results}"
+
+        _LOG.debug("deleted: %s; message = %s", deleted, message)
+        return deleted, message
 
 
 class HTCondorWorkflow(BaseWmsWorkflow):
@@ -846,3 +978,32 @@ def _update_jobs(jobs1, jobs2):
             jobs1[jid].update(jinfo)
         else:
             jobs1[jid] = jinfo
+
+
+def _wms_id_to_cluster(wms_id):
+    """Convert WMS ID to cluster ID.
+
+    Parameters
+    ----------
+    wms_id : `int` or `float` or `str`
+        HTCondor job id or path.
+
+    Returns
+    -------
+    cluster_id : `int`
+        HTCondor cluster id.
+    """
+    # If wms_id represents path, get numeric id
+    try:
+        cluster_id = int(float(wms_id))
+    except ValueError:
+        wms_path = Path(wms_id)
+        if wms_path.exists():
+            try:
+                cluster_id, _ = read_dag_log(wms_id)
+                cluster_id = int(float(cluster_id))
+            except StopIteration:
+                cluster_id = 0
+        else:
+            cluster_id = 0
+    return cluster_id

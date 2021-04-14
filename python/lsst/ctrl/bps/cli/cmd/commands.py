@@ -18,6 +18,8 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""Subcommand definitions.
+"""
 import click
 from lsst.daf.butler.cli.utils import MWCommand
 from .. import opt
@@ -72,3 +74,21 @@ def report(*args, **kwargs):
     """Display execution status for submitted workflows.
     """
     script.report(*args, **kwargs)
+
+
+@click.command(cls=BpsCommand)
+@click.option("--wms", "wms_service",
+              default="lsst.ctrl.bps.wms.htcondor.htcondor_service.HTCondorService",
+              help="Workload Management System service class.")
+@click.option("--id", "run_id",
+              help="Run id of workflow to cancel.")
+@click.option("--user",
+              help="User for which to cancel all submitted workflows.")
+@click.option("--require-bps/--skip-require-bps", "require_bps", default=True, show_default=True,
+              help="Only cancel jobs submitted via bps.")
+@click.option("--pass-thru", "pass_thru", default=str(),
+              help="Pass the given string to the WMS service.")
+def cancel(*args, **kwargs):
+    """Cancel submitted workflow(s).
+    """
+    script.cli_cancel(*args, **kwargs)

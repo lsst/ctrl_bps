@@ -18,7 +18,25 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-from .prepare import _prepare as prepare
-from .report import _report as report
-from .submit import _submit as submit
-from .cli_cancel import cli_cancel
+"""Driver function for cancel subcommand
+"""
+from lsst.ctrl.bps.cancel import cancel
+
+
+def cli_cancel(wms_service, run_id, user, require_bps, pass_thru):
+    """Cancel submitted workflows.
+
+    Parameters
+    ----------
+    wms_service : `str`
+        Name of the Workload Management System service class.
+    run_id : `str`
+        Cancel submitted workflow matching specified WMS run id.
+    user : `str`
+        Cancel all submitted workflows for specified user.
+    require_bps : `bool`
+        Limit list to submissions via bps.
+    pass_thru : `str`
+        A string to pass directly to the WMS service class.
+    """
+    cancel(wms_service, run_id, user, require_bps, pass_thru)

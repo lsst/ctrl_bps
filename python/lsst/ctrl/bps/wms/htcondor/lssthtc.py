@@ -942,24 +942,28 @@ def read_dag_log(wms_path):
         HTCondor job information read from the log file mapped to HTCondor
         job id.
     """
-    filename = next(Path(wms_path).glob("*.dag.dagman.log"))
-    _LOG.debug("dag node log filename: %s", filename)
-
-    job_event_log = htcondor.JobEventLog(str(filename))
-    info = {}
     wms_workflow_id = 0
-    for event in job_event_log.events(stop_after=0):
-        id_ = f"{event['Cluster']}.{event['Proc']}"
-        if id_ not in info:
-            info[id_] = {}
-            wms_workflow_id = id_   # taking last job id in case of restarts
-        info[id_].update(event)
-        info[id_][f"{event.type.name.lower()}_time"] = event["EventTime"]
+    dag_info = {}
 
-    # only save latest DAG job
-    dag_info = {wms_workflow_id: info[wms_workflow_id]}
-    for job in dag_info.values():
-        _tweak_log_info(filename, job)
+    path = Path(wms_path)
+    if path.exists():
+        filename = next(path.glob("*.dag.dagman.log"))
+        _LOG.debug("dag node log filename: %s", filename)
+
+        info = {}
+        job_event_log = htcondor.JobEventLog(str(filename))
+        for event in job_event_log.events(stop_after=0):
+            id_ = f"{event['Cluster']}.{event['Proc']}"
+            if id_ not in info:
+                info[id_] = {}
+                wms_workflow_id = id_   # taking last job id in case of restarts
+            info[id_].update(event)
+            info[id_][f"{event.type.name.lower()}_time"] = event["EventTime"]
+
+        # only save latest DAG job
+        dag_info = {wms_workflow_id: info[wms_workflow_id]}
+        for job in dag_info.values():
+            _tweak_log_info(filename, job)
 
     return wms_workflow_id, dag_info
 

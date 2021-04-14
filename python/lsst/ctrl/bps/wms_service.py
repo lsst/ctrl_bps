@@ -118,6 +118,29 @@ class BaseWmsService:
         """
         raise NotImplementedError
 
+    def list_submitted_jobs(self, wms_id=None, user=None, require_bps=True, pass_thru=None):
+        """Query WMS for list of submitted WMS workflows/jobs.  This should be
+        a quick lookup function to create list of jobs for other functions.
+
+        Parameters
+        ----------
+        wms_id : `int` or `str`, optional
+            Id that can be used by WMS service to look up workflow/job.
+        user : `str`, optional
+            Limit list to submissions by this particular user.
+        require_bps : `bool`
+            Limit list to submissions via bps.
+        pass_thru : `str`, optional
+            Additional arguments to pass through to the specific WMS service.
+
+        Returns
+        -------
+        job_ids : `list` of `Any`
+            Only job ids to be used by cancel and other functions.  Typically
+            this means top-level jobs (i.e., not children jobs).
+        """
+        raise NotImplementedError
+
     def report(self, wms_workflow_id=None, user=None, hist=0, pass_thru=None):
         """Query WMS for status of submitted WMS workflows.
 
@@ -139,6 +162,26 @@ class BaseWmsService:
         message : `str`
             Message to user on how to find more status information specific to
             this particular WMS.
+        """
+        raise NotImplementedError
+
+    def cancel(self, wms_id, pass_thru=None):
+        """Cancel submitted workflows/jobs.
+
+        Parameters
+        ----------
+        wms_id : `str`
+            Cancel workflow matching WMS run id.
+        pass_thru : `str`
+            Information to pass through to WMS.
+
+        Returns
+        --------
+        deleted : `bool`
+            Whether successful deletion or not.  Currently, if any doubt or any
+            individual jobs not deleted, return False.
+        message : `str`
+            Any message from WMS (e.g., error details).
         """
         raise NotImplementedError
 
