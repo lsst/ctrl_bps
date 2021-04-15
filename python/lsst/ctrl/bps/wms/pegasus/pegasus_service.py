@@ -89,6 +89,32 @@ class PegasusService(BaseWmsService):
 
         # Note: No need to save run id as the same as the run id generated when running pegasus-plan earlier
 
+    def list_submitted_jobs(self, wms_id=None, user=None, require_bps=True, pass_thru=None):
+        """Query WMS for list of submitted WMS workflows/jobs.
+
+        This should be a quick lookup function to create list of jobs for
+        other functions.
+
+        Parameters
+        ----------
+        wms_id : `int` or `str`, optional
+            Id or path that can be used by WMS service to look up job.
+        user : `str`, optional
+            User whose submitted jobs should be listed.
+        require_bps : `bool`, optional
+            Whether to require jobs returned in list to be bps-submitted jobs.
+        pass_thru : `str`, optional
+            Information to pass through to WMS.
+
+        Returns
+        -------
+        job_ids : `list` of `Any`
+            Only job ids to be used by cancel and other functions.  Typically
+            this means top-level jobs (i.e., not children jobs).
+        """
+        htc_service = HTCondorService(self.config)
+        return htc_service.list_submitted_jobs(wms_id, user, require_bps, pass_thru)
+
     def report(self, wms_workflow_id=None, user=None, hist=0, pass_thru=None):
         """Query WMS for status of submitted WMS workflows
          Parameters
@@ -111,6 +137,53 @@ class PegasusService(BaseWmsService):
          """
         htc_service = HTCondorService(self.config)
         return htc_service.report(wms_workflow_id, user, hist, pass_thru)
+
+    def cancel(self, wms_id, pass_thru=None):
+        """Cancel submitted workflows/jobs.
+
+        Parameters
+        ----------
+        wms_id : `str`
+            ID or path of job that should be canceled.
+        pass_thru : `str`, optional
+            Information to pass through to WMS.
+
+        Returns
+        --------
+        deleted : `bool`
+            Whether successful deletion or not.  Currently, if any doubt or any
+            individual jobs not deleted, return False.
+        message : `str`
+            Any message from WMS (e.g., error details).
+        """
+        _LOG.debug("Canceling wms_id = %s", wms_id)
+
+        # if wms_id is a numeric HTCondor id, use HTCondor plugin to delete
+        try:
+            float(wms_id)
+            htc_service = HTCondorService(self.config)
+            deleted, message = htc_service.cancel(wms_id, pass_thru)
+        except ValueError:
+            command = f"pegasus-remove {wms_id}"
+            _LOG.debug(command)
+            completed_process = subprocess.run(shlex.split(command), shell=False, check=False,
+                                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            _LOG.debug(completed_process.stdout)
+            _LOG.debug("Return code = %s", completed_process.returncode)
+
+            if completed_process.returncode != 0:
+                deleted = False
+                m = re.match(b"443", completed_process.stdout)
+                if m:
+                    message = "no such bps job in batch queue"
+                else:
+                    message = f"pegasus-remove exited with non-zero exit code {completed_process.returncode}"
+                print("XXX", completed_process.stdout.decode(), "XXX")
+                print(message)
+            else:
+                deleted = True
+
+        return deleted, message
 
 
 class PegasusWorkflow(BaseWmsWorkflow):

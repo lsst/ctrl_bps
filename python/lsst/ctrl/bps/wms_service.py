@@ -118,6 +118,31 @@ class BaseWmsService:
         """
         raise NotImplementedError
 
+    def list_submitted_jobs(self, wms_id=None, user=None, require_bps=True, pass_thru=None):
+        """Query WMS for list of submitted WMS workflows/jobs.
+
+        This should be a quick lookup function to create list of jobs for
+        other functions.
+
+        Parameters
+        ----------
+        wms_id : `int` or `str`, optional
+            Id or path that can be used by WMS service to look up job.
+        user : `str`, optional
+            User whose submitted jobs should be listed.
+        require_bps : `bool`, optional
+            Whether to require jobs returned in list to be bps-submitted jobs.
+        pass_thru : `str`, optional
+            Information to pass through to WMS.
+
+        Returns
+        -------
+        job_ids : `list` of `Any`
+            Only job ids to be used by cancel and other functions.  Typically
+            this means top-level jobs (i.e., not children jobs).
+        """
+        raise NotImplementedError
+
     def report(self, wms_workflow_id=None, user=None, hist=0, pass_thru=None):
         """Query WMS for status of submitted WMS workflows.
 
@@ -139,6 +164,26 @@ class BaseWmsService:
         message : `str`
             Message to user on how to find more status information specific to
             this particular WMS.
+        """
+        raise NotImplementedError
+
+    def cancel(self, wms_id, pass_thru=None):
+        """Cancel submitted workflows/jobs.
+
+        Parameters
+        ----------
+        wms_id : `str`
+            ID or path of job that should be canceled.
+        pass_thru : `str`, optional
+            Information to pass through to WMS.
+
+        Returns
+        --------
+        deleted : `bool`
+            Whether successful deletion or not.  Currently, if any doubt or any
+            individual jobs not deleted, return False.
+        message : `str`
+            Any message from WMS (e.g., error details).
         """
         raise NotImplementedError
 

@@ -65,7 +65,7 @@ during your run.
    possibly if want to add/change inputs in repo (depending on the inputs and
    flexibility of the bootstrap scripts).
 
-For testing purposes, you can use `pipelines_check`_ package to set up your own 
+For testing purposes, you can use `pipelines_check`_ package to set up your own
 Butler dataset repository.  To make that repository, follow the usual steps
 when installing an LSST package:
 
@@ -163,7 +163,7 @@ get a more pipeline oriented information use
 
 which should display run summary similar to the one below ::
 
-	X      STATE  %S       ID OPERATOR   PRJ   CMPGN    PAYLOAD    RUN                                               
+	X      STATE  %S       ID OPERATOR   PRJ   CMPGN    PAYLOAD    RUN
 	-----------------------------------------------------------------------------------------------------------------------
 	     RUNNING   0   176270 jdoe       dev   quick    pcheck     shared_pipecheck_20201111T14h59m26s
 
@@ -172,21 +172,76 @@ To see results regarding past submissions, use ``bps report --hist X``  where
 example ::
 
 	$ bps report --hist 1
-		STATE  %S       ID OPERATOR   PRJ   CMPGN    PAYLOAD    RUN                                               
+		STATE  %S       ID OPERATOR   PRJ   CMPGN    PAYLOAD    RUN
 	-----------------------------------------------------------------------------------------------------------------------
-	   FAILED   0   176263 jdoe       dev   quick    pcheck     shared_pipecheck_20201111T13h51m59s               
-	SUCCEEDED 100   176265 jdoe       dev   quick    pcheck     shared_pipecheck_20201111T13h59m26s               
+	   FAILED   0   176263 jdoe       dev   quick    pcheck     shared_pipecheck_20201111T13h51m59s
+	SUCCEEDED 100   176265 jdoe       dev   quick    pcheck     shared_pipecheck_20201111T13h59m26s
 
 Use ``bps report --help`` to see all currently supported options.
 
 .. _bps-terminate:
 
-Terminating running jobs
-------------------------
+Canceling submitted jobs
+--------------------------
 
-There currently isn’t a BPS command for terminating jobs.  Instead you can use
-the `condor_rm`__ or `pegasus-remove`__.  Both take the ``runId`` printed by
-``bps submit``.  For example
+The bps command to cancel bps-submitted jobs is
+
+.. code-block:: bash
+
+   bps cancel --id <id>
+
+or to cancel all of your runs use
+
+.. code-block:: bash
+
+   bps cancel --user <username>
+
+For example ::
+
+        $ bps submit pipelines_check.yaml
+        Submit dir: /scratch/mgower/submit/u/mgower/pipelines_check/20210414T190212Z
+        Run Id: 369
+
+        $ bps report
+        X      STATE  %S        ID OPERATOR   PRJ        CMPGN                PAYLOAD              RUN
+        ------------------------------------------------------------------------------------------------------------------------------------------------------------
+             RUNNING   0       369 mgower     dev        quick                pcheck               u_mgower_pipelines_check_20210414T190212Z
+
+        $ bps cancel --id 369
+        Successfully canceled: 369.0
+
+        $ bps report
+        X      STATE  %S        ID OPERATOR   PRJ        CMPGN                PAYLOAD              RUN
+        ------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+.. note::
+
+   Sometimes there may be a small delay between executing cancel and jobs
+   disappearing from the WMS queue.  Under normal conditions this delay
+   is less than a minute.
+
+This command tries to prevent someone using it to cancel non-bps jobs.  It can
+be forced to skip this check by including the option ``--skip-require-bps``.
+Use this at your own risk.
+
+If ``bps cancel`` says "0 jobs found matching arguments", first double check the
+id for typos.  If you believe there is a problem with the "is it a bps job"
+check, add ``--skip-require-bps``.
+
+If jobs are hanging around in the queue with an X status in condor_q, you can
+add the following to force delete those jobs from the queue ::
+
+        --pass-thru "-forcex"
+
+If ``bps cancel`` fails to delete the jobs, you can use direct WMS executables
+like `condor_rm`__ or `pegasus-remove`__. 
+
+.. note::
+
+   Using the WMS commands directly under normal circumstances is not
+   advised as bps may someday include additional code.
+
+Both take the ``runId`` printed by ``bps submit``.  For example
 
 .. code-block:: bash
 
