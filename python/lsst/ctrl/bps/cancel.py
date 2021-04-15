@@ -29,21 +29,21 @@ from lsst.utils import doImport
 _LOG = logging.getLogger()
 
 
-def cancel(wms_service, wms_id, user, require_bps, pass_thru):
+def cancel(wms_service, wms_id=None, user=None, require_bps=True, pass_thru=None):
     """Cancel submitted workflows.
 
     Parameters
     ----------
     wms_service : `str` or `~lsst.ctrl.bps.wms_service.WmsService`
         Name of the Workload Management System service class.
-    user : `str`
-        Cancel all submitted workflows for specified user.
-    require_bps : `bool`
-        Require given run_id/user to be a bps submitted job.
-    wms_id : `str`
-        Cancel submitted jobs matching specified WMS id.
-    pass_thru : `str`
-        A string to pass directly to the WMS service class.
+    wms_id : `str`, optional
+        ID or path of job that should be canceled.
+    user : `str`, optional
+        User whose submitted jobs should be canceled.
+    require_bps : `bool`, optional
+        Whether to require given run_id/user to be a bps submitted job.
+    pass_thru : `str`, optional
+        Information to pass through to WMS.
     """
     _LOG.debug("Cancel params: wms_id=%s, user=%s, require_bps=%s, pass_thru=%s",
                wms_id, user, require_bps, pass_thru)

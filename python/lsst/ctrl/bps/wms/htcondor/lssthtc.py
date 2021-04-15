@@ -941,6 +941,11 @@ def read_dag_log(wms_path):
     info : `dict`
         HTCondor job information read from the log file mapped to HTCondor
         job id.
+
+    Raises
+    ------
+    StopIteration
+        If cannot find dagman log file in given wms_path.
     """
     wms_workflow_id = 0
     dag_info = {}

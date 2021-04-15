@@ -216,9 +216,9 @@ For example ::
 
 .. note::
 
-        Sometimes there may be a small delay between executing cancel and jobs
-        disappearing from the WMS queue.  Under normal conditions this delay
-        is less than a minute.
+   Sometimes there may be a small delay between executing cancel and jobs
+   disappearing from the WMS queue.  Under normal conditions this delay
+   is less than a minute.
 
 This command tries to prevent someone using it to cancel non-bps jobs.  It can
 be forced to skip this check by including the option ``--skip-require-bps``.
@@ -238,8 +238,8 @@ like `condor_rm`__ or `pegasus-remove`__. 
 
 .. note::
 
-        Using the WMS commands directly under normal circumstances is not
-        advised as bps may someday include additional code.
+   Using the WMS commands directly under normal circumstances is not
+   advised as bps may someday include additional code.
 
 Both take the ``runId`` printed by ``bps submit``.  For example
 

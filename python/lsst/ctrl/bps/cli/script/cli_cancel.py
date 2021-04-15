@@ -31,12 +31,12 @@ def cli_cancel(wms_service, run_id, user, require_bps, pass_thru):
     wms_service : `str`
         Name of the Workload Management System service class.
     run_id : `str`
-        Cancel submitted workflow matching specified WMS run id.
+        ID or path of job that should be canceled.
     user : `str`
-        Cancel all submitted workflows for specified user.
+        User whose submitted jobs should be canceled.
     require_bps : `bool`
-        Limit list to submissions via bps.
+        Whether to require given run_id/user to be a bps submitted job.
     pass_thru : `str`
-        A string to pass directly to the WMS service class.
+        Information to pass through to WMS.
     """
     cancel(wms_service, run_id, user, require_bps, pass_thru)

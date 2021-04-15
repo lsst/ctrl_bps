@@ -90,19 +90,21 @@ class PegasusService(BaseWmsService):
         # Note: No need to save run id as the same as the run id generated when running pegasus-plan earlier
 
     def list_submitted_jobs(self, wms_id=None, user=None, require_bps=True, pass_thru=None):
-        """Query WMS for list of submitted WMS workflows/jobs.  This should be
-        a quick lookup function to create list of jobs for other functions.
+        """Query WMS for list of submitted WMS workflows/jobs.
+
+        This should be a quick lookup function to create list of jobs for
+        other functions.
 
         Parameters
         ----------
         wms_id : `int` or `str`, optional
-            Id that can be used by WMS service to look up workflow/job.
+            Id or path that can be used by WMS service to look up job.
         user : `str`, optional
-            Limit list to submissions by this particular user.
-        require_bps : `bool`
-            Limit list to submissions via bps.
+            User whose submitted jobs should be listed.
+        require_bps : `bool`, optional
+            Whether to require jobs returned in list to be bps-submitted jobs.
         pass_thru : `str`, optional
-            Additional arguments to pass through to the specific WMS service.
+            Information to pass through to WMS.
 
         Returns
         -------
@@ -137,14 +139,14 @@ class PegasusService(BaseWmsService):
         return htc_service.report(wms_workflow_id, user, hist, pass_thru)
 
     def cancel(self, wms_id, pass_thru=None):
-        """Cancel single submitted workflow.
+        """Cancel submitted workflows/jobs.
 
         Parameters
         ----------
         wms_id : `str`
-            Cancel workflow matching WMS workflow id/path.
-        pass_thru : `str`
-            Constraints to pass through to HTCondor.
+            ID or path of job that should be canceled.
+        pass_thru : `str`, optional
+            Information to pass through to WMS.
 
         Returns
         --------
