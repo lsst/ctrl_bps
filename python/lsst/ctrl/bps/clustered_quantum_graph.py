@@ -24,26 +24,30 @@ in the graph is a QuantumGraph.
 """
 
 import networkx
-from lsst.pipe.base import QuantumGraph
 
 
 class ClusteredQuantumGraph(networkx.DiGraph):
-    """Graph where node in the graph is a QuantumGraph
+    """Graph where the data for a node is a subgraph of the full
+    QuantumGraph represented by a list of NodeIds.
+
+    Using lsst.pipe.base.NodeId instead of integer because the QuantumGraph
+    API requires them.  Chose skipping the repeated creation of objects to
+    use API over totally minimized memory usage.
     """
 
-    def add_cluster(self, name, qgraph, label=None):
+    def add_cluster(self, name, node_ids, label=None):
         """Add a cluster of quanta as a node in the graph.
 
         Parameters
         ----------
         name : `str`
             Node name which must be unique in the graph.
-        qgraph : `~lsst.pipe.base.QuantumGraph`
-            QuantumGraph containing the quanta in the cluster.
+        node_ids : `list` of `~lsst.pipe.base.NodeId`
+            NodeIds for QuantumGraph subset.
         label : `str`, optional
             Label for the cluster.  Can be used in grouping clusters.
         """
-        self.add_node(name, qgraph=qgraph, label=label)
+        self.add_node(name, qgraph_node_ids=node_ids, label=label)
 
     def add_node(self, node_for_adding, **attr):
         """Override add_node function to ensure that nodes are limited
@@ -51,26 +55,25 @@ class ClusteredQuantumGraph(networkx.DiGraph):
 
         Parameters
         ----------
-        node_for_adding : `str` or `~lsst.pipe.base.QuantumGraph`
-            Name of cluster or QuantumGraph to add where name will
-            be a padded node counter.
+        node_for_adding : `str` or `list` of `~lsst.pipe.base.NodeId`
+            Name of cluster or cluster data (list of NodeIds).
         attr :
-            Attributes to be saved with node in graph
+            Attributes to be saved with node in graph.
         """
-        if isinstance(node_for_adding, QuantumGraph):
-            name = f"{len(self) + 1:06d}"  # create cluster name by counter
-            attr['qgraph'] = node_for_adding
-        elif 'qgraph' in attr:
-            if not isinstance(attr['qgraph'], QuantumGraph):
-                raise RuntimeError("Invalid type for qgraph attribute.")
+        if isinstance(node_for_adding, list):
+            name = f"{len(self) + 1:06d}"  # Create cluster name by counter.
+            attr["qgraph_node_ids"] = node_for_adding
+        elif "qgraph_node_ids" in attr:
+            if not isinstance(attr["qgraph_node_ids"], list):
+                raise RuntimeError("Invalid type for qgraph_node_ids attribute.")
             name = node_for_adding
         else:
-            raise RuntimeError("Missing qgraph attribute.")
+            raise RuntimeError("Missing qgraph_node_ids attribute.")
 
-        if 'label' not in attr:
-            attr['label'] = None
+        if "label" not in attr:
+            attr["label"] = None
         super().add_node(name, **attr)
 
     def add_nodes_from(self, nodes_for_adding, **attr):
         # Docstring inherited from networkx.Digraph
-        raise TypeError("Multiple nodes should not have same qgraph attribute.")
+        raise TypeError("Multiple nodes should not have same attributes.")

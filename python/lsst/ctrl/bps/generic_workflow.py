@@ -91,6 +91,7 @@ class GenericWorkflowJob:
     attrs: Optional[dict]
     environment: Optional[dict]
     quantum_graph: Optional[QuantumGraph]
+    qgraph_node_ids: Optional[list]
     quanta_summary: Optional[str]
 
     # As of python 3.7.8, can't use __slots__ if give default values, so writing own __init__
@@ -117,13 +118,14 @@ class GenericWorkflowJob:
         self.attrs = {}
         self.environment = {}
         self.quantum_graph = None
+        self.qgraph_node_ids = None
         self.quanta_summary = ""
 
     __slots__ = ('name', 'label', 'mail_to', 'when_to_mail', 'cmdline', 'request_memory', 'request_cpus',
                  'request_disk', 'request_walltime', 'compute_site', 'environment', 'number_of_retries',
                  'retry_unless_exit', 'abort_on_value', 'abort_return_value', 'priority',
                  'category', 'pre_cmdline', 'post_cmdline', 'profile', 'attrs',
-                 'quantum_graph', 'quanta_summary')
+                 'quantum_graph', 'qgraph_node_ids', 'quanta_summary')
 
     def __hash__(self):
         return hash(self.name)
