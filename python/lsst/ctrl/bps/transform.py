@@ -51,8 +51,8 @@ def transform(config, clustered_quantum_graph, prefix):
     generic_workflow : `~lsst.ctrl.bps.generic_workflow.GenericWorkflow`
         The generic workflow transformed from the clustered quantum graph.
     """
-    if 'name' in clustered_quantum_graph.graph and clustered_quantum_graph.graph['name'] is not None:
-        name = clustered_quantum_graph.graph['name']
+    if "name" in clustered_quantum_graph.graph and clustered_quantum_graph.graph["name"] is not None:
+        name = clustered_quantum_graph.graph["name"]
     else:
         _, name = config.search("uniqProcName", opt={"required": True})
 
@@ -95,6 +95,8 @@ def group_clusters_into_jobs(clustered_quanta_graph, name):
                    len(data["qgraph_node_ids"]), data["label"], data["qgraph_node_ids"][:4])
         job = GenericWorkflowJob(node_name)
         job.qgraph_node_ids = data["qgraph_node_ids"]
+        if "tags" in data:
+            job.tags = data["tags"]
         if "label" in data:
             job.label = data["label"]
         generic_workflow.add_job(job)
@@ -409,8 +411,8 @@ def add_workflow_attributes(config, generic_workflow):
     for job_name in generic_workflow:
         job = generic_workflow.get_job(job_name)
         if job.quanta_summary:
-            for job_summary_part in job.quanta_summary.split(';'):
-                (label, cnt) = job_summary_part.split(':')
+            for job_summary_part in job.quanta_summary.split(";"):
+                (label, cnt) = job_summary_part.split(":")
                 if label not in run_quanta_counts:
                     run_quanta_counts[label] = 0
                 run_quanta_counts[label] += int(cnt)

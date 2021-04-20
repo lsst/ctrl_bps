@@ -71,14 +71,15 @@ def single_quantum_clustering(config, qgraph, name):
         # the missing values in template.
 
         # Gather info for name template into a dictionary.
-        info = defaultdict(lambda: "", {k: data_id.get(k) for k in data_id.graph.names})
+        info = data_id.to_simple()
         info["label"] = label
         info["node_number"] = number
         _LOG.debug("template = %s", template)
         _LOG.debug("info for template = %s", info)
 
         # Use dictionary plus template format string to create name.
-        name = template.format_map(info)
+        # To avoid key errors from generic patterns, use defaultdict
+        name = template.format_map(defaultdict(lambda: "", info))
         name = re.sub("_+", "_", name)
         _LOG.debug("template name = %s", name)
 
@@ -87,7 +88,7 @@ def single_quantum_clustering(config, qgraph, name):
 
         # Add cluster to the ClusteredQuantumGraph.
         # Saving NodeId instead of number because QuantumGraph API requires it.
-        clustered_quantum.add_cluster(name, [quantum_node.nodeId], label)
+        clustered_quantum.add_cluster(name, [quantum_node.nodeId], label, info)
 
     # Add cluster dependencies.
     for quantum_node in qgraph:

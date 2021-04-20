@@ -35,7 +35,7 @@ class ClusteredQuantumGraph(networkx.DiGraph):
     use API over totally minimized memory usage.
     """
 
-    def add_cluster(self, name, node_ids, label=None):
+    def add_cluster(self, name, node_ids, label=None, tags=None):
         """Add a cluster of quanta as a node in the graph.
 
         Parameters
@@ -46,8 +46,10 @@ class ClusteredQuantumGraph(networkx.DiGraph):
             NodeIds for QuantumGraph subset.
         label : `str`, optional
             Label for the cluster.  Can be used in grouping clusters.
+        tags : `dict` [`str`, `Any`], optional
+            Arbitrary tags for the cluster.
         """
-        self.add_node(name, qgraph_node_ids=node_ids, label=label)
+        self.add_node(name, qgraph_node_ids=node_ids, label=label, tags=tags)
 
     def add_node(self, node_for_adding, **attr):
         """Override add_node function to ensure that nodes are limited
