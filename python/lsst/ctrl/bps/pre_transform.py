@@ -112,7 +112,7 @@ def execute(command, filename):
         )
         buffer = os.read(process.stdout.fileno(), buffer_size).decode()
         while process.poll is None or buffer:
-            print(buffer, end='', file=fh)
+            print(buffer, end="", file=fh)
             _LOG.info(buffer)
             buffer = os.read(process.stdout.fileno(), buffer_size).decode()
         process.stdout.close()
@@ -178,8 +178,7 @@ def read_quantum_graph(qgraph_filename):
     `RuntimeError`
         If the QuantumGraph contains 0 Quanta
     """
-    with open(qgraph_filename, "rb") as fh:
-        qgraph = QuantumGraph.load(fh, DimensionUniverse())
+    qgraph = QuantumGraph.loadUri(qgraph_filename, DimensionUniverse())
     if len(qgraph) == 0:
         raise RuntimeError("QuantumGraph is empty")
     return qgraph

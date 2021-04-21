@@ -48,17 +48,19 @@ def single_quantum_clustering(config, qgraph, name):
         ClusteredQuantumGraph with single quantum per cluster created from
         given QuantumGraph.
     """
-    clustered_quantum = ClusteredQuantumGraph(name=name)
+    clustered_quantum = ClusteredQuantumGraph(name=name, qgraph=qgraph)
 
     # Save mapping of quantum nodeNumber to name so don't have to create it multiple times.
     number_to_name = {}
 
     # Create cluster of single quantum.
     for quantum_node in qgraph:
-        subgraph = qgraph.subset(quantum_node)
         label = quantum_node.taskDef.label
-        found, template = config.search('templateDataId', opt={'curvals': {'curr_pipetask': label},
-                                                               'replaceVars': False})
+        number = quantum_node.nodeId.number
+        data_id = quantum_node.quantum.dataId
+
+        found, template = config.search("templateDataId", opt={"curvals": {"curr_pipetask": label},
+                                                               "replaceVars": False})
         if found:
             template = "{node_number}_{label}_" + template
         else:
@@ -67,18 +69,26 @@ def single_quantum_clustering(config, qgraph, name):
         # Note: Can't quite reuse lsst.daf.butler.core.fileTemplates.FileTemplate as don't
         # want to require datasetType (and run) in the template.  Use defaultdict to handle
         # the missing values in template.
-        data_id = quantum_node.quantum.dataId
-        info = defaultdict(lambda: '', {k: data_id.get(k) for k in data_id.graph.names})
-        info['label'] = label
-        info['node_number'] = quantum_node.nodeId.number
+
+        # Gather info for name template into a dictionary.
+        info = data_id.to_simple()
+        info["label"] = label
+        info["node_number"] = number
         _LOG.debug("template = %s", template)
         _LOG.debug("info for template = %s", info)
-        name = template.format_map(info)
-        name = re.sub('_+', '_', name)
-        _LOG.debug("template name = %s", name)
-        number_to_name[quantum_node.nodeId.number] = name
 
-        clustered_quantum.add_cluster(name, subgraph, label)
+        # Use dictionary plus template format string to create name.
+        # To avoid key errors from generic patterns, use defaultdict
+        name = template.format_map(defaultdict(lambda: "", info))
+        name = re.sub("_+", "_", name)
+        _LOG.debug("template name = %s", name)
+
+        # Save mapping for use when creating dependencies.
+        number_to_name[number] = name
+
+        # Add cluster to the ClusteredQuantumGraph.
+        # Saving NodeId instead of number because QuantumGraph API requires it.
+        clustered_quantum.add_cluster(name, [quantum_node.nodeId], label, info)
 
     # Add cluster dependencies.
     for quantum_node in qgraph:

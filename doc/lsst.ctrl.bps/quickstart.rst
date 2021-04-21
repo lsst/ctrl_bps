@@ -265,6 +265,10 @@ you can just do the following no matter if using HTCondor or Pegasus WMS plugin:
 BPS configuration file
 ----------------------
 
+The configuration file is in YAML format.  One particular YAML
+syntax to be mindful about is that boolean values must be all
+lowercase.
+
 Configuration file can include other configuration files using
 ``includeConfigs`` with YAML array syntax. For example
 
@@ -443,6 +447,15 @@ Supported settings
     because the WMS plugin requires shared filesystem.  Defaults to False.
     HTCondor and Pegasus plugins do not need this value.
 
+**whenSaveJobQgraph**
+    When to output job QuantumGraph files (default = TRANSFORM).
+
+    * NEVER = all jobs will use full QuantumGraph file. (Warning: make sure
+      runQuantumCommand has ``--qgraph-id {qgraphId} --qgraph-node-id {qgraphNodeId}``.)
+    * TRANSFORM = Output QuantumGraph files after creating GenericWorkflow.
+    * PREPARE = QuantumGraph files are output after creating WMS submission.
+
+
 Reserved keywords
 ^^^^^^^^^^^^^^^^^
 
@@ -451,6 +464,14 @@ Reserved keywords
 
     Such a file is an alternative way to describe a science pipeline.
     However, contrary to YAML specification, it is currently not portable.
+
+**qgraphId**
+    Internal ID for the full QuantumGraph (passed as ``--qgraph-id`` on pipetask command line).
+
+**qgraphNodeId**
+    Comma-separated list of internal QuantumGraph node numbers to be
+    executed from the full QuantumGraph (passed as ``--qgraph-node-id`` on pipetask
+    command line).
 
 **timestamp**
     Created automatically by BPS at submit time that can be used in the user
@@ -462,6 +483,33 @@ Reserved keywords
    Any values shown in the example configuration file, but not covered in this
    section are examples of user-defined variables (e.g. ``inCollection``) and
    are not required by BPS.
+
+.. _job-qgraph-files:
+
+QuantumGraph Files
+------------------
+
+BPS can be configured to either create per-job QuantumGraph files or use the
+single full QuantumGraph file plus node numbers for each job. The default is
+using per-job QuantumGraph files.
+
+To use full QuantumGraph file, the submit YAML must set `whenSaveJobQgraph` to
+"NEVER" and the ``pipetask run`` command must include ``--qgraph-id {qgraphId}
+--qgraph-node-id {qgraphNodeId}``.  For example:
+
+.. code::
+
+    whenSaveJobQgraph: "NEVER"
+    runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask --long-log run -b {butlerConfig} -i {inCollection} --output {output} --output-run {outCollection} --extend-run --skip-init-writes --qgraph {qgraphFile} --qgraph-id {qgraphId} --qgraph-node-id {qgraphNodeId} --clobber-partial-outputs --no-versions"
+
+-- warning::
+
+   Do not modify the QuantumGraph options in pipetaskInit's runQuantumCommand.  It needs the entire QuantumGraph.
+
+-- note::
+
+   If running on a system with a shared filesystem, you'll more than likely want to also set bpsUseShared
+   to true.
 
 .. _bps-troubleshooting:
 

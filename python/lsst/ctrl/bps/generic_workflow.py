@@ -55,7 +55,7 @@ class GenericWorkflowFile:
         self.dest_uri = dest_uri
         self.logical_file_name = logical_file_name
 
-    __slots__ = ('name', 'wms_transfer', 'dataset_ref', 'src_uri', 'dest_uri', 'logical_file_name')
+    __slots__ = ("name", "wms_transfer", "dataset_ref", "src_uri", "dest_uri", "logical_file_name")
 
     def __hash__(self):
         return hash(self.name)
@@ -71,6 +71,7 @@ class GenericWorkflowJob:
     """
     name: str
     label: Optional[str]
+    tags: Optional[str]
     cmdline: Optional[str]
     request_memory: Optional[int]    # MB
     request_cpus: Optional[int]       # cores
@@ -91,12 +92,14 @@ class GenericWorkflowJob:
     attrs: Optional[dict]
     environment: Optional[dict]
     quantum_graph: Optional[QuantumGraph]
+    qgraph_node_ids: Optional[list]
     quanta_summary: Optional[str]
 
     # As of python 3.7.8, can't use __slots__ if give default values, so writing own __init__
     def __init__(self, name: str):
         self.name = name
         self.label = None
+        self.tags = None
         self.cmdline = None
         self.request_memory = None
         self.request_cpus = None
@@ -117,13 +120,14 @@ class GenericWorkflowJob:
         self.attrs = {}
         self.environment = {}
         self.quantum_graph = None
+        self.qgraph_node_ids = None
         self.quanta_summary = ""
 
-    __slots__ = ('name', 'label', 'mail_to', 'when_to_mail', 'cmdline', 'request_memory', 'request_cpus',
-                 'request_disk', 'request_walltime', 'compute_site', 'environment', 'number_of_retries',
-                 'retry_unless_exit', 'abort_on_value', 'abort_return_value', 'priority',
-                 'category', 'pre_cmdline', 'post_cmdline', 'profile', 'attrs',
-                 'quantum_graph', 'quanta_summary')
+    __slots__ = ("name", "label", "tags", "mail_to", "when_to_mail", "cmdline", "request_memory",
+                 "request_cpus", "request_disk", "request_walltime", "compute_site", "environment",
+                 "number_of_retries", "retry_unless_exit", "abort_on_value", "abort_return_value",
+                 "priority", "category", "pre_cmdline", "post_cmdline", "profile", "attrs",
+                 "quantum_graph", "qgraph_node_ids", "quanta_summary")
 
     def __hash__(self):
         return hash(self.name)
@@ -278,7 +282,7 @@ class GenericWorkflow(nx.DiGraph):
         job : `~lsst.ctrl.bps.generic_workflow.GenericWorkflowJob`
             Job matching given job_name.
         """
-        return self.nodes[job_name]['job']
+        return self.nodes[job_name]["job"]
 
     def del_job(self, job_name: str):
         """Delete job from generic workflow leaving connected graph.
@@ -306,7 +310,7 @@ class GenericWorkflow(nx.DiGraph):
         files : `~lsst.ctrl.bps.generic_workflow.GenericWorkflowFile` or `list`
             File object(s) to be added as inputs to the specified job.
         """
-        job_inputs = self.nodes[job_name]['inputs']
+        job_inputs = self.nodes[job_name]["inputs"]
         for file in iterable(files):
             # Save the central copy
             if file.name not in self._files:
@@ -348,7 +352,7 @@ class GenericWorkflow(nx.DiGraph):
         inputs : `list` of `~lsst.ctrl.bps.generic_workflow.GenericWorkflowFile`
             Input files for the given job.
         """
-        job_inputs = self.nodes[job_name]['inputs']
+        job_inputs = self.nodes[job_name]["inputs"]
         inputs = []
         for file_name in job_inputs:
             file = self._files[file_name]
@@ -369,7 +373,7 @@ class GenericWorkflow(nx.DiGraph):
         files : `list` of `~lsst.ctrl.bps.generic_workflow.GenericWorkflowFile`
             File objects to be added as outputs for specified job.
         """
-        job_outputs = self.nodes[job_name]['outputs']
+        job_outputs = self.nodes[job_name]["outputs"]
         for file in files:
             # Save the central copy
             if file.name not in self._files:
@@ -397,7 +401,7 @@ class GenericWorkflow(nx.DiGraph):
         outputs : `list` of `~lsst.ctrl.bps.generic_workflow.GenericWorkflowFile`
             Output files for the given job.
         """
-        job_outputs = self.nodes[job_name]['outputs']
+        job_outputs = self.nodes[job_name]["outputs"]
         outputs = []
         for file_name in job_outputs:
             file = self._files[file_name]
@@ -419,13 +423,13 @@ class GenericWorkflow(nx.DiGraph):
             Which visualization format to use.  It defaults to the format for
             the dot program.
         """
-        draw_funcs = {'dot': draw_networkx_dot}
+        draw_funcs = {"dot": draw_networkx_dot}
         if format_ in draw_funcs:
             draw_funcs[format_](self, stream)
         else:
             raise RuntimeError(f"Unknown draw format ({format_}")
 
-    def save(self, stream, format_='pickle'):
+    def save(self, stream, format_="pickle"):
         """Save the generic workflow in a format that is loadable.
 
         Parameters
@@ -437,7 +441,7 @@ class GenericWorkflow(nx.DiGraph):
         format_ : `str`, optional
             Format in which to write the data. It defaults to pickle format.
         """
-        if format_ == 'pickle':
+        if format_ == "pickle":
             nx.write_gpickle(self, stream)
         else:
             raise RuntimeError(f"Unknown format ({format_})")
@@ -460,7 +464,7 @@ class GenericWorkflow(nx.DiGraph):
         generic_workflow : `~lsst.ctrl.bps.generic_workflow.GenericWorkflow`
             Generic workflow loaded from the given stream
         """
-        if format_ == 'pickle':
+        if format_ == "pickle":
             return nx.read_gpickle(stream)
 
         raise RuntimeError(f"Unknown format ({format_})")

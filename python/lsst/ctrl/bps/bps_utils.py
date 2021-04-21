@@ -36,6 +36,7 @@ class WhenToSaveQuantumGraphs(Enum):
     TRANSFORM = 2
     PREPARE = 3
     SUBMIT = 4
+    NEVER = 5    # Always use full QuantumGraph.
 
 
 @contextlib.contextmanager
@@ -83,21 +84,23 @@ def create_job_quantum_graph_filename(job, out_prefix=None):
     return full_filename
 
 
-def save_qg_subgraph(qgraph, out_filename):
+def save_qg_subgraph(qgraph, out_filename, node_ids=None):
     """Save subgraph to file.
 
     Parameters
     ----------
-    qgraph : `~lsst.pipe.base.graph.QuantumGraph`
+    qgraph : `~lsst.pipe.base.QuantumGraph`
         QuantumGraph to save.
     out_filename : `str`
         Name of the output file.
+    node_ids : `list` of `~lsst.pipe.base.NodeId`
+        NodeIds for the subgraph to save to file.
     """
     if not os.path.exists(out_filename):
         _LOG.debug("Saving QuantumGraph with %d nodes to %s", len(qgraph), out_filename)
-        if len(os.path.dirname(out_filename)) > 0:
-            os.makedirs(os.path.dirname(out_filename), exist_ok=True)
-        with open(out_filename, "wb") as fh:
-            qgraph.save(fh)
+        if node_ids is None:
+            qgraph.saveUri(out_filename)
+        else:
+            qgraph.subset(qgraph.getQuantumNodeByNodeId(nid) for nid in node_ids).saveUri(out_filename)
     else:
         _LOG.debug("Skipping saving QuantumGraph to %s because already exists.", out_filename)
