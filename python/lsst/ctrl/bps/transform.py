@@ -217,7 +217,7 @@ def create_command(config, gwjob, gwfile):
         Bps configuration.
     gwjob : `~lsst.ctrl.bps.generic_workflow.GenericWorkflowJob`
         Job for which to create command line.
-    qwfile : `~lsst.ctrl.bps.generic_workflow.GenericWorkflowFile`
+    gwfile : `~lsst.ctrl.bps.generic_workflow.GenericWorkflowFile`
         File that will contain the QuantumGraph.
     """
     search_opt = {"curvals": {"curr_pipetask": gwjob.label}, "required": False}

@@ -59,7 +59,7 @@ class ClusteredQuantumGraph(networkx.DiGraph):
         ----------
         node_for_adding : `str` or `list` of `~lsst.pipe.base.NodeId`
             Name of cluster or cluster data (list of NodeIds).
-        attr :
+        attr : keyword arguments, optional
             Attributes to be saved with node in graph.
         """
         if isinstance(node_for_adding, list):
@@ -67,13 +67,16 @@ class ClusteredQuantumGraph(networkx.DiGraph):
             attr["qgraph_node_ids"] = node_for_adding
         elif "qgraph_node_ids" in attr:
             if not isinstance(attr["qgraph_node_ids"], list):
-                raise RuntimeError("Invalid type for qgraph_node_ids attribute.")
+                raise RuntimeError(f"Invalid type {type(attr['qgraph_node_ids'])}"
+                                   " for qgraph_node_ids attribute; should be list.")
             name = node_for_adding
         else:
             raise RuntimeError("Missing qgraph_node_ids attribute.")
 
         if "label" not in attr:
             attr["label"] = None
+        if "tags" not in attr:
+            attr["tags"] = None
         super().add_node(name, **attr)
 
     def add_nodes_from(self, nodes_for_adding, **attr):

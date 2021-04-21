@@ -493,7 +493,7 @@ BPS can be configured to either create per-job QuantumGraph files or use the
 single full QuantumGraph file plus node numbers for each job. The default is
 using per-job QuantumGraph files.
 
-To use full QuantumGraph file, the submit yaml must set `whenSaveJobQgraph` to
+To use full QuantumGraph file, the submit YAML must set `whenSaveJobQgraph` to
 "NEVER" and the ``pipetask run`` command must include ``--qgraph-id {qgraphId}
 --qgraph-node-id {qgraphNodeId}``.  For example:
 
