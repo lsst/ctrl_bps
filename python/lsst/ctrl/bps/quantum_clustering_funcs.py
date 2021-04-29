@@ -71,7 +71,7 @@ def single_quantum_clustering(config, qgraph, name):
         # the missing values in template.
 
         # Gather info for name template into a dictionary.
-        info = data_id.to_simple()
+        info = data_id.byName()
         info["label"] = label
         info["node_number"] = number
         _LOG.debug("template = %s", template)
