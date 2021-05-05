@@ -18,11 +18,16 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-from ...bps_config import BpsConfig
-from ...submit import BPS_SEARCH_ORDER, create_submission
+from lsst.ctrl.bps import BpsConfig
+from lsst.ctrl.bps.submit import (
+    BPS_SEARCH_ORDER,
+    init_runtime_env,
+    create_clustered_qgraph,
+    create_generic_workflow,
+)
 
 
-def _prepare(config_file, **kwargs):
+def cli_transform(config_file, **kwargs):
     """Create a workflow for a specific workflow management system.
 
     Parameters
@@ -32,13 +37,15 @@ def _prepare(config_file, **kwargs):
 
     Returns
     -------
-    config : `lsst.ctrl.bps.BpsConfig`
+    generic_workflow_config : `lsst.ctrl.bps.BpsConfig`
         Configuration to use when creating the workflow.
-    workflow : `lsst.ctrl.bps.wms_workflow.BaseWmsWorkflow`
+    generic_workflow : `lsst.ctrl.bps.wms_workflow.BaseWmsWorkflow`
         Representation of the abstract/scientific workflow specific to a given
         workflow management system.
     """
     config = BpsConfig(config_file, BPS_SEARCH_ORDER)
-    workflow = create_submission(config)
-    print(f"Submit dir: {workflow.submit_path}")
-    return config, workflow
+    config = init_runtime_env(config)
+    clustered_qgraph_config, clustered_qgraph = create_clustered_qgraph(config)
+    generic_workflow_config, generic_workflow = create_generic_workflow(clustered_qgraph_config,
+                                                                        clustered_qgraph)
+    return generic_workflow_config, generic_workflow

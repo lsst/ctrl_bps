@@ -18,7 +18,8 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-from .prepare import _prepare as prepare
-from .report import _report as report
-from .submit import _submit as submit
+from .cli_transform import cli_transform
+from .cli_prepare import cli_prepare
+from .cli_submit import cli_submit
 from .cli_cancel import cli_cancel
+from .cli_report import cli_report

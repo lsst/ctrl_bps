@@ -17,8 +17,21 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+from lsst.ctrl.bps.submit import submit
 
-__all__ = ["transform", "prepare", "submit", "report", "cancel"]
 
-from .commands import transform, prepare, report, submit, cancel
+def cli_submit(wms_workflow_config, wms_workflow, **kwargs):
+    """Submit workflow for execution.
+
+    Parameters
+    ----------
+    wms_workflow_config : `lsst.ctrl.bps.BpsConfig`
+        Configuration to use when submitting the workflow for execution.
+    wms_workflow : `lsst.ctrl.bps.wms_workflow.BaseWmsWorkflow`
+        Representation of the abstract/scientific workflow specific to a given
+        workflow management system.
+    **kwargs
+        Additional keyword arguments.
+    """
+    submit(wms_workflow_config, wms_workflow)

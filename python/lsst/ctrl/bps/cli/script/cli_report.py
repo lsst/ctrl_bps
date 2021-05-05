@@ -21,10 +21,10 @@
 """Main function for report subcommand
 """
 from lsst.utils import doImport
-from ...report import print_headers, print_run, print_single_run_summary
+from lsst.ctrl.bps.report import print_headers, print_run, print_single_run_summary
 
 
-def _report(wms_service, user, run_id, hist_days, pass_thru):
+def cli_report(wms_service, user, run_id, hist_days, pass_thru):
     """Print out summary of jobs submitted for execution.
 
     Parameters

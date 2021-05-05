@@ -18,19 +18,28 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-from ...submit import submit
+from lsst.ctrl.bps.submit import create_wms_workflow
 
 
-def _submit(config, workflow, **kwargs):
-    """Submit workflow for execution.
+def cli_prepare(generic_workflow_config, generic_workflow, **kwargs):
+    """Create a workflow for a specific workflow management system.
 
     Parameters
     ----------
-    config : `lsst.ctrl.bps.BpsConfig`
-        Configuration to use when submitting the workflow for execution.
+    generic_workflow_config : `lsst.ctrl.bps.BpsConfig`
+        Configuration to use when creating the workflow.
+    generic_workflow : `lsst.ctrl.bps.wms_workflow.BaseWmsWorkflow`
+        Representation of the abstract/scientific workflow specific to a given
+    **kwargs
+        Additional keyword arguments.
+
+    Returns
+    -------
+    wms_config : `lsst.ctrl.bps.BpsConfig`
+        Configuration to use when creating the workflow.
     workflow : `lsst.ctrl.bps.wms_workflow.BaseWmsWorkflow`
         Representation of the abstract/scientific workflow specific to a given
         workflow management system.
     """
-    submit(config, workflow)
-    print(f"Run Id: {workflow.run_id}")
+    wms_workflow_config, wms_workflow = create_wms_workflow(generic_workflow_config, generic_workflow)
+    return wms_workflow_config, wms_workflow

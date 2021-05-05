@@ -20,10 +20,16 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Subcommand definitions.
 """
+import logging
+import time
+
 import click
 from lsst.daf.butler.cli.utils import MWCommand
 from .. import opt
 from .. import script
+
+
+_LOG = logging.getLogger()
 
 
 class BpsCommand(MWCommand):
@@ -35,9 +41,9 @@ class BpsCommand(MWCommand):
 @click.command(cls=BpsCommand)
 @opt.config_file_argument(required=True)
 def transform(*args, **kwargs):
-    """Transform a quantum graph to a workflow graph.
+    """Transform a quantum graph to a generic workflow.
     """
-    raise NotImplementedError
+    script.cli_transform(*args, **kwargs)
 
 
 @click.command(cls=BpsCommand)
@@ -45,7 +51,11 @@ def transform(*args, **kwargs):
 def prepare(*args, **kwargs):
     """Prepare a workflow for submission.
     """
-    script.prepare(*args, **kwargs)
+    start = time.time()
+    generic_workflow_config, generic_workflow = script.cli_transform(*args, **kwargs)
+    _, wms_workflow = script.cli_prepare(generic_workflow_config, generic_workflow, **kwargs)
+    _LOG.info("Total submission creation time = %.2f", time.time() - start)
+    print(f"Submit dir: {wms_workflow.submit_path}")
 
 
 @click.command(cls=BpsCommand)
@@ -53,8 +63,11 @@ def prepare(*args, **kwargs):
 def submit(*args, **kwargs):
     """Submit a workflow for execution.
     """
-    config, workflow = script.prepare(*args, **kwargs)
-    script.submit(config=config, workflow=workflow, **kwargs)
+    generic_workflow_config, generic_workflow = script.cli_transform(*args, **kwargs)
+    wms_workflow_config, wms_workflow = script.cli_prepare(generic_workflow_config, generic_workflow,
+                                                           **kwargs)
+    script.cli_submit(wms_workflow_config, wms_workflow, **kwargs)
+    print(f"Run Id: {wms_workflow.run_id}")
 
 
 @click.command(cls=BpsCommand)
@@ -73,7 +86,7 @@ def submit(*args, **kwargs):
 def report(*args, **kwargs):
     """Display execution status for submitted workflows.
     """
-    script.report(*args, **kwargs)
+    script.cli_report(*args, **kwargs)
 
 
 @click.command(cls=BpsCommand)
