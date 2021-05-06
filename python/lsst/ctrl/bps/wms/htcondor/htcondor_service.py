@@ -28,6 +28,7 @@ import re
 import logging
 from datetime import datetime, timedelta
 from pathlib import Path
+
 import htcondor
 
 from lsst.ctrl.bps.bps_utils import chdir

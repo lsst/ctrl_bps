@@ -24,6 +24,7 @@ import logging
 import time
 
 import click
+
 from lsst.daf.butler.cli.utils import MWCommand
 from .. import opt
 from .. import script

@@ -25,6 +25,7 @@
 import dataclasses
 import itertools
 from typing import Optional
+
 import networkx as nx
 
 from lsst.daf.butler.core.utils import iterable
