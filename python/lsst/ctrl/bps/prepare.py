@@ -27,7 +27,7 @@ import logging
 from lsst.utils import doImport
 from .bps_utils import save_qg_subgraph, WhenToSaveQuantumGraphs, create_job_quantum_graph_filename
 
-_LOG = logging.getLogger()
+_LOG = logging.getLogger(__name__)
 
 
 def prepare(config, generic_workflow, out_prefix):

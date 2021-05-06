@@ -41,7 +41,7 @@ log4j.appender.A1.layout=PatternLayout
 log4j.appender.A1.layout.ConversionPattern={}
 """
 
-_LOG = logging.getLogger()
+_LOG = logging.getLogger(__name__)
 
 
 def print_headers():

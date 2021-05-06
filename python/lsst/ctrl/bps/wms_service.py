@@ -26,7 +26,7 @@ import dataclasses
 from abc import ABCMeta
 from enum import Enum
 
-_LOG = logging.getLogger()
+_LOG = logging.getLogger(__name__)
 
 
 class WmsStates(Enum):

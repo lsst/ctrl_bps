@@ -31,7 +31,7 @@ import string
 
 from lsst.daf.butler.core.config import Config
 
-_LOG = logging.getLogger()
+_LOG = logging.getLogger(__name__)
 
 
 class BpsFormatter(string.Formatter):

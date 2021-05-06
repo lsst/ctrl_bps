@@ -31,7 +31,7 @@ from .generic_workflow import GenericWorkflow, GenericWorkflowJob, GenericWorkfl
 from .bps_utils import save_qg_subgraph, WhenToSaveQuantumGraphs, create_job_quantum_graph_filename
 
 
-_LOG = logging.getLogger()
+_LOG = logging.getLogger(__name__)
 
 
 def transform(config, clustered_quantum_graph, prefix):

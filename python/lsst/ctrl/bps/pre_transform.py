@@ -35,7 +35,7 @@ from lsst.daf.butler import DimensionUniverse
 from lsst.pipe.base.graph import QuantumGraph
 from lsst.utils import doImport
 
-_LOG = logging.getLogger()
+_LOG = logging.getLogger(__name__)
 
 
 def pre_transform(config, out_prefix=None):

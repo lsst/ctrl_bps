@@ -27,7 +27,7 @@ import contextlib
 import logging
 from enum import Enum
 
-_LOG = logging.getLogger()
+_LOG = logging.getLogger(__name__)
 
 
 class WhenToSaveQuantumGraphs(Enum):

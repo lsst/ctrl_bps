@@ -29,7 +29,7 @@ from .. import opt
 from .. import script
 
 
-_LOG = logging.getLogger()
+_LOG = logging.getLogger(__name__)
 
 
 class BpsCommand(MWCommand):

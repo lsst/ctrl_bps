@@ -37,7 +37,7 @@ from .lssthtc import (htc_submit_dag, read_node_status, read_dag_log, condor_q, 
                       HTCJob, JobStatus, NodeStatus, htc_escape, read_dag_status, summary_from_dag,
                       htc_check_dagman_output, MISSING_ID, pegasus_name_to_label)
 
-_LOG = logging.getLogger()
+_LOG = logging.getLogger(__name__)
 
 
 class HTCondorService(BaseWmsService):

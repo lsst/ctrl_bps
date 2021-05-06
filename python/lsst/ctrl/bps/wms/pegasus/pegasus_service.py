@@ -37,7 +37,7 @@ from lsst.ctrl.bps.wms_service import BaseWmsService, BaseWmsWorkflow
 from lsst.ctrl.bps.wms.htcondor.lssthtc import htc_write_attribs
 from lsst.ctrl.bps.wms.htcondor.htcondor_service import HTCondorService
 
-_LOG = logging.getLogger()
+_LOG = logging.getLogger(__name__)
 
 
 class PegasusService(BaseWmsService):

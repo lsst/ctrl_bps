@@ -48,7 +48,7 @@ import htcondor
 
 # from ...wms_service import WmsRunReport, WmsJobReport, WmsStates
 
-_LOG = logging.getLogger()
+_LOG = logging.getLogger(__name__)
 
 
 MISSING_ID = -99999
