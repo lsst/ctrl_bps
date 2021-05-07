@@ -377,6 +377,9 @@ def _translate_job_cmds(generic_workflow_job):
     if generic_workflow_job.when_to_mail:
         jobcmds["notification"] = generic_workflow_job.when_to_mail
 
+    if generic_workflow_job.request_cpus:
+        jobcmds["request_cpus"] = generic_workflow_job.request_cpus
+
     if generic_workflow_job.request_disk:
         jobcmds["request_disk"] = f"{generic_workflow_job.request_disk}MB"
 
