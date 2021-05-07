@@ -18,7 +18,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-"""Main function for report subcommand
+"""Driver function for report subcommand.
 """
 from lsst.utils import doImport
 from lsst.ctrl.bps.report import print_headers, print_run, print_single_run_summary
