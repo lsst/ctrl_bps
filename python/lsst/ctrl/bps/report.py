@@ -32,14 +32,6 @@ from .wms_service import WmsStates
 
 SUMMARY_FMT = "{:1} {:>10} {:>3} {:>9} {:10} {:10} {:20} {:20} {:<60}"
 
-# logging properties
-_LOG_PROP = """\
-log4j.rootLogger=INFO, A1
-log4j.appender.A1=ConsoleAppender
-log4j.appender.A1.Target=System.err
-log4j.appender.A1.layout=PatternLayout
-log4j.appender.A1.layout.ConversionPattern={}
-"""
 
 _LOG = logging.getLogger(__name__)
 

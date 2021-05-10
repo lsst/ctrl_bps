@@ -40,14 +40,6 @@ from .transform import transform
 # Config section search order
 BPS_SEARCH_ORDER = ["payload", "pipetask", "site", "bps_defined"]
 
-# logging properties
-_LOG_PROP = """\
-log4j.rootLogger=INFO, A1
-log4j.appender.A1=ConsoleAppender
-log4j.appender.A1.Target=System.err
-log4j.appender.A1.layout=PatternLayout
-log4j.appender.A1.layout.ConversionPattern={}
-"""
 
 _LOG = logging.getLogger(__name__)
 
