@@ -455,6 +455,36 @@ Supported settings
     * TRANSFORM = Output QuantumGraph files after creating GenericWorkflow.
     * PREPARE = QuantumGraph files are output after creating WMS submission.
 
+**saveClusteredQgraph**
+    A boolean flag.  If set to true, BPS will save serialized clustered quantum
+    graph to a file called ``bps_clustered_qgraph.pickle`` using Python's
+    `pickle`_ module.  The file will be located in the submit directory.  By
+    default, it is set to false.
+
+    Setting it to true will significantly increase memory requirements
+    when submitting large workflows as `pickle`_ constructs a complete
+    copy of the object in memory before it writes it to disk. [`ref`_]
+
+**saveGenericWorkflow**
+    A boolean flag.  If set to true, BPS will save serialized generic workflow
+    called to a file called ``bps_generic_workflow.pickle`` using Python's
+    `pickle`_ module. The file will be located in the submit directory.  By
+    default, it is set to false.
+
+**saveDot**
+    A boolean flag.  If set to true, BPS will generate graphical
+    representations of both the clustered quantum graph and the generic
+    workflow in DOT format.  The files will be located in the submit directory
+    and their names will be ``bps_clustered_qgraph.dot`` and
+    ``bps_generic_workflow.dot``, respectively.  By default, it is set to
+    false.
+
+    It is recommended to use this option only when working with small
+    graphs/workflows.  The plots will be practically illegible for graphs which
+    number of nodes exceeds order of tens.
+
+.. _pickle: https://docs.python.org/3/library/pickle.html
+.. _ref: https://stackoverflow.com/a/38971446
 
 Reserved keywords
 ^^^^^^^^^^^^^^^^^
