@@ -108,8 +108,10 @@ def create_submission(config):
     config['.bps_defined.run_qgraph_file'] = qgraph_file
     clustered_qgraph = cluster_quanta(config, qgraph, config["uniqProcName"])
     _LOG.info("Pre-transform steps took %.2f seconds", time.time() - stime)
-    with open(os.path.join(submit_path, "bps_clustered_qgraph.pickle"), 'wb') as outfh:
-        pickle.dump(clustered_qgraph, outfh)
+    _, save_clustered_qgraph = config.search("saveClusteredQgraph", opt={"default": False})
+    if save_clustered_qgraph:
+        with open(os.path.join(submit_path, "bps_clustered_qgraph.pickle"), 'wb') as outfh:
+            pickle.dump(clustered_qgraph, outfh)
     _, save_dot = config.search("saveDot", opt={"default": False})
     if save_dot:
         draw_networkx_dot(clustered_qgraph, os.path.join(submit_path, "bps_clustered_qgraph.dot"))
@@ -119,10 +121,12 @@ def create_submission(config):
     generic_workflow, generic_workflow_config = transform(config, clustered_qgraph, submit_path)
     _LOG.info("Creating Generic Workflow took %.2f seconds", time.time() - stime)
     _LOG.info("Generic Workflow name %s", generic_workflow.name)
-    with open(os.path.join(submit_path, "bps_generic_workflow.pickle"), 'wb') as outfh:
-        generic_workflow.save(outfh, 'pickle')
+    _, save_workflow = config.search("saveGenericWorkflow", opt={"default": False})
+    if save_workflow:
+        with open(os.path.join(submit_path, "bps_generic_workflow.pickle"), 'wb') as outfh:
+            generic_workflow.save(outfh, 'pickle')
     if save_dot:
-        with open(os.path.join(submit_path, "bps_generic_workflow.dot"), 'wb') as outfh:
+        with open(os.path.join(submit_path, "bps_generic_workflow.dot"), 'w') as outfh:
             generic_workflow.draw(outfh, 'dot')
 
     stime = time.time()
