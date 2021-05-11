@@ -126,7 +126,7 @@ def create_submission(config):
         with open(os.path.join(submit_path, "bps_generic_workflow.pickle"), 'wb') as outfh:
             generic_workflow.save(outfh, 'pickle')
     if save_dot:
-        with open(os.path.join(submit_path, "bps_generic_workflow.dot"), 'wb') as outfh:
+        with open(os.path.join(submit_path, "bps_generic_workflow.dot"), 'w') as outfh:
             generic_workflow.draw(outfh, 'dot')
 
     stime = time.time()
