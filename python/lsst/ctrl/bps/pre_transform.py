@@ -25,15 +25,16 @@ into memory.
 """
 
 import logging
-import subprocess
 import os
 import shlex
 import shutil
+import subprocess
 import time
 
 from lsst.daf.butler import DimensionUniverse
 from lsst.pipe.base.graph import QuantumGraph
 from lsst.utils import doImport
+
 
 _LOG = logging.getLogger(__name__)
 

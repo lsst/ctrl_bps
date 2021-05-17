@@ -20,17 +20,17 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Subcommand definitions.
 """
-import logging
-import time
-
 import click
 
 from lsst.daf.butler.cli.utils import MWCommand
+from lsst.ctrl.bps.drivers import (
+    transform_driver,
+    prepare_driver,
+    submit_driver,
+    report_driver,
+    cancel_driver
+)
 from .. import opt
-from .. import script
-
-
-_LOG = logging.getLogger(__name__)
 
 
 class BpsCommand(MWCommand):
@@ -44,7 +44,7 @@ class BpsCommand(MWCommand):
 def transform(*args, **kwargs):
     """Transform a quantum graph to a generic workflow.
     """
-    script.cli_transform(*args, **kwargs)
+    transform_driver(*args, **kwargs)
 
 
 @click.command(cls=BpsCommand)
@@ -52,11 +52,7 @@ def transform(*args, **kwargs):
 def prepare(*args, **kwargs):
     """Prepare a workflow for submission.
     """
-    start = time.time()
-    generic_workflow_config, generic_workflow = script.cli_transform(*args, **kwargs)
-    _, wms_workflow = script.cli_prepare(generic_workflow_config, generic_workflow, **kwargs)
-    _LOG.info("Total submission creation time = %.2f", time.time() - start)
-    print(f"Submit dir: {wms_workflow.submit_path}")
+    prepare_driver(*args, **kwargs)
 
 
 @click.command(cls=BpsCommand)
@@ -64,11 +60,7 @@ def prepare(*args, **kwargs):
 def submit(*args, **kwargs):
     """Submit a workflow for execution.
     """
-    generic_workflow_config, generic_workflow = script.cli_transform(*args, **kwargs)
-    wms_workflow_config, wms_workflow = script.cli_prepare(generic_workflow_config, generic_workflow,
-                                                           **kwargs)
-    script.cli_submit(wms_workflow_config, wms_workflow, **kwargs)
-    print(f"Run Id: {wms_workflow.run_id}")
+    submit_driver(*args, **kwargs)
 
 
 @click.command(cls=BpsCommand)
@@ -87,7 +79,7 @@ def submit(*args, **kwargs):
 def report(*args, **kwargs):
     """Display execution status for submitted workflows.
     """
-    script.cli_report(*args, **kwargs)
+    report_driver(*args, **kwargs)
 
 
 @click.command(cls=BpsCommand)
@@ -105,4 +97,4 @@ def report(*args, **kwargs):
 def cancel(*args, **kwargs):
     """Cancel submitted workflow(s).
     """
-    script.cli_cancel(*args, **kwargs)
+    cancel_driver(*args, **kwargs)
