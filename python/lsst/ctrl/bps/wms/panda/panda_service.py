@@ -22,12 +22,14 @@
 import os
 import logging
 import binascii
+import concurrent.futures
+import pickle
 
 from lsst.ctrl.bps.wms_service import BaseWmsWorkflow, BaseWmsService
 from lsst.ctrl.bps.wms.panda.idds_tasks import IDDSWorkflowGenerator
 from lsst.daf.butler import ButlerURI
 from idds.workflow.workflow import Workflow as IDDS_client_workflow
-from idds.doma.workflow.domalsstwork import DomaLSSTWork
+from idds.doma.workflow.domapandawork import DomaPanDAWork
 import idds.common.constants as idds_constants
 import idds.common.utils as idds_utils
 import pandatools.idds_api
@@ -112,7 +114,7 @@ class PanDAService(BaseWmsService):
         idds_client_workflow = IDDS_client_workflow()
 
         for idx, task in enumerate(workflow.generated_tasks):
-            work = DomaLSSTWork(
+            work = DomaPanDAWork(
                 executable=self.add_decoder_prefix(task.executable),
                 primary_input_collection={'scope': 'pseudo_dataset',
                                           'name': 'pseudo_input_collection#' + str(idx)},
@@ -120,11 +122,13 @@ class PanDAService(BaseWmsService):
                                      'name': 'pseudo_output_collection#' + str(idx)}],
                 log_collections=[], dependency_map=task.dependencies,
                 task_name=task.name,
-                task_queue=task.queue)
+                task_queue=task.queue,
+                task_log={"destination": "local", "value": "log.tgz", "dataset": "PandaJob_#{pandaid}/", "token": "local", "param_type": "log", "type": "template"}
+            )
             idds_client_workflow.add_work(work)
         idds_request = {
             'scope': 'workflow',
-            'name': idds_client_workflow.get_name(),
+            'name': workflow.name,
             'requester': 'panda',
             'request_type': idds_constants.RequestType.Workflow,
             'transform_tag': 'workflow',
@@ -137,9 +141,9 @@ class PanDAService(BaseWmsService):
         }
         primary_init_work = idds_client_workflow.get_primary_initial_collection()
         if primary_init_work:
-            idds_request['scope'] = primary_init_work['scope']
-            idds_request['name'] = primary_init_work['name']
-        c = pandatools.idds_api.get_api(idds_utils.json_dumps)
+            idds_request['scope'] = primary_init_work.scope
+
+        c = pandatools.idds_api.get_api(idds_utils.json_dumps, idds_host=self.config.get('idds_server'), compress=True)
         request_id = c.add_request(**idds_request)
         _LOG.info("Submitted into iDDs with request id=%i", request_id)
         workflow.run_id = request_id
@@ -196,8 +200,7 @@ class PandaBpsWmsWorkflow(BaseWmsWorkflow):
         idds_workflow.generated_tasks = workflow_generator.define_tasks()
         cloud_prefix = config['bucket'] + '/' + \
             config['payload_folder'] + '/' + config['workflowName'] + '/'
-        for task in idds_workflow.generated_tasks:
-            cls.copy_pickles_into_cloud(task.local_pfns, cloud_prefix)
+        cls.copy_pickles_into_cloud([config['bps_defined']['run_qgraph_file']], cloud_prefix)
         _LOG.debug("panda dag attribs %s", generic_workflow.run_attrs)
         return idds_workflow
 
@@ -213,11 +216,22 @@ class PandaBpsWmsWorkflow(BaseWmsWorkflow):
         cloud_prefix: `str`
             Path on the cloud, including access protocol, bucket name to place files
         """
+
+        copy_executor = concurrent.futures.ThreadPoolExecutor(max_workers=10)
+        future_file_copy = []
         for src_path in local_pfns:
             src = ButlerURI(src_path)
             target_base_uri = ButlerURI(cloud_prefix)
+
+            # S3 clients explicitly instantiate here to overpass this
+            # https://stackoverflow.com/questions/52820971/is-boto3-client-thread-safe
+            target_base_uri.exists()
+            src.exists()
+
             target = target_base_uri.join(os.path.basename(src_path))
-            target.transfer_from(src)
+            future_file_copy.append(copy_executor.submit(target.transfer_from, src))
+        for future in concurrent.futures.as_completed(future_file_copy):
+            future.result()
 
     def write(self, out_prefix):
         """
