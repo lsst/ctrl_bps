@@ -23,7 +23,6 @@ import os
 import logging
 import binascii
 import concurrent.futures
-import pickle
 
 from lsst.ctrl.bps.wms_service import BaseWmsWorkflow, BaseWmsService
 from lsst.ctrl.bps.wms.panda.idds_tasks import IDDSWorkflowGenerator
@@ -123,7 +122,8 @@ class PanDAService(BaseWmsService):
                 log_collections=[], dependency_map=task.dependencies,
                 task_name=task.name,
                 task_queue=task.queue,
-                task_log={"destination": "local", "value": "log.tgz", "dataset": "PandaJob_#{pandaid}/", "token": "local", "param_type": "log", "type": "template"}
+                task_log={"destination": "local", "value": "log.tgz", "dataset": "PandaJob_#{pandaid}/",
+                          "token": "local", "param_type": "log", "type": "template"}
             )
             idds_client_workflow.add_work(work)
         idds_request = {
@@ -143,7 +143,8 @@ class PanDAService(BaseWmsService):
         if primary_init_work:
             idds_request['scope'] = primary_init_work.scope
 
-        c = pandatools.idds_api.get_api(idds_utils.json_dumps, idds_host=self.config.get('idds_server'), compress=True)
+        c = pandatools.idds_api.get_api(idds_utils.json_dumps,
+                                        idds_host=self.config.get('idds_server'), compress=True)
         request_id = c.add_request(**idds_request)
         _LOG.info("Submitted into iDDs with request id=%i", request_id)
         workflow.run_id = request_id

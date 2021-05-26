@@ -96,7 +96,8 @@ class IDDSWorkflowGenerator:
             task = RubinTask()
             task.step = task_name
             task.name = task.step
-            task.queue = self.computing_queue_himem if self.tasks_steps[task_name] in self.himem_tasks else self.computing_queue
+            task.queue = self.computing_queue_himem if self.tasks_steps[task_name] \
+                                                       in self.himem_tasks else self.computing_queue
             task.lfns = list(jobs)
             task.maxattempt = self.maxattempt
             task.maxwalltime = self.maxwalltime
@@ -138,7 +139,8 @@ class IDDSWorkflowGenerator:
                 input_files_dependencies = []
                 for taskname, files in job_dependency.items():
                     for file in files:
-                        input_files_dependencies.append({"task": taskname, "inputname": file, "available": False})
+                        input_files_dependencies.append({"task": taskname,
+                                                         "inputname": file, "available": False})
                 job_dep["dependencies"] = input_files_dependencies
                 task_dependencies.append(job_dep)
             task.dependencies = task_dependencies
@@ -155,13 +157,15 @@ class IDDSWorkflowGenerator:
         for edge in self.bps_workflow.in_edges():
             dependency_map.setdefault(self.get_pseudo_input_file_name(edge[1]), []).\
                 append(self.get_pseudo_input_file_name(edge[0]))
-            self.jobs_steps[self.get_pseudo_input_file_name(edge[1])] = self.bps_workflow.nodes.get(edge[1]).get('job').label
+            self.jobs_steps[self.get_pseudo_input_file_name(edge[1])] = \
+                self.bps_workflow.nodes.get(edge[1]).get('job').label
         all_nodes = list(self.bps_workflow.nodes())
         nodes_from_edges = set(list(dependency_map.keys()))
         extra_nodes = [node for node in all_nodes if node not in nodes_from_edges]
         for node in extra_nodes:
             dependency_map.setdefault(self.get_pseudo_input_file_name(node), [])
-            self.jobs_steps[self.get_pseudo_input_file_name(node)] = self.bps_workflow.nodes.get(node).get('job').label
+            self.jobs_steps[self.get_pseudo_input_file_name(node)] = \
+                self.bps_workflow.nodes.get(node).get('job').label
         return dependency_map
 
     def split_map_over_tasks(self, raw_dependency_map):
@@ -187,8 +191,6 @@ class IDDSWorkflowGenerator:
         """
         tasks_dependency_map = {}
         for job, dependency in raw_dependency_map.items():
-            #file_name = self.get_input_file(job)
-            #file_local_src = self.bps_workflow.nodes.get(job).get("inputs")[file_name].src_uri
             tasks_dependency_map.setdefault(self.define_task_name(self.jobs_steps[job]), {})[job] = \
                 self.split_dependencies_by_tasks(dependency)
             self.tasks_inputs.setdefault(self.define_task_name(
@@ -215,7 +217,8 @@ class IDDSWorkflowGenerator:
         """
         dependencies_by_tasks = {}
         for dependency in dependencies:
-            dependencies_by_tasks.setdefault(self.define_task_name(self.jobs_steps[dependency]), []).append(dependency)
+            dependencies_by_tasks.setdefault(self.define_task_name(
+                self.jobs_steps[dependency]), []).append(dependency)
         return dependencies_by_tasks
 
     def get_input_file(self, job_name):
@@ -236,8 +239,7 @@ class IDDSWorkflowGenerator:
         qgraph_node_ids = self.bps_workflow.nodes.get(jobname).get("job").qgraph_node_ids
         if qgraph_node_ids:
             pseudo_input_file_name = self.qgraph_file+"+"+jobname + "+" + qgraph_node_ids[0].buildId + \
-                               "+" + str(qgraph_node_ids[0].number)
+                "+" + str(qgraph_node_ids[0].number)
         else:
             pseudo_input_file_name = self.qgraph_file+"+"+jobname
         return pseudo_input_file_name
-
