@@ -97,7 +97,7 @@ class IDDSWorkflowGenerator:
             task.step = task_name
             task.name = task.step
             task.queue = self.computing_queue_himem if self.tasks_steps[task_name] \
-                                                       in self.himem_tasks else self.computing_queue
+                in self.himem_tasks else self.computing_queue
             task.lfns = list(jobs)
             task.maxattempt = self.maxattempt
             task.maxwalltime = self.maxwalltime
