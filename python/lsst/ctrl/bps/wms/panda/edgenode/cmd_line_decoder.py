@@ -7,5 +7,9 @@ stripped such as ',",` and multiline commands.
 import sys
 import binascii
 cmdline = str(binascii.unhexlify(sys.argv[1]).decode())
-cmdline = cmdline.replace("${IN/L}", sys.argv[2])
+dataparams = sys.argv[2].split("+")
+cmdline = cmdline.replace("${filename}", dataparams[0])
+if len(dataparams) > 2:
+    cmdline = cmdline.replace("${qgraph-id}", dataparams[1])
+    cmdline = cmdline.replace("${qgraph-node-id}", dataparams[2])
 print(cmdline)
