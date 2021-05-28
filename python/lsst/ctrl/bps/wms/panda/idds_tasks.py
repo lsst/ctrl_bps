@@ -1,7 +1,7 @@
 """
 
 """
-import ntpath
+import os.path
 from dataclasses import dataclass
 
 
@@ -45,7 +45,7 @@ class IDDSWorkflowGenerator:
         self.himem_tasks = set(config.get("himem_steps"))
         self.computing_queue = config.get("computing_queue")
         self.computing_queue_himem = config.get("computing_queue_himem")
-        self.qgraph_file = ntpath.basename(config['bps_defined']['run_qgraph_file'])
+        self.qgraph_file = os.path.basename(config['bps_defined']['run_qgraph_file'])
         _, v = config.search("maxwalltime", opt={"default": 90000})
         self.maxwalltime = v
         _, v = config.search("maxattempt", opt={"default": 5})
@@ -130,7 +130,7 @@ class IDDSWorkflowGenerator:
         """
         for task in tasks:
             jobs = tasks_dependency_map[task.step]
-            task_dependencies = []
+            task.dependencies = []
             for job, job_dependency in jobs.items():
                 job_dep = {
                     "name": job,
@@ -142,8 +142,7 @@ class IDDSWorkflowGenerator:
                         input_files_dependencies.append({"task": taskname,
                                                          "inputname": file, "available": False})
                 job_dep["dependencies"] = input_files_dependencies
-                task_dependencies.append(job_dep)
-            task.dependencies = task_dependencies
+                task.dependencies.append(job_dep)
 
     def create_raw_jobs_dependency_map(self):
         """ Compute the DAG nodes dependency map (node - list of nodes) for each node in the workflow DAG
@@ -155,17 +154,17 @@ class IDDSWorkflowGenerator:
         """
         dependency_map = {}
         for edge in self.bps_workflow.in_edges():
-            dependency_map.setdefault(self.get_pseudo_input_file_name(edge[1]), []).\
-                append(self.get_pseudo_input_file_name(edge[0]))
-            self.jobs_steps[self.get_pseudo_input_file_name(edge[1])] = \
-                self.bps_workflow.nodes.get(edge[1]).get('job').label
+            dependency_map.setdefault(self.create_pseudo_input_file_name(edge[1]), []).\
+                append(self.create_pseudo_input_file_name(edge[0]))
+            self.jobs_steps[self.create_pseudo_input_file_name(edge[1])] = \
+                self.bps_workflow.get_job(edge[1]).label
         all_nodes = list(self.bps_workflow.nodes())
         nodes_from_edges = set(list(dependency_map.keys()))
         extra_nodes = [node for node in all_nodes if node not in nodes_from_edges]
         for node in extra_nodes:
-            dependency_map.setdefault(self.get_pseudo_input_file_name(node), [])
-            self.jobs_steps[self.get_pseudo_input_file_name(node)] = \
-                self.bps_workflow.nodes.get(node).get('job').label
+            dependency_map.setdefault(self.create_pseudo_input_file_name(node), [])
+            self.jobs_steps[self.create_pseudo_input_file_name(node)] = \
+                self.bps_workflow.get_job(node).label
         return dependency_map
 
     def split_map_over_tasks(self, raw_dependency_map):
@@ -235,11 +234,23 @@ class IDDSWorkflowGenerator:
         """
         return next(iter(self.bps_workflow.nodes.get(job_name).get("inputs")))
 
-    def get_pseudo_input_file_name(self, jobname):
-        qgraph_node_ids = self.bps_workflow.nodes.get(jobname).get("job").qgraph_node_ids
+    def create_pseudo_input_file_name(self, job_name):
+        """ Creates the pseudo input file name to provide exact location of data to be processed in terms
+        of pickle file and node
+
+        Parameters
+        ----------
+        job_name: `str`
+            the name of the node in workflow DAG
+
+        Returns
+        -------
+        pseudo input file name
+        """
+        qgraph_node_ids = self.bps_workflow.nodes.get(job_name).get("job").qgraph_node_ids
         if qgraph_node_ids:
-            pseudo_input_file_name = self.qgraph_file+"+"+jobname + "+" + qgraph_node_ids[0].buildId + \
+            pseudo_input_file_name = self.qgraph_file+"+"+job_name + "+" + qgraph_node_ids[0].buildId + \
                 "+" + str(qgraph_node_ids[0].number)
         else:
-            pseudo_input_file_name = self.qgraph_file+"+"+jobname
+            pseudo_input_file_name = self.qgraph_file+"+"+job_name
         return pseudo_input_file_name
