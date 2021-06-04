@@ -36,7 +36,6 @@ import pickle
 import time
 
 from lsst.obs.base import Instrument
-from lsst.utils import doImport
 
 from . import BpsConfig
 from .bps_draw import draw_networkx_dot
@@ -45,7 +44,7 @@ from .transform import transform
 from .prepare import prepare
 from .submit import BPS_SEARCH_ORDER, submit
 from .cancel import cancel
-from .report import print_headers, print_run, print_single_run_summary
+from .report import report
 
 
 _LOG = logging.getLogger(__name__)
@@ -224,28 +223,7 @@ def report_driver(wms_service, user, run_id, hist_days, pass_thru):
     pass_thru : `str`
         A string to pass directly to the WMS service class.
     """
-    wms_service_class = doImport(wms_service)
-    wms_service = wms_service_class({})
-
-    # If reporting on single run, increase history until better mechanism
-    # for handling completed jobs is available.
-    if run_id:
-        hist_days = max(hist_days, 2)
-
-    runs, message = wms_service.report(run_id, user, hist_days, pass_thru)
-
-    if run_id:
-        if not runs:
-            print(f"No information found for id='{run_id}'.")
-            print(f"Double check id and retry with a larger --hist value"
-                  f"(currently: {hist_days})")
-        for run in runs:
-            print_single_run_summary(run)
-    else:
-        print_headers()
-        for run in sorted(runs, key=lambda j: j.wms_id):
-            print_run(run)
-    print(message)
+    report(wms_service, user, run_id, hist_days, pass_thru)
 
 
 def cancel_driver(wms_service, run_id, user, require_bps, pass_thru):
