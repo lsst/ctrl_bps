@@ -79,7 +79,33 @@ def init_driver(config_file):
 
 
 def pre_transform_driver(config_file):
-    """Cluster quanta into groups.
+    """Perform steps outside of BPS that need to be done first.
+
+    Parameters
+    ----------
+    config_file : `str`
+        Name of the configuration file.
+
+    Returns
+    -------
+    config : `~lsst.ctrl.bps.BpsConfig`
+        Updated configuration.
+    qgraph : `~lsst.pipe.base.graph.QuantumGraph`
+        A graph representing quanta.
+    """
+    stime = time.time()
+    config = init_driver(config_file)
+    submit_path = config[".bps_defined.submit_path"]
+    _LOG.info("Pre-transform steps (includes QuantumGraph generation if needed)")
+    qgraph_file, qgraph = pre_transform(config, out_prefix=submit_path)
+    _LOG.info("Run QuantumGraph file %s", qgraph_file)
+    config['.bps_defined.run_qgraph_file'] = qgraph_file
+    _LOG.info("Pre-transform steps took %.2f seconds", time.time() - stime)
+    return config, qgraph
+
+
+def cluster_driver(config_file):
+    """Cluster quanta.
 
     Parameters
     ----------
@@ -94,14 +120,10 @@ def pre_transform_driver(config_file):
         A graph representing clustered quanta.
     """
     stime = time.time()
-    config = init_driver(config_file)
+    config, qgraph = pre_transform_driver(config_file)
     submit_path = config[".bps_defined.submit_path"]
-    _LOG.info("Pre-transform steps (includes QuantumGraph generation if needed)")
-    qgraph_file, qgraph = pre_transform(config, out_prefix=submit_path)
-    _LOG.info("Run QuantumGraph file %s", qgraph_file)
-    config['.bps_defined.run_qgraph_file'] = qgraph_file
     clustered_qgraph = cluster_quanta(config, qgraph, config["uniqProcName"])
-    _LOG.info("Pre-transform steps took %.2f seconds", time.time() - stime)
+    _LOG.info("Clustering quanta took %.2f seconds", time.time() - stime)
     _, save_clustered_qgraph = config.search("saveClusteredQgraph", opt={"default": False})
     if save_clustered_qgraph:
         with open(os.path.join(submit_path, "bps_clustered_qgraph.pickle"), 'wb') as outfh:
@@ -129,7 +151,7 @@ def transform_driver(config_file):
         workflow management system.
     """
     stime = time.time()
-    config, clustered_qgraph = pre_transform_driver(config_file)
+    config, clustered_qgraph = cluster_driver(config_file)
     submit_path = config[".bps_defined.submit_path"]
     _LOG.info("Creating Generic Workflow")
     generic_workflow, generic_workflow_config = transform(config, clustered_qgraph, submit_path)
