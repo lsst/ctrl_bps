@@ -18,7 +18,10 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-"""Driver functions for CLI subcommand.
+"""Driver functions for each subcommand.
+
+Driver functions ensure that ensure all setup work is done before running
+the subcommand method.
 """
 
 __all__ = [
@@ -171,7 +174,7 @@ def transform_driver(config_file):
 
 
 def prepare_driver(config_file):
-    """Create a workflow for a specific workflow management system.
+    """Create a representation of the generic workflow.
 
     Parameters
     ----------
