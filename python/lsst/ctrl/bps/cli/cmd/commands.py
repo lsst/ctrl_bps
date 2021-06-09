@@ -85,10 +85,10 @@ def submit(*args, **kwargs):
 @click.option("--wms", "wms_service",
               default="lsst.ctrl.bps.wms.htcondor.htcondor_service.HTCondorService",
               help="Workload Management System service class")
-@click.option("--user",
-              help="Restrict report to specific user.")
 @click.option("--id", "run_id",
               help="Restrict report to specific WMS run id.")
+@click.option("--user",
+              help="Restrict report to specific user.")
 @click.option("--hist", "hist_days",
               default=0.0,
               help="Search WMS history X days for completed info.")

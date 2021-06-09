@@ -213,23 +213,23 @@ def submit_driver(config_file):
     print(f"Run Id: {wms_workflow.run_id}")
 
 
-def report_driver(wms_service, user, run_id, hist_days, pass_thru):
+def report_driver(wms_service, run_id, user, hist_days, pass_thru):
     """Print out summary of jobs submitted for execution.
 
     Parameters
     ----------
     wms_service : `str`
         Name of the class.
-    user : `str`
-        A user name the report will be restricted to.
     run_id : `str`
         A run id the report will be restricted to.
+    user : `str`
+        A user name the report will be restricted to.
     hist_days : int
         Number of days
     pass_thru : `str`
         A string to pass directly to the WMS service class.
     """
-    report(wms_service, user, run_id, hist_days, pass_thru)
+    report(wms_service, run_id, user, hist_days, pass_thru)
 
 
 def cancel_driver(wms_service, run_id, user, require_bps, pass_thru):

@@ -38,17 +38,17 @@ SUMMARY_FMT = "{:1} {:>10} {:>3} {:>9} {:10} {:10} {:20} {:20} {:<60}"
 _LOG = logging.getLogger(__name__)
 
 
-def report(wms_service, user, run_id, hist_days, pass_thru):
+def report(wms_service, run_id, user, hist_days, pass_thru):
     """Print out summary of jobs submitted for execution.
 
     Parameters
     ----------
     wms_service : `str`
         Name of the class.
-    user : `str`
-        A user name the report will be restricted to.
     run_id : `str`
         A run id the report will be restricted to.
+    user : `str`
+        A user name the report will be restricted to.
     hist_days : int
         Number of days
     pass_thru : `str`
