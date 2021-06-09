@@ -24,6 +24,8 @@ import click
 
 from lsst.daf.butler.cli.utils import MWCommand
 from lsst.ctrl.bps.drivers import (
+    acquire_qgraph_driver,
+    cluster_qgraph_driver,
     transform_driver,
     prepare_driver,
     submit_driver,
@@ -37,6 +39,22 @@ class BpsCommand(MWCommand):
     """Command subclass with bps-command specific overrides."""
 
     extra_epilog = "See 'bps --help' for more options."
+
+
+@click.command(cls=BpsCommand)
+@opt.config_file_argument(required=True)
+def acquire(*args, **kwargs):
+    """Create a new quantum graph or read existing one from a file.
+    """
+    acquire_qgraph_driver(*args, **kwargs)
+
+
+@click.command(cls=BpsCommand)
+@opt.config_file_argument(required=True)
+def cluster(*args, **kwargs):
+    """Create a clustered quantum graph.
+    """
+    cluster_qgraph_driver(*args, **kwargs)
 
 
 @click.command(cls=BpsCommand)

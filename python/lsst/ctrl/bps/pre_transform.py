@@ -39,9 +39,8 @@ from lsst.utils import doImport
 _LOG = logging.getLogger(__name__)
 
 
-def pre_transform(config, out_prefix=None):
-    """Steps outside of BPS that need to be done first including generating
-    a QuantumGraph.
+def acquire_quantum_graph(config, out_prefix=None):
+    """Read a quantum graph from a file or create one from scratch.
 
     Parameters
     ----------

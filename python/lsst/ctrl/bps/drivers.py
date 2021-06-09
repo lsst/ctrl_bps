@@ -39,7 +39,7 @@ from lsst.obs.base import Instrument
 
 from . import BpsConfig
 from .bps_draw import draw_networkx_dot
-from .pre_transform import cluster_quanta, pre_transform
+from .pre_transform import acquire_quantum_graph, cluster_quanta
 from .transform import transform
 from .prepare import prepare
 from .submit import BPS_SEARCH_ORDER, submit
@@ -50,7 +50,7 @@ from .report import report
 _LOG = logging.getLogger(__name__)
 
 
-def init_driver(config_file):
+def _init_submission_driver(config_file):
     """Initialize runtime environment.
 
     Parameters
@@ -77,8 +77,8 @@ def init_driver(config_file):
     return config
 
 
-def pre_transform_driver(config_file):
-    """Perform steps outside of BPS that need to be done first.
+def acquire_qgraph_driver(config_file):
+    """Read a quantum graph from a file or create one from pipeline definition.
 
     Parameters
     ----------
@@ -93,18 +93,18 @@ def pre_transform_driver(config_file):
         A graph representing quanta.
     """
     stime = time.time()
-    config = init_driver(config_file)
+    config = _init_submission_driver(config_file)
     submit_path = config[".bps_defined.submit_path"]
-    _LOG.info("Pre-transform steps (includes QuantumGraph generation if needed)")
-    qgraph_file, qgraph = pre_transform(config, out_prefix=submit_path)
+    _LOG.info("Acquiring QuantumGraph (it will be created from pipeline definition if needed)")
+    qgraph_file, qgraph = acquire_quantum_graph(config, out_prefix=submit_path)
     _LOG.info("Run QuantumGraph file %s", qgraph_file)
     config['.bps_defined.run_qgraph_file'] = qgraph_file
-    _LOG.info("Pre-transform steps took %.2f seconds", time.time() - stime)
+    _LOG.info("Acquiring QuantumGraph took %.2f seconds", time.time() - stime)
     return config, qgraph
 
 
-def cluster_driver(config_file):
-    """Cluster quanta.
+def cluster_qgraph_driver(config_file):
+    """Group quanta into clusters.
 
     Parameters
     ----------
@@ -119,10 +119,12 @@ def cluster_driver(config_file):
         A graph representing clustered quanta.
     """
     stime = time.time()
-    config, qgraph = pre_transform_driver(config_file)
-    submit_path = config[".bps_defined.submit_path"]
+    config, qgraph = acquire_qgraph_driver(config_file)
+    _LOG.info("Clustering quanta")
     clustered_qgraph = cluster_quanta(config, qgraph, config["uniqProcName"])
     _LOG.info("Clustering quanta took %.2f seconds", time.time() - stime)
+
+    submit_path = config[".bps_defined.submit_path"]
     _, save_clustered_qgraph = config.search("saveClusteredQgraph", opt={"default": False})
     if save_clustered_qgraph:
         with open(os.path.join(submit_path, "bps_clustered_qgraph.pickle"), 'wb') as outfh:
@@ -150,12 +152,13 @@ def transform_driver(config_file):
         workflow management system.
     """
     stime = time.time()
-    config, clustered_qgraph = cluster_driver(config_file)
+    config, clustered_qgraph = cluster_qgraph_driver(config_file)
     submit_path = config[".bps_defined.submit_path"]
     _LOG.info("Creating Generic Workflow")
     generic_workflow, generic_workflow_config = transform(config, clustered_qgraph, submit_path)
     _LOG.info("Creating Generic Workflow took %.2f seconds", time.time() - stime)
     _LOG.info("Generic Workflow name %s", generic_workflow.name)
+
     _, save_workflow = config.search("saveGenericWorkflow", opt={"default": False})
     if save_workflow:
         with open(os.path.join(submit_path, "bps_generic_workflow.pickle"), 'wb') as outfh:
