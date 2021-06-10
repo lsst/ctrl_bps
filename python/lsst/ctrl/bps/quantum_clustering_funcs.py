@@ -27,7 +27,7 @@ from collections import defaultdict
 
 from .clustered_quantum_graph import ClusteredQuantumGraph
 
-_LOG = logging.getLogger()
+_LOG = logging.getLogger(__name__)
 
 
 def single_quantum_clustering(config, qgraph, name):

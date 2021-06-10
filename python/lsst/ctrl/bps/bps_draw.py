@@ -24,7 +24,7 @@
 import logging
 import networkx
 
-_LOG = logging.getLogger(__name__.partition(".")[2])
+_LOG = logging.getLogger(__name__)
 
 
 def draw_networkx_dot(graph, outname):

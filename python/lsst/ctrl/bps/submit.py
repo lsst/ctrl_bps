@@ -21,35 +21,11 @@
 
 """Driver for submitting a prepared WMS-specific workflow
 """
-
-import getpass
-import logging
-import os
-import pickle
-import time
-
 from lsst.utils import doImport
-from lsst.obs.base import Instrument
-
-from .bps_draw import draw_networkx_dot
-from .pre_transform import pre_transform, cluster_quanta
-from .prepare import prepare
-from .transform import transform
 
 
 # Config section search order
 BPS_SEARCH_ORDER = ["payload", "pipetask", "site", "bps_defined"]
-
-# logging properties
-_LOG_PROP = """\
-log4j.rootLogger=INFO, A1
-log4j.appender.A1=ConsoleAppender
-log4j.appender.A1.Target=System.err
-log4j.appender.A1.layout=PatternLayout
-log4j.appender.A1.layout.ConversionPattern={}
-"""
-
-_LOG = logging.getLogger()
 
 
 def submit(config, wms_workflow, wms_service=None):
@@ -73,66 +49,3 @@ def submit(config, wms_workflow, wms_service=None):
         wms_service_class = doImport(config["wmsServiceClass"])
         wms_service = wms_service_class(config)
     return wms_service.submit(wms_workflow)
-
-
-def create_submission(config):
-    """Create submission files but don't actually submit.
-
-    Parameters
-    ----------
-    config : `~lsst.ctrl.bps.bps_config.BpsConfig`
-        Batch Processing service configuration.
-
-    Returns
-    -------
-    wms_workflow : `~lsst.ctrl.bps.wms_workflow`
-        WMS-specific workflow.
-    """
-    subtime = time.time()
-
-    config[".bps_defined.timestamp"] = Instrument.makeCollectionTimestamp()
-    if "uniqProcName" not in config:
-        config[".bps_defined.uniqProcName"] = config["outCollection"].replace("/", "_")
-    if "operator" not in config:
-        config[".bps_defined.operator"] = getpass.getuser()
-
-    # make submit directory to contain all outputs
-    submit_path = config["submitPath"]
-    os.makedirs(submit_path, exist_ok=True)
-    config[".bps_defined.submit_path"] = submit_path
-
-    stime = time.time()
-    _LOG.info("Pre-transform steps (includes QuantumGraph generation if needed)")
-    qgraph_file, qgraph = pre_transform(config, out_prefix=submit_path)
-    _LOG.info("Run QuantumGraph file %s", qgraph_file)
-    config['.bps_defined.run_qgraph_file'] = qgraph_file
-    clustered_qgraph = cluster_quanta(config, qgraph, config["uniqProcName"])
-    _LOG.info("Pre-transform steps took %.2f seconds", time.time() - stime)
-    _, save_clustered_qgraph = config.search("saveClusteredQgraph", opt={"default": False})
-    if save_clustered_qgraph:
-        with open(os.path.join(submit_path, "bps_clustered_qgraph.pickle"), 'wb') as outfh:
-            pickle.dump(clustered_qgraph, outfh)
-    _, save_dot = config.search("saveDot", opt={"default": False})
-    if save_dot:
-        draw_networkx_dot(clustered_qgraph, os.path.join(submit_path, "bps_clustered_qgraph.dot"))
-
-    stime = time.time()
-    _LOG.info("Creating Generic Workflow")
-    generic_workflow, generic_workflow_config = transform(config, clustered_qgraph, submit_path)
-    _LOG.info("Creating Generic Workflow took %.2f seconds", time.time() - stime)
-    _LOG.info("Generic Workflow name %s", generic_workflow.name)
-    _, save_workflow = config.search("saveGenericWorkflow", opt={"default": False})
-    if save_workflow:
-        with open(os.path.join(submit_path, "bps_generic_workflow.pickle"), 'wb') as outfh:
-            generic_workflow.save(outfh, 'pickle')
-    if save_dot:
-        with open(os.path.join(submit_path, "bps_generic_workflow.dot"), 'w') as outfh:
-            generic_workflow.draw(outfh, 'dot')
-
-    stime = time.time()
-    _LOG.info("Creating specific implementation of workflow")
-    wms_workflow = prepare(generic_workflow_config, generic_workflow, submit_path)
-    _LOG.info("Creating specific implementation of workflow took %.2f seconds", time.time() - stime)
-
-    _LOG.info("Total submission creation time = %.2f", time.time() - subtime)
-    return wms_workflow

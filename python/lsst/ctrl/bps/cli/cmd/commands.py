@@ -21,9 +21,18 @@
 """Subcommand definitions.
 """
 import click
+
 from lsst.daf.butler.cli.utils import MWCommand
+from lsst.ctrl.bps.drivers import (
+    acquire_qgraph_driver,
+    cluster_qgraph_driver,
+    transform_driver,
+    prepare_driver,
+    submit_driver,
+    report_driver,
+    cancel_driver
+)
 from .. import opt
-from .. import script
 
 
 class BpsCommand(MWCommand):
@@ -34,10 +43,26 @@ class BpsCommand(MWCommand):
 
 @click.command(cls=BpsCommand)
 @opt.config_file_argument(required=True)
-def transform(*args, **kwargs):
-    """Transform a quantum graph to a workflow graph.
+def acquire(*args, **kwargs):
+    """Create a new quantum graph or read existing one from a file.
     """
-    raise NotImplementedError
+    acquire_qgraph_driver(*args, **kwargs)
+
+
+@click.command(cls=BpsCommand)
+@opt.config_file_argument(required=True)
+def cluster(*args, **kwargs):
+    """Create a clustered quantum graph.
+    """
+    cluster_qgraph_driver(*args, **kwargs)
+
+
+@click.command(cls=BpsCommand)
+@opt.config_file_argument(required=True)
+def transform(*args, **kwargs):
+    """Transform a quantum graph to a generic workflow.
+    """
+    transform_driver(*args, **kwargs)
 
 
 @click.command(cls=BpsCommand)
@@ -45,7 +70,7 @@ def transform(*args, **kwargs):
 def prepare(*args, **kwargs):
     """Prepare a workflow for submission.
     """
-    script.prepare(*args, **kwargs)
+    prepare_driver(*args, **kwargs)
 
 
 @click.command(cls=BpsCommand)
@@ -53,18 +78,17 @@ def prepare(*args, **kwargs):
 def submit(*args, **kwargs):
     """Submit a workflow for execution.
     """
-    config, workflow = script.prepare(*args, **kwargs)
-    script.submit(config=config, workflow=workflow, **kwargs)
+    submit_driver(*args, **kwargs)
 
 
 @click.command(cls=BpsCommand)
 @click.option("--wms", "wms_service",
               default="lsst.ctrl.bps.wms.htcondor.htcondor_service.HTCondorService",
               help="Workload Management System service class")
-@click.option("--user",
-              help="Restrict report to specific user.")
 @click.option("--id", "run_id",
               help="Restrict report to specific WMS run id.")
+@click.option("--user",
+              help="Restrict report to specific user.")
 @click.option("--hist", "hist_days",
               default=0.0,
               help="Search WMS history X days for completed info.")
@@ -73,7 +97,7 @@ def submit(*args, **kwargs):
 def report(*args, **kwargs):
     """Display execution status for submitted workflows.
     """
-    script.report(*args, **kwargs)
+    report_driver(*args, **kwargs)
 
 
 @click.command(cls=BpsCommand)
@@ -91,4 +115,4 @@ def report(*args, **kwargs):
 def cancel(*args, **kwargs):
     """Cancel submitted workflow(s).
     """
-    script.cli_cancel(*args, **kwargs)
+    cancel_driver(*args, **kwargs)

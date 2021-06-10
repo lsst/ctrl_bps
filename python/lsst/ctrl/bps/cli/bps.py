@@ -19,8 +19,21 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import click
+
 from lsst.daf.butler.cli.butler import LoaderCLI
 from lsst.daf.butler.cli.opt import log_level_option, long_log_option
+from lsst.daf.butler.cli.utils import unwrap
+
+
+epilog = unwrap("""Note:
+
+Commands 'acquire', 'cluster', 'transform', and 'prepare' halt the submission
+process at different points prior to submitting the workflow for execution. See
+the help for individual command for more details.
+
+However, the current version does not support starting the submission process
+from any of these intermediate points.
+""")
 
 
 class BpsCli(LoaderCLI):
@@ -29,7 +42,8 @@ class BpsCli(LoaderCLI):
 
 
 @click.command(cls=BpsCli,
-               context_settings=dict(help_option_names=["-h", "--help"]))
+               context_settings=dict(help_option_names=["-h", "--help"]),
+               epilog=epilog)
 @log_level_option(default=["WARNING"])
 @long_log_option()
 def cli(log_level, long_log):

@@ -26,7 +26,7 @@ import logging
 
 from lsst.utils import doImport
 
-_LOG = logging.getLogger()
+_LOG = logging.getLogger(__name__)
 
 
 def cancel(wms_service, wms_id=None, user=None, require_bps=True, pass_thru=None):

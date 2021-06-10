@@ -28,6 +28,7 @@ import re
 import logging
 from datetime import datetime, timedelta
 from pathlib import Path
+
 import htcondor
 
 from lsst.ctrl.bps.bps_utils import chdir
@@ -37,7 +38,7 @@ from .lssthtc import (htc_submit_dag, read_node_status, read_dag_log, condor_q, 
                       HTCJob, JobStatus, NodeStatus, htc_escape, read_dag_status, summary_from_dag,
                       htc_check_dagman_output, MISSING_ID, pegasus_name_to_label)
 
-_LOG = logging.getLogger()
+_LOG = logging.getLogger(__name__)
 
 
 class HTCondorService(BaseWmsService):

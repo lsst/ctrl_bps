@@ -27,21 +27,55 @@ Note: Expectations are that future reporting effort will revolve around
 
 import logging
 
+from lsst.utils import doImport
+
 from .wms_service import WmsStates
 
 
 SUMMARY_FMT = "{:1} {:>10} {:>3} {:>9} {:10} {:10} {:20} {:20} {:<60}"
 
-# logging properties
-_LOG_PROP = """\
-log4j.rootLogger=INFO, A1
-log4j.appender.A1=ConsoleAppender
-log4j.appender.A1.Target=System.err
-log4j.appender.A1.layout=PatternLayout
-log4j.appender.A1.layout.ConversionPattern={}
-"""
 
-_LOG = logging.getLogger()
+_LOG = logging.getLogger(__name__)
+
+
+def report(wms_service, run_id, user, hist_days, pass_thru):
+    """Print out summary of jobs submitted for execution.
+
+    Parameters
+    ----------
+    wms_service : `str`
+        Name of the class.
+    run_id : `str`
+        A run id the report will be restricted to.
+    user : `str`
+        A user name the report will be restricted to.
+    hist_days : int
+        Number of days
+    pass_thru : `str`
+        A string to pass directly to the WMS service class.
+    """
+    wms_service_class = doImport(wms_service)
+    wms_service = wms_service_class({})
+
+    # If reporting on single run, increase history until better mechanism
+    # for handling completed jobs is available.
+    if run_id:
+        hist_days = max(hist_days, 2)
+
+    runs, message = wms_service.report(run_id, user, hist_days, pass_thru)
+
+    if run_id:
+        if not runs:
+            print(f"No information found for id='{run_id}'.")
+            print(f"Double check id and retry with a larger --hist value"
+                  f"(currently: {hist_days})")
+        for run in runs:
+            print_single_run_summary(run)
+    else:
+        print_headers()
+        for run in sorted(runs, key=lambda j: j.wms_id):
+            print_run(run)
+    print(message)
 
 
 def print_headers():
