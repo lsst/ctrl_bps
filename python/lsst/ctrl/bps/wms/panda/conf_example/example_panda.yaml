@@ -1,6 +1,6 @@
-pipelineYaml: /opt/lsst/software/stack/stack/miniconda3-py38_4.9.2-0.6.0/Linux64/ctrl_bps/21.0.0-18-gf2cd492+6c749b2ca5/python/lsst/ctrl/bps/wms/panda/conf_example/HSC-PANDA.yaml
+pipelineYaml: ${CTRL_BPS_DIR}/wms/panda/conf_example/HSC-PANDA.yaml
 project: dev
-campaign: "G3W06"
+campaign: "configuration_example"
 submitPath: ${PWD}/submit/{outCollection}
 container_obs_panda_edge_node_dir: /opt/lsst/software/stack/stack/miniconda3-py38_4.9.2-0.6.0/Linux64/ctrl_bps/21.0.0-18-gf2cd492+6c749b2ca5/python/lsst/ctrl/bps/wms/panda/edgenode
 container_CTRL_MPEXEC_DIR: /opt/lsst/software/stack/stack/miniconda3-py38_4.9.2-0.6.0/Linux64/ctrl_mpexec/21.0.0-30-g82f2559+c64cb64c6b/
@@ -20,8 +20,11 @@ payload:
   payloadName: rc2
   butlerConfig: s3://butler-us-central1-panda-dev/hsc/butler.yaml
   inCollection: HSC/defaults
-  output: "RC2/w_2021_13/FULLRC2"
-  outCollection: "shared/pipecheck/{timestamp}"
+  output: "u/${USER}/pipelines_check"
+  outCollection: "{output}/{timestamp}"
+
+
+
   # tracts (smallest to largest): 9615, 9697, 9813
   #dataQuery: "tract = 9813 and instrument='HSC' and skymap='hsc_rings_v1'"
   #dataQuery: "tract = 9615 and patch=30 and instrument='HSC' and skymap='hsc_rings_v1'"
@@ -56,6 +59,6 @@ saveDot: False
 requestCpus: 1
 wmsServiceClass: lsst.ctrl.bps.wms.panda.panda_service.PanDAService
 clusterAlgorithm: lsst.ctrl.bps.quantum_clustering_funcs.single_quantum_clustering
-createQuantumGraph: '${CTRL_MPEXEC_DIR}/bin/pipetask qgraph -d "{dataQuery}" -b {butlerConfig} -i {inCollection} -p {pipelineYaml} -q {qgraphFile} --qgraph-dot {qgraphFile}.dot --instrument lsst.obs.subaru.HyperSuprimeCam'
+createQuantumGraph: '${CTRL_MPEXEC_DIR}/bin/pipetask qgraph -d "{dataQuery}" -b {butlerConfig} -i {inCollection} -p {pipelineYaml} -q {qgraphFile} --qgraph-dot {qgraphFile}.dot'
 runQuantumCommand: '{container_CTRL_MPEXEC_DIR}/bin/pipetask run -b {butlerConfig} -i {inCollection} --output {output} --output-run {outCollection} --extend-run --skip-init-writes --qgraph {bucket}/{payload_folder}/{uniqProcName}/${{filename}} --qgraph-id ${{qgraph-id}} --qgraph-node-id ${{qgraph-node-id}} --clobber-partial-outputs --skip-existing --no-versions'
 templateDataId: "{tract}_{patch}_{band}_{visit}_{exposure}_{detector}"
