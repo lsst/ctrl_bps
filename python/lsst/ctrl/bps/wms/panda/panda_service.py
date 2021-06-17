@@ -123,7 +123,8 @@ class PanDAService(BaseWmsService):
                 task_name=task.name,
                 task_queue=task.queue,
                 task_log={"destination": "local", "value": "log.tgz", "dataset": "PandaJob_#{pandaid}/",
-                          "token": "local", "param_type": "log", "type": "template"}
+                          "token": "local", "param_type": "log", "type": "template"},
+                encode_command_line=True
             )
             idds_client_workflow.add_work(work)
         idds_request = {
@@ -139,10 +140,6 @@ class PanDAService(BaseWmsService):
             'request_metadata': {'workload_id': idds_client_workflow.get_workload_id(),
                                  'workflow': idds_client_workflow}
         }
-        primary_init_work = idds_client_workflow.get_primary_initial_collection()
-        if primary_init_work:
-            idds_request['scope'] = primary_init_work.scope
-
         c = pandatools.idds_api.get_api(idds_utils.json_dumps,
                                         idds_host=self.config.get('idds_server'), compress=True)
         request_id = c.add_request(**idds_request)

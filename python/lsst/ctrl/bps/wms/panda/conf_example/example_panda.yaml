@@ -1,43 +1,64 @@
-operator: jdoe
-pipelineYaml: "${OBS_SUBARU_DIR}/pipelines/DRP.yaml"
-templateDataId: "{tract}_{patch}_{band}_{visit}_{exposure}_{detector}"
+pipelineYaml: ${CTRL_BPS_DIR}/wms/panda/conf_example/HSC-PANDA.yaml
 project: dev
-campaign: quick
+campaign: "configuration_example"
 submitPath: ${PWD}/submit/{outCollection}
-container_obs_panda_edge_node_dir: "/opt/lsst/software/stack/stack/current/Linux64/ctrl_bps/21.0.0-6-g55737e1+e68d6e10c0/python/lsst/ctrl/bps/wms/panda/edgenode"
+container_obs_panda_edge_node_dir: /opt/lsst/software/stack/stack/miniconda3-py38_4.9.2-0.6.0/Linux64/ctrl_bps/21.0.0-18-gf2cd492+6c749b2ca5/python/lsst/ctrl/bps/wms/panda/edgenode
+container_CTRL_MPEXEC_DIR: /opt/lsst/software/stack/stack/miniconda3-py38_4.9.2-0.6.0/Linux64/ctrl_mpexec/21.0.0-30-g82f2559+c64cb64c6b/
+
 
 computing_queue: DOMA_LSST_GOOGLE_TEST
 computing_queue_himem: DOMA_LSST_GOOGLE_TEST_HIMEM
 himem_steps: ['makeWarp', 'assembleCoadd', 'deblend', 'measure', 'pipetaskInit']
 maxwalltime: 90000
-maxattempt: 5
+maxattempt: 1
+
+whenSaveJobQgraph: "NEVER"
+idds_server: "https://aipanda015.cern.ch:443/idds"
 
 payload:
   runInit: true
-  payloadName: pcheck
-  butlerConfig: s3://ci_hsc_w_2020_50/butler.yaml
+  payloadName: rc2
+  butlerConfig: s3://butler-us-central1-panda-dev/hsc/butler.yaml
+  inCollection: HSC/defaults
+  output: "u/${USER}/pipelines_check"
+  outCollection: "{output}/{timestamp}"
 
-  #inCollection: HSC/defaults
-  inCollection: HSC/calib,HSC/raw/all,HSC/masks,refcats,skymaps
 
-  outCollection: "shared/pipecheck/{timestamp}"
-  dataQuery: "skymap='discrete/ci_hsc' AND tract=0 AND patch=69"
 
-  #cloud settings:
-  sw_image: "docker://spodolsky/centos:7-stack-lsst_distrib-w_2021_03"
-  bucket: "s3://ci_hsc_w_2020_50"
+  # tracts (smallest to largest): 9615, 9697, 9813
+  #dataQuery: "tract = 9813 and instrument='HSC' and skymap='hsc_rings_v1'"
+  #dataQuery: "tract = 9615 and patch=30 and instrument='HSC' and skymap='hsc_rings_v1'"
+
+  #Small (~1000 jobs) workflow
+  #dataQuery: "tract = 9615 and patch=30 and detector IN (0..103) and detector != 9 and instrument='HSC' and skymap='hsc_rings_v1'"
+
+  #Very small (~150 jobs) workflow
+  dataQuery: "tract = 9615 and patch=30 and detector IN (10..20) and instrument='HSC' and skymap='hsc_rings_v1' and band in ('r', 'i')"
+
+  # ~30k quanta
+  #dataQuery: "tract = 9615 and detector IN (0..103) and detector != 9 and instrument='HSC' and skymap='hsc_rings_v1'"
+  # ~150k quanta
+  #dataQuery: "(tract = 9615 or tract=9697 or (tract=9813 and patch not in (0, 8, 9, 63, 72, 73, 80))) and detector IN (0..103) and detector != 9 and instrument='HSC' and skymap='hsc_rings_v1'"
+
+
+  sw_image: "docker://spodolsky/centos:7-stack-lsst_distrib-w_2021_21"
+  bucket: "s3://butler-us-central1-panda-dev/hsc"
   s3_endpoint_url: "https://storage.googleapis.com"
   payload_folder: payload
-  runner_command: 'singularity exec --no-home --cleanenv {sw_image} {container_obs_panda_edge_node_dir}/sw_runner _cmd_line_ ${{IN/L}} "{container_obs_panda_edge_node_dir}" >&2;'
+  runner_command: 'docker run --network host --privileged --env AWS_ACCESS_KEY_ID=$(</credentials/AWS_ACCESS_KEY_ID) --env AWS_SECRET_ACCESS_KEY=$(</credentials/AWS_SECRET_ACCESS_KEY) --env PGPASSWORD=$(</credentials/PGPASSWORD) {sw_image} /bin/bash -c "{container_obs_panda_edge_node_dir}/sw_runner _cmd_line_ ${{IN/L}} {container_obs_panda_edge_node_dir}" >&2;'
+
 
 pipetask:
   pipetaskInit:
-    runQuantumCommand: 'pipetask run -b {butlerConfig}  --input {inCollection} --output-run {outCollection} --init-only --clobber-partial-outputs --skip-existing --register-dataset-types --qgraph {bucket}/{payload_folder}/{uniqProcName}/${{IN/L}} --no-versions'
+    runQuantumCommand: "{container_CTRL_MPEXEC_DIR}/bin/pipetask run -b {butlerConfig} -i {inCollection} --output {output} --output-run {outCollection} --init-only --register-dataset-types --qgraph {bucket}/{payload_folder}/{uniqProcName}/${{filename}} --clobber-partial-outputs --no-versions --skip-existing"
   assembleCoadd:
     requestMemory: 8
 
-
+submitPath: ${PWD}/submit/{outCollection}
+saveDot: False
+requestCpus: 1
 wmsServiceClass: lsst.ctrl.bps.wms.panda.panda_service.PanDAService
 clusterAlgorithm: lsst.ctrl.bps.quantum_clustering_funcs.single_quantum_clustering
-createQuantumGraph: '${CTRL_MPEXEC_DIR}/bin/pipetask qgraph -d "{dataQuery}" -b {butlerConfig} -i {inCollection} -p {pipelineYaml} -q {qgraphFile}'
-runQuantumCommand: 'pipetask run -b {butlerConfig}  --input {inCollection} --output-run {outCollection} --extend-run --skip-init-writes --clobber-partial-outputs --qgraph {bucket}/{payload_folder}/{uniqProcName}/${{IN/L}}'
+createQuantumGraph: '${CTRL_MPEXEC_DIR}/bin/pipetask qgraph -d "{dataQuery}" -b {butlerConfig} -i {inCollection} -p {pipelineYaml} -q {qgraphFile} --qgraph-dot {qgraphFile}.dot'
+runQuantumCommand: '{container_CTRL_MPEXEC_DIR}/bin/pipetask run -b {butlerConfig} -i {inCollection} --output {output} --output-run {outCollection} --extend-run --skip-init-writes --qgraph {bucket}/{payload_folder}/{uniqProcName}/${{filename}} --qgraph-id ${{qgraph-id}} --qgraph-node-id ${{qgraph-node-id}} --clobber-partial-outputs --skip-existing --no-versions'
+templateDataId: "{tract}_{patch}_{band}_{visit}_{exposure}_{detector}"
