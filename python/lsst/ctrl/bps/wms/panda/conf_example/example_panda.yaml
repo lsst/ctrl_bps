@@ -1,4 +1,4 @@
-pipelineYaml: /home/spadolski/generation/functional_tests/HSC-PANDA.yaml
+pipelineYaml: /opt/lsst/software/stack/stack/miniconda3-py38_4.9.2-0.6.0/Linux64/ctrl_bps/21.0.0-18-gf2cd492+6c749b2ca5/python/lsst/ctrl/bps/wms/panda/conf_example/HSC-PANDA.yaml
 project: dev
 campaign: "G3W06"
 submitPath: ${PWD}/submit/{outCollection}
