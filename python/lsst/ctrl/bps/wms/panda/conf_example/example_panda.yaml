@@ -1,15 +1,13 @@
-pipelineYaml: ${CTRL_BPS_DIR}/wms/panda/conf_example/HSC-PANDA.yaml
+pipelineYaml: ${CTRL_BPS_DIR}/python/lsst/ctrl/bps/wms/panda/conf_example/HSC-PANDA.yaml
 project: dev
 campaign: "configuration_example"
-submitPath: ${PWD}/submit/{outCollection}
+submitPath: ${HOME}/submit/{outCollection}
 container_obs_panda_edge_node_dir: /opt/lsst/software/stack/stack/miniconda3-py38_4.9.2-0.6.0/Linux64/ctrl_bps/21.0.0-18-gf2cd492+6c749b2ca5/python/lsst/ctrl/bps/wms/panda/edgenode
 container_CTRL_MPEXEC_DIR: /opt/lsst/software/stack/stack/miniconda3-py38_4.9.2-0.6.0/Linux64/ctrl_mpexec/21.0.0-30-g82f2559+c64cb64c6b/
 
-
-computing_queue: DOMA_LSST_GOOGLE_TEST
-computing_queue_himem: DOMA_LSST_GOOGLE_TEST_HIMEM
-himem_steps: ['makeWarp', 'assembleCoadd', 'deblend', 'measure', 'pipetaskInit']
+computing_cloud: LSST
 maxwalltime: 90000
+requestMemory: 2000
 maxattempt: 1
 
 whenSaveJobQgraph: "NEVER"
@@ -23,17 +21,18 @@ payload:
   output: "u/${USER}/pipelines_check"
   outCollection: "{output}/{timestamp}"
 
-
-
   # tracts (smallest to largest): 9615, 9697, 9813
   #dataQuery: "tract = 9813 and instrument='HSC' and skymap='hsc_rings_v1'"
   #dataQuery: "tract = 9615 and patch=30 and instrument='HSC' and skymap='hsc_rings_v1'"
 
   #Small (~1000 jobs) workflow
   #dataQuery: "tract = 9615 and patch=30 and detector IN (0..103) and detector != 9 and instrument='HSC' and skymap='hsc_rings_v1'"
-
   #Very small (~150 jobs) workflow
   dataQuery: "tract = 9615 and patch=30 and detector IN (10..20) and instrument='HSC' and skymap='hsc_rings_v1' and band in ('r', 'i')"
+
+  #Very small (~2 jobs) workflow
+  #dataQuery: "tract = 9615 and patch=30 and detector IN (10..11) and instrument='HSC' and skymap='hsc_rings_v1' and band in ('r')"
+
 
   # ~30k quanta
   #dataQuery: "tract = 9615 and detector IN (0..103) and detector != 9 and instrument='HSC' and skymap='hsc_rings_v1'"
@@ -49,12 +48,38 @@ payload:
 
 
 pipetask:
+
   pipetaskInit:
     runQuantumCommand: "{container_CTRL_MPEXEC_DIR}/bin/pipetask run -b {butlerConfig} -i {inCollection} --output {output} --output-run {outCollection} --init-only --register-dataset-types --qgraph {bucket}/{payload_folder}/{uniqProcName}/${{filename}} --clobber-partial-outputs --no-versions --skip-existing"
+  measure:
+    requestMemory: 8129
+  forcedPhotCcd:
+    requestMemory: 8192
+  forcedPhotCoadd:
+    requestMemory: 8192
+  mergeMeasurements:
+    requestMemory: 4096
+  writeObjectTable:
+    requestMemory: 20000 #reduced from 24576: https://github.com/lsst-dm/bps-gen3-rc2/blob/master/bps-rc2_hsc_step3.yaml
+  consolidateObjectTable:
+    requestMemory: 20000 #reduced from 49152: https://github.com/lsst-dm/bps-gen3-rc2/blob/master/bps-rc2_hsc_step3.yaml
   assembleCoadd:
-    requestMemory: 8
+    requestMemory: 8192
+  makeWarp:
+    requestMemory: 20000 #reduced from 85000: https://github.com/lsst-dm/bps-gen3-rc2/blob/master/bps-rc2_hsc_step2.yaml
+  jointcal:
+    requestMemory: 20000 #reduced from 49152: https://github.com/lsst-dm/bps-gen3-rc2/blob/master/bps-rc2_hsc_step2.yaml
+  deblend:
+    requestMemory: 3000
+  skyCorr:
+    requestMemory: 11500
+  fgcmBuildStarsTable:
+    requestMemory: 8192
+  fgcmFitCycle:
+    requestMemory: 20000 #reduced from 24576: https://github.com/lsst-dm/bps-gen3-rc2/blob/master/bps-rc2_hsc_step1.yaml
+  fgcmOutputProducts:
+    requestMemory: 8192
 
-submitPath: ${PWD}/submit/{outCollection}
 saveDot: False
 requestCpus: 1
 wmsServiceClass: lsst.ctrl.bps.wms.panda.panda_service.PanDAService
