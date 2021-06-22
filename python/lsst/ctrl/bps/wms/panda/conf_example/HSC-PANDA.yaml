@@ -1,0 +1,24 @@
+description: HSC-PANDA
+instrument: lsst.obs.subaru.HyperSuprimeCam
+imports:
+  -
+    location: "/opt/lsst/software/stack/stack/miniconda3-py38_4.9.2-0.6.0/Linux64/obs_subaru/21.0.0-33-g9da9dc4e+fb9fd5bfd4/pipelines/DRP.yaml"
+    exclude:
+      - fgcm
+      - jointcal
+      - skyCorr
+tasks:
+  makeWarp:
+    class: lsst.pipe.tasks.makeCoaddTempExp.MakeWarpTask
+    config:
+      useGlobalExternalPhotoCalib: False
+      doApplyExternalPhotoCalib: False
+      doApplyExternalSkyWcs: False
+      doApplySkyCorr: False
+  assembleCoadd:
+    class: lsst.pipe.tasks.assembleCoadd.CompareWarpAssembleCoaddTask
+    config:
+      useGlobalExternalPhotoCalib: False
+      doApplyExternalPhotoCalib: False
+      doApplyExternalSkyWcs: False
+

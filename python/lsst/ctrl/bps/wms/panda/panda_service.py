@@ -124,7 +124,9 @@ class PanDAService(BaseWmsService):
                 task_queue=task.queue,
                 task_log={"destination": "local", "value": "log.tgz", "dataset": "PandaJob_#{pandaid}/",
                           "token": "local", "param_type": "log", "type": "template"},
-                encode_command_line=True
+                encode_command_line=True,
+                task_rss=task.maxrss,
+                task_cloud=task.cloud,
             )
             idds_client_workflow.add_work(work)
         idds_request = {

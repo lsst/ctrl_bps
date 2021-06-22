@@ -14,8 +14,10 @@ class RubinTask:
     step: str = None
     queue: str = None
     executable: str = None
-    maxwalltime: int = None
-    maxattempt: int = None
+    maxwalltime: int = None  # Maximum allowed walltime in seconds
+    maxattempt: int = None  # Maximum number of jobs attempts in a task
+    maxrss: int = None  # Maximum size of RAM to be used by a job
+    cloud: str = None
     lfns: list = None
     local_pfns: list = None
     dependencies: list = None
@@ -42,9 +44,7 @@ class IDDSWorkflowGenerator:
         self.tasks_inputs = {}
         self.jobs_steps = {}
         self.tasks_steps = {}
-        self.himem_tasks = set(config.get("himem_steps"))
-        self.computing_queue = config.get("computing_queue")
-        self.computing_queue_himem = config.get("computing_queue_himem")
+        self.computing_cloud = config.get("computing_cloud")
         self.qgraph_file = os.path.basename(config['bps_defined']['run_qgraph_file'])
         _, v = config.search("maxwalltime", opt={"default": 90000})
         self.maxwalltime = v
@@ -96,11 +96,15 @@ class IDDSWorkflowGenerator:
             task = RubinTask()
             task.step = task_name
             task.name = task.step
-            task.queue = self.computing_queue_himem if self.tasks_steps[task_name] \
-                in self.himem_tasks else self.computing_queue
+            bps_node = next(filter(lambda x: x['job'].label == self.tasks_steps[task_name],
+                                   self.bps_workflow.nodes.values()))['job']
+
+            task.queue = bps_node.compute_site
             task.lfns = list(jobs)
             task.maxattempt = self.maxattempt
             task.maxwalltime = self.maxwalltime
+            task.maxrss = bps_node.request_memory
+            task.cloud = self.computing_cloud
 
             # We take the commandline only from the first job because PanDA uses late binding and
             # command line for each job in task is equal to each other in exception to the processing
