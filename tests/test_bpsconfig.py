@@ -109,17 +109,49 @@ class TestBpsConfigSearch(unittest.TestCase):
         self.assertEqual(found, True)
         self.assertEqual(value, 4)
 
-    def testReplaceOn(self):
-        """Test if environmental variables are replaced, if requested."""
-        found, value = self.config.search("grault", opt={"replaceVars": True})
+    def testVariables(self):
+        """Test combinations of expandEnvVars, replaceEnvVars,
+        and replaceVars."""
+        test_opt = {"expandEnvVars": False, "replaceEnvVars": False, "replaceVars": False}
+        found, value = self.config.search("grault", opt=test_opt)
         self.assertEqual(found, True)
-        self.assertEqual(value, "garply/waldo")
+        self.assertEqual(value, "${GARPLY}/waldo/{qux:03}")
 
-    def testReplaceOff(self):
-        """Test if environmental variables are not replaced, if requested."""
-        found, value = self.config.search("grault", opt={"replaceVars": False})
+        test_opt = {"expandEnvVars": False, "replaceEnvVars": False, "replaceVars": True}
+        found, value = self.config.search("grault", opt=test_opt)
         self.assertEqual(found, True)
-        self.assertEqual(value, "${GARPLY}/waldo")
+        self.assertEqual(value, "${GARPLY}/waldo/002")
+
+        test_opt = {"expandEnvVars": False, "replaceEnvVars": True, "replaceVars": False}
+        found, value = self.config.search("grault", opt=test_opt)
+        self.assertEqual(found, True)
+        self.assertEqual(value, "<ENV:GARPLY>/waldo/{qux:03}")
+
+        test_opt = {"expandEnvVars": False, "replaceEnvVars": True, "replaceVars": True}
+        found, value = self.config.search("grault", opt=test_opt)
+        self.assertEqual(found, True)
+        self.assertEqual(value, "<ENV:GARPLY>/waldo/002")
+
+        test_opt = {"expandEnvVars": True, "replaceEnvVars": False, "replaceVars": False}
+        found, value = self.config.search("grault", opt=test_opt)
+        self.assertEqual(found, True)
+        self.assertEqual(value, "garply/waldo/{qux:03}")
+
+        test_opt = {"expandEnvVars": True, "replaceEnvVars": False, "replaceVars": True}
+        found, value = self.config.search("grault", opt=test_opt)
+        self.assertEqual(found, True)
+        self.assertEqual(value, "garply/waldo/002")
+
+        test_opt = {"expandEnvVars": True, "replaceEnvVars": True, "replaceVars": False}
+        found, value = self.config.search("grault", opt=test_opt)
+        self.assertEqual(found, True)
+        self.assertEqual(value, "garply/waldo/{qux:03}")
+
+        test_opt = {"expandEnvVars": True, "replaceEnvVars": True, "replaceVars": True}
+        found, value = self.config.search("grault", opt=test_opt)
+        self.assertEqual(found, True)
+        self.assertEqual(found, True)
+        self.assertEqual(value, "garply/waldo/002")
 
     def testRequired(self):
         """Test if exception is raised if a required setting is missing."""

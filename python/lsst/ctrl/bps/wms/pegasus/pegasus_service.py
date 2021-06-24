@@ -233,8 +233,8 @@ class PegasusWorkflow(BaseWmsWorkflow):
         # Docstring inherited.
         peg_workflow = cls(generic_workflow.name, config)
         peg_workflow.run_attrs = copy.deepcopy(generic_workflow.run_attrs)
-        peg_workflow.run_attrs['bps_wms_service'] = service_class
-        peg_workflow.run_attrs['bps_wms_workflow'] = f"{cls.__module__}.{cls.__name__}"
+        peg_workflow.run_attrs["bps_wms_service"] = service_class
+        peg_workflow.run_attrs["bps_wms_workflow"] = f"{cls.__module__}.{cls.__name__}"
 
         # Create initial Pegasus File objects for all files that WMS must handle
         peg_files = {}
@@ -274,22 +274,48 @@ class PegasusWorkflow(BaseWmsWorkflow):
         -------
         job : `Pegasus.DAX3.Job`
             Pegasus job created from the generic workflow job.
+
+        Notes
+        -----
+        https://pegasus.isi.edu/documentation/reference-guide/variable-expansion.html
+        Says that ${VAR} gets expanded with submit side values during pegasus-plan.
+        If try $VAR (which isn't supposed to get expanded by pegasus-plan), the
+        environment variable (e.g., ${CTRL_MPEXEC_DIR} gets completely dropped from
+        the executable path and job dies because cannot find executable (/bin/pipetask).
+
+        So, currently Pegasus plugin only works if environment variables used in commands
+        are same on submit machine and compute machine.
         """
         _LOG.debug("GenericWorkflowJob=%s", gwf_job)
         _LOG.debug("%s gwf_job.cmdline = %s", gwf_job.name, gwf_job.cmdline)
-        cmd_parts = gwf_job.cmdline.split(' ', 1)
+        cmd_parts = gwf_job.cmdline.split(" ", 1)
 
         # Save transformation.
         executable = Executable(os.path.basename(cmd_parts[0]), installed=True)
-        executable.addPFN(PFN(f"file://{cmd_parts[0]}", gwf_job.compute_site))
+        newexec = re.sub(r"<ENV:([^>]+)>", r"${\1}", cmd_parts[0])
+        _LOG.debug("Executable after replacing any environment variables = %s", newexec)
+        executable.addPFN(PFN(f"file://{newexec}", gwf_job.compute_site))
         self.transformation_catalog.add(executable)
 
         # Create Pegasus Job.
         job = Job(os.path.basename(cmd_parts[0]), id=gwf_job.name, node_label=gwf_job.label)
 
-        # Replace filenames on command line with corresponding Pegasus File object
         if len(cmd_parts) > 1:
-            args = cmd_parts[1].split()
+            arguments = cmd_parts[1]
+            # Replace command variables
+            arguments = arguments.format(**gwf_job.cmdvals)
+
+            # Replace env vars
+            arguments = re.sub(r"<ENV:([^>]+)>", r"${\1}", arguments)
+            _LOG.debug("Arguments after replacing any environment variables = %s", arguments)
+
+            # Replace file placeholders
+            arguments = re.sub(r"<FILE:([^>]+)>", r"\1", arguments)
+            _LOG.debug("Command line arguments: %s", arguments)
+
+            # Break up command string into separate args for Pegasus Job object
+            # replacing file names with Pegasus File objects
+            args = arguments.split()
             logical_file_names = list(set(peg_files) & set(args))
             if logical_file_names:
                 indices = [args.index(lfn) for lfn in logical_file_names]
@@ -326,7 +352,9 @@ class PegasusWorkflow(BaseWmsWorkflow):
 
         job.addProfile(Profile(Namespace.CONDOR, key="+bps_job_name", value=f'"{gwf_job.name}"'))
         job.addProfile(Profile(Namespace.CONDOR, key="+bps_job_label", value=f'"{gwf_job.label}"'))
-        job.addProfile(Profile(Namespace.CONDOR, key="+bps_job_quanta", value=f'"{gwf_job.quanta_summary}"'))
+        if "quanta_summary" in gwf_job.tags:
+            job.addProfile(Profile(Namespace.CONDOR, key="+bps_job_quanta",
+                                   value=f"\"{gwf_job.tags['quanta_summary']}\""))
 
         # Specify job's inputs.
         for gwf_file in generic_workflow.get_job_inputs(gwf_job.name, data=True, transfer_only=True):
@@ -406,7 +434,7 @@ class PegasusWorkflow(BaseWmsWorkflow):
             self.sites_catalog.write()
         else:
             shutil.copy(self.config["sitesFile"], os.path.join(self.submit_path, filename))
-        filenames['sites'] = filename
+        filenames["sites"] = filename
 
         # output transformation catalog
         filename = f"{self.name}_tc.txt"
@@ -416,7 +444,7 @@ class PegasusWorkflow(BaseWmsWorkflow):
             self.transformation_catalog.write()
         else:
             shutil.copy(self.config["tcFile"], os.path.join(self.submit_path, filename))
-        filenames['transformation'] = filename
+        filenames["transformation"] = filename
 
         # output replica catalog
         filename = f"{self.name}_rc.txt"
@@ -426,7 +454,7 @@ class PegasusWorkflow(BaseWmsWorkflow):
             self.replica_catalog.write()
         else:
             shutil.copy(self.config["tcFile"], os.path.join(self.submit_path, filename))
-        filenames['replica'] = filename
+        filenames["replica"] = filename
 
         self.properties_filename = self._write_properties_file(out_prefix, filenames)
 
@@ -467,7 +495,7 @@ class PegasusWorkflow(BaseWmsWorkflow):
         # Hack - Using profile in sites.xml doesn't add run attributes to DAG submission
         # file. So adding them here:
         if run_attr is not None:
-            subname = f'{self.run_id}/{self.name}-0.dag.condor.sub'
+            subname = f"{self.run_id}/{self.name}-0.dag.condor.sub"
             shutil.copyfile(subname, subname + ".orig")
             with open(subname + ".orig", "r") as infh:
                 with open(subname, "w") as outfh:

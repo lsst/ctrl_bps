@@ -74,7 +74,8 @@ class HTCondorService(BaseWmsService):
         Parameters
         ----------
         workflow : `~lsst.ctrl.bps.wms_service.BaseWorkflow`
-            A single HTCondor workflow to submit
+            A single HTCondor workflow to submit.  run_id
+            is updated after successful submission to WMS.
         """
         # For workflow portability, internal paths are all relative
         # Need to submit to HTCondor from inside the
@@ -231,12 +232,12 @@ class HTCondorService(BaseWmsService):
                 results = schedd.act(htcondor.JobAction.Remove, constraint)
             _LOG.debug("Remove results: %s", results)
 
-            if results['TotalSuccess'] > 0 and results['TotalError'] == 0:
+            if results["TotalSuccess"] > 0 and results["TotalError"] == 0:
                 deleted = True
                 message = ""
             else:
                 deleted = False
-                if results['TotalSuccess'] == 0 and results['TotalError'] == 0:
+                if results["TotalSuccess"] == 0 and results["TotalError"] == 0:
                     message = "no such bps job in batch queue"
                 else:
                     message = f"unknown problems deleting: {results}"
@@ -291,7 +292,7 @@ class HTCondorWorkflow(BaseWmsWorkflow):
         generic_workflow : `~lsst.ctrl.bps.generic_workflow.GenericWorkflow`
             Generic workflow that is being converted.
         gwf_job : `~lsst.ctrl.bps.generic_workflow.GenericWorkflowJob`
-            The generic job to convert to a Pegasus job.
+            The generic job to convert to a HTCondor job.
         run_attrs : `dict` [`str`: `str`]
             Attributes common to entire run that should be added to job.
         out_prefix : `str`
@@ -312,7 +313,7 @@ class HTCondorWorkflow(BaseWmsWorkflow):
             "getenv": "True",
         }
 
-        htc_job_cmds.update(_translate_job_cmds(gwf_job))
+        htc_job_cmds.update(_translate_job_cmds(generic_workflow, gwf_job))
 
         # job stdout, stderr, htcondor user log.
         htc_job_cmds["output"] = f"{gwf_job.name}.$(Cluster).out"
@@ -338,7 +339,7 @@ class HTCondorWorkflow(BaseWmsWorkflow):
         htc_job.add_job_attrs(gwf_job.attrs)
         htc_job.add_job_attrs({"bps_job_name": gwf_job.name,
                                "bps_job_label": gwf_job.label,
-                               "bps_job_quanta": gwf_job.quanta_summary})
+                               "bps_job_quanta": gwf_job.tags.get("quanta_summary", "")})
 
         return htc_job
 
@@ -357,13 +358,15 @@ class HTCondorWorkflow(BaseWmsWorkflow):
         self.dag.write(out_prefix, "jobs/{self.label}")
 
 
-def _translate_job_cmds(generic_workflow_job):
+def _translate_job_cmds(generic_workflow, generic_workflow_job):
     """Translate the job data that are one to one mapping
 
     Parameters
     ----------
+    generic_workflow : `~lsst.ctrl.bps.generic_workflow.GenericWorkflow`
+       Generic workflow that contains job to being converted.
     generic_workflow_job : `~lsst.ctrl.bps.generic_workflow.GenericWorkflowJob`
-       Generic workflow job that is being converted.
+       Generic workflow job to be converted.
 
     Returns
     -------
@@ -390,10 +393,22 @@ def _translate_job_cmds(generic_workflow_job):
     if generic_workflow_job.priority:
         jobcmds["priority"] = generic_workflow_job.priority
 
-    cmd_parts = generic_workflow_job.cmdline.split(" ", 1)
-    jobcmds["executable"] = cmd_parts[0]
+    try:
+        cmd_parts = generic_workflow_job.cmdline.split(" ", 1)
+    except AttributeError:
+        print(generic_workflow_job)
+        raise
+    jobcmds["executable"] = _fix_env_var_syntax(cmd_parts[0])
     if len(cmd_parts) > 1:
         jobcmds["arguments"] = cmd_parts[1]
+        arguments = cmd_parts[1]
+        arguments = _replace_cmd_vars(arguments,
+                                      generic_workflow_job)
+        arguments = _replace_file_vars(arguments,
+                                       generic_workflow,
+                                       generic_workflow_job)
+        arguments = _fix_env_var_syntax(arguments)
+        jobcmds["arguments"] = arguments
 
     # Add extra "pass-thru" job commands
     if generic_workflow_job.profile:
@@ -401,6 +416,81 @@ def _translate_job_cmds(generic_workflow_job):
             jobcmds[key] = htc_escape(val)
 
     return jobcmds
+
+
+def _fix_env_var_syntax(oldstr):
+    """Change ENV place holders to HTCondor Env var syntax.
+
+    Parameters
+    ----------
+    oldstr: `str`
+        String in which environment variable syntax is to be fixed.
+
+    Returns
+    -------
+    newstr: `str`
+        Given string with environment variable syntax fixed.
+    """
+    newstr = oldstr
+    for key in re.findall(r"<ENV:([^>]+)>", oldstr):
+        newstr = newstr.replace(rf"<ENV:{key}>", f"$ENV({key})")
+    return newstr
+
+
+def _replace_file_vars(arguments, workflow, gwjob):
+    """Replace file placeholders in command line arguments
+    with correct physical file names.
+
+    Parameters
+    ----------
+    arguments : `str`
+        Arguments string in which to replace file placeholders.
+    workflow : `~lsst.ctrl.bps.generic_workflow.GenericWorkflow`
+        Generic workflow that contains file information.
+    gwjob : `~lsst.ctrl.bps.generic_workflow.GenericWorkflowJob`
+        The job corresponding to the arguments.
+
+    Returns
+    -------
+    arguments : `str`
+        Given arguments string with file placeholders replaced.
+    """
+    # Replace input file placeholders with paths
+    for gwfile in workflow.get_job_inputs(gwjob.name):
+        if gwfile.wms_transfer:
+            uri = os.path.basename(gwfile.src_uri)
+        else:
+            uri = gwfile.src_uri
+        arguments = arguments.replace(f"<FILE:{gwfile.name}>", uri)
+
+    # Replace input file placeholders with paths
+    for gwfile in workflow.get_job_outputs(gwjob.name):
+        if gwfile.wms_transfer:
+            uri = os.path.basename(gwfile.src_uri)
+        else:
+            uri = gwfile.src_uri
+        arguments = arguments.replace(f"<FILE:{gwfile.name}>", uri)
+    return arguments
+
+
+def _replace_cmd_vars(arguments, gwjob):
+    """Replace format-style placeholders in arguments.
+
+    Parameters
+    ----------
+    arguments : `str`
+        Arguments string in which to replace placeholders.
+    gwjob : `~lsst.ctrl.bps.generic_workflow.GenericWorkflowJob`
+        Job containing values to be used to replace placeholders
+        (in particular gwjob.cmdvals).
+
+    Returns
+    -------
+    arguments : `str`
+        Given arguments string with placeholders replaced.
+    """
+    arguments = arguments.format(**gwjob.cmdvals)
+    return arguments
 
 
 def _handle_job_inputs(generic_workflow: GenericWorkflow, job_name: str, out_prefix):

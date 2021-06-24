@@ -426,7 +426,7 @@ Supported settings
 
        pipetask:
          pipetask_init:
-           runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask --long-log run -b {butlerConfig} -i {inCollection} --output {output} --output-run {outCollection} --init-only --register-dataset-types --qgraph {qgraphFile} --clobber-partial-outputs --no-versions"
+           runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask --long-log run -b {butlerConfig} -i {inCollection} --output {output} --output-run {outCollection} --init-only --register-dataset-types --qgraph {qgraphFile} --clobber-outputs"
            requestMemory: 2048
 
     The above example command uses both ``--output`` and ``--output-run``.  The ``--output`` option creates the chained collection if necessary and defines it to include both the ``--input`` and ``--output-run`` collections.  The ``--output-run`` option saves the unique run collection that is also passed to all other compute jobs (i.e., one run collection per submission).  If using both here, must include both ``--output`` and ``--output-run`` in the other ``runQuantumCommand``.
@@ -530,7 +530,8 @@ To use full QuantumGraph file, the submit YAML must set `whenSaveJobQgraph` to
 .. code::
 
     whenSaveJobQgraph: "NEVER"
-    runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask --long-log run -b {butlerConfig} -i {inCollection} --output {output} --output-run {outCollection} --extend-run --skip-init-writes --qgraph {qgraphFile} --qgraph-id {qgraphId} --qgraph-node-id {qgraphNodeId} --clobber-partial-outputs --no-versions"
+    runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask --long-log run -b {butlerConfig} --output {output} --output-run {outCollection} --qgraph {qgraphFile} --qgraph-id {qgraphId} --qgraph-node-id {qgraphNodeId} --skip-init-writes --extend-run --clobber-outputs --skip-existing"
+
 
 -- warning::
 

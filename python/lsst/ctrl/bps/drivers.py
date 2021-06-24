@@ -101,7 +101,7 @@ def acquire_qgraph_driver(config_file):
     _LOG.info("Acquiring QuantumGraph (it will be created from pipeline definition if needed)")
     qgraph_file, qgraph = acquire_quantum_graph(config, out_prefix=submit_path)
     _LOG.info("Run QuantumGraph file %s", qgraph_file)
-    config['.bps_defined.run_qgraph_file'] = qgraph_file
+    config[".bps_defined.run_qgraph_file"] = qgraph_file
     _LOG.info("Acquiring QuantumGraph took %.2f seconds", time.time() - stime)
     return config, qgraph
 
@@ -130,7 +130,7 @@ def cluster_qgraph_driver(config_file):
     submit_path = config[".bps_defined.submit_path"]
     _, save_clustered_qgraph = config.search("saveClusteredQgraph", opt={"default": False})
     if save_clustered_qgraph:
-        with open(os.path.join(submit_path, "bps_clustered_qgraph.pickle"), 'wb') as outfh:
+        with open(os.path.join(submit_path, "bps_clustered_qgraph.pickle"), "wb") as outfh:
             pickle.dump(clustered_qgraph, outfh)
     _, save_dot = config.search("saveDot", opt={"default": False})
     if save_dot:
@@ -164,12 +164,12 @@ def transform_driver(config_file):
 
     _, save_workflow = config.search("saveGenericWorkflow", opt={"default": False})
     if save_workflow:
-        with open(os.path.join(submit_path, "bps_generic_workflow.pickle"), 'wb') as outfh:
-            generic_workflow.save(outfh, 'pickle')
+        with open(os.path.join(submit_path, "bps_generic_workflow.pickle"), "wb") as outfh:
+            generic_workflow.save(outfh, "pickle")
     _, save_dot = config.search("saveDot", opt={"default": False})
     if save_dot:
-        with open(os.path.join(submit_path, "bps_generic_workflow.dot"), 'w') as outfh:
-            generic_workflow.draw(outfh, 'dot')
+        with open(os.path.join(submit_path, "bps_generic_workflow.dot"), "w") as outfh:
+            generic_workflow.draw(outfh, "dot")
     return generic_workflow_config, generic_workflow
 
 
