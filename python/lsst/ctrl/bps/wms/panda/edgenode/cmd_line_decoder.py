@@ -10,6 +10,6 @@ cmdline = str(binascii.unhexlify(sys.argv[1]).decode())
 dataparams = sys.argv[2].split("+")
 cmdline = cmdline.replace("${filename}", dataparams[0])
 if len(dataparams) > 2:
-    cmdline = cmdline.replace("${qgraph-id}", dataparams[1])
-    cmdline = cmdline.replace("${qgraph-node-id}", dataparams[2])
+    cmdline = cmdline.replace("${qgraph-id}", dataparams[2])
+    cmdline = cmdline.replace("${qgraph-node-id}", dataparams[3])
 print(cmdline)
