@@ -48,6 +48,10 @@ def prepare(config, generic_workflow, out_prefix):
     wms_workflow : `~lsst.ctrl.bps.wms_workflow`
         WMS-specific workflow.
     """
+    found, wms_class = config.search("wmsServiceClass")
+    if not found:
+        raise KeyError("Missing wmsServiceClass in bps config.  Aborting.")
+
     wms_service_class = doImport(config["wmsServiceClass"])
     wms_service = wms_service_class(config)
     wms_workflow = wms_service.prepare(config, generic_workflow, out_prefix)

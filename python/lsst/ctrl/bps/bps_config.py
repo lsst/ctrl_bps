@@ -28,6 +28,7 @@ from os.path import expandvars
 import logging
 import copy
 import string
+import re
 
 from lsst.daf.butler.core.config import Config
 
@@ -155,6 +156,14 @@ class BpsConfig(Config):
                     (`dict`, optional)
             ``"default"``
                     Value to return if not found. (`Any`, optional)
+            ``"replaceEnvVars"``
+                    If search result is string, whether to replace environment
+                    variables inside it with special placeholder (<ENV:name>).
+                    By default set to False. (`bool`)
+            ``"expandEnvVars"``
+                    If search result is string, whether to replace environment
+                    variables inside it with current environment value.
+                    By default set to False. (`bool`)
             ``"replaceVars"``
                     If search result is string, whether to replace variables
                     inside it. By default set to True. (`bool`)
@@ -242,10 +251,30 @@ class BpsConfig(Config):
         _LOG.debug("found=%s, value=%s", found, value)
 
         _LOG.debug("opt=%s %s", opt, type(opt))
-        if found and isinstance(value, str) and opt.get("replaceVars", True):
-            _LOG.debug("before format=%s", value)
-            value = expandvars(value)  # must replace env vars before calling format
-            value = self.formatter.format(value, self, opt)
+        if found and isinstance(value, str):
+            if opt.get("expandEnvVars", True):
+                _LOG.debug("before format=%s", value)
+                value = re.sub(r"<ENV:([^>]+)>", r"$\1", value)
+                value = expandvars(value)
+            elif opt.get("replaceEnvVars", False):
+                value = re.sub(r"\${([^}]+)}", r"<ENV:\1>", value)
+                value = re.sub(r"\$(\S+)", r"<ENV:\1>", value)
+
+            if opt.get("replaceVars", True):
+                # default only applies to original search key
+                default = opt.pop("default", None)
+
+                # Temporarily replace any env vars so formatter doesn't try to replace them.
+                value = re.sub(r"\${([^}]+)}", r"<BPSTMP:\1>", value)
+
+                value = self.formatter.format(value, self, opt)
+
+                # Replace any temporary env place holders.
+                value = re.sub(r"<BPSTMP:([^>]+)>", r"${\1}", value)
+
+                if default:  # reset to avoid modifying dict parameter.
+                    opt["default"] = default
+
             _LOG.debug("after format=%s", value)
 
         if found and isinstance(value, Config):

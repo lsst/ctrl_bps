@@ -3,6 +3,6 @@ foo:
 bar:
   qux: 2                   # for testing search order (2)
 baz:
-  grault: ${GARPLY}/waldo  # for testing variable expansion
+  grault: ${GARPLY}/waldo/{qux:03}  # for testing variable expansion
   garply:                  # for testing subsection search
     qux: 3
