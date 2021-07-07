@@ -772,7 +772,7 @@ def _summary_report(user, hist, pass_thru):
 
         if "bps_run" not in job:
             _add_run_info(job["Iwd"], job)
-        report = WmsRunReport(wms_id=job.get("ClusterId", MISSING_ID),
+        report = WmsRunReport(wms_id=str(job.get("ClusterId", MISSING_ID)),
                               path=job["Iwd"],
                               label=job.get("bps_job_label", "MISS"),
                               run=job.get("bps_run", "MISS"),

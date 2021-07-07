@@ -27,14 +27,14 @@ oriented database tables.
 
 import logging
 
+from astropy.table import Table
+
 from lsst.utils import doImport
 
 from . import WmsStates
 
 
 _LOG = logging.getLogger(__name__)
-
-SUMMARY_FMT = "{:1} {:>10} {:>3} {:>9} {:10} {:10} {:20} {:20} {:<60}"
 
 
 def report(wms_service, run_id, user, hist_days, pass_thru):
@@ -71,24 +71,46 @@ def report(wms_service, run_id, user, hist_days, pass_thru):
         for run in runs:
             print_single_run_summary(run)
     else:
-        print_headers()
+        summary = init_summary()
         for run in sorted(runs, key=lambda j: j.wms_id):
-            print_run(run)
-    print(message)
+            summary = add_single_run_summary(summary, run)
+        for line in summary.pformat_all():
+            print(line)
+        print("\n\n")
+    if message:
+        print(message)
+        print("\n\n")
 
 
-def print_headers():
-    """Print headers.
+def init_summary():
+    """Initialize the summary report table.
+
+    Returns
+    -------
+    table : `astropy.table.Table`
+        Initialized summary report table.
     """
-    print(SUMMARY_FMT.format("X", "STATE", "%S", "ID", "OPERATOR", "PRJ", "CMPGN", "PAYLOAD", "RUN"))
-    print("-" * 156)
+    columns = [
+        ("X", "S"),
+        ("STATE", "S"),
+        ("%S", "S"),
+        ("ID", "S"),
+        ("OPERATOR", "S"),
+        ("PROJECT", "S"),
+        ("CAMPAIGN", "S"),
+        ("PAYLOAD", "S"),
+        ("RUN", "S")
+    ]
+    return Table(dtype=columns)
 
 
-def print_run(run_report):
-    """Print single run info.
+def add_single_run_summary(summary, run_report):
+    """Add a single run info to the summary.
 
     Parameters
     ----------
+    summary : `astropy.tables.Table`
+        The table representing the run summary.
     run_report : `lsst.ctrl.bps.WmsRunReport`
         Information for single run.
     """
@@ -110,9 +132,19 @@ def print_run(run_report):
         _LOG.debug("succeeded = %s", succeeded)
         percent_succeeded = f"{int(succeeded / run_report.total_number_jobs * 100)}"
 
-    print(SUMMARY_FMT.format(run_flag, run_report.state.name, percent_succeeded, run_report.wms_id,
-                             run_report.operator[:10], run_report.project[:10], run_report.campaign[:20],
-                             run_report.payload[:20], run_report.run[:60]))
+    row = (
+        run_flag,
+        run_report.state.name,
+        percent_succeeded,
+        run_report.wms_id,
+        run_report.operator,
+        run_report.project,
+        run_report.campaign,
+        run_report.payload,
+        run_report.run
+    )
+    summary.add_row(row)
+    return summary
 
 
 def group_jobs_by_state(jobs):
@@ -168,20 +200,19 @@ def print_single_run_summary(run_report):
         Summary runtime info for a run + runtime info for jobs.
     """
     # Print normal run summary.
-    print_headers()
-    print_run(run_report)
+    summary = init_summary()
+    summary = add_single_run_summary(summary, run_report)
+    for line in summary.pformat_all():
+        print(line)
     print("\n\n")
 
     # Print more run information.
-    print(f"Path: {run_report.path}\n")
-
-    print(f"{'':35} {' | '.join([f'{s.name[:6]:6}' for s in WmsStates])}")
-    print(f"{'Total':35} {' | '.join([f'{run_report.job_state_counts[s]:6}' for s in WmsStates])}")
-    print("-" * (35 + 3 + (6 + 2) * (len(run_report.job_state_counts) + 1)))
+    print(f"Path: {run_report.path}")
+    print("\n\n")
 
     by_label = group_jobs_by_label(run_report.jobs)
 
-    # Print job level info by print counts of jobs by label and WMS state.
+    # Count the jobs by label and WMS state.
     label_order = []
     by_label_totals = {}
     if run_report.run_summary:
@@ -197,6 +228,15 @@ def print_single_run_summary(run_report):
         print("Warning: Cannot determine order of pipeline.  Instead printing alphabetical.")
         label_order = sorted(by_label.keys())
 
+    # Initialize table for saving the detailed run info.
+    columns = [(" ", "S")] + [(s.name, "i") for s in WmsStates] + [("EXPECTED", "i")]
+    details = Table(dtype=columns)
+
+    total = ["TOTAL"]
+    total.extend([run_report.job_state_counts[state] for state in WmsStates])
+    total.append(sum(by_label_totals.values()))
+    details.add_row(total)
+
     for label in label_order:
         counts = dict.fromkeys(WmsStates, 0)
         if label in by_label:
@@ -211,5 +251,17 @@ def print_single_run_summary(run_report):
                 counts[WmsStates.UNREADY] += by_label_totals[label] - already_counted
         else:
             counts = dict.fromkeys(WmsStates, -1)
-        print(f"{label[:35]:35} {' | '.join([f'{counts[s]:6}' for s in WmsStates])}")
-    print("\n")
+
+        row = [label]
+        row.extend([counts[state] for state in WmsStates])
+        row.append([by_label_totals[label]])
+        details.add_row(row)
+
+    # Format the report summary and print it out.
+    alignments = ["<"]
+    alignments.extend([">" for _ in WmsStates])
+    alignments.append(">")
+    lines = details.pformat_all(align=alignments)
+    lines.insert(3, lines[1])
+    for line in lines:
+        print(line)
