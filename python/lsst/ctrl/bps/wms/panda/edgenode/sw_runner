@@ -1,11 +1,13 @@
 #!/bin/bash
 # This is a starter script needed to initialize basic Rubin software environment inside the container and execute
 # the actual command line after decoding from hexed strings
-cd /tmp;
-ls /;
-export HOME=/tmp;
+export HOME=${PILOT_HOME}
+cd ${HOME}
 export S3_ENDPOINT_URL=https://storage.googleapis.com
-. /opt/lsst/software/stack/loadLSST.bash;
+DIR="$(dirname "${BASH_SOURCE[0]}")"  # Get the directory name
+DIR="$(realpath "${DIR}")"    # Resolve its full path
+unset PYTHONPATH
+. ${DIR}/../../../../../../../../../../../../loadLSST.bash;
 setup lsst_distrib;
-echo "$(/usr/bin/python $3/cmd_line_decoder.py $1 $2)"
-eval "$(/usr/bin/python $3/cmd_line_decoder.py $1 $2) >&2"
+echo "$(python3 $CTRL_BPS_DIR/python/lsst/ctrl/bps/wms/panda/edgenode/cmd_line_decoder.py $1 $2)"
+eval "$(python3 $CTRL_BPS_DIR/python/lsst/ctrl/bps/wms/panda/edgenode/cmd_line_decoder.py $1 $2) >&2"
