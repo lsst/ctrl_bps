@@ -23,7 +23,7 @@
 import click
 
 from lsst.daf.butler.cli.utils import MWCommand
-from lsst.ctrl.bps.drivers import (
+from ...drivers import (
     acquire_qgraph_driver,
     cluster_qgraph_driver,
     transform_driver,

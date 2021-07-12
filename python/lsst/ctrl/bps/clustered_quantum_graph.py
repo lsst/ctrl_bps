@@ -19,9 +19,12 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-"""Class definitions for a Clustered QuantumGraph where a node
-in the graph is a QuantumGraph.
+"""Class definitions for a Clustered QuantumGraph where a node in the graph is
+a QuantumGraph.
 """
+
+__all__ = ["ClusteredQuantumGraph"]
+
 
 import networkx
 
@@ -42,7 +45,7 @@ class ClusteredQuantumGraph(networkx.DiGraph):
         ----------
         name : `str`
             Node name which must be unique in the graph.
-        node_ids : `list` of `~lsst.pipe.base.NodeId`
+        node_ids : `list` [`lsst.pipe.base.NodeId`]
             NodeIds for QuantumGraph subset.
         label : `str`, optional
             Label for the cluster.  Can be used in grouping clusters.
@@ -53,11 +56,11 @@ class ClusteredQuantumGraph(networkx.DiGraph):
 
     def add_node(self, node_for_adding, **attr):
         """Override add_node function to ensure that nodes are limited
-        to QuantumGraphs
+        to QuantumGraphs.
 
         Parameters
         ----------
-        node_for_adding : `str` or `list` of `~lsst.pipe.base.NodeId`
+        node_for_adding : `str` or `list` [`lsst.pipe.base.NodeId`]
             Name of cluster or cluster data (list of NodeIds).
         attr : keyword arguments, optional
             Attributes to be saved with node in graph.

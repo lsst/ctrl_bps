@@ -19,16 +19,14 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-"""Driver for the transformation of a QuantumGraph into a
-generic workflow.
+"""Driver for the transformation of a QuantumGraph into a generic workflow.
 """
 
 import logging
 import os
 import re
 
-from .bps_config import BpsConfig
-from .generic_workflow import GenericWorkflow, GenericWorkflowJob, GenericWorkflowFile
+from . import BpsConfig, GenericWorkflow, GenericWorkflowJob, GenericWorkflowFile
 from .bps_utils import save_qg_subgraph, WhenToSaveQuantumGraphs, create_job_quantum_graph_filename
 
 
@@ -40,18 +38,18 @@ def transform(config, clustered_quantum_graph, prefix):
 
     Parameters
     ----------
-    config : `~lsst.ctrl.bps.bps_config.BPSConfig`
+    config : `lsst.ctrl.bps.BpsConfig`
         BPS configuration.
-    clustered_quantum_graph : `~lsst.ctrl.bps.clustered_quantum_graph.ClusteredQuantumGraph`
+    clustered_quantum_graph : `lsst.ctrl.bps.ClusteredQuantumGraph`
         A clustered quantum graph to transform into a generic workflow.
     prefix : `str`
         Root path for any output files.
 
     Returns
     -------
-    generic_workflow : `~lsst.ctrl.bps.generic_workflow.GenericWorkflow`
+    generic_workflow : `lsst.ctrl.bps.GenericWorkflow`
         The generic workflow transformed from the clustered quantum graph.
-    generic_workflow_config : `~lsst.ctrl.bps.bps_config.BPSConfig`
+    generic_workflow_config : `lsst.ctrl.bps.BpsConfig`
         Configuration to accompany GenericWorkflow.
     """
     if "name" in clustered_quantum_graph.graph and clustered_quantum_graph.graph["name"] is not None:
@@ -70,9 +68,9 @@ def update_job(config, job):
 
     Parameters
     ----------
-    config : `~lsst.ctrl.bps.bps_config.BpsConfig`
+    config : `lsst.ctrl.bps.BpsConfig`
         BPS configuration.
-    job : `~lsst.ctrl.bps.generic_workflow.GenericWorkflowJob`
+    job : `lsst.ctrl.bps.GenericWorkflowJob`
         Job to which the attributes and profile values should be added.
     """
     key = f".site.{job.compute_site}.profile.condor"
@@ -93,9 +91,9 @@ def add_workflow_init_nodes(config, generic_workflow):
 
     Parameters
     ----------
-    config : `~lsst.ctrl.bps.bps_config.BpsConfig`
+    config : `lsst.ctrl.bps.BpsConfig`
         BPS configuration.
-    generic_workflow : `~lsst.ctrl.bps.generic_workflow.GenericWorkflow`
+    generic_workflow : `lsst.ctrl.bps.GenericWorkflow`
         Generic workflow to which the initialization steps should be added.
     """
     # Create a workflow graph that will have task and file nodes necessary for
@@ -126,14 +124,14 @@ def create_init_workflow(config, run_qgraph_gwfile):
 
     Parameters
     ----------
-    config : `~lsst.ctrl.bps.bps_config.BpsConfig`
+    config : `lsst.ctrl.bps.BpsConfig`
         BPS configuration.
-    run_qgraph_gwfile: `~lsst.ctrl.bps.generic_workflow.GenericWorkflowFile`
+    run_qgraph_gwfile: `lsst.ctrl.bps.GenericWorkflowFile`
         File object for the run QuantumGraph.
 
     Returns
     -------
-    init_workflow : `~lsst.ctrl.bps.generic_workflow.GenericWorkflow`
+    init_workflow : `lsst.ctrl.bps.GenericWorkflow`
         GenericWorkflow consisting of job(s) to initialize workflow.
     """
     _LOG.debug("creating init subgraph")
@@ -167,11 +165,11 @@ def create_command(config, workflow, gwjob):
 
     Parameters
     ----------
-    config : `~lsst.ctrl.bps.bps_config.BpsConfig`
+    config : `lsst.ctrl.bps.BpsConfig`
         BPS configuration.
-    generic_workflow : `~lsst.ctrl.bps.generic_workflow.GenericWorkflow`
+    generic_workflow : `lsst.ctrl.bps.GenericWorkflow`
         Generic workflow that contains the job.
-    gwjob : `~lsst.ctrl.bps.generic_workflow.GenericWorkflowJob`
+    gwjob : `lsst.ctrl.bps.GenericWorkflowJob`
         Generic workflow job to which the command line and vals should
         be saved.
     """
@@ -219,11 +217,11 @@ def _fill_command(config, workflow, gwjob):
 
     Parameters
     ----------
-    config : `~lsst.ctrl.bps.bps_config.BPSConfig`
+    config : `lsst.ctrl.bps.BPSConfig`
         Bps configuration.
-    workflow : `~lsst.ctrl.bps.generic_workflow.GenericWorkflow`
+    workflow : `lsst.ctrl.bps.GenericWorkflow`
         Generic workflow containing the job.
-    gwjob : `~lsst.ctrl.bps.generic_workflow.GenericWorkflowJob`
+    gwjob : `lsst.ctrl.bps.GenericWorkflowJob`
         Job for which to update command line by filling in values.
     """
     _, use_shared = config.search("useBpsShared", opt={"default": False})
@@ -252,13 +250,13 @@ def create_job_values_universal(config, qnodes, generic_workflow, gwjob, prefix)
 
     Parameters
     ----------
-    config : `~lsst.ctrl.bps.bps_config.BPSConfig`
+    config : `lsst.ctrl.bps.BPSConfig`
         Bps configuration.
-    qnodes : `list` [`~lsst.pipe.base.QuantumGraph`]
+    qnodes : `list` [`lsst.pipe.base.QuantumGraph`]
         Full run QuantumGraph.
-    generic_workflow : `~lsst.ctrl.bps.generic_workflow.GenericWorkflow`
+    generic_workflow : `lsst.ctrl.bps.GenericWorkflow`
         Generic workflow containing job.
-    gwjob : `~lsst.ctrl.bps.generic_workflow.GenericWorkflowJob`
+    gwjob : `lsst.ctrl.bps.GenericWorkflowJob`
         Generic workflow job to which values will be added.
     prefix : `str`
         Root path for any output files.
@@ -327,11 +325,11 @@ def create_job_values_aggregate(config, qnodes, gwjob, pipetask_labels):
 
     Parameters
     ----------
-    config : `~lsst.ctrl.bps.bps_config.BPSConfig`
+    config : `lsst.ctrl.bps.BpsConfig`
         Bps configuration.
-    qnodes : `list` [`~lsst.pipe.base.QuantumGraph`]
+    qnodes : `list` [`lsst.pipe.base.QuantumGraph`]
         Full run QuantumGraph.
-    gwjob : `~lsst.ctrl.bps.generic_workflow.GenericWorkflowJob`
+    gwjob : `lsst.ctrl.bps.GenericWorkflowJob`
         Job in which to store the aggregate values.
     pipetask_labels : `list` [`str`]
         PipelineTask labels used in generating quanta summary tag.
@@ -365,9 +363,9 @@ def create_generic_workflow(config, clustered_quanta_graph, name, prefix):
 
     Parameters
     ----------
-    config : `~lsst.ctrl.bps.bps_config.BPSConfig`
+    config : `lsst.ctrl.bps.BpsConfig`
         BPS configuration.
-    clustered_quanta_graph : `~lsst.ctrl.bps.clustered_quantum_graph.ClusteredQuantumGraph`
+    clustered_quanta_graph : `lsst.ctrl.bps.ClusteredQuantumGraph`
         ClusteredQuantumGraph for running a specific pipeline on a specific
         payload.
     name : `str`
@@ -377,7 +375,7 @@ def create_generic_workflow(config, clustered_quanta_graph, name, prefix):
 
     Returns
     -------
-    generic_workflow : `~lsst.ctrl.bps.generic_workflow.GenericWorkflow`
+    generic_workflow : `lsst.ctrl.bps.GenericWorkflow`
         Generic workflow for the given ClusteredQuantumGraph + config.
     """
     generic_workflow = GenericWorkflow(name)
@@ -431,9 +429,9 @@ def add_workflow_attributes(config, generic_workflow):
 
     Parameters
     ----------
-    config : `~lsst.ctrl.bps.bps_config.BPSConfig`
+    config : `lsst.ctrl.bps.BpsConfig`
         Bps configuration.
-    generic_workflow : `~lsst.ctrl.bps.generic_workflow.GenericWorkflow`
+    generic_workflow : `lsst.ctrl.bps.GenericWorkflow`
         Generic workflow to which attributes should be added.
     """
     # Save run quanta summary and other workflow attributes to GenericWorkflow.
@@ -466,14 +464,14 @@ def create_generic_workflow_config(config, prefix):
 
     Parameters
     ----------
-    config : `~lsst.ctrl.bps.bps_config.BPSConfig`
+    config : `lsst.ctrl.bps.BpsConfig`
         Bps configuration.
     prefix : `str`
         Root path for any output files.
 
     Returns
     -------
-    generic_workflow_config : `~lsst.ctrl.bps.bps_config.BpsConfig`
+    generic_workflow_config : `lsst.ctrl.bps.BpsConfig`
         Configuration accompanying the GenericWorkflow.
     """
     generic_workflow_config = BpsConfig(config)

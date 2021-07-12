@@ -19,7 +19,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-"""Driver for preparing a WMS-specific workflow
+"""Driver for preparing a WMS-specific workflow.
 """
 
 import logging
@@ -36,16 +36,16 @@ def prepare(config, generic_workflow, out_prefix):
 
     Parameters
     ----------
-    config : `~lsst.ctrl.bps.bps_config.BpsConfig`
+    config : `lsst.ctrl.bps.BpsConfig`
         Contains configuration for BPS.
-    generic_workflow : `~lsst.ctrl.bps.generic_workflow.GenericWorkflow`
+    generic_workflow : `lsst.ctrl.bps.GenericWorkflow`
         Contains generic workflow.
     out_prefix : `str`
         Contains directory to which any WMS-specific files should be written.
 
     Returns
     -------
-    wms_workflow : `~lsst.ctrl.bps.wms_workflow`
+    wms_workflow : `lsst.ctrl.bps.BaseWmsWorkflow`
         WMS-specific workflow.
     """
     found, wms_class = config.search("wmsServiceClass")
@@ -56,8 +56,8 @@ def prepare(config, generic_workflow, out_prefix):
     wms_service = wms_service_class(config)
     wms_workflow = wms_service.prepare(config, generic_workflow, out_prefix)
 
-    # Save QuantumGraphs.
-    # (putting after call to prepare so don't write a bunch of files if prepare fails)
+    # Save QuantumGraphs (putting after call to prepare so don't write a
+    # bunch of files if prepare fails).
     found, when_save = config.search("whenSaveJobQgraph", {"default": WhenToSaveQuantumGraphs.TRANSFORM.name})
     if found and WhenToSaveQuantumGraphs[when_save.upper()] == WhenToSaveQuantumGraphs.PREPARE:
         for job_name in generic_workflow.nodes():

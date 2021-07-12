@@ -23,7 +23,7 @@ import shutil
 import tempfile
 import unittest
 
-from lsst.ctrl.bps.bps_config import BpsConfig
+from lsst.ctrl.bps import BpsConfig
 from lsst.ctrl.bps.pre_transform import execute, create_quantum_graph
 
 

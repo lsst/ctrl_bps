@@ -19,23 +19,22 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-"""Supporting functions for reporting on runs submitted to a WMS
+"""Supporting functions for reporting on runs submitted to a WMS.
 
-Note: Expectations are that future reporting effort will revolve around
-   LSST oriented database tables.
+Note: Expectations are that future reporting effort will revolve around LSST
+oriented database tables.
 """
 
 import logging
 
 from lsst.utils import doImport
 
-from .wms_service import WmsStates
-
-
-SUMMARY_FMT = "{:1} {:>10} {:>3} {:>9} {:10} {:10} {:20} {:20} {:<60}"
+from . import WmsStates
 
 
 _LOG = logging.getLogger(__name__)
+
+SUMMARY_FMT = "{:1} {:>10} {:>3} {:>9} {:10} {:10} {:20} {:20} {:<60}"
 
 
 def report(wms_service, run_id, user, hist_days, pass_thru):
@@ -90,7 +89,7 @@ def print_run(run_report):
 
     Parameters
     ----------
-    run_report : `WmsRunReport`
+    run_report : `lsst.ctrl.bps.WmsRunReport`
         Information for single run.
     """
     # Flag any running workflow that might need human attention
@@ -121,7 +120,7 @@ def group_jobs_by_state(jobs):
 
     Parameters
     ----------
-    jobs : `list` of `~lsst.ctrl.bps.wms_service.WmsJobReport`
+    jobs : `list` [`lsst.ctrl.bps.WmsJobReport`]
         Jobs to divide into groups based on state.
 
     Returns
@@ -144,13 +143,13 @@ def group_jobs_by_label(jobs):
 
     Parameters
     ----------
-    jobs : `list` of `~lsst.ctrl.bps.wms_service.WmsJobReport`
+    jobs : `list` [`lsst.ctrl.bps.WmsJobReport`]
         Jobs to divide into groups based on label.
 
     Returns
     -------
-    by_label : `dict`
-        Mapping of job state to a list of jobs .
+    by_label : `dict` [`str`, `lsst.ctrl.bps.WmsJobReport`]
+        Mapping of job state to a list of jobs.
     """
     by_label = {}
     for job in jobs:
@@ -165,7 +164,7 @@ def print_single_run_summary(run_report):
 
     Parameters
     ----------
-    run_report : `~lsst.ctrl.bps.wms_service.WmsRunReport`
+    run_report : `lsst.ctrl.bps.WmsRunReport`
         Summary runtime info for a run + runtime info for jobs.
     """
     # Print normal run summary.

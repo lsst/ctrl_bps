@@ -21,10 +21,15 @@
 
 """Base classes for working with a specific WMS"""
 
+
+__all__ = ["BaseWmsService", "BaseWmsWorkflow", "WmsJobReport", "WmsRunReport", "WmsStates"]
+
+
 import logging
 import dataclasses
 from abc import ABCMeta
 from enum import Enum
+
 
 _LOG = logging.getLogger(__name__)
 
@@ -83,7 +88,7 @@ class BaseWmsService:
 
     Parameters
     ----------
-    config : `~lsst.ctrl.bps.bps_config.BpsConfig`
+    config : `lsst.ctrl.bps.BpsConfig`
         Configuration needed by the WMS service.
     """
     def __init__(self, config):
@@ -94,9 +99,9 @@ class BaseWmsService:
 
         Parameters
         ----------
-        config : `~lsst.ctrl.bps.bps_config.BpsConfig`
+        config : `lsst.ctrl.bps.BpsConfig`
             BPS configuration.
-        generic_workflow : `~lsst.ctrl.bps.generic_workflow.GenericWorkflow`
+        generic_workflow : `lsst.ctrl.bps.GenericWorkflow`
             Generic representation of a single workflow
         out_prefix : `str`
             Prefix for all WMS output files
@@ -113,7 +118,7 @@ class BaseWmsService:
 
         Parameters
         ----------
-        workflow : `~lsst.ctrl.bps.wms_service.BaseWmsWorkflow`
+        workflow : `lsst.ctrl.bps.BaseWmsWorkflow`
             Prepared WMS Workflow to submit for execution
         """
         raise NotImplementedError
@@ -137,7 +142,7 @@ class BaseWmsService:
 
         Returns
         -------
-        job_ids : `list` of `Any`
+        job_ids : `list` [`Any`]
             Only job ids to be used by cancel and other functions.  Typically
             this means top-level jobs (i.e., not children jobs).
         """
@@ -159,7 +164,7 @@ class BaseWmsService:
 
         Returns
         -------
-        run_reports : `dict` of `~lsst.ctrl.bps.wms_service.BaseWmsReport`
+        run_reports : `list` [`lsst.ctrl.bps.BaseWmsReport`]
             Status information for submitted WMS workflows.
         message : `str`
             Message to user on how to find more status information specific to
@@ -195,7 +200,7 @@ class BaseWmsWorkflow(metaclass=ABCMeta):
     ----------
     name : `str`
         Unique name of workflow.
-    config : `~lsst.ctrl.bps.bps_config.BpsConfig`
+    config : `lsst.ctrl.bps.BpsConfig`
         Generic workflow config.
     """
     def __init__(self, name, config):
@@ -212,9 +217,9 @@ class BaseWmsWorkflow(metaclass=ABCMeta):
 
         Parameters
         ----------
-        config : `~lsst.ctrl.bps.bps_config.BpsConfig`
+        config : `lsst.ctrl.bps.BpsConfig`
             Configuration values needed for generating a WMS specific workflow.
-        generic_workflow : `~lsst.ctrl.bps.generic_workflow.GenericWorkflow`
+        generic_workflow : `lsst.ctrl.bps.GenericWorkflow`
             Generic workflow from which to create the WMS-specific one.
         out_prefix : `str`
             Root directory to be used for WMS workflow inputs and outputs
@@ -224,8 +229,8 @@ class BaseWmsWorkflow(metaclass=ABCMeta):
 
         Returns
         -------
-            wms_workflow : `~lsst.ctrl.bps.wms_service.BaseWmsWorkflow`
-                A WMS specific workflow
+        wms_workflow : `lsst.ctrl.bps.BaseWmsWorkflow`
+            A WMS specific workflow.
         """
 
         raise NotImplementedError

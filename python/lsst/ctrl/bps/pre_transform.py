@@ -44,7 +44,7 @@ def acquire_quantum_graph(config, out_prefix=None):
 
     Parameters
     ----------
-    config : `.bps_config.BpsConfig`
+    config : `lsst.ctrl.bps.BpsConfig`
         Configuration values for BPS.  In particular, looking for qgraphFile.
     out_prefix : `str` or None
         Output path for the QuantumGraph and stdout/stderr from generating
@@ -54,7 +54,7 @@ def acquire_quantum_graph(config, out_prefix=None):
     -------
     qgraph_filename : `str`
         Name of file containing QuantumGraph that was read into qgraph.
-    qgraph : `~lsst.pipe.base.graph.QuantumGraph`
+    qgraph : `lsst.pipe.base.graph.QuantumGraph`
         A QuantumGraph read in from pre-generated file or one that is the
         result of running code that generates it.
     """
@@ -121,21 +121,21 @@ def execute(command, filename):
 
 
 def create_quantum_graph(config, out_prefix=None):
-    """Create QuantumGraph from pipeline definition
+    """Create QuantumGraph from pipeline definition.
 
     Parameters
     ----------
-    config : `.bps_config.BpsConfig`
+    config : `lsst.ctrl.bps.BpsConfig`
         BPS configuration.
     out_prefix : `str` or None
         Path in which to output QuantumGraph as well as the stdout/stderr
-        from generating the QuantumGraph.  If out_prefix is None, code will write
-        the QuantumGraph and stdout/stderr to the current directory.
+        from generating the QuantumGraph.  If out_prefix is None, code will
+        write the QuantumGraph and stdout/stderr to the current directory.
 
     Returns
     -------
     qgraph_filename : `str`
-        Name of file containing generated QuantumGraph
+        Name of file containing generated QuantumGraph.
     """
     # Create name of file to store QuantumGraph.
     qgraph_filename = f"{config['uniqProcName']}.qgraph"
@@ -166,17 +166,18 @@ def read_quantum_graph(qgraph_filename):
     Parameters
     ----------
     qgraph_filename : `str`
-        Name of file containing QuantumGraph to be used for workflow generation.
+        Name of file containing QuantumGraph to be used for workflow
+        generation.
 
     Returns
     -------
-    qgraph : `~lsst.pipe.base.graph.QuantumGraph`
+    qgraph : `lsst.pipe.base.graph.QuantumGraph`
         The QuantumGraph read from a file.
 
     Raises
     ------
-    `RuntimeError`
-        If the QuantumGraph contains 0 Quanta
+    RuntimeError
+        If the QuantumGraph contains 0 Quanta.
     """
     qgraph = QuantumGraph.loadUri(qgraph_filename, DimensionUniverse())
     if len(qgraph) == 0:
@@ -185,20 +186,21 @@ def read_quantum_graph(qgraph_filename):
 
 
 def cluster_quanta(config, qgraph, name):
-    """Call specified function to group quanta into clusters to be run together.
+    """Call specified function to group quanta into clusters to be run
+    together.
 
     Parameters
     ----------
-    config : `~lsst.ctrl.bps.bps_config.BpsConfig`
+    config : `lsst.ctrl.bps.BpsConfig`
         BPS configuration.
-    qgraph : `~lsst.pipe.base.QuantumGraph`
+    qgraph : `lsst.pipe.base.QuantumGraph`
         Original full QuantumGraph for the run.
     name : `str`
         Name for the ClusteredQuantumGraph that will be generated.
 
     Returns
     -------
-    graph : `~lsst.ctrl.bps.clustered_quantum_graph.ClusteredQuantumGraph`
+    graph : `lsst.ctrl.bps.ClusteredQuantumGraph`
         Generated ClusteredQuantumGraph.
     """
     cluster_func = doImport(config["clusterAlgorithm"])

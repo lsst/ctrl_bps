@@ -19,10 +19,12 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+"""Configuration class that adds order to searching sections for value,
+expands environment variables and other config variables.
 """
-Configuration class that adds order to searching sections for value,
-expands environment variables and other config variables
-"""
+
+__all__ = ["BpsConfig", "BpsFormatter"]
+
 
 from os.path import expandvars
 import logging
@@ -32,16 +34,16 @@ import re
 
 from lsst.daf.butler.core.config import Config
 
+
 _LOG = logging.getLogger(__name__)
 
 
 class BpsFormatter(string.Formatter):
-    """String formatter class that allows BPS config
-    search options
+    """String formatter class that allows BPS config search options.
     """
     def get_field(self, field_name, args, kwargs):
         _, val = args[0].search(field_name, opt=args[1])
-        return (val, field_name)
+        return val, field_name
 
     def get_value(self, key, args, kwargs):
         _, val = args[0].search(key, opt=args[1])
@@ -56,7 +58,7 @@ class BpsConfig(Config):
     other : `str`, `dict`, `Config`, `BpsConfig`
         Path to a yaml file or a dict/Config/BpsConfig containing configuration
         to copy.
-    search_order : `list` of `str`, optional
+    search_order : `list` [`str`], optional
         Root section names in the order in which they should be searched.
     """
     def __init__(self, other, search_order=None):
@@ -95,17 +97,17 @@ class BpsConfig(Config):
                 self[key] = {}
 
     def copy(self):
-        """Makes a copy of config
+        """Make a copy of config.
 
         Returns
         -------
-        copy : `~lsst.ctrl.bps.bps_config.BpsConfig`
-            A duplicate of itself
+        copy : `lsst.ctrl.bps.BpsConfig`
+            A duplicate of itself.
         """
         return BpsConfig(self)
 
     def __getitem__(self, name):
-        """Returns the value from the config for the given name
+        """Return the value from the config for the given name.
 
         Parameters
         ----------
@@ -114,15 +116,15 @@ class BpsConfig(Config):
 
         Returns
         -------
-        val : `str`, `int`, `~lsst.ctrl.bps.bps_config.BPSConfig`, ...
-            Value from config if found
+        val : `str`, `int`, `lsst.ctrl.bps.BPSConfig`, ...
+            Value from config if found.
         """
         _, val = self.search(name, {})
 
         return val
 
     def __contains__(self, name):
-        """Checks whether name is in config.
+        """Check whether name is in config.
 
         Parameters
         ----------
@@ -132,13 +134,13 @@ class BpsConfig(Config):
         Returns
         -------
         found : `bool`
-            Whether name was in config or not
+            Whether name was in config or not.
         """
         found, _ = self.search(name, {})
         return found
 
     def search(self, key, opt=None):
-        """Searches for key using given opt following hierarchy rules.
+        """Search for key using given opt following hierarchy rules.
 
         Search hierarchy rules: current values, a given search object, and
         search order of config sections.
@@ -147,7 +149,7 @@ class BpsConfig(Config):
         ----------
         key : `str`
             Key to look for in config.
-        opt : `dict`, optional
+        opt : `dict` [`str`, `Any`], optional
             Options dictionary to use while searching.  All are optional.
 
             ``"curvals"``
@@ -174,9 +176,9 @@ class BpsConfig(Config):
         Returns
         -------
         found : `bool`
-            Whether name was in config or not
-        value : `str`, `int`, `BpsConfig`, ...
-            Value from config if found
+            Whether name was in config or not.
+        value : `str`, `int`, `lsst.ctrl.bps.BpsConfig`, ...
+            Value from config if found.
         """
         _LOG.debug("search: initial key = '%s', opt = '%s'", key, opt)
 
@@ -216,7 +218,6 @@ class BpsConfig(Config):
                     if "curr_" + sect in curvals:
                         currkey = curvals["curr_" + sect]
                         _LOG.debug("currkey for section %s = %s", sect, currkey)
-                        # search_sect = Config.__getitem__(search_sect, currkey)
                         if Config.__contains__(search_sect, currkey):
                             search_sect = Config.__getitem__(search_sect, currkey)
 
@@ -264,7 +265,8 @@ class BpsConfig(Config):
                 # default only applies to original search key
                 default = opt.pop("default", None)
 
-                # Temporarily replace any env vars so formatter doesn't try to replace them.
+                # Temporarily replace any env vars so formatter doesn't try to
+                # replace them.
                 value = re.sub(r"\${([^}]+)}", r"<BPSTMP:\1>", value)
 
                 value = self.formatter.format(value, self, opt)

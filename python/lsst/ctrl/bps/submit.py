@@ -21,6 +21,7 @@
 
 """Driver for submitting a prepared WMS-specific workflow
 """
+
 from lsst.utils import doImport
 
 
@@ -33,17 +34,18 @@ def submit(config, wms_workflow, wms_service=None):
 
     Parameters
     ----------
-    config : `~lsst.ctrl.bps.bps_config.BpsConfig`
+    config : `lsst.ctrl.bps.BpsConfig`
         Configuration values to be used by submission.
-    wms_workflow : `~lsst.ctrl.bps.wms_workflow.BaseWmsWorkflow`
+    wms_workflow : `lsst.ctrl.bps.BaseWmsWorkflow`
         The workflow to submit.
-    wms_service : `~lsst.ctrl.bps.wms_service.BaseWmsService`, optional
-        The workflow management service to which the workflow should be submitted.
+    wms_service : `lsst.ctrl.bps.BaseWmsService`, optional
+        The workflow management service to which the workflow should be
+        submitted.
 
     Returns
     -------
-    wms_workflow : `~lsst.ctrl.bps.wms_workflow.BaseWmsWorkflow`
-        WMS-specific workflow
+    wms_workflow : `lsst.ctrl.bps.BaseWmsWorkflow`
+        WMS-specific workflow.
     """
     if wms_service is None:
         wms_service_class = doImport(config["wmsServiceClass"])

@@ -19,21 +19,22 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-"""Functions used to draw BPS graphs
+"""Functions used to draw BPS graphs.
 """
 import logging
 import networkx
+
 
 _LOG = logging.getLogger(__name__)
 
 
 def draw_networkx_dot(graph, outname):
-    """Saves drawing of expanded graph to file
+    """Save drawing of expanded graph to file.
 
     Parameters
     ----------
-    graph :
-        NetworkX digraph
+    graph : `networkx.DiGraph`
+        The graph which graphical representation should be persisted.
     outname : `str`
         Output filename for drawn graph
     """

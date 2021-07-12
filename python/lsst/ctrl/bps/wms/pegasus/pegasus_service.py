@@ -19,7 +19,11 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-"""Support for using Pegasus WMS"""
+"""Support for using Pegasus WMS.
+"""
+
+__all__ = ["PegasusService", "PegasusWorkflow"]
+
 
 import os
 import copy
@@ -32,33 +36,33 @@ import logging
 from Pegasus.DAX3 import ADAG, File, Job, Link, PFN, Executable, Profile, Namespace
 from Pegasus.catalogs import replica_catalog, sites_catalog, transformation_catalog
 
-from lsst.ctrl.bps.bps_utils import chdir
-from lsst.ctrl.bps.wms_service import BaseWmsService, BaseWmsWorkflow
-from lsst.ctrl.bps.wms.htcondor.lssthtc import htc_write_attribs
-from lsst.ctrl.bps.wms.htcondor.htcondor_service import HTCondorService
+from ... import BaseWmsService, BaseWmsWorkflow
+from ...bps_utils import chdir
+from ..htcondor import HTCondorService, htc_write_attribs
+
 
 _LOG = logging.getLogger(__name__)
 
 
 class PegasusService(BaseWmsService):
-    """Pegasus version of workflow engine
+    """Pegasus version of workflow engine.
     """
     def prepare(self, config, generic_workflow, out_prefix=None):
-        """Create submission for a generic workflow
-        in a specific WMS
+        """Create submission for a generic workflow in a specific WMS.
 
         Parameters
         ----------
-        config : `~lsst.ctrl.bps.BPSConfig`
-            BPS configuration that includes necessary submit/runtime information
-        generic_workflow :  `~lsst.ctrl.bps.generic_workflow.GenericWorkflow`
+        config : `lsst.ctrl.bps.BpsConfig`
+            BPS configuration that includes necessary submit/runtime
+            information.
+        generic_workflow : `lsst.ctrl.bps.GenericWorkflow`
             The generic workflow (e.g., has executable name and arguments)
         out_prefix : `str`
             The root directory into which all WMS-specific files are written.
 
         Returns
         ----------
-        workflow : `~lsst.ctrl.bps.wms.pegasus.pegasus_service.PegasusWorkflow`
+        peg_workflow : `lsst.ctrl.bps.wms.pegasus.PegasusWorkflow`
             A workflow ready for Pegasus to run.
         """
         service_class = f"{self.__class__.__module__}.{self.__class__.__name__}"
@@ -73,7 +77,7 @@ class PegasusService(BaseWmsService):
 
         Parameters
         ----------
-        workflow : `~lsst.ctrl.bps.wms_service.BaseWorkflow`
+        workflow : `lsst.ctrl.bps.BaseWorkflow`
             A single HTCondor workflow to submit
         """
         with chdir(workflow.submit_path):
@@ -87,7 +91,10 @@ class PegasusService(BaseWmsService):
         if process.returncode != 0:
             raise RuntimeError("pegasus-run exited with non-zero exit code (%s)" % process.returncode)
 
-        # Note: No need to save run id as the same as the run id generated when running pegasus-plan earlier
+        # Note:
+        #
+        # No need to save run id as the same as the run id generated when
+        # running pegasus-plan earlier.
 
     def list_submitted_jobs(self, wms_id=None, user=None, require_bps=True, pass_thru=None):
         """Query WMS for list of submitted WMS workflows/jobs.
@@ -108,7 +115,7 @@ class PegasusService(BaseWmsService):
 
         Returns
         -------
-        job_ids : `list` of `Any`
+        job_ids : `list` [`Any`]
             Only job ids to be used by cancel and other functions.  Typically
             this means top-level jobs (i.e., not children jobs).
         """
@@ -130,10 +137,11 @@ class PegasusService(BaseWmsService):
 
          Returns
          -------
-         run_reports : `dict` of `BaseWmsReport`
+         run_reports : `list` [`lsst.ctrl.bps.BaseWmsReport`]
              Status information for submitted WMS workflows
          message : `str`
-             Message to user on how to find more status information specific to WMS
+             Message to user on how to find more status information specific to
+             WMS.
          """
         htc_service = HTCondorService(self.config)
         return htc_service.report(wms_workflow_id, user, hist, pass_thru)
@@ -192,10 +200,11 @@ class PegasusWorkflow(BaseWmsWorkflow):
     Parameters
     ----------
     name : `str`
-        Name of Workflow
-    config : `~lsst.ctrl.bps.bps_config.BpsConfig`
-        BPS configuration that includes necessary submit/runtime information
+        Name of workflow.
+    config : `lsst.ctrl.bps.BpsConfig`
+        BPS configuration that includes necessary submit/runtime information.
     """
+
     def __init__(self, name, config):
         # config, run_id, submit_path
         super().__init__(name, config)
@@ -212,7 +221,8 @@ class PegasusWorkflow(BaseWmsWorkflow):
     def _init_catalogs(self):
         # Set workdir in catalogs at write time.  So pass None as value here.
 
-        # Replica Catalog keeps mappings of logical file ids/names (LFN's) to physical file ids/names (PFN's)
+        # Replica Catalog keeps mappings of logical file ids/names (LFN's) to
+        # physical file ids/names (PFN's)
         if "rcFile" not in self.config:
             fname = "rc.txt"
             self.replica_catalog = replica_catalog.ReplicaCatalog(None, fname)
@@ -223,10 +233,12 @@ class PegasusWorkflow(BaseWmsWorkflow):
             fname = "tc.txt"
             self.transformation_catalog = transformation_catalog.TransformationCatalog(None, fname)
 
-        # Note: SitesCatalog needs workdir at initialization to create local site for
-        # submit side directory where the output data from the workflow will be stored.
-        # So delaying creation of SitesCatalog until all the write function is called
-        # with a given output directory.
+        # Note:
+        #
+        # SitesCatalog needs workdir at initialization to create local site
+        # for submit side directory where the output data from the workflow
+        # will be stored. So delaying creation of SitesCatalog until all the
+        # write function is called with a given output directory.
 
     @classmethod
     def from_generic_workflow(cls, config, generic_workflow, out_prefix, service_class):
@@ -236,7 +248,8 @@ class PegasusWorkflow(BaseWmsWorkflow):
         peg_workflow.run_attrs["bps_wms_service"] = service_class
         peg_workflow.run_attrs["bps_wms_workflow"] = f"{cls.__module__}.{cls.__name__}"
 
-        # Create initial Pegasus File objects for all files that WMS must handle
+        # Create initial Pegasus File objects for all files that WMS must
+        # handle.
         peg_files = {}
         for gwf_file in generic_workflow.get_files(data=True, transfer_only=True):
             if gwf_file.wms_transfer:
@@ -263,11 +276,11 @@ class PegasusWorkflow(BaseWmsWorkflow):
 
         Parameters
         ----------
-        generic_workflow : `~lsst.ctrl.bps.generic_workflow.GenericWorkflow`
+        generic_workflow : `lsst.ctrl.bps.GenericWorkflow`
             Generic workflow that is being converted.
-        gwf_job : `~lsst.ctrl.bps.generic_workflow.GenericWorkflowJob`
+        gwf_job : `lsst.ctrl.bps.GenericWorkflowJob`
             The generic job to convert to a Pegasus job.
-        peg_files : `dict` of `Pegasus.DAX3.File`
+        peg_files : `dict` [`str`, `Pegasus.DAX3.File`]
             Pegasus Files needed when creating Pegasus Job.
 
         Returns
@@ -277,14 +290,15 @@ class PegasusWorkflow(BaseWmsWorkflow):
 
         Notes
         -----
-        https://pegasus.isi.edu/documentation/reference-guide/variable-expansion.html
-        Says that ${VAR} gets expanded with submit side values during pegasus-plan.
-        If try $VAR (which isn't supposed to get expanded by pegasus-plan), the
-        environment variable (e.g., ${CTRL_MPEXEC_DIR} gets completely dropped from
-        the executable path and job dies because cannot find executable (/bin/pipetask).
+        https://pegasus.isi.edu/documentation/reference-guide/variable
+        -expansion.html Says that ${VAR} gets expanded with submit side
+        values during pegasus-plan. If try $VAR (which isn't supposed to get
+        expanded by pegasus-plan), the environment variable (e.g.,
+        ${CTRL_MPEXEC_DIR} gets completely dropped from the executable path
+        and job dies because cannot find executable (/bin/pipetask).
 
-        So, currently Pegasus plugin only works if environment variables used in commands
-        are same on submit machine and compute machine.
+        So, currently Pegasus plugin only works if environment variables used
+        in commands are same on submit machine and compute machine.
         """
         _LOG.debug("GenericWorkflowJob=%s", gwf_job)
         _LOG.debug("%s gwf_job.cmdline = %s", gwf_job.name, gwf_job.cmdline)
@@ -375,13 +389,16 @@ class PegasusWorkflow(BaseWmsWorkflow):
     def _define_sites(self, out_prefix):
         """Create Pegasus Site Catalog
 
-        Note: SitesCatalog needs workdir at initialization to create local site for
-        submit side directory where the output data from the workflow will be stored.
-
         Parameters
         ----------
         out_prefix : `str`
             Directory prefix for the site catalog file.
+
+        Notes
+        -----
+        SitesCatalog needs workdir at initialization to create local site for
+        submit side directory where the output data from the workflow will be
+        stored.
         """
         self.sites_catalog = sites_catalog.SitesCatalog(out_prefix, f"{self.name}_sites.xml")
 
@@ -405,7 +422,7 @@ class PegasusWorkflow(BaseWmsWorkflow):
                                                 value=f"{self.name}.node_status")
 
     def write(self, out_prefix):
-        """Write Pegasus Catalogs and DAX to files
+        """Write Pegasus Catalogs and DAX to files.
 
         Parameters
         ----------
@@ -459,14 +476,14 @@ class PegasusWorkflow(BaseWmsWorkflow):
         self.properties_filename = self._write_properties_file(out_prefix, filenames)
 
     def run_pegasus_plan(self, out_prefix, run_attr):
-        """Execute pegasus-plan to convert DAX to HTCondor DAG for submission
+        """Execute pegasus-plan to convert DAX to HTCondor DAG for submission.
 
         Parameters
         ----------
         out_prefix : `str`
-            Root directory in which to output all files
+            Root directory in which to output all files.
         run_attr : `dict`
-            Attributes to add to main DAG
+            Attributes to add to main DAG.
         """
         cmd = f"pegasus-plan --verbose --conf {self.properties_filename} --dax {self.dax_filename} --dir " \
               f"{out_prefix}/peg --cleanup none --sites {self.config['computeSite']} " \
@@ -492,8 +509,8 @@ class PegasusWorkflow(BaseWmsWorkflow):
                         self.run_id = match.group(1)
                         break
 
-        # Hack - Using profile in sites.xml doesn't add run attributes to DAG submission
-        # file. So adding them here:
+        # Hack - Using profile in sites.xml doesn't add run attributes to DAG
+        # submission file. So adding them here:
         if run_attr is not None:
             subname = f"{self.run_id}/{self.name}-0.dag.condor.sub"
             shutil.copyfile(subname, subname + ".orig")
@@ -507,13 +524,13 @@ class PegasusWorkflow(BaseWmsWorkflow):
                         print(line, file=outfh)
 
     def _write_properties_file(self, out_prefix, filenames):
-        """Write Pegasus Properties File
+        """Write Pegasus Properties File.
 
         Parameters
         ----------
         out_prefix : `str`
             Directory prefix for properties file.
-        filenames : `dict` of `str`
+        filenames : `dict` [`str`, `str`]
             Mapping of Pegasus file keys to filenames.
 
         Returns

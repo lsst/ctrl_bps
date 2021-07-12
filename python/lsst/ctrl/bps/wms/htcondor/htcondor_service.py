@@ -18,10 +18,12 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Interface between generic workflow to HTCondor workflow system
+
+"""Interface between generic workflow to HTCondor workflow system.
 """
 
 __all__ = ["HTCondorService", "HTCondorWorkflow"]
+
 
 import os
 import re
@@ -31,34 +33,56 @@ from pathlib import Path
 
 import htcondor
 
-from lsst.ctrl.bps.bps_utils import chdir
-from lsst.ctrl.bps.wms_service import BaseWmsWorkflow, BaseWmsService, WmsRunReport, WmsJobReport, WmsStates
-from lsst.ctrl.bps.generic_workflow import GenericWorkflow
-from .lssthtc import (htc_submit_dag, read_node_status, read_dag_log, condor_q, condor_history, HTCDag,
-                      HTCJob, JobStatus, NodeStatus, htc_escape, read_dag_status, summary_from_dag,
-                      htc_check_dagman_output, MISSING_ID, pegasus_name_to_label)
+from ... import (
+    BaseWmsWorkflow,
+    BaseWmsService,
+    GenericWorkflow,
+    WmsRunReport,
+    WmsJobReport,
+    WmsStates
+)
+from ...bps_utils import chdir
+from .lssthtc import (
+    HTCDag,
+    HTCJob,
+    MISSING_ID,
+    JobStatus,
+    NodeStatus,
+    htc_check_dagman_output,
+    htc_escape,
+    htc_submit_dag,
+    read_node_status,
+    read_dag_log,
+    read_dag_status,
+    condor_q,
+    condor_history,
+    pegasus_name_to_label,
+    summary_from_dag,
+)
+
 
 _LOG = logging.getLogger(__name__)
 
 
 class HTCondorService(BaseWmsService):
-    """HTCondor version of WMS service
+    """HTCondor version of WMS service.
     """
     def prepare(self, config, generic_workflow, out_prefix=None):
-        """Convert generic workflow to an HTCondor DAG ready for submission
+        """Convert generic workflow to an HTCondor DAG ready for submission.
 
         Parameters
         ----------
-        config : `~lsst.ctrl.bps.BPSConfig`
-            BPS configuration that includes necessary submit/runtime information
-        generic_workflow :  `~lsst.ctrl.bps.generic_workflow.GenericWorkflow`
-            The generic workflow (e.g., has executable name and arguments)
+        config : `lsst.ctrl.bps.BPSConfig`
+            BPS configuration that includes necessary submit/runtime
+            information.
+        generic_workflow : `lsst.ctrl.bps.GenericWorkflow`
+            The generic workflow (e.g., has executable name and arguments).
         out_prefix : `str`
-            The root directory into which all WMS-specific files are written
+            The root directory into which all WMS-specific files are written.
 
         Returns
         ----------
-        workflow : `~lsst.ctrl.bps.wms.htcondor.htcondor_service.HTCondorWorkflow`
+        workflow : `lsst.ctrl.bps.wms.htcondor.HTCondorWorkflow`
             HTCondor workflow ready to be run.
         """
         _LOG.debug("out_prefix = '%s'", out_prefix)
@@ -69,16 +93,17 @@ class HTCondorService(BaseWmsService):
         return workflow
 
     def submit(self, workflow):
-        """Submit a single HTCondor workflow
+        """Submit a single HTCondor workflow.
 
         Parameters
         ----------
-        workflow : `~lsst.ctrl.bps.wms_service.BaseWorkflow`
-            A single HTCondor workflow to submit.  run_id
-            is updated after successful submission to WMS.
+        workflow : `lsst.ctrl.bps.BaseWorkflow`
+            A single HTCondor workflow to submit.  run_id is updated after
+            successful submission to WMS.
         """
-        # For workflow portability, internal paths are all relative
-        # Need to submit to HTCondor from inside the
+        # For workflow portability, internal paths are all relative. Hence
+        # the DAG needs to be submitted to HTCondor from inside the submit
+        # directory.
         with chdir(workflow.submit_path):
             _LOG.info("Submitting from directory: %s", os.getcwd())
             htc_submit_dag(workflow.dag, dict())
@@ -103,7 +128,7 @@ class HTCondorService(BaseWmsService):
 
         Returns
         -------
-        job_ids : `list` of `Any`
+        job_ids : `list` [`Any`]
             Only job ids to be used by cancel and other functions.  Typically
             this means top-level jobs (i.e., not children jobs).
         """
@@ -133,7 +158,7 @@ class HTCondorService(BaseWmsService):
         _LOG.debug("constraint = %s", constraint)
         jobs = condor_q(constraint)
 
-        # prune child jobs where DAG job is in queue (i.e., aren't orphans)
+        # Prune child jobs where DAG job is in queue (i.e., aren't orphans).
         job_ids = []
         for job_id, job_info in jobs.items():
             _LOG.debug("job_id=%s DAGManJobId=%s", job_id, job_info.get("DAGManJobId", "None"))
@@ -164,17 +189,18 @@ class HTCondorService(BaseWmsService):
 
         Returns
         -------
-        runs : `dict` of `~lsst.ctrl.bps.wms_service.WmsRunReport`
+        runs : `list` [`lsst.ctrl.bps.WmsRunReport`]
             Information about runs from given job information.
         message : `str`
-            Extra message for report command to print.  This could be pointers to documentation or
-            to WMS specific commands.
+            Extra message for report command to print.  This could be pointers
+            to documentation or to WMS specific commands.
         """
         message = ""
 
         if wms_workflow_id:
-            # Explicitly checking if wms_workflow_id can be converted to a float instead
-            # of using try/except to avoid catching a different ValueError from _report_from_id
+            # Explicitly checking if wms_workflow_id can be converted to a
+            # float instead of using try/except to avoid catching a different
+            # ValueError from _report_from_id
             try:
                 float(wms_workflow_id)
                 is_float = True
@@ -247,14 +273,14 @@ class HTCondorService(BaseWmsService):
 
 
 class HTCondorWorkflow(BaseWmsWorkflow):
-    """Single HTCondor workflow
+    """Single HTCondor workflow.
 
     Parameters
     ----------
     name : `str`
-        Unique name for Workflow used when naming files
-    config : `~lsst.ctrl.bps.BPSConfig`
-        BPS configuration that includes necessary submit/runtime information
+        Unique name for Workflow used when naming files.
+    config : `lsst.ctrl.bps.BpsConfig`
+        BPS configuration that includes necessary submit/runtime information.
     """
     def __init__(self, name, config=None):
         super().__init__(name, config)
@@ -285,22 +311,22 @@ class HTCondorWorkflow(BaseWmsWorkflow):
 
     @staticmethod
     def _create_job(generic_workflow, gwf_job, run_attrs, out_prefix):
-        """Convert GenericWorkflow job nodes to DAG jobs
+        """Convert GenericWorkflow job nodes to DAG jobs.
 
         Parameters
         ----------
-        generic_workflow : `~lsst.ctrl.bps.generic_workflow.GenericWorkflow`
+        generic_workflow : `lsst.ctrl.bps.GenericWorkflow`
             Generic workflow that is being converted.
-        gwf_job : `~lsst.ctrl.bps.generic_workflow.GenericWorkflowJob`
+        gwf_job : `lsst.ctrl.bps.GenericWorkflowJob`
             The generic job to convert to a HTCondor job.
-        run_attrs : `dict` [`str`: `str`]
+        run_attrs : `dict` [`str`, `str`]
             Attributes common to entire run that should be added to job.
         out_prefix : `str`
             Directory prefix for HTCondor files.
 
         Returns
         -------
-        htc_job : `~lsst.ctrl.bps.wms.htcondor.lssthtc.HTCJob`
+        htc_job : `lsst.ctrl.bps.wms.htcondor.HTCJob`
             The HTCondor job equivalent to the given generic job.
         """
         htc_job = HTCJob(gwf_job.name, label=gwf_job.label)
@@ -363,15 +389,16 @@ def _translate_job_cmds(generic_workflow, generic_workflow_job):
 
     Parameters
     ----------
-    generic_workflow : `~lsst.ctrl.bps.generic_workflow.GenericWorkflow`
+    generic_workflow : `lsst.ctrl.bps.GenericWorkflow`
        Generic workflow that contains job to being converted.
-    generic_workflow_job : `~lsst.ctrl.bps.generic_workflow.GenericWorkflowJob`
+    generic_workflow_job : `lsst.ctrl.bps.GenericWorkflowJob`
        Generic workflow job to be converted.
 
     Returns
     -------
-    htc_job_commands : `dict`
-        Contains commands which can appear in the HTCondor submit description file.
+    htc_job_commands : `dict` [`str`, `Any`]
+        Contains commands which can appear in the HTCondor submit description
+        file.
     """
     jobcmds = {}
 
@@ -423,12 +450,12 @@ def _fix_env_var_syntax(oldstr):
 
     Parameters
     ----------
-    oldstr: `str`
+    oldstr : `str`
         String in which environment variable syntax is to be fixed.
 
     Returns
     -------
-    newstr: `str`
+    newstr : `str`
         Given string with environment variable syntax fixed.
     """
     newstr = oldstr
@@ -438,16 +465,16 @@ def _fix_env_var_syntax(oldstr):
 
 
 def _replace_file_vars(arguments, workflow, gwjob):
-    """Replace file placeholders in command line arguments
-    with correct physical file names.
+    """Replace file placeholders in command line arguments with correct
+    physical file names.
 
     Parameters
     ----------
     arguments : `str`
         Arguments string in which to replace file placeholders.
-    workflow : `~lsst.ctrl.bps.generic_workflow.GenericWorkflow`
+    workflow : `lsst.ctrl.bps.GenericWorkflow`
         Generic workflow that contains file information.
-    gwjob : `~lsst.ctrl.bps.generic_workflow.GenericWorkflowJob`
+    gwjob : `lsst.ctrl.bps.GenericWorkflowJob`
         The job corresponding to the arguments.
 
     Returns
@@ -455,7 +482,7 @@ def _replace_file_vars(arguments, workflow, gwjob):
     arguments : `str`
         Given arguments string with file placeholders replaced.
     """
-    # Replace input file placeholders with paths
+    # Replace input file placeholders with paths.
     for gwfile in workflow.get_job_inputs(gwjob.name):
         if gwfile.wms_transfer:
             uri = os.path.basename(gwfile.src_uri)
@@ -463,7 +490,7 @@ def _replace_file_vars(arguments, workflow, gwjob):
             uri = gwfile.src_uri
         arguments = arguments.replace(f"<FILE:{gwfile.name}>", uri)
 
-    # Replace input file placeholders with paths
+    # Replace input file placeholders with paths.
     for gwfile in workflow.get_job_outputs(gwjob.name):
         if gwfile.wms_transfer:
             uri = os.path.basename(gwfile.src_uri)
@@ -480,7 +507,7 @@ def _replace_cmd_vars(arguments, gwjob):
     ----------
     arguments : `str`
         Arguments string in which to replace placeholders.
-    gwjob : `~lsst.ctrl.bps.generic_workflow.GenericWorkflowJob`
+    gwjob : `lsst.ctrl.bps.GenericWorkflowJob`
         Job containing values to be used to replace placeholders
         (in particular gwjob.cmdvals).
 
@@ -498,7 +525,7 @@ def _handle_job_inputs(generic_workflow: GenericWorkflow, job_name: str, out_pre
 
     Parameters
     ----------
-    generic_workflow : `.GenericWorkflow`
+    generic_workflow : `lsst.ctrl.bps.GenericWorkflow`
         The generic workflow (e.g., has executable name and arguments).
     job_name : `str`
         Unique name for the job.
@@ -507,7 +534,7 @@ def _handle_job_inputs(generic_workflow: GenericWorkflow, job_name: str, out_pre
 
     Returns
     -------
-    htc_commands : `dict` [`str`: `str`]
+    htc_commands : `dict` [`str`, `str`]
         HTCondor commands for the job submission.
     """
     htc_commands = {}
@@ -531,7 +558,7 @@ def _report_from_path(wms_path):
 
     Returns
     -------
-    run_reports : `dict` [`str`, `WmsRunReport`]
+    run_reports : `dict` [`str`, `lsst.ctrl.bps.WmsRunReport`]
         Run information for the detailed report.  The key is the HTCondor id
         and the value is a collection of report information for that run.
     message : `str`
@@ -557,7 +584,7 @@ def _report_from_id(wms_workflow_id, hist):
 
     Returns
     -------
-    run_reports : `dict` [`str`, `WmsRunReport`]
+    run_reports : `dict` [`str`, `lsst.ctrl.bps.WmsRunReport`]
         Run information for the detailed report.  The key is the HTCondor id
         and the value is a collection of report information for that run.
     message : `str`
@@ -643,11 +670,9 @@ def _create_detailed_report_from_jobs(wms_workflow_id, jobs):
 
     Returns
     -------
-    run_reports : `dict` [`str`, `WmsRunReport`]
-        Run information for the detailed report.  The key is the given HTCondor id
-        and the value is a collection of report information for that run.
-    message : `str`
-        Message to be printed with the summary report.
+    run_reports : `dict` [`str`, `lsst.ctrl.bps.WmsRunReport`]
+        Run information for the detailed report.  The key is the given HTCondor
+        id and the value is a collection of report information for that run.
     """
     _LOG.debug("_create_detailed_report: id = %s, job = %s", wms_workflow_id, jobs[wms_workflow_id])
     dag_job = jobs[wms_workflow_id]
@@ -703,7 +728,7 @@ def _summary_report(user, hist, pass_thru):
 
     Returns
     -------
-    run_reports : `dict` [`str`, `WmsRunReport`]
+    run_reports : `dict` [`str`, `lsst.ctrl.bps.WmsRunReport`]
         Run information for the summary report.  The keys are HTCondor ids and
         the values are collections of report information for each run.
     message : `str`
@@ -713,13 +738,15 @@ def _summary_report(user, hist, pass_thru):
     if pass_thru:
         constraint = pass_thru
     else:
-        # Note: bps_isjob == 'True' isn't getting set for DAG jobs that are manually restarted
-        #       Any job with DAGManJobID isn't a DAG job
+        # Notes:
+        # * bps_isjob == 'True' isn't getting set for DAG jobs that are
+        #   manually restarted.
+        # * Any job with DAGManJobID isn't a DAG job
         constraint = 'bps_isjob == "True" && JobUniverse == 7'
         if user:
             constraint += f' && (Owner == "{user}" || bps_operator == "{user}")'
 
-        # check runs in queue
+        # Check runs in queue.
         jobs = condor_q(constraint)
 
     if hist:
@@ -730,12 +757,12 @@ def _summary_report(user, hist, pass_thru):
 
     _LOG.debug("Job ids from queue and history %s", jobs.keys())
 
-    # Have list of DAGMan jobs, need to get run_report info
+    # Have list of DAGMan jobs, need to get run_report info.
     run_reports = {}
     for job in jobs.values():
         total_jobs, state_counts = _get_state_counts_from_dag_job(job)
-        # if didn't get from queue information (e.g., Kerberos bug),
-        # try reading from file
+        # If didn't get from queue information (e.g., Kerberos bug),
+        # try reading from file.
         if total_jobs == 0:
             try:
                 job.update(read_dag_status(job["Iwd"]))
@@ -771,13 +798,8 @@ def _add_run_info(wms_path, job):
     ----------
     wms_path : `str`
         Path to submit files for the run.
-    job : `dict`
+    job : `dict` [`str`, `Any`]
         HTCondor dag job information.
-
-    Returns
-    -------
-    owner : `str`
-        Owner of the dag job.
 
     Raises
     ------
@@ -813,7 +835,7 @@ def _get_owner(job):
 
     Parameters
     ----------
-    job : `dict`
+    job : `dict` [`str`, `Any`]
         HTCondor dag job information.
 
     Returns
@@ -865,32 +887,34 @@ def _get_state_counts_from_jobs(wms_workflow_id, jobs):
 
     Parameters
     ----------
-    job : `dict` [`str`, `Any`]
+    wms_workflow_id : `str`
+        HTCondor job id.
+    jobs : `dict` [`str`, `Any`]
         HTCondor dag job information.
 
     Returns
     -------
     total_count : `int`
         Total number of dag nodes.
-    state_counts : `dict` [`WmsStates`, `int`]
+    state_counts : `dict` [`lsst.ctrl.bps.WmsStates`, `int`]
         Keys are the different WMS states and values are counts of jobs
         that are in that WMS state.
     """
-    counts = dict.fromkeys(WmsStates, 0)
+    state_counts = dict.fromkeys(WmsStates, 0)
 
     for jid, jinfo in jobs.items():
         if jid != wms_workflow_id:
-            counts[_htc_status_to_wms_state(jinfo)] += 1
+            state_counts[_htc_status_to_wms_state(jinfo)] += 1
 
-    total_counted = sum(counts.values())
+    total_counted = sum(state_counts.values())
     if "NodesTotal" in jobs[wms_workflow_id]:
-        total_jobs = jobs[wms_workflow_id]["NodesTotal"]
+        total_count = jobs[wms_workflow_id]["NodesTotal"]
     else:
-        total_jobs = total_counted
+        total_count = total_counted
 
-    counts[WmsStates.UNREADY] += total_jobs - total_counted
+    state_counts[WmsStates.UNREADY] += total_count - total_counted
 
-    return total_jobs, counts
+    return total_count, state_counts
 
 
 def _get_state_counts_from_dag_job(job):
@@ -905,7 +929,7 @@ def _get_state_counts_from_dag_job(job):
     -------
     total_count : `int`
         Total number of dag nodes.
-    state_counts : `dict` [`WmsStates`, `int`]
+    state_counts : `dict` [`lsst.ctrl.bps.WmsStates`, `int`]
         Keys are the different WMS states and values are counts of jobs
         that are in that WMS state.
     """
@@ -936,7 +960,8 @@ def _get_state_counts_from_dag_job(job):
             raise
         _LOG.debug("_get_state_counts_from_dag_job: from NODES* keys, total_jobs = %s", total_jobs)
     else:
-        # With Kerberos job auth and Kerberos bug, if warning would be printed for every DAG
+        # With Kerberos job auth and Kerberos bug, if warning would be printed
+        # for every DAG.
         _LOG.debug("Can't get job state counts %s", job["Iwd"])
         total_jobs = 0
 
@@ -975,7 +1000,7 @@ def _htc_job_status_to_wms_state(job):
 
     Returns
     -------
-    wms_state : `WmsStates`
+    wms_state : `lsst.ctrl.bps.WmsStates`
         The equivalent WmsState to given job's status.
     """
     _LOG.debug("htc_job_status_to_wms_state: %s=%s, %s", job["ClusterId"], job["JobStatus"],
@@ -1013,7 +1038,7 @@ def _htc_node_status_to_wms_state(job):
 
     Returns
     -------
-    wms_state : `WmsStates`
+    wms_state : `lsst.ctrl.bps.WmsStates`
         The equivalent WmsState to given node's status.
     """
     wms_state = WmsStates.MISFIT
@@ -1074,7 +1099,7 @@ def _wms_id_to_cluster(wms_id):
     cluster_id : `int`
         HTCondor cluster id.
     """
-    # If wms_id represents path, get numeric id
+    # If wms_id represents path, get numeric id.
     try:
         cluster_id = int(float(wms_id))
     except ValueError:

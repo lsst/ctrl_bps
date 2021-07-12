@@ -1,8 +1,9 @@
 #!/usr/bin/python
 """
-This file is needed to decode the command line string sent from the BPS plugin -> PanDA -> Edge node
-cluster management -> Edge node -> Container. Once the command line hexified it can contain symbols often
-stripped such as ',",` and multiline commands.
+This file is needed to decode the command line string sent from the BPS
+plugin -> PanDA -> Edge node cluster management -> Edge node -> Container.
+Once the command line hexified it can contain symbols often stripped such as
+',",` and multiline commands.
 """
 import sys
 import binascii
