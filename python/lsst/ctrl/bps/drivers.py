@@ -45,12 +45,12 @@ import time
 
 from lsst.obs.base import Instrument
 
-from . import BpsConfig
+from . import BPS_SEARCH_ORDER, BpsConfig
 from .bps_draw import draw_networkx_dot
 from .pre_transform import acquire_quantum_graph, cluster_quanta
 from .transform import transform
 from .prepare import prepare
-from .submit import BPS_SEARCH_ORDER, submit
+from .submit import submit
 from .cancel import cancel
 from .report import report
 

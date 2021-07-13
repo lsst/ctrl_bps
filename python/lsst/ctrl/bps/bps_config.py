@@ -23,7 +23,7 @@
 expands environment variables and other config variables.
 """
 
-__all__ = ["BpsConfig", "BpsFormatter"]
+__all__ = ["BPS_SEARCH_ORDER", "BpsConfig", "BpsFormatter"]
 
 
 from os.path import expandvars
@@ -36,6 +36,8 @@ from lsst.daf.butler.core.config import Config
 
 
 _LOG = logging.getLogger(__name__)
+
+BPS_SEARCH_ORDER = ["payload", "pipetask", "site", "bps_defined"]
 
 
 class BpsFormatter(string.Formatter):

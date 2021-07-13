@@ -25,10 +25,6 @@
 from lsst.utils import doImport
 
 
-# Config section search order
-BPS_SEARCH_ORDER = ["payload", "pipetask", "site", "bps_defined"]
-
-
 def submit(config, wms_workflow, wms_service=None):
     """Convert generic workflow to a workflow for a particular WMS.
 
