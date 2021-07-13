@@ -34,7 +34,7 @@ class CommandLineEmbedder:
 
     Parameters
     ----------
-    config : `~lsst.ctrl.bps.BPSConfig`
+    config : `lsst.ctrl.bps.BpsConfig`
             BPS configuration that includes the list of dynamic
             (uniques per job) and submission side resolved variables
 

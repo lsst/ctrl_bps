@@ -124,14 +124,19 @@ HTC_VALID_JOB_KEYS = {
     "when_to_transfer_output",
     "getenv",
     "notification",
+    "notify_user",
+    "concurrency_limit",
     "transfer_executable",
     "transfer_input_files",
     "request_cpus",
     "request_memory",
     "request_disk",
+    "priority",
+    "category",
     "requirements",
 }
-HTC_VALID_JOB_DAG_KEYS = {"pre", "post", "executable"}
+HTC_VALID_JOB_DAG_KEYS = {"vars", "pre", "post", "retry", "retry_unless_exit",
+                          "abort_dag_on", "abort_exit"}
 
 
 class RestrictedDict(MutableMapping):
@@ -276,10 +281,11 @@ def htc_write_condor_file(filename, job_name, job, job_attrs):
     os.makedirs(os.path.dirname(filename), exist_ok=True)
     with open(filename, "w") as fh:
         for key, value in job.items():
-            if key in HTC_QUOTE_KEYS:
-                print(f'{key}="{htc_escape(value)}"', file=fh)
-            else:
-                print(f"{key}={value}", file=fh)
+            if value is not None:
+                if key in HTC_QUOTE_KEYS:
+                    print(f'{key}="{htc_escape(value)}"', file=fh)
+                else:
+                    print(f"{key}={value}", file=fh)
         for key in ["output", "error", "log"]:
             if key not in job:
                 filename = f"{job_name}.$(Cluster).${key[:3]}"
@@ -415,13 +421,13 @@ def _htc_write_job_commands(stream, name, jobs):
     if "pre_skip" in jobs:
         print(f"PRE_SKIP {name} {jobs['pre_skip']}", file=stream)
 
-    if "retry" in jobs:
+    if "retry" in jobs and jobs["retry"]:
         print(f"RETRY {name} {jobs['retry']} ", end='', file=stream)
         if "retry_unless_exit" in jobs:
             print(f"UNLESS-EXIT {jobs['retry_unless_exit']}", end='', file=stream)
         print("\n", file=stream)
 
-    if "abort_dag_on" in jobs:
+    if "abort_dag_on" in jobs and jobs["abort_dag_on"]:
         print(f"ABORT-DAG-ON {name} {jobs['abort_dag_on']['node_exit']}"
               f" RETURN {jobs['abort_dag_on']['abort_exit']}", file=stream)
 
@@ -441,6 +447,8 @@ class HTCJob:
         Initial commands for job inside DAG.
     initattrs : `dict`
         Initial dictionary of job attributes.
+    subfile : `str`
+        Filename for the job's submit script.
     """
     def __init__(self, name, label=None, initcmds=(), initdagcmds=(), initattrs=None):
         self.name = name
@@ -484,7 +492,8 @@ class HTCJob:
         """
         if self.attrs is None:
             self.attrs = {}
-        self.attrs.update(new_attrs)
+        if new_attrs:
+            self.attrs.update(new_attrs)
 
     def write_submit_file(self, submit_path, job_subdir=""):
         """Write job description to submit file.
@@ -496,10 +505,11 @@ class HTCJob:
         job_subdir : `str`, optional
             Template for job subdir.
         """
-        self.subfile = f"{self.name}.sub"
-        job_subdir = job_subdir.format(self=self)
-        if job_subdir:
-            self.subfile = os.path.join(job_subdir, self.subfile)
+        if not self.subfile:
+            self.subfile = f"{self.name}.sub"
+            job_subdir = job_subdir.format(self=self)
+            if job_subdir:
+                self.subfile = os.path.join(job_subdir, self.subfile)
         htc_write_condor_file(os.path.join(submit_path, self.subfile), self.name, self.cmds, self.attrs)
 
     def write_dag_commands(self, stream):
@@ -543,6 +553,7 @@ class HTCDag(networkx.DiGraph):
         self.graph["attr"] = dict()
         self.graph["run_id"] = None
         self.graph["submit_path"] = None
+        self.graph["final_job"] = None
 
     def __str__(self):
         """Represent basic DAG info as string.
@@ -598,6 +609,16 @@ class HTCDag(networkx.DiGraph):
         """
         self.add_edges_from(itertools.product(parents, children))
 
+    def add_final_job(self, job):
+        """Add an HTCJob for the FINAL job in HTCDag.
+
+        Parameters
+        ----------
+        job : `HTCJob`
+            HTCJob to add to the HTCDag as a FINAL job.
+        """
+        self.graph['final_job'] = job
+
     def del_job(self, job_name):
         """Delete the job from the DAG.
 
@@ -636,6 +657,14 @@ class HTCDag(networkx.DiGraph):
                 print(f"PARENT {edge[0]} CHILD {edge[1]}", file=fh)
             print(f"DOT {self.name}.dot", file=fh)
             print(f"NODE_STATUS_FILE {self.name}.node_status", file=fh)
+            if self.graph["final_job"]:
+                job = self.graph["final_job"]
+                job.write_submit_file(submit_path, job_subdir)
+                print(f"FINAL {job.name} {job.subfile}", file=fh)
+                if "pre" in job.dagcmds:
+                    print(f"SCRIPT PRE {job.name} {job.dagcmds['pre']}", file=fh)
+                if "post" in job.dagcmds:
+                    print(f"SCRIPT POST {job.name} {job.dagcmds['post']}", file=fh)
 
     def dump(self, fh):
         """Dump DAG info to output stream.
@@ -652,6 +681,9 @@ class HTCDag(networkx.DiGraph):
             data.dump(fh)
         for edge in self.edges():
             print(f"PARENT {edge[0]} CHILD {edge[1]}", file=fh)
+        if self.graph["final_job"]:
+            print(f'FINAL {self.graph["final_job"].name}:', file=fh)
+            self.graph["final_job"].dump(fh)
 
     def write_dot(self, filename):
         """Write a dot version of the DAG.

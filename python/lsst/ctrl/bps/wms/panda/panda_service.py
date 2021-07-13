@@ -45,7 +45,7 @@ class PanDAService(BaseWmsService):
 
         Parameters
         ----------
-        config : `lsst.ctrl.bps.BPSConfig`
+        config : `lsst.ctrl.bps.BpsConfig`
             BPS configuration that includes necessary submit/runtime
             information.
         generic_workflow : `lsst.ctrl.bps.GenericWorkflow`
@@ -185,7 +185,7 @@ class PandaBpsWmsWorkflow(BaseWmsWorkflow):
     ----------
     name : `str`
         Unique name for Workflow
-    config : `lsst.ctrl.bps.BPSConfig`
+    config : `lsst.ctrl.bps.BpsConfig`
         BPS configuration that includes necessary submit/runtime information
     """
 

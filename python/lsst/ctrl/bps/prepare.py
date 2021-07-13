@@ -23,9 +23,11 @@
 """
 
 import logging
+import time
 
 from lsst.utils import doImport
-from .bps_utils import save_qg_subgraph, WhenToSaveQuantumGraphs, create_job_quantum_graph_filename
+from .bps_utils import (save_qg_subgraph, WhenToSaveQuantumGraphs, create_job_quantum_graph_filename,
+                        _create_execution_butler)
 
 
 _LOG = logging.getLogger(__name__)
@@ -48,17 +50,26 @@ def prepare(config, generic_workflow, out_prefix):
     wms_workflow : `lsst.ctrl.bps.BaseWmsWorkflow`
         WMS-specific workflow.
     """
+    search_opt = {"searchobj": config["executionButler"]}
+    _, when_create = config.search("whenCreate", opt=search_opt)
+    if when_create.upper() == "PREPARE":
+        _, execution_butler_dir = config.search(".bps_defined.executionButlerDir", opt=search_opt)
+        _LOG.info("Creating execution butler (%s)", execution_butler_dir)
+        stime = time.time()
+        _create_execution_butler(config, config["runQgraphFile"], execution_butler_dir, out_prefix)
+        _LOG.info("Creating execution butler took %.2f seconds", time.time() - stime)
+
     found, wms_class = config.search("wmsServiceClass")
     if not found:
         raise KeyError("Missing wmsServiceClass in bps config.  Aborting.")
 
-    wms_service_class = doImport(config["wmsServiceClass"])
+    wms_service_class = doImport(wms_class)
     wms_service = wms_service_class(config)
     wms_workflow = wms_service.prepare(config, generic_workflow, out_prefix)
 
     # Save QuantumGraphs (putting after call to prepare so don't write a
-    # bunch of files if prepare fails).
-    found, when_save = config.search("whenSaveJobQgraph", {"default": WhenToSaveQuantumGraphs.TRANSFORM.name})
+    # bunch of files if prepare fails)
+    found, when_save = config.search("whenSaveJobQgraph")
     if found and WhenToSaveQuantumGraphs[when_save.upper()] == WhenToSaveQuantumGraphs.PREPARE:
         for job_name in generic_workflow.nodes():
             job = generic_workflow.get_job(job_name)

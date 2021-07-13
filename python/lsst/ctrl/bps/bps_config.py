@@ -26,7 +26,7 @@ expands environment variables and other config variables.
 __all__ = ["BPS_SEARCH_ORDER", "BpsConfig", "BpsFormatter"]
 
 
-from os.path import expandvars
+from os.path import expandvars, realpath, dirname
 import logging
 import copy
 import string
@@ -78,6 +78,16 @@ class BpsConfig(Config):
         # using the inherited update() method which does not rely on super
         # class __getitem__ method.
         super().__init__()
+
+        if isinstance(other, str):
+            # First load default config from ctrl_bps, then
+            # override with user config.
+            bps_defaults = realpath(dirname(__file__) + "/../../../../etc/bps_defaults.yaml")
+            tmp_config = Config(bps_defaults)
+            user_config = Config(other)
+            tmp_config.update(user_config)
+            other = tmp_config
+
         try:
             config = Config(other)
         except RuntimeError:
@@ -118,7 +128,7 @@ class BpsConfig(Config):
 
         Returns
         -------
-        val : `str`, `int`, `lsst.ctrl.bps.BPSConfig`, ...
+        val : `str`, `int`, `lsst.ctrl.bps.BpsConfig`, ...
             Value from config if found.
         """
         _, val = self.search(name, {})

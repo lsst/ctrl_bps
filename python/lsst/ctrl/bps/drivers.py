@@ -42,6 +42,8 @@ import logging
 import os
 import pickle
 import time
+import shutil
+import yaml
 
 from lsst.obs.base import Instrument
 
@@ -72,16 +74,25 @@ def _init_submission_driver(config_file):
         Batch Processing Service configuration.
     """
     config = BpsConfig(config_file, BPS_SEARCH_ORDER)
+
+    # Set some initial values
     config[".bps_defined.timestamp"] = Instrument.makeCollectionTimestamp()
-    if "uniqProcName" not in config:
-        config[".bps_defined.uniqProcName"] = config["outCollection"].replace("/", "_")
     if "operator" not in config:
         config[".bps_defined.operator"] = getpass.getuser()
+
+    if "uniqProcName" not in config:
+        config[".bps_defined.uniqProcName"] = config["outCollection"].replace("/", "_")
 
     # make submit directory to contain all outputs
     submit_path = config["submitPath"]
     os.makedirs(submit_path, exist_ok=True)
-    config[".bps_defined.submit_path"] = submit_path
+    config[".bps_defined.submitPath"] = submit_path
+
+    # save copy of configs (orig and expanded config)
+    shutil.copy2(config_file, submit_path)
+    with open(f"{submit_path}/{config['uniqProcName']}_config.yaml", "w") as fh:
+        yaml.dump(config, fh)
+
     return config
 
 
@@ -102,12 +113,14 @@ def acquire_qgraph_driver(config_file):
     """
     stime = time.time()
     config = _init_submission_driver(config_file)
-    submit_path = config[".bps_defined.submit_path"]
+    submit_path = config[".bps_defined.submitPath"]
     _LOG.info("Acquiring QuantumGraph (it will be created from pipeline definition if needed)")
-    qgraph_file, qgraph = acquire_quantum_graph(config, out_prefix=submit_path)
+    qgraph_file, qgraph, execution_butler_dir = acquire_quantum_graph(config, out_prefix=submit_path)
+    config[".bps_defined.executionButlerDir"] = execution_butler_dir
     _LOG.info("Run QuantumGraph file %s", qgraph_file)
-    config[".bps_defined.run_qgraph_file"] = qgraph_file
+    config[".bps_defined.runQgraphFile"] = qgraph_file
     _LOG.info("Acquiring QuantumGraph took %.2f seconds", time.time() - stime)
+
     return config, qgraph
 
 
@@ -132,7 +145,7 @@ def cluster_qgraph_driver(config_file):
     clustered_qgraph = cluster_quanta(config, qgraph, config["uniqProcName"])
     _LOG.info("Clustering quanta took %.2f seconds", time.time() - stime)
 
-    submit_path = config[".bps_defined.submit_path"]
+    submit_path = config[".bps_defined.submitPath"]
     _, save_clustered_qgraph = config.search("saveClusteredQgraph", opt={"default": False})
     if save_clustered_qgraph:
         with open(os.path.join(submit_path, "bps_clustered_qgraph.pickle"), "wb") as outfh:
@@ -161,7 +174,7 @@ def transform_driver(config_file):
     """
     stime = time.time()
     config, clustered_qgraph = cluster_qgraph_driver(config_file)
-    submit_path = config[".bps_defined.submit_path"]
+    submit_path = config[".bps_defined.submitPath"]
     _LOG.info("Creating Generic Workflow")
     generic_workflow, generic_workflow_config = transform(config, clustered_qgraph, submit_path)
     _LOG.info("Creating Generic Workflow took %.2f seconds", time.time() - stime)
@@ -196,7 +209,7 @@ def prepare_driver(config_file):
     """
     stime = time.time()
     generic_workflow_config, generic_workflow = transform_driver(config_file)
-    submit_path = generic_workflow_config[".bps_defined.submit_path"]
+    submit_path = generic_workflow_config[".bps_defined.submitPath"]
     _LOG.info("Creating specific implementation of workflow")
     wms_workflow = prepare(generic_workflow_config, generic_workflow, submit_path)
     wms_workflow_config = generic_workflow_config

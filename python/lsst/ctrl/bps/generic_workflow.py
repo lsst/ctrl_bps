@@ -27,12 +27,15 @@ __all__ = ["GenericWorkflow", "GenericWorkflowFile", "GenericWorkflowJob"]
 
 import dataclasses
 import itertools
+import logging
 from typing import Optional
 
 import networkx as nx
 
 from lsst.daf.butler.core.utils import iterable
 from .bps_draw import draw_networkx_dot
+
+_LOG = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass
@@ -104,6 +107,11 @@ class GenericWorkflowJob:
     """Values for variables in cmdline when using lazy command line creation.
     """
 
+    transfer_executable: bool
+    """Whether executable needs to be transferred to job by WMS (e.g., is bps-
+    generated script).
+    """
+
     request_memory: Optional[int]    # MB
     """Max memory (in MB) that the job is expected to need.
     """
@@ -162,6 +170,11 @@ class GenericWorkflowJob:
     translate to limit the number of this job across all running workflows.
     """
 
+    queue: Optional[str]
+    """Name of queue to use.  Different WMS can translate
+    this concept differently.
+    """
+
     pre_cmdline: Optional[str]
     """Command line to be executed prior to executing job.
     """
@@ -194,6 +207,7 @@ class GenericWorkflowJob:
         self.tags = {}
         self.cmdline = None
         self.cmdvals = {}
+        self.transfer_executable = False
         self.request_memory = None
         self.request_cpus = None
         self.request_disk = None
@@ -208,6 +222,7 @@ class GenericWorkflowJob:
         self.priority = None
         self.category = None
         self.concurrency_limit = []
+        self.queue = None
         self.pre_cmdline = None
         self.post_cmdline = None
         self.profile = {}
@@ -219,7 +234,7 @@ class GenericWorkflowJob:
                  "request_memory", "request_cpus", "request_disk", "request_walltime",
                  "number_of_retries", "retry_unless_exit", "abort_on_value", "abort_return_value",
                  "compute_site", "environment", "priority", "category", "concurrency_limit",
-                 "pre_cmdline", "post_cmdline", "profile", "attrs")
+                 "queue", "pre_cmdline", "post_cmdline", "profile", "attrs")
 
     def __hash__(self):
         return hash(self.name)
@@ -244,7 +259,10 @@ class GenericWorkflow(nx.DiGraph):
         self._name = name
         self.run_attrs = {}
         self._files = {}
+        self._inputs = {}   # mapping job.names to list of GenericWorkflowFile
+        self._outputs = {}  # mapping job.names to list of GenericWorkflowFile
         self.run_id = None
+        self._final = None
 
     @property
     def name(self):
@@ -302,7 +320,7 @@ class GenericWorkflow(nx.DiGraph):
             raise RuntimeError(f"Invalid type for job to be added to GenericWorkflowGraph ({type(job)}).")
         if self.has_node(job.name):
             raise RuntimeError(f"Job {job.name} already exists in GenericWorkflowGraph.")
-        super().add_node(job.name, job=job, inputs={}, outputs={})
+        super().add_node(job.name, job=job)
         self.add_job_relationships(parent_names, job.name)
         self.add_job_relationships(job.name, child_names)
 
@@ -395,7 +413,7 @@ class GenericWorkflow(nx.DiGraph):
         # Delete job node (which deleted edges).
         self.remove_node(job_name)
 
-    def add_job_inputs(self, job_name: str, files):
+    def add_job_inputs(self, job_name, files):
         """Add files as inputs to specified job.
 
         Parameters
@@ -406,14 +424,14 @@ class GenericWorkflow(nx.DiGraph):
                 `list` [`lsst.ctrl.bps.GenericWorkflowFile`]
             File object(s) to be added as inputs to the specified job.
         """
-        job_inputs = self.nodes[job_name]["inputs"]
+        self._inputs.setdefault(job_name, [])
         for file in iterable(files):
             # Save the central copy
             if file.name not in self._files:
                 self._files[file.name] = file
 
             # Save the job reference to the file
-            job_inputs[file.name] = file
+            self._inputs[job_name].append(file)
 
     def get_file(self, name):
         """Retrieve a file object by name.
@@ -440,6 +458,8 @@ class GenericWorkflow(nx.DiGraph):
         """
         if gwfile.name not in self._files:
             self._files[gwfile.name] = gwfile
+        else:
+            _LOG.debug("Skipped add_file for existing file %s", gwfile.name)
 
     def get_job_inputs(self, job_name, data=True, transfer_only=False):
         """Return the input files for the given job.
@@ -457,17 +477,17 @@ class GenericWorkflow(nx.DiGraph):
         Returns
         -------
         inputs : `list` [`lsst.ctrl.bps.GenericWorkflowFile`]
-            Input files for the given job.
+            Input files for the given job.  If no input files for the job,
+            returns an empty list.
         """
-        job_inputs = self.nodes[job_name]["inputs"]
         inputs = []
-        for file_name in job_inputs:
-            file = self._files[file_name]
-            if not transfer_only or file.wms_transfer:
-                if not data:
-                    inputs.append(file_name)
-                else:
-                    inputs.append(self._files[file_name])
+        if job_name in self._inputs:
+            for gwfile in self._inputs[job_name]:
+                if not transfer_only or gwfile.wms_transfer:
+                    if not data:
+                        inputs.append(gwfile.name)
+                    else:
+                        inputs.append(gwfile)
         return inputs
 
     def add_job_outputs(self, job_name, files):
@@ -480,13 +500,15 @@ class GenericWorkflow(nx.DiGraph):
         files : `list` [`lsst.ctrl.bps.GenericWorkflowFile`]
             File objects to be added as outputs for specified job.
         """
-        job_outputs = self.nodes[job_name]["outputs"]
-        for file in files:
+        self._outputs.setdefault(job_name, [])
+
+        for file_ in iterable(files):
             # Save the central copy
-            self.add_file(file.name)
+            if file_.name not in self._files:
+                self._files[file_.name] = file_
 
             # Save the job reference to the file
-            job_outputs[file.name] = file
+            self._outputs[job_name].append(file_)
 
     def get_job_outputs(self, job_name, data=True, transfer_only=False):
         """Return the output files for the given job.
@@ -506,17 +528,19 @@ class GenericWorkflow(nx.DiGraph):
         Returns
         -------
         outputs : `list` [`lsst.ctrl.bps.GenericWorkflowFile`]
-            Output files for the given job.
+            Output files for the given job. If no output files for the job,
+            returns an empty list.
         """
-        job_outputs = self.nodes[job_name]["outputs"]
         outputs = []
-        for file_name in job_outputs:
-            file = self._files[file_name]
-            if not transfer_only or file.wms_transfer:
-                if not data:
-                    outputs.append(file_name)
-                else:
-                    outputs.append(self._files[file_name])
+
+        if job_name in self._outputs:
+            for file_name in self._outputs[job_name]:
+                file = self._files[file_name]
+                if not transfer_only or file.wms_transfer:
+                    if not data:
+                        outputs.append(file_name)
+                    else:
+                        outputs.append(self._files[file_name])
         return outputs
 
     def draw(self, stream, format_="dot"):
@@ -581,3 +605,60 @@ class GenericWorkflow(nx.DiGraph):
         """
         # Make sure a directed acyclic graph
         assert nx.algorithms.dag.is_directed_acyclic_graph(self)
+
+    def add_workflow_source(self, workflow):
+        """Add given workflow as new source to this workflow.
+
+        Parameters
+        ----------
+        workflow : `lsst.ctrl.bps.GenericWorkflow`
+        """
+        # Find source nodes in self.
+        self_sources = [n for n in self if self.in_degree(n) == 0]
+        _LOG.debug("self_sources = %s", self_sources)
+
+        # Find sink nodes of workflow.
+        new_sinks = [n for n in workflow if workflow.out_degree(n) == 0]
+        _LOG.debug("new sinks = %s", new_sinks)
+
+        # Add new workflow nodes to self graph and make new edges.
+        self.add_nodes_from(workflow.nodes(data=True))
+        self.add_edges_from(workflow.edges())
+        for source in self_sources:
+            for sink in new_sinks:
+                self.add_edge(sink, source)
+
+        # Files are stored separately so copy them.
+        for job_name in workflow:
+            self.add_job_inputs(job_name, workflow.get_job_inputs(job_name, data=True))
+            self.add_job_outputs(job_name, workflow.get_job_outputs(job_name, data=True))
+
+    def add_final(self, final):
+        """Add special final job/workflow to the generic workflow.
+
+        Parameters
+        ----------
+        final : `lsst.ctrl.bps.GenericWorkflowJob` or
+                `lsst.ctrl.bps.GenericWorkflow`
+            Information needed to execute the special final job(s), the
+            job(s) to be executed after all jobs that can be executed
+            have been executed regardless of exit status of any of the
+            jobs.
+        """
+        if not isinstance(final, GenericWorkflowJob) and not isinstance(final, GenericWorkflow):
+            raise TypeError("Invalid type for GenericWorkflow final ({type(final)})")
+
+        self._final = final
+
+    def get_final(self):
+        """Return job/workflow to be executed after all jobs that can be
+        executed have been executed regardless of exit status of any of
+        the jobs.
+
+        Returns
+        -------
+        final : `lsst.ctrl.bps.GenericWorkflowJob` or
+                `lsst.ctrl.bps.GenericWorkflow`
+            Information needed to execute final job(s).
+        """
+        return self._final

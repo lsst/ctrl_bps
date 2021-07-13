@@ -1,0 +1,77 @@
+#USER pipelineYaml: "${OBS_SUBARU_DIR}/pipelines/DRP.yaml#processCcd"
+#  OR
+#USER qgraphFile: "/path/to/existing/file.qgraph"
+
+
+# At minimum, following group used in bps report and can be
+# used in WMS queries.  Users can use in other things such as "output". 
+#USER operator: special_name    # defaults to login on submit machine
+#USER project: dev
+#USER campaign: quick
+
+# Any extra site-specific settings needed for WMS
+#USER computeSite: ncsapool
+
+# Make sure these values correspond to ones in the bin/run_demo.sh's
+# pipetask command line.
+payload:
+  payloadName: pipelines_check    # At minimum, used in bps report
+  runInit: true
+  output: "u/{operator}/pipelines_check"
+  outCollection: "{output}/{timestamp}"
+  #USER butlerConfig: ${PIPELINES_CHECK_DIR}/DATA_REPO/butler.yaml
+  #USER inCollection: HSC/calib,HSC/raw/all,refcats
+  #USER dataQuery: exposure=903342 AND detector=10
+
+pipetask:
+  pipetaskInit:
+    runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask --long-log run -b {butlerConfig} -i {inCollection} --output-run {outCollection} --init-only --register-dataset-types --qgraph {qgraphFile} --extend-run"
+  #OPT myTask:
+  #OPT   requestCpus:
+  #OPT   requestMemory:
+  #OPT   requestDisk:
+  #OPT   requestWalltime:
+  #OPT   runQuantumCommand:
+  #OPT   retries:
+
+
+executionButler:
+  whenCreate: "SUBMIT"
+  #USER executionButlerDir: "/my/exec/butler/dir"  # if user provided, otherwise uses executionButlerTemplate
+  createCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask qgraph -b {butlerConfig} --input {inCollection} --output-run {outCollection} --save-execution-butler {executionButlerDir} -g {qgraphFile}"
+  whenMerge: "ALWAYS"
+  implementation: JOB  # JOB, WORKFLOW
+  concurrency_limit: db_limit
+  command1: "${DAF_BUTLER_DIR}/bin/butler --log-level=VERBOSE transfer-datasets  {executionButlerDir} {butlerConfig} --collections {outCollection}"
+  command2: "${DAF_BUTLER_DIR}/bin/butler collection-chain {butlerConfig} {output} {outCollection} --mode=prepend"
+
+  # For --replace-run behavior need to run two collection-chain commands:
+  #command2: "${DAF_BUTLER_DIR}/bin/butler collection-chain {butlerConfig} {output} --mode=pop 1"
+  #command3: "${DAF_BUTLER_DIR}/bin/butler collection-chain {butlerConfig} {output} --mode=prepend {outCollection}"
+
+# Default commands and usage requests for creating QuantumGraph, running Quantum.
+# Defaults to using full workflow QuantumGraph instead of per-job QuantumGraphs.
+whenSaveJobQgraph: "NEVER"
+createQuantumGraph: '${CTRL_MPEXEC_DIR}/bin/pipetask qgraph -d "{dataQuery}" -b {butlerConfig} -i {inCollection} -p {pipelineYaml} -q {qgraphFile} {pipelineOptions}'
+runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask --long-log run -b {butlerConfig} --output-run {outCollection} --qgraph {qgraphFile} --qgraph-id {qgraphId} --qgraph-node-id {qgraphNodeId} --skip-init-writes --extend-run --clobber-outputs --skip-existing"
+requestMemory: 2048
+requestCpus: 1
+
+wmsServiceClass: lsst.ctrl.bps.wms.htcondor.htcondor_service.HTCondorService
+clusterAlgorithm: lsst.ctrl.bps.quantum_clustering_funcs.single_quantum_clustering
+
+# Template for bps filenames
+submitPath: ${PWD}/submit/{outCollection}
+qgraphFileTemplate: "{uniqProcName}.qgraph"
+executionButlerTemplate: "{submitPath}/EXEC_REPO-{uniqProcName}"
+subDirTemplate: "{label}/{tract}/{patch}/{visit.day_obs}/{exposure.day_obs}/{band}/{subfilter}/{physical_filter}/{visit}/{exposure}"
+templateDataId: "{tract}_{patch}_{band}_{visit}_{exposure}_{detector}"
+
+# Whether to output bps-specific intermediate files
+saveDot: False
+saveGenericWorkflow: False
+saveClusteredQgraph: False
+
+# Temporary backward-compatibility settings
+useLazyCommands: True
+useBpsShared: False

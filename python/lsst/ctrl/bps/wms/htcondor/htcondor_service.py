@@ -25,6 +25,7 @@
 __all__ = ["HTCondorService", "HTCondorWorkflow"]
 
 
+import dataclasses
 import os
 import re
 import logging
@@ -37,6 +38,7 @@ from ... import (
     BaseWmsWorkflow,
     BaseWmsService,
     GenericWorkflow,
+    GenericWorkflowJob,
     WmsRunReport,
     WmsJobReport,
     WmsStates
@@ -72,7 +74,7 @@ class HTCondorService(BaseWmsService):
 
         Parameters
         ----------
-        config : `lsst.ctrl.bps.BPSConfig`
+        config : `lsst.ctrl.bps.BpsConfig`
             BPS configuration that includes necessary submit/runtime
             information.
         generic_workflow : `lsst.ctrl.bps.GenericWorkflow`
@@ -299,28 +301,42 @@ class HTCondorWorkflow(BaseWmsWorkflow):
 
         # Create all DAG jobs
         for job_name in generic_workflow:
-            gwf_job = generic_workflow.get_job(job_name)
-            htc_job = HTCondorWorkflow._create_job(generic_workflow, gwf_job, generic_workflow.run_attrs,
-                                                   out_prefix)
+            gwjob = generic_workflow.get_job(job_name)
+            htc_job = HTCondorWorkflow._create_job(config, generic_workflow, gwjob, out_prefix)
             htc_workflow.dag.add_job(htc_job)
 
         # Add job dependencies to the DAG
         for job_name in generic_workflow:
             htc_workflow.dag.add_job_relationships([job_name], generic_workflow.successors(job_name))
+
+        # If final job exists in generic workflow, create DAG final job
+        final = generic_workflow.get_final()
+        if final and isinstance(final, GenericWorkflowJob):
+            final_htjob = HTCondorWorkflow._create_job(config, generic_workflow, final, out_prefix)
+            if "post" not in final_htjob.dagcmds:
+                final_htjob.dagcmds["post"] = f"{os.path.dirname(__file__)}/final_post.sh" \
+                                              f" {final.name} $DAG_STATUS $RETURN"
+            htc_workflow.dag.add_final_job(final_htjob)
+        elif final and isinstance(final, GenericWorkflow):
+            raise NotImplementedError("HTCondor plugin does not support a workflow as the final job")
+        elif final:
+            return TypeError(f"Invalid type for GenericWorkflow.get_final() results ({type(final)})")
+
         return htc_workflow
 
     @staticmethod
-    def _create_job(generic_workflow, gwf_job, run_attrs, out_prefix):
+    def _create_job(config, generic_workflow, gwjob, out_prefix):
         """Convert GenericWorkflow job nodes to DAG jobs.
 
         Parameters
         ----------
+        config : `lsst.ctrl.bps.BpsConfig`
+            BPS configuration that includes necessary submit/runtime
+            information.
         generic_workflow : `lsst.ctrl.bps.GenericWorkflow`
             Generic workflow that is being converted.
-        gwf_job : `lsst.ctrl.bps.GenericWorkflowJob`
+        gwjob : `lsst.ctrl.bps.GenericWorkflowJob`
             The generic job to convert to a HTCondor job.
-        run_attrs : `dict` [`str`, `str`]
-            Attributes common to entire run that should be added to job.
         out_prefix : `str`
             Directory prefix for HTCondor files.
 
@@ -329,7 +345,15 @@ class HTCondorWorkflow(BaseWmsWorkflow):
         htc_job : `lsst.ctrl.bps.wms.htcondor.HTCJob`
             The HTCondor job equivalent to the given generic job.
         """
-        htc_job = HTCJob(gwf_job.name, label=gwf_job.label)
+        htc_job = HTCJob(gwjob.name, label=gwjob.label)
+
+        curvals = dataclasses.asdict(gwjob)
+        if gwjob.tags:
+            curvals.update(gwjob.tags)
+        found, subdir = config.search("subDirTemplate", opt={'curvals': curvals})
+        if not found:
+            subdir = "jobs"
+        htc_job.subfile = Path("jobs") / subdir / f"{gwjob.name}.sub"
 
         htc_job_cmds = {
             "universe": "vanilla",
@@ -339,33 +363,30 @@ class HTCondorWorkflow(BaseWmsWorkflow):
             "getenv": "True",
         }
 
-        htc_job_cmds.update(_translate_job_cmds(generic_workflow, gwf_job))
+        htc_job_cmds.update(_translate_job_cmds(generic_workflow, gwjob))
 
         # job stdout, stderr, htcondor user log.
-        htc_job_cmds["output"] = f"{gwf_job.name}.$(Cluster).out"
-        htc_job_cmds["error"] = f"{gwf_job.name}.$(Cluster).err"
-        htc_job_cmds["log"] = f"{gwf_job.name}.$(Cluster).log"
         for key in ("output", "error", "log"):
-            htc_job_cmds[key] = f"{gwf_job.name}.$(Cluster).{key[:3]}"
-            if gwf_job.label:
-                htc_job_cmds[key] = os.path.join(gwf_job.label, htc_job_cmds[key])
-            htc_job_cmds[key] = os.path.join("jobs", htc_job_cmds[key])
+            htc_job_cmds[key] = htc_job.subfile.with_suffix(f".$(Cluster).{key[:3]}")
             _LOG.debug("HTCondor %s = %s", key, htc_job_cmds[key])
 
-        htc_job_cmds.update(_handle_job_inputs(generic_workflow, gwf_job.name, out_prefix))
+        htc_job_cmds.update(_handle_job_inputs(generic_workflow, gwjob.name, out_prefix))
 
         # Add the job cmds dict to the job object.
         htc_job.add_job_cmds(htc_job_cmds)
 
+        htc_job.add_dag_cmds(_translate_dag_cmds(gwjob))
+
         # Add run level attributes to job.
-        htc_job.add_job_attrs(run_attrs)
+        htc_job.add_job_attrs(generic_workflow.run_attrs)
 
         # Add job attributes to job.
-        _LOG.debug("gwf_job.attrs = %s", gwf_job.attrs)
-        htc_job.add_job_attrs(gwf_job.attrs)
-        htc_job.add_job_attrs({"bps_job_name": gwf_job.name,
-                               "bps_job_label": gwf_job.label,
-                               "bps_job_quanta": gwf_job.tags.get("quanta_summary", "")})
+        _LOG.debug("gwjob.attrs = %s", gwjob.attrs)
+        htc_job.add_job_attrs(gwjob.attrs)
+        if gwjob.tags:
+            htc_job.add_job_attrs({"bps_job_quanta": gwjob.tags.get("quanta_summary", "")})
+        htc_job.add_job_attrs({"bps_job_name": gwjob.name,
+                               "bps_job_label": gwjob.label})
 
         return htc_job
 
@@ -384,14 +405,14 @@ class HTCondorWorkflow(BaseWmsWorkflow):
         self.dag.write(out_prefix, "jobs/{self.label}")
 
 
-def _translate_job_cmds(generic_workflow, generic_workflow_job):
+def _translate_job_cmds(generic_workflow, gwjob):
     """Translate the job data that are one to one mapping
 
     Parameters
     ----------
     generic_workflow : `lsst.ctrl.bps.GenericWorkflow`
        Generic workflow that contains job to being converted.
-    generic_workflow_job : `lsst.ctrl.bps.GenericWorkflowJob`
+    gwjob : `lsst.ctrl.bps.GenericWorkflowJob`
        Generic workflow job to be converted.
 
     Returns
@@ -400,49 +421,83 @@ def _translate_job_cmds(generic_workflow, generic_workflow_job):
         Contains commands which can appear in the HTCondor submit description
         file.
     """
+    # Values in the job script that just are name mappings.
+    job_translation = {"mail_to": "notify_user",
+                       "when_to_mail": "notification",
+                       "request_cpus": "request_cpus",
+                       "priority": "priority",
+                       "category": "category"}
+
     jobcmds = {}
+    for gwkey, htckey in job_translation.items():
+        jobcmds[htckey] = getattr(gwjob, gwkey, None)
 
-    if generic_workflow_job.mail_to:
-        jobcmds["notify_user"] = generic_workflow_job.mail_to
+    # job commands that need modification
+    if gwjob.request_disk:
+        jobcmds["request_disk"] = f"{gwjob.request_disk}MB"
 
-    if generic_workflow_job.when_to_mail:
-        jobcmds["notification"] = generic_workflow_job.when_to_mail
+    if gwjob.request_memory:
+        jobcmds["request_memory"] = f"{gwjob.request_memory}MB"
 
-    if generic_workflow_job.request_cpus:
-        jobcmds["request_cpus"] = generic_workflow_job.request_cpus
+    # Assume concurrency_limit implemented using HTCondor concurrency limits.
+    # May need to move to special site-specific implementation if sites use
+    # other mechanisms.
+    if gwjob.concurrency_limit:
+        jobcmds["concurrency_limit"] = ",".join(gwjob.concurrency_limit)
 
-    if generic_workflow_job.request_disk:
-        jobcmds["request_disk"] = f"{generic_workflow_job.request_disk}MB"
+    # Handle command line
+    cmd_parts = gwjob.cmdline.split(" ", 1)
 
-    if generic_workflow_job.request_memory:
-        jobcmds["request_memory"] = f"{generic_workflow_job.request_memory}MB"
+    if gwjob.transfer_executable:
+        jobcmds["transfer_executable"] = "True"
+        jobcmds["executable"] = os.path.basename(cmd_parts[0])
+    else:
+        jobcmds["executable"] = _fix_env_var_syntax(cmd_parts[0])
 
-    if generic_workflow_job.priority:
-        jobcmds["priority"] = generic_workflow_job.priority
-
-    try:
-        cmd_parts = generic_workflow_job.cmdline.split(" ", 1)
-    except AttributeError:
-        print(generic_workflow_job)
-        raise
-    jobcmds["executable"] = _fix_env_var_syntax(cmd_parts[0])
     if len(cmd_parts) > 1:
         jobcmds["arguments"] = cmd_parts[1]
         arguments = cmd_parts[1]
         arguments = _replace_cmd_vars(arguments,
-                                      generic_workflow_job)
+                                      gwjob)
         arguments = _replace_file_vars(arguments,
                                        generic_workflow,
-                                       generic_workflow_job)
+                                       gwjob)
         arguments = _fix_env_var_syntax(arguments)
         jobcmds["arguments"] = arguments
 
     # Add extra "pass-thru" job commands
-    if generic_workflow_job.profile:
-        for key, val in generic_workflow_job.profile.items():
+    if gwjob.profile:
+        for key, val in gwjob.profile.items():
             jobcmds[key] = htc_escape(val)
 
     return jobcmds
+
+
+def _translate_dag_cmds(gwjob):
+    """Translate job values into DAGMan commands.
+
+    Parameters
+    ----------
+    gwjob : `lsst.ctrl.bps.GenericWorkflowJob`
+        Job containing values to be translated.
+
+    Returns
+    -------
+    dagcmds : `dict` [`str`, `Any`]
+        DAGMan commands for the job.
+    """
+    # Values in the dag script that just are name mappings.
+    dag_translation = {"number_of_retries": "retry",
+                       "retry_unless_exit": "retry_unless_exit",
+                       "abort_on_value": "abort_dag_on",
+                       "abort_return_value": "abort_exit"}
+
+    dagcmds = {}
+    for gwkey, htckey in dag_translation.items():
+        dagcmds[htckey] = getattr(gwjob, gwkey, None)
+
+    # Still to be coded: vars "pre_cmdline", "post_cmdline"
+    return dagcmds
 
 
 def _fix_env_var_syntax(oldstr):
@@ -516,11 +571,17 @@ def _replace_cmd_vars(arguments, gwjob):
     arguments : `str`
         Given arguments string with placeholders replaced.
     """
-    arguments = arguments.format(**gwjob.cmdvals)
+    try:
+        arguments = arguments.format(**gwjob.cmdvals)
+    except KeyError:
+        _LOG.error("Could not replace command variables:\n"
+                   "arguments: %s\n"
+                   "cmdvals: %s", arguments, gwjob.cmdvals)
+        raise
     return arguments
 
 
-def _handle_job_inputs(generic_workflow: GenericWorkflow, job_name: str, out_prefix):
+def _handle_job_inputs(generic_workflow: GenericWorkflow, job_name: str, out_prefix: str):
     """Add job input files from generic workflow to job.
 
     Parameters
@@ -535,11 +596,12 @@ def _handle_job_inputs(generic_workflow: GenericWorkflow, job_name: str, out_pre
     Returns
     -------
     htc_commands : `dict` [`str`, `str`]
-        HTCondor commands for the job submission.
+        HTCondor commands for the job submission script.
     """
     htc_commands = {}
     inputs = []
     for gwf_file in generic_workflow.get_job_inputs(job_name, data=True, transfer_only=True):
+        _LOG.debug("src_uri=%s", gwf_file.src_uri)
         inputs.append(os.path.relpath(gwf_file.src_uri, out_prefix))
 
     if inputs:
