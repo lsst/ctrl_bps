@@ -49,7 +49,6 @@ class PanDAService(BaseWmsService):
             BPS configuration that includes necessary submit/runtime
             information.
         generic_workflow : `lsst.ctrl.bps.GenericWorkflow`
-            The generic workflow (e.g., has executable name and arguments)
         out_prefix : `str`
             The root directory into which all WMS-specific files are written
 
@@ -67,7 +66,6 @@ class PanDAService(BaseWmsService):
 
     def convert_exec_string_to_hex(self, cmdline):
         """Convert the command line into hex representation.
-
         This step is currently involved because large blocks of command lines
         including special symbols passed to the pilot/container. To make sure
         the 1 to 1 matching and pass by the special symbol stripping
@@ -92,7 +90,7 @@ class PanDAService(BaseWmsService):
 
         Parameters
         ----------
-        cmdline: `str`
+        cmdline : `str`
             UTF-8 based functional part of the command line
 
         Returns
@@ -100,9 +98,11 @@ class PanDAService(BaseWmsService):
         decoder_prefix : `str`
             Full command line to be executed on the edge node
         """
+
         cmdline_hex = self.convert_exec_string_to_hex(cmdline)
-        decoder_prefix = self.config.get('runner_command')
-        decoder_prefix = decoder_prefix.replace("_cmd_line_", str(cmdline_hex))
+        _, decoder_prefix = self.config.search("runner_command", opt={"replaceEnvVars": False,
+                                                                      "expandEnvVars": False})
+        decoder_prefix = decoder_prefix.replace("_cmd_line_", str(cmdline_hex) + " ${IN/L}")
         return decoder_prefix
 
     def submit(self, workflow):
@@ -153,7 +153,6 @@ class PanDAService(BaseWmsService):
 
     def report(self, wms_workflow_id=None, user=None, hist=0, pass_thru=None):
         """Stub for future implementation of the report method
-
         Expected to return run information based upon given constraints.
 
         Parameters
@@ -182,7 +181,6 @@ class PanDAService(BaseWmsService):
 
 class PandaBpsWmsWorkflow(BaseWmsWorkflow):
     """A single Panda based workflow
-
     Parameters
     ----------
     name : `str`
@@ -201,31 +199,32 @@ class PandaBpsWmsWorkflow(BaseWmsWorkflow):
         idds_workflow = cls(generic_workflow.name, config)
         workflow_generator = IDDSWorkflowGenerator(generic_workflow, config)
         idds_workflow.generated_tasks = workflow_generator.define_tasks()
-        cloud_prefix = config['bucket'] + '/' + \
-            config['payload_folder'] + '/' + config['workflowName'] + '/'
-        cls.copy_pickles_into_cloud([config['bps_defined']['run_qgraph_file']], cloud_prefix)
+        file_placement_path = os.path.join(config['fileDistributionEndPoint'], config['payload_folder'],
+                                           config['workflowName'], "")
+        cls.copy_files_for_distribution([config['bps_defined']['run_qgraph_file']], file_placement_path)
         _LOG.debug("panda dag attribs %s", generic_workflow.run_attrs)
         return idds_workflow
 
     @staticmethod
-    def copy_pickles_into_cloud(local_pfns, cloud_prefix):
+    def copy_files_for_distribution(local_pfns, file_placement_path):
         """Brings locally generated pickle files into Cloud for further
-        utilization them on the egde nodes.
+        utilization them on the edge nodes.
 
         Parameters
         ----------
-        local_pfns: `str`
+        local_pfns: `list` of `str`
             Local path to the file to be copied
-        cloud_prefix: `str`
-            Path on the cloud, including access protocol, bucket name to
-            place files
+
+        file_placement_path: `str`
+            Path on the edge node accessed storage,
+            including access protocol, bucket name to place files
         """
 
         copy_executor = concurrent.futures.ThreadPoolExecutor(max_workers=10)
         future_file_copy = []
         for src_path in local_pfns:
             src = ButlerURI(src_path)
-            target_base_uri = ButlerURI(cloud_prefix)
+            target_base_uri = ButlerURI(file_placement_path)
 
             # S3 clients explicitly instantiate here to overpass this
             # https://stackoverflow.com/questions/52820971/is-boto3-client-thread-safe
@@ -233,7 +232,7 @@ class PandaBpsWmsWorkflow(BaseWmsWorkflow):
             src.exists()
 
             target = target_base_uri.join(os.path.basename(src_path))
-            future_file_copy.append(copy_executor.submit(target.transfer_from, src))
+            future_file_copy.append(copy_executor.submit(target.transfer_from, src, transfer="copy"))
         for future in concurrent.futures.as_completed(future_file_copy):
             future.result()
 
