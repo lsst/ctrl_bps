@@ -19,8 +19,11 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-"""Class definitions for a Generic Workflow Graph
+"""Class definitions for a Generic Workflow Graph.
 """
+
+__all__ = ["GenericWorkflow", "GenericWorkflowFile", "GenericWorkflowJob"]
+
 
 import dataclasses
 import itertools
@@ -60,7 +63,7 @@ class GenericWorkflowFile:
     """
 
     # As of python 3.7.8, can't use __slots__ + dataclass if give default
-    # values, so writing own __init__
+    # values, so writing own __init__.
     def __init__(self, name: str, src_uri: str = None, wms_transfer: bool = False,
                  job_access_remote: bool = False, job_shared: bool = False):
         self.name = name
@@ -90,7 +93,7 @@ class GenericWorkflowJob:
     """
 
     tags: Optional[dict]
-    """Other key/value pairs for job that user may want to use to filter reports.
+    """Other key/value pairs for job that user may want to use as a filter.
     """
 
     cmdline: Optional[str]
@@ -122,8 +125,7 @@ class GenericWorkflowJob:
     """
 
     mail_to: Optional[str]
-    """Comma separated list of email addresses for
-    emailing job status.
+    """Comma separated list of email addresses for emailing job status.
     """
 
     when_to_mail: Optional[str]
@@ -151,14 +153,13 @@ class GenericWorkflowJob:
     """
 
     category: Optional[str]
-    """WMS-facing label of job within single workflow (e.g., can be
-    used for throttling jobs within a single workflow).
+    """WMS-facing label of job within single workflow (e.g., can be used for
+    throttling jobs within a single workflow).
     """
 
     concurrency_limit: Optional[list]
-    """Names of concurrency limits that the WMS plugin
-    can appropriately translate to limit the number of this
-    job across all running workflows.
+    """Names of concurrency limits that the WMS plugin can appropriately
+    translate to limit the number of this job across all running workflows.
     """
 
     pre_cmdline: Optional[str]
@@ -167,25 +168,26 @@ class GenericWorkflowJob:
 
     post_cmdline: Optional[str]
     """Command line to be executed after job executes.
+
     Should be executed regardless of exit status.
     """
 
     profile: Optional[dict]
-    """Nested dictionary of WMS-specific key/value pairs with
-    primary key being WMS key (e.g., pegasus, condor, panda).
+    """Nested dictionary of WMS-specific key/value pairs with primary key being
+    WMS key (e.g., pegasus, condor, panda).
     """
 
     attrs: Optional[dict]
-    """Key/value pairs of job attributes (for WMS that have
-    attributes in addition to commands).
+    """Key/value pairs of job attributes (for WMS that have attributes in
+    addition to commands).
     """
 
     environment: Optional[dict]
-    """Environment variable names and values to be explicitly set
-    inside job.
+    """Environment variable names and values to be explicitly set inside job.
     """
 
-    # As of python 3.7.8, can't use __slots__ if give default values, so writing own __init__
+    # As of python 3.7.8, can't use __slots__ if give default values, so
+    # writing own __init__.
     def __init__(self, name: str):
         self.name = name
         self.label = None
@@ -257,6 +259,7 @@ class GenericWorkflow(nx.DiGraph):
 
     def get_files(self, data=False, transfer_only=True):
         """Retrieve files from generic workflow.
+
         Need API in case change way files are stored (e.g., make
         workflow a bipartite graph with jobs and files nodes).
 
@@ -271,8 +274,7 @@ class GenericWorkflow(nx.DiGraph):
 
         Returns
         -------
-        files : `list` [`~lsst.ctrl.bps.generic_workflow.GenericWorkflowFile`]
-                or `list` [`str`]
+        files : `list` [`lsst.ctrl.bps.GenericWorkflowFile`] or `list` [`str`]
             File names or objects from generic workflow meeting specifications.
         """
         files = []
@@ -289,7 +291,7 @@ class GenericWorkflow(nx.DiGraph):
 
         Parameters
         ----------
-        job : `~lsst.ctrl.bps.generic_workflow.GenericWorkflowJob`
+        job : `lsst.ctrl.bps.GenericWorkflowJob`
             Job to add to the generic workflow.
         parent_names : `list` [`str`], optional
             Names of jobs that are parents of given job
@@ -309,7 +311,7 @@ class GenericWorkflow(nx.DiGraph):
 
         Parameters
         ----------
-        node_for_adding : `~lsst.ctrl.bps.generic_workflow.GenericWorkflowJob`
+        node_for_adding : `lsst.ctrl.bps.GenericWorkflowJob`
             Job to be added to generic workflow.
         attr :
             Needed to match original networkx function, but not used.
@@ -336,9 +338,10 @@ class GenericWorkflow(nx.DiGraph):
         Parameters
         ----------
         ebunch_to_add : Iterable [`tuple`]
-            Iterable of job name pairs between which a dependency should be saved.
+            Iterable of job name pairs between which a dependency should be
+            saved.
         attr : keyword arguments, optional
-            Data can be assigned using keyword arguments (not currently used)
+            Data can be assigned using keyword arguments (not currently used).
         """
         for edge_to_add in ebunch_to_add:
             self.add_edge(edge_to_add[0], edge_to_add[1], **attr)
@@ -371,7 +374,7 @@ class GenericWorkflow(nx.DiGraph):
 
         Returns
         -------
-        job : `~lsst.ctrl.bps.generic_workflow.GenericWorkflowJob`
+        job : `lsst.ctrl.bps.GenericWorkflowJob`
             Job matching given job_name.
         """
         return self.nodes[job_name]["job"]
@@ -399,7 +402,8 @@ class GenericWorkflow(nx.DiGraph):
         ----------
         job_name : `str`
             Name of job to which inputs should be added
-        files : `~lsst.ctrl.bps.generic_workflow.GenericWorkflowFile` or `list`
+        files : `lsst.ctrl.bps.GenericWorkflowFile` or \
+                `list` [`lsst.ctrl.bps.GenericWorkflowFile`]
             File object(s) to be added as inputs to the specified job.
         """
         job_inputs = self.nodes[job_name]["inputs"]
@@ -421,7 +425,7 @@ class GenericWorkflow(nx.DiGraph):
 
         Returns
         -------
-        gwfile : `~lsst.ctrl.bps.generic_workflow.GenericWorkflowFile`
+        gwfile : `lsst.ctrl.bps.GenericWorkflowFile`
             File matching given name.
         """
         return self._files[name]
@@ -431,7 +435,7 @@ class GenericWorkflow(nx.DiGraph):
 
         Parameters
         ----------
-        gwfile : `~lsst.ctrl.bps.generic_workflow.GenericWorkflowFile`
+        gwfile : `lsst.ctrl.bps.GenericWorkflowFile`
             File object to add to workflow
         """
         if gwfile.name not in self._files:
@@ -452,7 +456,7 @@ class GenericWorkflow(nx.DiGraph):
 
         Returns
         -------
-        inputs : `list` of `~lsst.ctrl.bps.generic_workflow.GenericWorkflowFile`
+        inputs : `list` [`lsst.ctrl.bps.GenericWorkflowFile`]
             Input files for the given job.
         """
         job_inputs = self.nodes[job_name]["inputs"]
@@ -473,7 +477,7 @@ class GenericWorkflow(nx.DiGraph):
         ----------
         job_name : `str`
             Name of job to which the files should be added as outputs.
-        files : `list` of `~lsst.ctrl.bps.generic_workflow.GenericWorkflowFile`
+        files : `list` [`lsst.ctrl.bps.GenericWorkflowFile`]
             File objects to be added as outputs for specified job.
         """
         job_outputs = self.nodes[job_name]["outputs"]
@@ -501,7 +505,7 @@ class GenericWorkflow(nx.DiGraph):
 
         Returns
         -------
-        outputs : `list` of `~lsst.ctrl.bps.generic_workflow.GenericWorkflowFile`
+        outputs : `list` [`lsst.ctrl.bps.GenericWorkflowFile`]
             Output files for the given job.
         """
         job_outputs = self.nodes[job_name]["outputs"]
@@ -564,7 +568,7 @@ class GenericWorkflow(nx.DiGraph):
 
         Returns
         -------
-        generic_workflow : `~lsst.ctrl.bps.generic_workflow.GenericWorkflow`
+        generic_workflow : `lsst.ctrl.bps.GenericWorkflow`
             Generic workflow loaded from the given stream
         """
         if format_ == "pickle":

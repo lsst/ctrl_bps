@@ -26,6 +26,7 @@ import logging
 
 from lsst.utils import doImport
 
+
 _LOG = logging.getLogger(__name__)
 
 
@@ -34,7 +35,7 @@ def cancel(wms_service, wms_id=None, user=None, require_bps=True, pass_thru=None
 
     Parameters
     ----------
-    wms_service : `str` or `~lsst.ctrl.bps.wms_service.WmsService`
+    wms_service : `str` or `lsst.ctrl.bps.BaseWmsService`
         Name of the Workload Management System service class.
     wms_id : `str`, optional
         ID or path of job that should be canceled.

@@ -25,18 +25,18 @@ class RubinTask:
 
 class IDDSWorkflowGenerator:
     """
-    Class generates a iDDS workflow to be submitted into PanDA. Workflow includes definition of each task and
-    definition of dependencies for each task input.
+    Class generates a iDDS workflow to be submitted into PanDA. Workflow
+    includes definition of each task and definition of dependencies for each
+    task input.
 
     Parameters
     ----------
-    bps_workflow : `~lsst.ctrl.bps.generic_workflow.GenericWorkflow`
-            The generic workflow constructed by BPS system
+    bps_workflow : `lsst.ctrl.bps.GenericWorkflow`
+        The generic workflow constructed by BPS system
 
-    config : `~lsst.ctrl.bps.BPSConfig`
-            BPS configuration that includes necessary submit/runtime information,
-            sufficiently defined in YAML file
-            supplied in `submit` command
+    config : `lsst.ctrl.bps.BPSConfig`
+        BPS configuration that includes necessary submit/runtime information,
+        sufficiently defined in YAML file supplied in `submit` command
     """
     def __init__(self, bps_workflow, config):
         self.bps_workflow = bps_workflow
@@ -52,8 +52,8 @@ class IDDSWorkflowGenerator:
         self.maxattempt = v
 
     def define_task_name(self, step):
-        """Return task name as a combination of the workflow name (unique across workflows) and
-        processing step name.
+        """Return task name as a combination of the workflow name (unique
+        across workflows) and processing step name.
 
         Parameters
         ----------
@@ -72,7 +72,7 @@ class IDDSWorkflowGenerator:
 
         Returns
         -------
-        Command Line : `str`
+        command_line : `str`
             Picked command line
         """
         for node_name in self.bps_workflow.nodes:
@@ -80,12 +80,13 @@ class IDDSWorkflowGenerator:
                 return self.bps_workflow.nodes[node_name]['job'].cmdline
 
     def define_tasks(self):
-        """ Provide tasks definition sufficient for PanDA submission
+        """Provide tasks definition sufficient for PanDA submission
 
         Returns
         -------
-        tasks : `list` of `RubinTask`
-            Tasks filled with parameters provided in workflow configuration and generated pipeline.
+        tasks : `list` [`RubinTask`]
+            Tasks filled with parameters provided in workflow configuration
+            and generated pipeline.
         """
         tasks = []
         raw_dependency_map = self.create_raw_jobs_dependency_map()
@@ -106,9 +107,10 @@ class IDDSWorkflowGenerator:
             task.maxrss = bps_node.request_memory
             task.cloud = self.computing_cloud
 
-            # We take the commandline only from the first job because PanDA uses late binding and
-            # command line for each job in task is equal to each other in exception to the processing
-            # file name which is substituted by PanDA
+            # We take the commandline only from the first job because PanDA
+            # uses late binding and command line for each job in task is
+            # equal to each other in exception to the processing file name
+            # which is substituted by PanDA
             if self.tasks_steps[task_name] == 'pipetaskInit':
                 task.executable = init_task_cmd_line
             else:
@@ -118,12 +120,13 @@ class IDDSWorkflowGenerator:
         return tasks
 
     def add_dependencies(self, tasks, tasks_dependency_map):
-        """ Add the dependency list to a task definition. This list defines all inputs of a task and how that
-        inputs depend on upstream processing steps
+        """Add the dependency list to a task definition. This list defines all
+        inputs of a task and how that inputs depend on upstream processing
+        steps
 
         Parameters
         ----------
-        tasks : `list` of `RubinTask`
+        tasks : `list` [`RubinTask`]
             Tasks to be filled with dependency information
 
         tasks_dependency_map : `dict` of dependencies dictionary
@@ -149,12 +152,14 @@ class IDDSWorkflowGenerator:
                 task.dependencies.append(job_dep)
 
     def create_raw_jobs_dependency_map(self):
-        """ Compute the DAG nodes dependency map (node - list of nodes) for each node in the workflow DAG
+        """Compute the DAG nodes dependency map (node - list of nodes) for each
+        node in the workflow DAG
 
         Returns
         -------
         dependency_map : `dict` of `node-dependencies` pairs.
-            For each node in workflow DAG computed its dependencies (other nodes).
+            For each node in workflow DAG computed its dependencies (other
+            nodes).
         """
         dependency_map = {}
         for edge in self.bps_workflow.in_edges():
@@ -172,24 +177,32 @@ class IDDSWorkflowGenerator:
         return dependency_map
 
     def split_map_over_tasks(self, raw_dependency_map):
-        """ Groups nodes performing same operations into tasks. For each task define inputs and its
-        dependencies.
+        """Group nodes performing same operations into tasks. For each task
+        define inputs and its dependencies.
 
         This is a structure to be filled out in function
         taskname: dependencies = [
-                 {"name": "filename0",
-                  "dependencies":[{"task": "task1", "inputname":"filename0", "available": False"},],
-                  "submitted": False}
+            {
+                "name": "filename0",
+                "dependencies": [
+                    {
+                        "task": "task1",
+                        "inputname":"filename0",
+                        "available": False"
+                    },
+                ],
+                "submitted": False
+            }
         ]
 
         Parameters
         ----------
-        raw_dependency_map : `dict` of
+        raw_dependency_map : `dict`
             Pairs node-list of directly connected upstream nodes
 
         Returns
         -------
-        tasks_dependency_map : `dict` of `str`: `list`
+        tasks_dependency_map : `dict` [`str`, `list`]
             Dict of tasks/correspondent dependencies
         """
         tasks_dependency_map = {}
@@ -205,17 +218,19 @@ class IDDSWorkflowGenerator:
         return job_name.split("_")[1] if len(job_name.split("_")) > 1 else job_name
 
     def split_dependencies_by_tasks(self, dependencies):
-        """ Group the list of dependencies by tasks where dependencies comes from.
+        """Group the list of dependencies by tasks where dependencies comes
+        from.
 
         Parameters
         ----------
-        dependencies : `list` of dicts
-            Each dictionary in the list contains information about dependency: task,inputname,available
+        dependencies : `list` [`dicts`]
+            Each dictionary in the list contains information about
+            dependency: task,inputname,available
 
         Returns
         -------
-        dependencies_by_tasks : `dict` of `str`: `list`
-            Dict of tasks/dependency files comes from that task
+        dependencies_by_tasks : `dict` [`str`, `list`]
+            Dict of tasks/dependency files comes from that task.
 
         """
         dependencies_by_tasks = {}
@@ -225,12 +240,12 @@ class IDDSWorkflowGenerator:
         return dependencies_by_tasks
 
     def get_input_file(self, job_name):
-        """ Extracts the quantum graph file needed for a job
+        """Extract the quantum graph file needed for a job.
 
         Parameters
         ----------
         job_name: `str`
-            the name of the node in workflow DAG
+            The name of the node in workflow DAG.
 
         Returns
         -------
@@ -239,17 +254,18 @@ class IDDSWorkflowGenerator:
         return next(iter(self.bps_workflow.nodes.get(job_name).get("inputs")))
 
     def create_pseudo_input_file_name(self, job_name):
-        """ Creates the pseudo input file name to provide exact location of data to be processed in terms
-        of pickle file and node
+        """Create the pseudo input file name to provide exact location of data
+        to be processed in terms of pickle file and node.
 
         Parameters
         ----------
         job_name: `str`
-            the name of the node in workflow DAG
+            The name of the node in workflow DAG.
 
         Returns
         -------
-        pseudo input file name
+        pseudo_input_file_name : `str`
+             Name of the pseudo input file name.
         """
         qgraph_node_ids = self.bps_workflow.nodes.get(job_name).get("job").qgraph_node_ids
         if qgraph_node_ids:

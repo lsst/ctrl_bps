@@ -22,3 +22,8 @@
 import pkgutil
 
 __path__ = pkgutil.extend_path(__path__, __name__)
+
+try:
+    from .pegasus_service import *
+except ImportError:
+    pegasus = None

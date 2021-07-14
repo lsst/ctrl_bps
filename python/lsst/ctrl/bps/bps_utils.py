@@ -27,11 +27,13 @@ import contextlib
 import logging
 from enum import Enum
 
+
 _LOG = logging.getLogger(__name__)
 
 
 class WhenToSaveQuantumGraphs(Enum):
-    """Values for when to save the job quantum graphs."""
+    """Values for when to save the job quantum graphs.
+    """
     QGRAPH = 1   # Must be using single_quantum_clustering algorithm.
     TRANSFORM = 2
     PREPARE = 3
@@ -62,11 +64,11 @@ def create_job_quantum_graph_filename(job, out_prefix=None):
 
     Parameters
     ----------
-    job : `~lsst.ctrl.bps.generic_workflow.GenericWorkflowJob`
+    job : `lsst.ctrl.bps.GenericWorkflowJob`
         Job for which the QuantumGraph file is being saved.
     out_prefix : `str`, optional
-        Path prefix for the QuantumGraph filename.  If no
-        out_prefix is given, uses current working directory.
+        Path prefix for the QuantumGraph filename.  If no out_prefix is given,
+        uses current working directory.
 
     Returns
     -------
@@ -89,11 +91,11 @@ def save_qg_subgraph(qgraph, out_filename, node_ids=None):
 
     Parameters
     ----------
-    qgraph : `~lsst.pipe.base.QuantumGraph`
+    qgraph : `lsst.pipe.base.QuantumGraph`
         QuantumGraph to save.
     out_filename : `str`
         Name of the output file.
-    node_ids : `list` of `~lsst.pipe.base.NodeId`
+    node_ids : `list` [`lsst.pipe.base.NodeId`]
         NodeIds for the subgraph to save to file.
     """
     if not os.path.exists(out_filename):

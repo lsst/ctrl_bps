@@ -19,17 +19,19 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-""" Placeholder HTCondor DAGMan API.  There is new work on a python DAGMan
-API from HTCondor.  However, at this time, it tries to make things easier by
-assuming DAG is easily broken into levels where there are 1-1 or all-to-all
-relationships to nodes in next level.  LSST workflows are more complicated.
+"""Placeholder HTCondor DAGMan API.
+
+There is new work on a python DAGMan API from HTCondor.  However, at this
+time, it tries to make things easier by assuming DAG is easily broken into
+levels where there are 1-1 or all-to-all relationships to nodes in next
+level.  LSST workflows are more complicated.
 """
 
-__all__ = ["DagStatus", "JobStatus", "RestrictedDict", "HTCJob", "HTCDag", "htc_escape",
-           "htc_write_attribs", "htc_write_condor_file", "htc_version", "htc_submit_dag",
-           "condor_q", "condor_history", "read_dag_status", "MISSING_ID",
-           "summary_from_dag", "read_dag_log", "read_node_status", "read_dag_nodes_log",
-           "htc_check_dagman_output", "pegasus_name_to_label"]
+__all__ = ["DagStatus", "JobStatus", "NodeStatus", "RestrictedDict", "HTCJob", "HTCDag", "htc_escape",
+           "htc_write_attribs", "htc_write_condor_file", "htc_version", "htc_submit_dag", "condor_q",
+           "condor_history", "read_dag_status", "MISSING_ID", "summary_from_dag", "read_dag_log",
+           "read_node_status", "read_dag_nodes_log", "htc_check_dagman_output", "pegasus_name_to_label"]
+
 
 import itertools
 import os
@@ -47,10 +49,8 @@ import networkx
 import classad
 import htcondor
 
-# from ...wms_service import WmsRunReport, WmsJobReport, WmsStates
 
 _LOG = logging.getLogger(__name__)
-
 
 MISSING_ID = -99999
 
@@ -83,10 +83,12 @@ class JobStatus(IntEnum):
 class NodeStatus(IntEnum):
     """HTCondor's statuses for DAGman nodes.
     """
-    # (STATUS_NOT_READY): At least one parent has not yet finished or the node is a FINAL node.
+    # (STATUS_NOT_READY): At least one parent has not yet finished or the node
+    # is a FINAL node.
     NOT_READY = 0
 
-    # (STATUS_READY): All parents have finished, but the node is not yet running.
+    # (STATUS_READY): All parents have finished, but the node is not yet
+    # running.
     READY = 1
 
     # (STATUS_PRERUN): The node’s PRE script is running.
@@ -104,7 +106,8 @@ class NodeStatus(IntEnum):
     # (STATUS_DONE): The node has completed successfully.
     DONE = 5
 
-    # (STATUS_ERROR): The node has failed. StatusDetails has info (e.g., ULOG_JOB_ABORTED for deleted job).
+    # (STATUS_ERROR): The node has failed. StatusDetails has info (e.g.,
+    # ULOG_JOB_ABORTED for deleted job).
     ERROR = 6
 
 
@@ -569,9 +572,9 @@ class HTCDag(networkx.DiGraph):
         ----------
         job : `HTCJob`
             HTCJob to add to the HTCDag
-        parent_names : `Iterable` of `str`, optional
+        parent_names : `Iterable` [`str`], optional
             Names of parent jobs
-        child_names : `Iterable` of `str`, optional
+        child_names : `Iterable` [`str`], optional
             Names of child jobs
         """
         assert isinstance(job, HTCJob)
@@ -588,9 +591,9 @@ class HTCDag(networkx.DiGraph):
 
         Parameters
         ----------
-        parents : list of `str`
+        parents : `list` [`str`]
             Contains parent job name(s).
-        children : list of `str`
+        children : `list` [`str`]
             Contains children job name(s).
         """
         self.add_edges_from(itertools.product(parents, children))
@@ -740,7 +743,7 @@ def summary_from_dag(dir_name):
     summary : `str`
         Semi-colon separated list of job labels and counts.
         (Same format as saved in dag classad.)
-    job_name_to_label : `dict` of `str`
+    job_name_to_pipetask : `dict` [`str`, `str`]
         Mapping of job names to job labels
     """
     dag = next(Path(dir_name).glob("*.dag"))
@@ -806,7 +809,7 @@ def read_dag_status(wms_path):
 
     Parameters
     ----------
-    path : `str`
+    wms_path : `str`
         Path that includes node status file for a run.
 
     Returns
@@ -816,7 +819,8 @@ def read_dag_status(wms_path):
     """
     dag_classad = {}
 
-    # while this is probably more up to date than dag classad, only read from file if need to.
+    # While this is probably more up to date than dag classad, only read from
+    # file if need to.
     try:
         try:
             node_stat_file = next(Path(wms_path).glob("*.node_status"))
@@ -939,14 +943,14 @@ def read_dag_log(wms_path):
 
     Returns
     -------
-    info : `dict`
+    info : `dict` [`str`, `Any`]
         HTCondor job information read from the log file mapped to HTCondor
         job id.
 
     Raises
     ------
     StopIteration
-        If cannot find dagman log file in given wms_path.
+        If cannot find DAGMan log file in given wms_path.
     """
     wms_workflow_id = 0
     dag_info = {}
@@ -1047,8 +1051,8 @@ def htc_check_dagman_output(wms_path):
     Returns
     -------
     message : `str`
-        Message containing error messages from the DAGman output.  Empty string if
-        no messages.
+        Message containing error messages from the DAGman output.  Empty
+        string if no messages.
     """
     message = ""
     filename = next(Path(wms_path).glob("*.dag.dagman.out"))

@@ -18,19 +18,24 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 """Driver functions for each subcommand.
 
 Driver functions ensure that ensure all setup work is done before running
 the subcommand method.
 """
 
+
 __all__ = [
+    "acquire_qgraph_driver",
+    "cluster_qgraph_driver",
     "transform_driver",
     "prepare_driver",
     "submit_driver",
     "report_driver",
     "cancel_driver",
 ]
+
 
 import getpass
 import logging
@@ -40,12 +45,12 @@ import time
 
 from lsst.obs.base import Instrument
 
-from . import BpsConfig
+from . import BPS_SEARCH_ORDER, BpsConfig
 from .bps_draw import draw_networkx_dot
 from .pre_transform import acquire_quantum_graph, cluster_quanta
 from .transform import transform
 from .prepare import prepare
-from .submit import BPS_SEARCH_ORDER, submit
+from .submit import submit
 from .cancel import cancel
 from .report import report
 
@@ -63,7 +68,7 @@ def _init_submission_driver(config_file):
 
     Returns
     -------
-    config : `~lsst.ctrl.bps.BpsConfig`
+    config : `lsst.ctrl.bps.BpsConfig`
         Batch Processing Service configuration.
     """
     config = BpsConfig(config_file, BPS_SEARCH_ORDER)
@@ -90,9 +95,9 @@ def acquire_qgraph_driver(config_file):
 
     Returns
     -------
-    config : `~lsst.ctrl.bps.BpsConfig`
+    config : `lsst.ctrl.bps.BpsConfig`
         Updated configuration.
-    qgraph : `~lsst.pipe.base.graph.QuantumGraph`
+    qgraph : `lsst.pipe.base.graph.QuantumGraph`
         A graph representing quanta.
     """
     stime = time.time()
@@ -116,9 +121,9 @@ def cluster_qgraph_driver(config_file):
 
     Returns
     -------
-    config : `~lsst.ctrl.bps.BpsConfig`
+    config : `lsst.ctrl.bps.BpsConfig`
         Updated configuration.
-    clustered_qgraph : `~lsst.ctrl.bps.ClusteredQuantumGraph`
+    clustered_qgraph : `lsst.ctrl.bps.ClusteredQuantumGraph`
         A graph representing clustered quanta.
     """
     stime = time.time()
@@ -150,7 +155,7 @@ def transform_driver(config_file):
     -------
     generic_workflow_config : `lsst.ctrl.bps.BpsConfig`
         Configuration to use when creating the workflow.
-    generic_workflow : `lsst.ctrl.bps.wms_workflow.BaseWmsWorkflow`
+    generic_workflow : `lsst.ctrl.bps.BaseWmsWorkflow`
         Representation of the abstract/scientific workflow specific to a given
         workflow management system.
     """
@@ -185,7 +190,7 @@ def prepare_driver(config_file):
     -------
     wms_config : `lsst.ctrl.bps.BpsConfig`
         Configuration to use when creating the workflow.
-    workflow : `lsst.ctrl.bps.wms_workflow.BaseWmsWorkflow`
+    workflow : `lsst.ctrl.bps.BaseWmsWorkflow`
         Representation of the abstract/scientific workflow specific to a given
         workflow management system.
     """

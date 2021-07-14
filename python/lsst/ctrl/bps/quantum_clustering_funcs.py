@@ -19,13 +19,15 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-"""Functions that convert QuantumGraph into ClusteredQuantumGraph
+"""Functions that convert QuantumGraph into ClusteredQuantumGraph.
 """
+
 import re
 import logging
 from collections import defaultdict
 
-from .clustered_quantum_graph import ClusteredQuantumGraph
+from . import ClusteredQuantumGraph
+
 
 _LOG = logging.getLogger(__name__)
 
@@ -35,22 +37,23 @@ def single_quantum_clustering(config, qgraph, name):
 
     Parameters
     ----------
-    config : `~lsst.ctrl.bps.bps_config.BpsConfig`
+    config : `lsst.ctrl.bps.BpsConfig`
         BPS configuration.
-    qgraph : `~lsst.pipe.base.QuantumGraph`
+    qgraph : `lsst.pipe.base.QuantumGraph`
         QuantumGraph to break into clusters for ClusteredQuantumGraph.
     name : `str`
         Name to give to ClusteredQuantumGraph.
 
     Returns
     -------
-    clustered_quantum : `~lsst.ctrl.bps.clustered_quantum_graph.ClusteredQuantumGraph`
+    clustered_quantum : `lsst.ctrl.bps.ClusteredQuantumGraph`
         ClusteredQuantumGraph with single quantum per cluster created from
         given QuantumGraph.
     """
     clustered_quantum = ClusteredQuantumGraph(name=name, qgraph=qgraph)
 
-    # Save mapping of quantum nodeNumber to name so don't have to create it multiple times.
+    # Save mapping of quantum nodeNumber to name so don't have to create it
+    # multiple times.
     number_to_name = {}
 
     # Create cluster of single quantum.
@@ -66,9 +69,11 @@ def single_quantum_clustering(config, qgraph, name):
         else:
             template = "{node_number:08d}"
 
-        # Note: Can't quite reuse lsst.daf.butler.core.fileTemplates.FileTemplate as don't
-        # want to require datasetType (and run) in the template.  Use defaultdict to handle
-        # the missing values in template.
+        # Note:
+        #
+        # Can't quite reuse lsst.daf.butler.core.fileTemplates.FileTemplate
+        # as don't want to require datasetType (and run) in the template.
+        # Use defaultdict to handle the missing values in template.
 
         # Gather info for name template into a dictionary.
         info = data_id.byName()
@@ -77,8 +82,8 @@ def single_quantum_clustering(config, qgraph, name):
         _LOG.debug("template = %s", template)
         _LOG.debug("info for template = %s", info)
 
-        # Use dictionary plus template format string to create name.
-        # To avoid key errors from generic patterns, use defaultdict
+        # Use dictionary plus template format string to create name. To avoid
+        # key errors from generic patterns, use defaultdict.
         name = template.format_map(defaultdict(lambda: "", info))
         name = re.sub("_+", "_", name)
         _LOG.debug("template name = %s", name)

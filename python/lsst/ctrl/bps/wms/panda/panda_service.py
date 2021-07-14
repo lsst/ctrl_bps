@@ -45,16 +45,17 @@ class PanDAService(BaseWmsService):
 
         Parameters
         ----------
-        config : `~lsst.ctrl.bps.BPSConfig`
-            BPS configuration that includes necessary submit/runtime information
-        generic_workflow :  `~lsst.ctrl.bps.generic_workflow.GenericWorkflow`
+        config : `lsst.ctrl.bps.BPSConfig`
+            BPS configuration that includes necessary submit/runtime
+            information.
+        generic_workflow : `lsst.ctrl.bps.GenericWorkflow`
             The generic workflow (e.g., has executable name and arguments)
         out_prefix : `str`
             The root directory into which all WMS-specific files are written
 
         Returns
         ----------
-        workflow : `~lsst.ctrl.bps.wms.panda.panda_service.PandaBpsWmsWorkflow`
+        workflow : `lsst.ctrl.bps.wms.panda.panda_service.PandaBpsWmsWorkflow`
             PanDA workflow ready to be run.
         """
         _LOG.debug("out_prefix = '%s'", out_prefix)
@@ -65,27 +66,29 @@ class PanDAService(BaseWmsService):
         return workflow
 
     def convert_exec_string_to_hex(self, cmdline):
-        """
-        Converts the command line into hex representation. This step is currently involved because large
-        blocks of command lines including special symbols passed to the pilot/container. To make sure the 1
-        to 1 matching and pass by the special symbol stripping performed by the Pilot we applied the
-        hexing.
+        """Convert the command line into hex representation.
+
+        This step is currently involved because large blocks of command lines
+        including special symbols passed to the pilot/container. To make sure
+        the 1 to 1 matching and pass by the special symbol stripping
+        performed by the Pilot we applied the hexing.
 
         Parameters
         ----------
-        cmdline: `str`
+        cmdline : `str`
             UTF-8 command line string
 
         Returns
         -------
+        hex : `str`
             Hex representation of string
         """
         return binascii.hexlify(cmdline.encode()).decode("utf-8")
 
     def add_decoder_prefix(self, cmdline):
         """
-        Compose the command line sent to the pilot from the functional part (the actual SW running) and the
-        middleware part (containers invocation)
+        Compose the command line sent to the pilot from the functional part
+        (the actual SW running) and the middleware part (containers invocation)
 
         Parameters
         ----------
@@ -94,9 +97,9 @@ class PanDAService(BaseWmsService):
 
         Returns
         -------
+        decoder_prefix : `str`
             Full command line to be executed on the edge node
         """
-
         cmdline_hex = self.convert_exec_string_to_hex(cmdline)
         decoder_prefix = self.config.get('runner_command')
         decoder_prefix = decoder_prefix.replace("_cmd_line_", str(cmdline_hex))
@@ -107,7 +110,7 @@ class PanDAService(BaseWmsService):
 
         Parameters
         ----------
-        workflow : `~lsst.ctrl.bps.wms_service.BaseWorkflow`
+        workflow : `lsst.ctrl.bps.BaseWorkflow`
             A single PanDA iDDS workflow to submit
         """
         idds_client_workflow = IDDS_client_workflow()
@@ -149,8 +152,8 @@ class PanDAService(BaseWmsService):
         workflow.run_id = request_id
 
     def report(self, wms_workflow_id=None, user=None, hist=0, pass_thru=None):
-        """
-        Stub for future implementation of the report method
+        """Stub for future implementation of the report method
+
         Expected to return run information based upon given constraints.
 
         Parameters
@@ -166,11 +169,11 @@ class PanDAService(BaseWmsService):
 
         Returns
         -------
-        runs : `dict` of `~lsst.ctrl.bps.wms_service.WmsRunReport`
+        runs : `list` [`lsst.ctrl.bps.WmsRunReport`]
             Information about runs from given job information.
         message : `str`
-            Extra message for report command to print.  This could be pointers to documentation or
-            to WMS specific commands.
+            Extra message for report command to print.  This could be
+            pointers to documentation or to WMS specific commands.
         """
         message = ""
         run_reports = None
@@ -178,13 +181,13 @@ class PanDAService(BaseWmsService):
 
 
 class PandaBpsWmsWorkflow(BaseWmsWorkflow):
-    """
-    A single Panda based workflow
+    """A single Panda based workflow
+
     Parameters
     ----------
     name : `str`
         Unique name for Workflow
-    config : `~lsst.ctrl.bps.BPSConfig`
+    config : `lsst.ctrl.bps.BPSConfig`
         BPS configuration that includes necessary submit/runtime information
     """
 
@@ -206,15 +209,16 @@ class PandaBpsWmsWorkflow(BaseWmsWorkflow):
 
     @staticmethod
     def copy_pickles_into_cloud(local_pfns, cloud_prefix):
-        """
-        Brings locally generated pickle files into Cloud for further utilization them on the egde nodes.
+        """Brings locally generated pickle files into Cloud for further
+        utilization them on the egde nodes.
+
         Parameters
         ----------
         local_pfns: `str`
             Local path to the file to be copied
-
         cloud_prefix: `str`
-            Path on the cloud, including access protocol, bucket name to place files
+            Path on the cloud, including access protocol, bucket name to
+            place files
         """
 
         copy_executor = concurrent.futures.ThreadPoolExecutor(max_workers=10)
@@ -234,6 +238,5 @@ class PandaBpsWmsWorkflow(BaseWmsWorkflow):
             future.result()
 
     def write(self, out_prefix):
-        """
-        Not yet implemented
+        """Not yet implemented
         """

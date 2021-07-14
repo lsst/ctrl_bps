@@ -21,8 +21,9 @@
 import os
 import unittest
 import yaml
+
 from lsst.daf.butler.core.config import Config
-from lsst.ctrl.bps.bps_config import BpsConfig
+from lsst.ctrl.bps import BpsConfig
 
 
 TESTDIR = os.path.abspath(os.path.dirname(__file__))
