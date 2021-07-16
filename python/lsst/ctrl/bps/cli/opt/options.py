@@ -18,6 +18,16 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-from .arguments import *
-from .options import *
-from .option_groups import *
+"""bps-specific command-line options.
+"""
+
+__all__ = ("extra_qgraph_option", "extra_init_option", "extra_run_quantum_option")
+
+from lsst.daf.butler.cli.utils import MWOptionDecorator
+
+extra_qgraph_option = MWOptionDecorator("--extra-qgraph-options",
+                                        help="String to pass through to QuantumGraph builder.")
+extra_init_option = MWOptionDecorator("--extra-init-options",
+                                      help="String to pass through to pipetaskInit execution.")
+extra_run_quantum_option = MWOptionDecorator("--extra-run-quantum-options",
+                                             help="String to pass through to Quantum execution.")

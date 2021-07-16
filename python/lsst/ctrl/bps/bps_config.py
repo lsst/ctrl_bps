@@ -37,7 +37,7 @@ from lsst.daf.butler.core.config import Config
 
 _LOG = logging.getLogger(__name__)
 
-BPS_SEARCH_ORDER = ["payload", "pipetask", "site", "bps_defined"]
+BPS_SEARCH_ORDER = ["bps_cmdline", "payload", "pipetask", "site", "bps_defined"]
 
 
 class BpsFormatter(string.Formatter):

@@ -70,7 +70,7 @@ def acquire_quantum_graph(config, out_prefix=""):
 
     # Check to see if user provided pre-generated QuantumGraph.
     found, input_qgraph_filename = config.search("qgraphFile")
-    if found:
+    if found and input_qgraph_filename:
         if out_prefix is not None:
             # Save a copy of the QuantumGraph file in out_prefix.
             _LOG.info("Copying quantum graph (%s)", input_qgraph_filename)

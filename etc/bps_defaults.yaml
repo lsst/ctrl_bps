@@ -25,7 +25,7 @@ payload:
 
 pipetask:
   pipetaskInit:
-    runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask --long-log run -b {butlerConfig} -i {inCollection} --output-run {outCollection} --init-only --register-dataset-types --qgraph {qgraphFile} --extend-run"
+    runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask --long-log run -b {butlerConfig} -i {inCollection} --output-run {outCollection} --init-only --register-dataset-types --qgraph {qgraphFile} --extend-run {extraInitOptions}"
   #OPT myTask:
   #OPT   requestCpus:
   #OPT   requestMemory:
@@ -52,8 +52,8 @@ executionButler:
 # Default commands and usage requests for creating QuantumGraph, running Quantum.
 # Defaults to using full workflow QuantumGraph instead of per-job QuantumGraphs.
 whenSaveJobQgraph: "NEVER"
-createQuantumGraph: '${CTRL_MPEXEC_DIR}/bin/pipetask qgraph -d "{dataQuery}" -b {butlerConfig} -i {inCollection} -p {pipelineYaml} -q {qgraphFile} {pipelineOptions}'
-runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask --long-log run -b {butlerConfig} --output-run {outCollection} --qgraph {qgraphFile} --qgraph-id {qgraphId} --qgraph-node-id {qgraphNodeId} --skip-init-writes --extend-run --clobber-outputs --skip-existing"
+createQuantumGraph: '${CTRL_MPEXEC_DIR}/bin/pipetask qgraph -d "{dataQuery}" -b {butlerConfig} -i {inCollection} -p {pipelineYaml} -q {qgraphFile} {extraQgraphOptions}'
+runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask --long-log run -b {butlerConfig} --output-run {outCollection} --qgraph {qgraphFile} --qgraph-id {qgraphId} --qgraph-node-id {qgraphNodeId} --skip-init-writes --extend-run --clobber-outputs --skip-existing {extraRunQuantumOptions}"
 requestMemory: 2048
 requestCpus: 1
 
