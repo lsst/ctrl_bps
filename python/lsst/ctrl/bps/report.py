@@ -161,10 +161,7 @@ def group_jobs_by_state(jobs):
         Mapping of job state to a list of jobs.
     """
     _LOG.debug("group_jobs_by_state: jobs=%s", jobs)
-    by_state = dict.fromkeys(WmsStates)
-    for state in by_state:
-        by_state[state] = []    # Note: If added [] to fromkeys(), they shared single list.
-
+    by_state = {state: [] for state in WmsStates}
     for job in jobs:
         by_state[job.state].append(job)
     return by_state
@@ -185,9 +182,8 @@ def group_jobs_by_label(jobs):
     """
     by_label = {}
     for job in jobs:
-        if job.label not in by_label:
-            by_label[job.label] = []
-        by_label[job.label].append(job)
+        group = by_label.setdefault(job.label, [])
+        group.append(job)
     return by_label
 
 
