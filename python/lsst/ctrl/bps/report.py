@@ -210,16 +210,16 @@ def print_single_run_summary(run_report):
 
     # Count the jobs by label and WMS state.
     label_order = []
-    by_label_totals = {}
+    by_label_expected = {}
     if run_report.run_summary:
         # Workaround until get pipetaskInit job into run_summary
         if not run_report.run_summary.startswith("pipetaskInit"):
             label_order.append("pipetaskInit")
-            by_label_totals["pipetaskInit"] = 1
+            by_label_expected["pipetaskInit"] = 1
         for part in run_report.run_summary.split(";"):
             label, count = part.split(":")
             label_order.append(label)
-            by_label_totals[label] = int(count)
+            by_label_expected[label] = int(count)
     else:
         print("Warning: Cannot determine order of pipeline.  Instead printing alphabetical.")
         label_order = sorted(by_label.keys())
@@ -230,27 +230,24 @@ def print_single_run_summary(run_report):
 
     total = ["TOTAL"]
     total.extend([run_report.job_state_counts[state] for state in WmsStates])
-    total.append(sum(by_label_totals.values()))
+    total.append(sum(by_label_expected.values()))
     details.add_row(total)
 
     for label in label_order:
-        counts = dict.fromkeys(WmsStates, 0)
         if label in by_label:
             by_label_state = group_jobs_by_state(by_label[label])
             _LOG.debug("by_label_state = %s", by_label_state)
-            counts = dict.fromkeys(WmsStates)
-            for state in WmsStates:
-                counts[state] = len(by_label_state[state])
-        elif label in by_label_totals:
-            already_counted = sum(counts.values())
-            if already_counted != by_label_totals[label]:
-                counts[WmsStates.UNREADY] += by_label_totals[label] - already_counted
+            counts = {state: len(jobs) for state, jobs in by_label_state.items()}
+            if label in by_label_expected:
+                already_counted = sum(counts.values())
+                if already_counted != by_label_expected[label]:
+                    counts[WmsStates.UNREADY] += by_label_expected[label] - already_counted
         else:
             counts = dict.fromkeys(WmsStates, -1)
 
         row = [label]
         row.extend([counts[state] for state in WmsStates])
-        row.append([by_label_totals[label]])
+        row.append([by_label_expected[label]])
         details.add_row(row)
 
     # Format the report summary and print it out.
