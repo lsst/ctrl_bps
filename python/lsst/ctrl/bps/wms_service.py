@@ -164,7 +164,7 @@ class BaseWmsService:
 
         Returns
         -------
-        run_reports : `list` [`lsst.ctrl.bps.BaseWmsReport`]
+        run_reports : `list` [`lsst.ctrl.bps.WmsRunReport`]
             Status information for submitted WMS workflows.
         message : `str`
             Message to user on how to find more status information specific to
