@@ -47,7 +47,7 @@ def acquire_quantum_graph(config, out_prefix=""):
     ----------
     config : `lsst.ctrl.bps.BpsConfig`
         Configuration values for BPS.  In particular, looking for qgraphFile.
-    out_prefix : `str`
+    out_prefix : `str`, optional
         Output path for the QuantumGraph and stdout/stderr from generating
         the QuantumGraph.  Default value is empty string.
 
@@ -160,7 +160,7 @@ def create_quantum_graph(config, out_prefix=""):
     ----------
     config : `lsst.ctrl.bps.BpsConfig`
         BPS configuration.
-    out_prefix : `str`
+    out_prefix : `str`, optional
         Path in which to output QuantumGraph as well as the stdout/stderr
         from generating the QuantumGraph.  Defaults to empty string so
         code will write the QuantumGraph and stdout/stderr to the current

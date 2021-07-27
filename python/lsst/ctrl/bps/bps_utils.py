@@ -68,7 +68,6 @@ def create_job_quantum_graph_filename(config, job, out_prefix=None):
 
     Parameters
     ----------
-    job : `lsst.ctrl.bps.GenericWorkflowJob`
     config : `lsst.ctrl.bps.BpsConfig`
         BPS configuration (at minimum must contain qgraphFile and
         outCollection).
@@ -94,7 +93,7 @@ def create_job_quantum_graph_filename(config, job, out_prefix=None):
     if out_prefix is not None:
         full_filename = Path(out_prefix) / full_filename
 
-    return full_filename
+    return str(full_filename)
 
 
 def save_qg_subgraph(qgraph, out_filename, node_ids=None):

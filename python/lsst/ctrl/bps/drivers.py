@@ -44,7 +44,6 @@ import re
 import pickle
 import time
 import shutil
-import yaml
 
 
 from lsst.obs.base import Instrument
@@ -84,7 +83,7 @@ def _init_submission_driver(config_file, **kwargs):
                    "qgraph": "qgraphFile",
                    "pipeline": "pipelineYaml"}
     for key, value in kwargs.items():
-        # Don't want to override config with None values
+        # Don't want to override config with None or empty string values.
         if value:
             # pipetask argument parser converts some values to list,
             # but bps will want string.
@@ -109,7 +108,7 @@ def _init_submission_driver(config_file, **kwargs):
     # save copy of configs (orig and expanded config)
     shutil.copy2(config_file, submit_path)
     with open(f"{submit_path}/{config['uniqProcName']}_config.yaml", "w") as fh:
-        yaml.dump(config, fh)
+        config.dump(fh)
 
     return config
 

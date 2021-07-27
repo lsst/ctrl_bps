@@ -22,7 +22,7 @@
 """Class definitions for a Generic Workflow Graph.
 """
 
-__all__ = ["GenericWorkflow", "GenericWorkflowFile", "GenericWorkflowJob"]
+__all__ = ["GenericWorkflow", "GenericWorkflowFile", "GenericWorkflowJob", "GenericWorkflowExec"]
 
 
 import dataclasses
@@ -82,6 +82,38 @@ class GenericWorkflowFile:
 
 
 @dataclasses.dataclass
+class GenericWorkflowExec:
+    """Information about an executable that may be needed by various workflow
+    management services.
+    """
+    name: str
+    """Lookup key (logical file name) of executable. Must be unique
+    within run.
+    """
+
+    src_uri: str or None  # don't know that need ButlerURI
+    """Original location of executable.
+    """
+
+    transfer_executable: bool
+    """Whether the WMS/plugin is responsible for staging executable to
+    location usable by job.
+    """
+
+    # As of python 3.7.8, can't use __slots__ + dataclass if give default
+    # values, so writing own __init__.
+    def __init__(self, name: str, src_uri: str = None, transfer_executable: bool = False):
+        self.name = name
+        self.src_uri = src_uri
+        self.transfer_executable = transfer_executable
+
+    __slots__ = ("name", "src_uri", "transfer_executable")
+
+    def __hash__(self):
+        return hash(self.name)
+
+
+@dataclasses.dataclass
 class GenericWorkflowJob:
     """Information about a job that may be needed by various workflow
     management services.
@@ -99,17 +131,16 @@ class GenericWorkflowJob:
     """Other key/value pairs for job that user may want to use as a filter.
     """
 
-    cmdline: Optional[str]
-    """Command line for job.
+    executable: Optional[GenericWorkflowExec]
+    """Executable for job.
+    """
+
+    arguments: Optional[str]
+    """Command line arguments for job.
     """
 
     cmdvals: Optional[dict]
     """Values for variables in cmdline when using lazy command line creation.
-    """
-
-    transfer_executable: bool
-    """Whether executable needs to be transferred to job by WMS (e.g., is bps-
-    generated script).
     """
 
     request_memory: Optional[int]    # MB
@@ -205,9 +236,9 @@ class GenericWorkflowJob:
         self.name = name
         self.label = None
         self.tags = {}
-        self.cmdline = None
+        self.executable = None
+        self.arguments = None
         self.cmdvals = {}
-        self.transfer_executable = False
         self.request_memory = None
         self.request_cpus = None
         self.request_disk = None
@@ -230,7 +261,7 @@ class GenericWorkflowJob:
         self.environment = {}
 
     __slots__ = ("name", "label", "tags", "mail_to", "when_to_mail",
-                 "cmdline", "cmdvals", "transfer_executable",
+                 "executable", "arguments", "cmdvals",
                  "request_memory", "request_cpus", "request_disk", "request_walltime",
                  "number_of_retries", "retry_unless_exit", "abort_on_value", "abort_return_value",
                  "compute_site", "environment", "priority", "category", "concurrency_limit",
@@ -259,6 +290,7 @@ class GenericWorkflow(nx.DiGraph):
         self._name = name
         self.run_attrs = {}
         self._files = {}
+        self._executables = {}
         self._inputs = {}   # mapping job.names to list of GenericWorkflowFile
         self._outputs = {}  # mapping job.names to list of GenericWorkflowFile
         self.run_id = None
@@ -323,6 +355,7 @@ class GenericWorkflow(nx.DiGraph):
         super().add_node(job.name, job=job)
         self.add_job_relationships(parent_names, job.name)
         self.add_job_relationships(job.name, child_names)
+        self.add_executable(job.executable)
 
     def add_node(self, node_for_adding, **attr):
         """Override networkx function to call more specific add_job function.
@@ -632,13 +665,14 @@ class GenericWorkflow(nx.DiGraph):
         for job_name in workflow:
             self.add_job_inputs(job_name, workflow.get_job_inputs(job_name, data=True))
             self.add_job_outputs(job_name, workflow.get_job_outputs(job_name, data=True))
+            self.add_executable(workflow.get_job(job_name).executable)
 
     def add_final(self, final):
         """Add special final job/workflow to the generic workflow.
 
         Parameters
         ----------
-        final : `lsst.ctrl.bps.GenericWorkflowJob` or
+        final : `lsst.ctrl.bps.GenericWorkflowJob` or \
                 `lsst.ctrl.bps.GenericWorkflow`
             Information needed to execute the special final job(s), the
             job(s) to be executed after all jobs that can be executed
@@ -649,6 +683,8 @@ class GenericWorkflow(nx.DiGraph):
             raise TypeError("Invalid type for GenericWorkflow final ({type(final)})")
 
         self._final = final
+        if isinstance(final, GenericWorkflowJob):
+            self.add_executable(final.executable)
 
     def get_final(self):
         """Return job/workflow to be executed after all jobs that can be
@@ -657,8 +693,47 @@ class GenericWorkflow(nx.DiGraph):
 
         Returns
         -------
-        final : `lsst.ctrl.bps.GenericWorkflowJob` or
+        final : `lsst.ctrl.bps.GenericWorkflowJob` or \
                 `lsst.ctrl.bps.GenericWorkflow`
             Information needed to execute final job(s).
         """
         return self._final
+
+    def add_executable(self, executable):
+        """Add executable to workflow's list of executables.
+
+        Parameters
+        ----------
+        executable : `lsst.ctrl.bps.GenericWorkflowExec`
+            Executable object to be added to workflow.
+        """
+        if executable is not None:
+            self._executables[executable.name] = executable
+        else:
+            _LOG.warning("executable not specified (None); cannot add to the workflow's list of executables")
+
+    def get_executables(self, data=False, transfer_only=True):
+        """Retrieve executables from generic workflow.
+
+        Parameters
+        ----------
+        data : `bool`, optional
+            Whether to return the executable data as well as the exec object
+            name.  (The defaults is False.)
+        transfer_only : `bool`, optional
+            Whether to only return executables for which transfer_executable
+            is True.
+
+        Returns
+        -------
+        execs : `list` [`lsst.ctrl.bps.GenericWorkflowExec`] or `list` [`str`]
+            Filtered executable names or objects from generic workflow.
+        """
+        execs = []
+        for name, executable in self._executables.items():
+            if not transfer_only or executable.transfer_executable:
+                if not data:
+                    execs.append(name)
+                else:
+                    execs.append(executable)
+        return execs

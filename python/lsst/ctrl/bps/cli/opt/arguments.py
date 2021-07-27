@@ -20,6 +20,8 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 from lsst.daf.butler.cli.utils import MWArgumentDecorator
 
+__all__ = ["config_file_argument"]
+
 
 config_file_argument = MWArgumentDecorator(
     "config_file",

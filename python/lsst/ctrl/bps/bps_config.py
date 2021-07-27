@@ -26,18 +26,25 @@ expands environment variables and other config variables.
 __all__ = ["BPS_SEARCH_ORDER", "BpsConfig", "BpsFormatter"]
 
 
-from os.path import expandvars, realpath, dirname
+from os.path import expandvars
 import logging
 import copy
 import string
 import re
+from importlib.resources import path as resources_path
 
 from lsst.daf.butler.core.config import Config
 
+from . import etc
 
 _LOG = logging.getLogger(__name__)
 
 BPS_SEARCH_ORDER = ["bps_cmdline", "payload", "pipetask", "site", "bps_defined"]
+
+# Need a string that won't be a valid default value
+# to indicate whether default was defined for search.
+# And None is a valid default value.
+_NO_SEARCH_DEFAULT_VALUE = "__NO_SEARCH_DEFAULT_VALUE__"
 
 
 class BpsFormatter(string.Formatter):
@@ -80,10 +87,10 @@ class BpsConfig(Config):
         super().__init__()
 
         if isinstance(other, str):
-            # First load default config from ctrl_bps, then
-            # override with user config.
-            bps_defaults = realpath(dirname(__file__) + "/../../../../etc/bps_defaults.yaml")
-            tmp_config = Config(bps_defaults)
+            # First load default config from ctrl_bps, then override with
+            # user config.
+            with resources_path(etc, "bps_defaults.yaml") as bps_defaults:
+                tmp_config = Config(str(bps_defaults))
             user_config = Config(other)
             tmp_config.update(user_config)
             other = tmp_config
@@ -275,7 +282,10 @@ class BpsConfig(Config):
 
             if opt.get("replaceVars", True):
                 # default only applies to original search key
-                default = opt.pop("default", None)
+                # Instead of doing deep copies of opt (especially with
+                # the recursive calls), temporarily remove default value
+                # and put it back.
+                default = opt.pop("default", _NO_SEARCH_DEFAULT_VALUE)
 
                 # Temporarily replace any env vars so formatter doesn't try to
                 # replace them.
@@ -286,7 +296,8 @@ class BpsConfig(Config):
                 # Replace any temporary env place holders.
                 value = re.sub(r"<BPSTMP:([^>]+)>", r"${\1}", value)
 
-                if default:  # reset to avoid modifying dict parameter.
+                # if default was originally in opt
+                if default != _NO_SEARCH_DEFAULT_VALUE:
                     opt["default"] = default
 
             _LOG.debug("after format=%s", value)

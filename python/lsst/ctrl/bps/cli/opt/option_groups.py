@@ -21,7 +21,7 @@
 """Option groups for bps
 """
 
-__all__ = ("SubmissionOptions",)
+__all__ = ["SubmissionOptions"]
 
 from lsst.daf.butler.cli.utils import OptionGroup, option_section
 from lsst.ctrl.mpexec.cli.opt import (
@@ -40,7 +40,7 @@ from .options import (
 )
 
 
-class SubmissionOptions(OptionGroup):  # noqa: N801
+class SubmissionOptions(OptionGroup):
     """Decorator to add options to a command function for any
     stage during submission.
     """

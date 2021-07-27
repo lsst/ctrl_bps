@@ -134,6 +134,9 @@ HTC_VALID_JOB_KEYS = {
     "priority",
     "category",
     "requirements",
+    "on_exit_hold",
+    "on_exit_hold_reason",
+    "on_exit_hold_subcode"
 }
 HTC_VALID_JOB_DAG_KEYS = {"vars", "pre", "post", "retry", "retry_unless_exit",
                           "abort_dag_on", "abort_exit"}
@@ -447,8 +450,6 @@ class HTCJob:
         Initial commands for job inside DAG.
     initattrs : `dict`
         Initial dictionary of job attributes.
-    subfile : `str`
-        Filename for the job's submit script.
     """
     def __init__(self, name, label=None, initcmds=(), initdagcmds=(), initattrs=None):
         self.name = name
@@ -456,7 +457,6 @@ class HTCJob:
         self.cmds = RestrictedDict(HTC_VALID_JOB_KEYS, initcmds)
         self.dagcmds = RestrictedDict(HTC_VALID_JOB_DAG_KEYS, initdagcmds)
         self.attrs = initattrs
-        self.filename = None
         self.subfile = None
 
     def __str__(self):

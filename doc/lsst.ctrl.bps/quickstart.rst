@@ -148,6 +148,42 @@ Adding ``--log-level INFO`` option to the command line outputs more information
 especially for those wanting to watch how long the various submission stages
 take. 
 
+
+Additional Submit Options
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+See ``bps submit --help`` for more detailed information.
+Command-line values override values in the yaml file.
+
+**Pass-thru Arguments**
+
+The following options allow additions to pipetask command lines
+via variables.
+
+- ``--extra-qgraph-options``
+  String to pass through to QuantumGraph builder.
+  Replaces variable ``extraQgraphOptions`` in ``createQuantumGraph``.
+- ``--extra-init-options``
+  String to pass through to pipetaskInit execution.
+  Replaces variable ``extraInitOptions`` in ``pipetaskInit``'s
+  ``runQuantumCommand``.
+- ``--extra-run-quantum-options``
+  String to pass through to Quantum execution.  For example this can
+  be used to pass "--no-versions" to pipetask.
+  Replaces variable ``extraRunQuantumOptions`` in ``runQuantumCommand``.
+
+**Payload Options**
+
+The following subset of ``pipetask`` options are also usable on ``bps submit`` command lines.
+
+- ``-b, --butler-config``
+- ``-i, --input COLLECTION``
+- ``-o, --output COLLECTION``
+- ``--output-run COLLECTION``
+- ``-d, --data-query QUERY``
+- ``-p, --pipeline FILE``
+- ``-g, --qgraph FILENAME``
+
 .. _bps-report:
 
 Checking status
@@ -163,19 +199,20 @@ get a more pipeline oriented information use
 
 which should display run summary similar to the one below ::
 
-	X      STATE  %S       ID OPERATOR   PRJ   CMPGN    PAYLOAD    RUN
-	-----------------------------------------------------------------------------------------------------------------------
-	     RUNNING   0   176270 jdoe       dev   quick    pcheck     shared_pipecheck_20201111T14h59m26s
+    X      STATE  %S       ID OPERATOR   PRJ   CMPGN    PAYLOAD    RUN
+
+    -----------------------------------------------------------------------------------------------------------------------
+         RUNNING   0   176270 jdoe       dev   quick    pcheck     shared_pipecheck_20201111T14h59m26s
 
 To see results regarding past submissions, use ``bps report --hist X``  where
 ``X`` is the number of days past day to look at (can be a fraction).  For
 example ::
 
-	$ bps report --hist 1
-		STATE  %S       ID OPERATOR   PRJ   CMPGN    PAYLOAD    RUN
-	-----------------------------------------------------------------------------------------------------------------------
-	   FAILED   0   176263 jdoe       dev   quick    pcheck     shared_pipecheck_20201111T13h51m59s
-	SUCCEEDED 100   176265 jdoe       dev   quick    pcheck     shared_pipecheck_20201111T13h59m26s
+    $ bps report --hist 1
+        STATE  %S       ID OPERATOR   PRJ   CMPGN    PAYLOAD    RUN
+    -----------------------------------------------------------------------------------------------------------------------
+       FAILED   0   176263 jdoe       dev   quick    pcheck     shared_pipecheck_20201111T13h51m59s
+    SUCCEEDED 100   176265 jdoe       dev   quick    pcheck     shared_pipecheck_20201111T13h59m26s
 
 Use ``bps report --help`` to see all currently supported options.
 
@@ -268,6 +305,10 @@ BPS configuration file
 The configuration file is in YAML format.  One particular YAML
 syntax to be mindful about is that boolean values must be all
 lowercase.
+
+${CTRL_BPS_DIR}/python/lsst/ctrl/bps/etc/bps_defaults.yaml
+contains default values used by every bps submission and is
+automatically included.
 
 Configuration file can include other configuration files using
 ``includeConfigs`` with YAML array syntax. For example
@@ -435,6 +476,12 @@ Supported settings
     Template to use when creating job names (and HTCondor plugin then uses for
     job output filenames).
 
+**subdirTemplate**
+    Template used by bps and plugins when creating input and job subdirectories.
+
+**qgraphFileTemplate**
+    Template used when creating QuantumGraph filename.
+
 **wmsServiceClass**
     Workload Management Service plugin to use. For example
 
@@ -533,14 +580,141 @@ To use full QuantumGraph file, the submit YAML must set `whenSaveJobQgraph` to
     runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask --long-log run -b {butlerConfig} --output {output} --output-run {outCollection} --qgraph {qgraphFile} --qgraph-id {qgraphId} --qgraph-node-id {qgraphNodeId} --skip-init-writes --extend-run --clobber-outputs --skip-existing"
 
 
--- warning::
+.. warning::
 
    Do not modify the QuantumGraph options in pipetaskInit's runQuantumCommand.  It needs the entire QuantumGraph.
 
--- note::
+.. note::
 
    If running on a system with a shared filesystem, you'll more than likely want to also set bpsUseShared
    to true.
+
+.. _execution-butler:
+
+Execution Butler
+----------------
+
+Execution Butler is a behind-the-scenes mechanism to lessen the number
+of simultaneous connections to the Butler database.
+
+
+.. _DMTN-177: https://github.com/lsst-dm/dmtn-177
+
+
+Pipetask command lines are not the same when using Execution Butler.
+There is currently not a single configuration option to enable/disable
+Execution Butler.
+
+Command-line Changes
+^^^^^^^^^^^^^^^^^^^^
+
+.. code-block:: YAML
+
+   pipetask:
+       pipetaskInit:
+           runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask --long-log run -b {butlerConfig} -i {inCollection} --output-run {outCollection} --init-only --register-dataset-types --qgraph {qgraphFile} --extend-run {extraInitOptions}"
+
+New Yaml Section
+^^^^^^^^^^^^^^^^
+
+.. code-block:: YAML
+
+   executionButlerTemplate: "{submitPath}/EXEC_REPO-{uniqProcName}"
+   executionButler:
+       whenCreate: "SUBMIT"
+       #USER executionButlerDir: "/my/exec/butler/dir"  # if user provided, otherwise uses executionButlerTemplate
+       createCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask qgraph -b {butlerConfig} --input {inCollection} --output-run {outCollection} --save-execution-butler {executionButlerDir} -g {qgraphFile}"
+       whenMerge: "ALWAYS"
+       implementation: JOB  # JOB, WORKFLOW
+       concurrency_limit: db_limit
+       command1: "${DAF_BUTLER_DIR}/bin/butler --log-level=VERBOSE transfer-datasets  {executionButlerDir} {butlerConfig} --collections {outCollection}"
+       command2: "${DAF_BUTLER_DIR}/bin/butler collection-chain {butlerConfig} {output} {outCollection} --mode=prepend"
+
+For ``--replace-run`` behavior, replace the one collection-chain command with these two:
+
+.. code-block:: YAML
+
+   command2: "${DAF_BUTLER_DIR}/bin/butler collection-chain {butlerConfig} {output} --mode=pop 1"
+   command3: "${DAF_BUTLER_DIR}/bin/butler collection-chain {butlerConfig} {output} --mode=prepend {outCollection}"
+
+**whenCreate**
+    When during the submission process that the Execution Butler is created.
+    whenCreate valid values: "NEVER", "ACQUIRE", "TRANSFORM", "PREPARE",
+    "SUBMIT".  The recommended setting is "SUBMIT" because the run collection
+    is stored in the Execution Butler and that should be set as late as
+    possible in the submission process.
+
+    * NEVER = Execution Butler is never created and the provided pipetask
+      commands must be appropriate for not using a Execution Butler.
+    * ACQUIRE = Execution Butler is created in the ACQUIRE submission stage
+      right after creating or reading the QuantumGraph.
+    * TRANSFORM = Execution Butler is created in the TRANSFORM submission
+      stage right before creating the Generic Workflow.
+    * PREPARE = Execution Butler is created in the PREPARE submission stage
+      right before calling the WMS plugin's ``prepare`` method.
+    * SUBMIT = Execution Butler is created in the SUBMIT stage right before
+      calling the WMS plugin's ``submit`` method.
+
+**whenMerge**
+    When the Execution Butler should be merged back to the central repository.
+    whenMerge valid values: "ALWAYS", "SUCCESS", "NEVER".  The recommended
+    setting is "ALWAYS" especially when jobs are writing to the central
+    Datastore.
+
+    * ALWAYS = Merge even if entire workflow was not executed successfully
+      or run was cancelled.
+    * SUCCESS = Only merge if entire workflow was executed successfully.
+    * NEVER = bps is not responsible for merging the Execution Butler back
+      to the central repository.
+
+**createCommand**
+    Command to create the Execution Butler.
+
+**implementation**
+    How to implement the mergeExecutionButler steps.
+
+    * JOB = Single bash script is written with sequence of commands
+      and is represented in the GenericWorkflow as a GenericWorkflowJob.
+    * WORKFLOW = (Not implemented yet) Instead of a bash script, make
+      a little workflow representing the sequence of commands.
+
+**concurrency_limit**
+    Name of the concurrency limit.  For butler repositories that need to
+    limit the number of simultaneous merges, this name tells the plugin to
+    limit the number of mergeExecutionButler jobs via some mechanism, e.g.,
+    a special queue.
+
+    * db_limit = special concurrency limit to be used when limiting number of
+      simultaneous butler database connections.
+
+**command1, command2, ...**
+    Commands executed in numerical order as part of the mergeExecutionButler
+    job.
+
+**executionButlerTemplate**
+    Template for Execution Butler directory name.
+
+
+User-visible Changes
+^^^^^^^^^^^^^^^^^^^^
+
+The major differences visible to users are:
+
+    - `bps report` shows new job called mergeExecutionButler in detailed view.
+      This is what saves the run info into the central butler repository.
+      As with any job, it can succeed or fail.  Different from other jobs, it
+      will execute at the end of a run regardless of whether a job failed or
+      not.  It will even execute if the run is cancelled unless the
+      cancellation is while the merge is running.  Its output will go where
+      other jobs go (at NCSA in jobs/mergeExecutionButler directory).
+    - Extra files in submit directory:
+        - EXEC_REPO-<run>:  Execution Butler (yaml + initial sqlite file)
+        - execution_butler_creation.out: Output of command to create execution
+          butler.
+        - final_job.bash:  Script that is executed to do the merging of
+          the run info into the central repo.
+        - final_post_mergeExecutionButler.out: An internal file for debugging
+          incorrect reporting of final run status.
 
 .. _bps-troubleshooting:
 

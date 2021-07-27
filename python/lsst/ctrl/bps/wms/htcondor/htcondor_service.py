@@ -361,16 +361,23 @@ class HTCondorWorkflow(BaseWmsWorkflow):
             "when_to_transfer_output": "ON_EXIT_OR_EVICT",
             "transfer_executable": "False",
             "getenv": "True",
+
+            # Exceeding memory sometimes triggering SIGBUS error.
+            # Tell htcondor to put SIGBUS jobs on hold.
+            "on_exit_hold": "(ExitBySignal == true) && (ExitSignal == 7)",
+            "on_exit_hold_reason": '"Job raised a signal 7.  Usually means job has gone over memory limit."',
+            "on_exit_hold_subcode": "34"
         }
 
-        htc_job_cmds.update(_translate_job_cmds(generic_workflow, gwjob))
+        htc_job_cmds.update(_translate_job_cmds(config, generic_workflow, gwjob))
 
         # job stdout, stderr, htcondor user log.
         for key in ("output", "error", "log"):
             htc_job_cmds[key] = htc_job.subfile.with_suffix(f".$(Cluster).{key[:3]}")
             _LOG.debug("HTCondor %s = %s", key, htc_job_cmds[key])
 
-        htc_job_cmds.update(_handle_job_inputs(generic_workflow, gwjob.name, out_prefix))
+        _, use_shared = config.search("bpsUseShared", opt={"default": False})
+        htc_job_cmds.update(_handle_job_inputs(generic_workflow, gwjob.name, use_shared, out_prefix))
 
         # Add the job cmds dict to the job object.
         htc_job.add_job_cmds(htc_job_cmds)
@@ -405,11 +412,14 @@ class HTCondorWorkflow(BaseWmsWorkflow):
         self.dag.write(out_prefix, "jobs/{self.label}")
 
 
-def _translate_job_cmds(generic_workflow, gwjob):
+def _translate_job_cmds(config, generic_workflow, gwjob):
     """Translate the job data that are one to one mapping
 
     Parameters
     ----------
+    config : `lsst.ctrl.bps.BpsConfig`
+        BPS configuration that includes necessary submit/runtime
+        information.
     generic_workflow : `lsst.ctrl.bps.GenericWorkflow`
        Generic workflow that contains job to being converted.
     gwjob : `lsst.ctrl.bps.GenericWorkflowJob`
@@ -446,22 +456,16 @@ def _translate_job_cmds(generic_workflow, gwjob):
         jobcmds["concurrency_limit"] = ",".join(gwjob.concurrency_limit)
 
     # Handle command line
-    cmd_parts = gwjob.cmdline.split(" ", 1)
-
-    if gwjob.transfer_executable:
+    if gwjob.executable.transfer_executable:
         jobcmds["transfer_executable"] = "True"
-        jobcmds["executable"] = os.path.basename(cmd_parts[0])
+        jobcmds["executable"] = os.path.basename(gwjob.executable.src_uri)
     else:
-        jobcmds["executable"] = _fix_env_var_syntax(cmd_parts[0])
+        jobcmds["executable"] = _fix_env_var_syntax(gwjob.executable.src_uri)
 
-    if len(cmd_parts) > 1:
-        jobcmds["arguments"] = cmd_parts[1]
-        arguments = cmd_parts[1]
-        arguments = _replace_cmd_vars(arguments,
-                                      gwjob)
-        arguments = _replace_file_vars(arguments,
-                                       generic_workflow,
-                                       gwjob)
+    if gwjob.arguments:
+        arguments = gwjob.arguments
+        arguments = _replace_cmd_vars(arguments, gwjob)
+        arguments = _replace_file_vars(config, arguments, generic_workflow, gwjob)
         arguments = _fix_env_var_syntax(arguments)
         jobcmds["arguments"] = arguments
 
@@ -519,12 +523,15 @@ def _fix_env_var_syntax(oldstr):
     return newstr
 
 
-def _replace_file_vars(arguments, workflow, gwjob):
+def _replace_file_vars(config, arguments, workflow, gwjob):
     """Replace file placeholders in command line arguments with correct
     physical file names.
 
     Parameters
     ----------
+    config : `lsst.ctrl.bps.BpsConfig`
+        BPS configuration that includes necessary submit/runtime
+        information.
     arguments : `str`
         Arguments string in which to replace file placeholders.
     workflow : `lsst.ctrl.bps.GenericWorkflow`
@@ -537,17 +544,19 @@ def _replace_file_vars(arguments, workflow, gwjob):
     arguments : `str`
         Given arguments string with file placeholders replaced.
     """
+    _, use_shared = config.search("bpsUseShared", opt={"default": False})
+
     # Replace input file placeholders with paths.
-    for gwfile in workflow.get_job_inputs(gwjob.name):
-        if gwfile.wms_transfer:
+    for gwfile in workflow.get_job_inputs(gwjob.name, data=True, transfer_only=False):
+        if gwfile.wms_transfer and not use_shared or not gwfile.job_shared:
             uri = os.path.basename(gwfile.src_uri)
         else:
             uri = gwfile.src_uri
         arguments = arguments.replace(f"<FILE:{gwfile.name}>", uri)
 
-    # Replace input file placeholders with paths.
-    for gwfile in workflow.get_job_outputs(gwjob.name):
-        if gwfile.wms_transfer:
+    # Replace output file placeholders with paths.
+    for gwfile in workflow.get_job_outputs(gwjob.name, data=True, transfer_only=False):
+        if gwfile.wms_transfer and not use_shared or not gwfile.job_shared:
             uri = os.path.basename(gwfile.src_uri)
         else:
             uri = gwfile.src_uri
@@ -573,7 +582,7 @@ def _replace_cmd_vars(arguments, gwjob):
     """
     try:
         arguments = arguments.format(**gwjob.cmdvals)
-    except KeyError:
+    except (KeyError, TypeError):   # TypeError in case None instead of {}
         _LOG.error("Could not replace command variables:\n"
                    "arguments: %s\n"
                    "cmdvals: %s", arguments, gwjob.cmdvals)
@@ -581,7 +590,7 @@ def _replace_cmd_vars(arguments, gwjob):
     return arguments
 
 
-def _handle_job_inputs(generic_workflow: GenericWorkflow, job_name: str, out_prefix: str):
+def _handle_job_inputs(generic_workflow: GenericWorkflow, job_name: str, use_shared: bool, out_prefix: str):
     """Add job input files from generic workflow to job.
 
     Parameters
@@ -590,6 +599,8 @@ def _handle_job_inputs(generic_workflow: GenericWorkflow, job_name: str, out_pre
         The generic workflow (e.g., has executable name and arguments).
     job_name : `str`
         Unique name for the job.
+    use_shared : `bool`
+        Whether job has access to files via shared filesystem.
     out_prefix : `str`
         The root directory into which all WMS-specific files are written.
 
@@ -602,7 +613,8 @@ def _handle_job_inputs(generic_workflow: GenericWorkflow, job_name: str, out_pre
     inputs = []
     for gwf_file in generic_workflow.get_job_inputs(job_name, data=True, transfer_only=True):
         _LOG.debug("src_uri=%s", gwf_file.src_uri)
-        inputs.append(os.path.relpath(gwf_file.src_uri, out_prefix))
+        if not use_shared or not gwf_file.job_shared:
+            inputs.append(os.path.relpath(gwf_file.src_uri, out_prefix))
 
     if inputs:
         htc_commands["transfer_input_files"] = ",".join(inputs)

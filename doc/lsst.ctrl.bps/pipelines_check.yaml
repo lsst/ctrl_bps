@@ -7,15 +7,8 @@ computeSite: ncsapool
 # Make sure these values correspond to ones in the bin/run_demo.sh's
 # pipetask command line.
 payload:
-  payload_name: pipelines_check
+  payloadName: pipelines_check
   butlerConfig: ${PIPELINES_CHECK_DIR}/DATA_REPO/butler.yaml
   inCollection: HSC/calib,HSC/raw/all,refcats
-  output: "u/{operator}/{payload_name}"
-  outCollection: "{output}/{timestamp}"
+  #output: "u/{operator}/{payload_name}"
   dataQuery: exposure=903342 AND detector=10
-  # pipeline config tweaks (used when creating QuantumGraph)
-  #pipelineOptions:
-
-pipetask:
-  isr:
-    requestMemory: 8192

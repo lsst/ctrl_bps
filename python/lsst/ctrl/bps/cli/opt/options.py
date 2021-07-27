@@ -21,7 +21,7 @@
 """bps-specific command-line options.
 """
 
-__all__ = ("extra_qgraph_option", "extra_init_option", "extra_run_quantum_option")
+__all__ = ["extra_qgraph_option", "extra_init_option", "extra_run_quantum_option"]
 
 from lsst.daf.butler.cli.utils import MWOptionDecorator
 

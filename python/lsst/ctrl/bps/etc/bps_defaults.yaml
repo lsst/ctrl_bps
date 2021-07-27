@@ -12,20 +12,21 @@
 # Any extra site-specific settings needed for WMS
 #USER computeSite: ncsapool
 
-# Make sure these values correspond to ones in the bin/run_demo.sh's
-# pipetask command line.
+# Values defining input dataset as well as collection names of output
 payload:
-  payloadName: pipelines_check    # At minimum, used in bps report
-  runInit: true
-  output: "u/{operator}/pipelines_check"
-  outCollection: "{output}/{timestamp}"
+  #USER payloadName: pipelines_check    # Used in bps report, and default output collection
   #USER butlerConfig: ${PIPELINES_CHECK_DIR}/DATA_REPO/butler.yaml
   #USER inCollection: HSC/calib,HSC/raw/all,refcats
   #USER dataQuery: exposure=903342 AND detector=10
+  runInit: true
+  output: "u/{operator}/{payloadName}"
+  outCollection: "{output}/{timestamp}"
 
 pipetask:
   pipetaskInit:
-    runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask --long-log run -b {butlerConfig} -i {inCollection} --output-run {outCollection} --init-only --register-dataset-types --qgraph {qgraphFile} --extend-run {extraInitOptions}"
+    # Notes: cannot have --extend-run, should have both -o and --output-run
+    # because this is where the chaining is currently done
+    runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask --long-log run -b {butlerConfig} -i {inCollection} -o {output} --output-run {outCollection} --init-only --register-dataset-types --qgraph {qgraphFile} {extraInitOptions}"
   #OPT myTask:
   #OPT   requestCpus:
   #OPT   requestMemory:
@@ -33,21 +34,6 @@ pipetask:
   #OPT   requestWalltime:
   #OPT   runQuantumCommand:
   #OPT   retries:
-
-
-executionButler:
-  whenCreate: "SUBMIT"
-  #USER executionButlerDir: "/my/exec/butler/dir"  # if user provided, otherwise uses executionButlerTemplate
-  createCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask qgraph -b {butlerConfig} --input {inCollection} --output-run {outCollection} --save-execution-butler {executionButlerDir} -g {qgraphFile}"
-  whenMerge: "ALWAYS"
-  implementation: JOB  # JOB, WORKFLOW
-  concurrency_limit: db_limit
-  command1: "${DAF_BUTLER_DIR}/bin/butler --log-level=VERBOSE transfer-datasets  {executionButlerDir} {butlerConfig} --collections {outCollection}"
-  command2: "${DAF_BUTLER_DIR}/bin/butler collection-chain {butlerConfig} {output} {outCollection} --mode=prepend"
-
-  # For --replace-run behavior need to run two collection-chain commands:
-  #command2: "${DAF_BUTLER_DIR}/bin/butler collection-chain {butlerConfig} {output} --mode=pop 1"
-  #command3: "${DAF_BUTLER_DIR}/bin/butler collection-chain {butlerConfig} {output} --mode=prepend {outCollection}"
 
 # Default commands and usage requests for creating QuantumGraph, running Quantum.
 # Defaults to using full workflow QuantumGraph instead of per-job QuantumGraphs.
@@ -60,7 +46,7 @@ requestCpus: 1
 wmsServiceClass: lsst.ctrl.bps.wms.htcondor.htcondor_service.HTCondorService
 clusterAlgorithm: lsst.ctrl.bps.quantum_clustering_funcs.single_quantum_clustering
 
-# Template for bps filenames
+# Templates for bps filenames
 submitPath: ${PWD}/submit/{outCollection}
 qgraphFileTemplate: "{uniqProcName}.qgraph"
 executionButlerTemplate: "{submitPath}/EXEC_REPO-{uniqProcName}"
@@ -74,4 +60,9 @@ saveClusteredQgraph: False
 
 # Temporary backward-compatibility settings
 useLazyCommands: True
-useBpsShared: False
+bpsUseShared: False
+
+# Execution Butler not yet the default
+executionButler:
+  whenCreate: "NEVER"
+  whenMerge: "NEVER"
