@@ -25,10 +25,12 @@
 import logging
 import os
 import re
+import time
+import dataclasses
 
-from . import BpsConfig, GenericWorkflow, GenericWorkflowJob, GenericWorkflowFile
-from .bps_utils import save_qg_subgraph, WhenToSaveQuantumGraphs, create_job_quantum_graph_filename
-
+from . import BpsConfig, GenericWorkflow, GenericWorkflowJob, GenericWorkflowFile, GenericWorkflowExec
+from .bps_utils import (save_qg_subgraph, WhenToSaveQuantumGraphs, create_job_quantum_graph_filename,
+                        _create_execution_butler)
 
 _LOG = logging.getLogger(__name__)
 
@@ -56,6 +58,14 @@ def transform(config, clustered_quantum_graph, prefix):
         name = clustered_quantum_graph.graph["name"]
     else:
         _, name = config.search("uniqProcName", opt={"required": True})
+
+    _, when_create = config.search(".executionButler.whenCreate")
+    if when_create.upper() == "TRANSFORM":
+        _LOG.info("Creating execution butler")
+        stime = time.time()
+        _, execution_butler_dir = config.search(".bps_defined.executionButlerDir")
+        _create_execution_butler(config, config["runQgraphFile"], execution_butler_dir, prefix)
+        _LOG.info("Creating execution butler took %.2f seconds", time.time() - stime)
 
     generic_workflow = create_generic_workflow(config, clustered_quantum_graph, name, prefix)
     generic_workflow_config = create_generic_workflow_config(config, prefix)
@@ -100,34 +110,21 @@ def add_workflow_init_nodes(config, generic_workflow):
     # initializing the pipeline execution
     init_workflow = create_init_workflow(config, generic_workflow.get_file("runQgraphFile"))
     _LOG.debug("init_workflow nodes = %s", init_workflow.nodes())
-
-    # Find source nodes in workflow graph.
-    workflow_sources = [n for n in generic_workflow if generic_workflow.in_degree(n) == 0]
-    _LOG.debug("workflow sources = %s", workflow_sources)
-
-    # Find sink nodes of initonly graph.
-    init_sinks = [n for n in init_workflow if init_workflow.out_degree(n) == 0]
-    _LOG.debug("init sinks = %s", init_sinks)
-
-    # Add initonly nodes to Workflow graph and make new edges.
-    generic_workflow.add_nodes_from(init_workflow.nodes(data=True))
-    generic_workflow.add_edges_from(init_workflow.edges())
-    for gwfile in init_workflow.get_files(data=True):
-        generic_workflow.add_file(gwfile)
-    for source in workflow_sources:
-        for sink in init_sinks:
-            generic_workflow.add_edge(sink, source)
+    generic_workflow.add_workflow_source(init_workflow)
+    old_run_summary = generic_workflow.run_attrs.get("bps_run_summary", "")
+    init_summary = init_workflow.run_attrs.get("bps_run_summary", "")
+    generic_workflow.run_attrs["bps_run_summary"] = ';'.join(x for x in [init_summary, old_run_summary] if x)
 
 
-def create_init_workflow(config, run_qgraph_gwfile):
+def create_init_workflow(config, qgraph_gwfile):
     """Create workflow for running initialization job(s).
 
     Parameters
     ----------
     config : `lsst.ctrl.bps.BpsConfig`
         BPS configuration.
-    run_qgraph_gwfile: `lsst.ctrl.bps.GenericWorkflowFile`
-        File object for the run QuantumGraph.
+    qgraph_gwfile : `lsst.ctrl.bps.GenericWorkflowFile`
+        File object for the full run QuantumGraph file.
 
     Returns
     -------
@@ -136,32 +133,45 @@ def create_init_workflow(config, run_qgraph_gwfile):
     """
     _LOG.debug("creating init subgraph")
     _LOG.debug("creating init task input(s)")
-    search_opt = {"curvals": {"curr_pipetask": "pipetaskInit"}, "required": False, "default": False}
+    search_opt = {"curvals": {"curr_pipetask": "pipetaskInit"},
+                  "replaceVars": False,
+                  "expandEnvVars": False,
+                  "replaceEnvVars": True,
+                  "required": False}
 
     init_workflow = GenericWorkflow("init")
+    init_workflow.add_file(qgraph_gwfile)
 
     # create job for executing --init-only
     gwjob = GenericWorkflowJob("pipetaskInit")
     gwjob.label = "pipetaskInit"
-    gwjob.compute_site = config["computeSite"]
-    search_opt["default"] = 0
-    gwjob.request_cpus = int(config.search("requestCpus", opt=search_opt)[1])
-    gwjob.request_memory = int(config.search("requestMemory", opt=search_opt)[1])
-    gwjob.request_disk = int(config.search("requestDisk", opt=search_opt)[1])
-    gwjob.request_walltime = int(config.search("requestWalltime", opt=search_opt)[1])
-    update_job(config, gwjob)
-    init_workflow.add_job(gwjob)
 
-    # All outputs (config, software versions, etc) go to Butler.
-    # Currently no need to add them to job.
-    init_workflow.add_job_inputs(gwjob.name, run_qgraph_gwfile)
-    create_command(config, init_workflow, gwjob)
+    job_values = _get_job_values(config, search_opt, "runQuantumCommand")
+
+    # Handle universal values.
+    _handle_job_values_universal(job_values, gwjob)
+
+    # Handle aggregate values.
+    _handle_job_values_aggregate(job_values, gwjob)
+
+    # Save summary of Quanta in job.
+    gwjob.tags["quanta_summary"] = "pipetaskInit:1"
+
+    # Update job with workflow attribute and profile values.
+    update_job(config, gwjob)
+
+    init_workflow.add_job(gwjob)
+    butler_gwfile = _get_butler_gwfile(config, config["submitPath"])
+    init_workflow.add_job_inputs(gwjob.name, [qgraph_gwfile, butler_gwfile])
+    init_workflow.run_attrs["bps_run_summary"] = gwjob.tags["quanta_summary"]
+    _enhance_command(config, init_workflow, gwjob)
 
     return init_workflow
 
 
-def create_command(config, workflow, gwjob):
-    """Create command line and vals.
+def _enhance_command(config, generic_workflow, gwjob):
+    """Enhance command line with env and file placeholders
+    and gather command line values.
 
     Parameters
     ----------
@@ -170,8 +180,8 @@ def create_command(config, workflow, gwjob):
     generic_workflow : `lsst.ctrl.bps.GenericWorkflow`
         Generic workflow that contains the job.
     gwjob : `lsst.ctrl.bps.GenericWorkflowJob`
-        Generic workflow job to which the command line and vals should
-        be saved.
+        Generic workflow job to which the updated executable, arguments,
+        and values should be saved.
     """
     search_opt = {"curvals": {"curr_pipetask": gwjob.label},
                   "replaceVars": False,
@@ -179,182 +189,262 @@ def create_command(config, workflow, gwjob):
                   "replaceEnvVars": True,
                   "required": False}
 
-    # Get command line from config
-    _, gwjob.cmdline = config.search("runQuantumCommand", opt=search_opt)
-
     # Change qgraph variable to match whether using run or per-job qgraph
+    # Note: these are lookup keys, not actual physical filenames.
     _, when_save = config.search("whenSaveJobQgraph", {"default": WhenToSaveQuantumGraphs.TRANSFORM.name})
     if WhenToSaveQuantumGraphs[when_save.upper()] == WhenToSaveQuantumGraphs.NEVER:
-        gwjob.cmdline = gwjob.cmdline.replace("{qgraphFile}", "{runQgraphFile}")
-    else:
-        gwjob.cmdline = gwjob.cmdline.replace("{qgraphFile}", f"{{qgraphFile_{gwjob.name}}}")
+        gwjob.arguments = gwjob.arguments.replace("{qgraphFile}", "{runQgraphFile}")
+    elif gwjob.name == "pipetaskInit":
+        gwjob.arguments = gwjob.arguments.replace("{qgraphFile}", "{runQgraphFile}")
+    else:    # Needed unique file keys for per-job QuantumGraphs
+        gwjob.arguments = gwjob.arguments.replace("{qgraphFile}", f"{{qgraphFile_{gwjob.name}}}")
 
     # Replace files with special placeholders
-    for gwfile in workflow.get_job_inputs(gwjob.name):
-        gwjob.cmdline = gwjob.cmdline.replace(f"{{{gwfile.name}}}", f"<FILE:{gwfile.name}>")
-    for gwfile in workflow.get_job_outputs(gwjob.name):
-        gwjob.cmdline = gwjob.cmdline.replace(f"{{{gwfile.name}}}", f"<FILE:{gwfile.name}>")
+    for gwfile in generic_workflow.get_job_inputs(gwjob.name):
+        gwjob.arguments = gwjob.arguments.replace(f"{{{gwfile.name}}}", f"<FILE:{gwfile.name}>")
+    for gwfile in generic_workflow.get_job_outputs(gwjob.name):
+        gwjob.arguments = gwjob.arguments.replace(f"{{{gwfile.name}}}", f"<FILE:{gwfile.name}>")
 
-    # Save dict of other values needed to complete cmdline
+    # Save dict of other values needed to complete command line.
     # (Be careful to not replace env variables as they may
     # be different in compute job.)
     search_opt["replaceVars"] = True
 
-    if gwjob.cmdvals is None:
-        gwjob.cmdvals = {}
-    for key in re.findall(r"{([^}]+)}", gwjob.cmdline):
+    for key in re.findall(r"{([^}]+)}", gwjob.arguments):
         if key not in gwjob.cmdvals:
             _, gwjob.cmdvals[key] = config.search(key, opt=search_opt)
 
     # backwards compatibility
     _, use_lazy_commands = config.search("useLazyCommands", opt={"default": True})
     if not use_lazy_commands:
-        _fill_command(config, workflow, gwjob)
+        gwjob.arguments = _fill_arguments(config, generic_workflow, gwjob.arguments, gwjob.cmdvals)
 
 
-def _fill_command(config, workflow, gwjob):
+def _fill_arguments(config, generic_workflow, arguments, cmdvals):
     """Replace placeholders in command line string in job.
 
     Parameters
     ----------
-    config : `lsst.ctrl.bps.BPSConfig`
+    config : `lsst.ctrl.bps.BpsConfig`
         Bps configuration.
-    workflow : `lsst.ctrl.bps.GenericWorkflow`
+    generic_workflow : `lsst.ctrl.bps.GenericWorkflow`
         Generic workflow containing the job.
-    gwjob : `lsst.ctrl.bps.GenericWorkflowJob`
-        Job for which to update command line by filling in values.
+    arguments : `str`
+        String containing placeholders.
+    cmdvals : `dict` [`str`, `Any`]
+        Any command line values that can be used to replace placeholders.
+
+    Returns
+    -------
+    arguments : `str`
+        Command line with FILE and ENV placeholders replaced.
     """
-    _, use_shared = config.search("useBpsShared", opt={"default": False})
-    # Replace input file placeholders with paths
-    for gwfile in workflow.get_job_inputs(gwjob.name):
-        if use_shared:
+    # Replace file placeholders
+    _, use_shared = config.search("bpsUseShared", opt={"default": False})
+    for file_key in re.findall(r"<FILE:([^>]+)>", arguments):
+        gwfile = generic_workflow.get_file(file_key)
+        if gwfile.wms_transfer and not use_shared or not gwfile.job_shared:
             uri = os.path.basename(gwfile.src_uri)
         else:
             uri = gwfile.src_uri
-        gwjob.cmdline = gwjob.cmdline.replace(f"<FILE:{gwfile.name}>", uri)
+        arguments = arguments.replace(f"<FILE:{file_key}>", uri)
 
-    # Replace output file placeholders with paths
-    for gwfile in workflow.get_job_outputs(gwjob.name):
-        if use_shared:
-            uri = os.path.basename(gwfile.src_uri)
-        else:
-            uri = gwfile.src_uri
-        gwjob.cmdline = gwjob.cmdline.replace(f"<FILE:{gwfile.name}>", uri)
+    # Replace env placeholder with submit-side values
+    arguments = re.sub(r"<ENV:([^>]+)>", r"$\1", arguments)
+    arguments = os.path.expandvars(arguments)
 
-    gwjob.cmdline = gwjob.cmdline.format(**gwjob.cmdvals)
+    # Replace remaining vars
+    arguments = arguments.format(**cmdvals)
+
+    return arguments
 
 
-def create_job_values_universal(config, qnodes, generic_workflow, gwjob, prefix):
-    """Create job values.  Must be same value for every PipelineTask in
-    cluster.
+def _get_butler_gwfile(config, prefix):
+    """Get butler location to be used by job.
 
     Parameters
     ----------
-    config : `lsst.ctrl.bps.BPSConfig`
+    config : `lsst.ctrl.bps.BpsConfig`
         Bps configuration.
-    qnodes : `list` [`lsst.pipe.base.QuantumGraph`]
-        Full run QuantumGraph.
-    generic_workflow : `lsst.ctrl.bps.GenericWorkflow`
-        Generic workflow containing job.
-    gwjob : `lsst.ctrl.bps.GenericWorkflowJob`
-        Generic workflow job to which values will be added.
     prefix : `str`
         Root path for any output files.
+
+    Returns
+    -------
+    gwfile : `lsst.ctrl.bps.GenericWorkflowFile`
+        Representation of butler location.
+    """
+    _, when_create = config.search(".executionButler.whenCreate")
+    if when_create.upper() == "NEVER":
+        _, butler_config = config.search("butlerConfig")
+        wms_transfer = False
+        job_access_remote = True
+        job_shared = True
+    else:
+        _, butler_config = config.search(".bps_defined.executionButlerDir")
+        butler_config = os.path.join(prefix, butler_config)
+        wms_transfer = True
+        job_access_remote = False
+        job_shared = False
+
+    gwfile = GenericWorkflowFile("butlerConfig",
+                                 src_uri=butler_config,
+                                 wms_transfer=wms_transfer,
+                                 job_access_remote=job_access_remote,
+                                 job_shared=job_shared)
+
+    return gwfile
+
+
+def _get_qgraph_gwfile(config, gwjob, run_qgraph_file, prefix):
+    """Get qgraph location to be used by job.
+
+    Parameters
+    ----------
+    config : `lsst.ctrl.bps.BpsConfig`
+        Bps configuration.
+    gwjob : `lsst.ctrl.bps.GenericWorkflowJob`
+        Job for which determining QuantumGraph file.
+    run_qgraph_file : `lsst.ctrl.bps.GenericWorkflowFile`
+        File representation of the full run QuantumGraph.
+    prefix : `str`
+        Path prefix for any files written.
+
+    Returns
+    -------
+    gwfile : `lsst.ctrl.bps.GenericWorkflowFile`
+        Representation of butler location (may not include filename).
     """
     per_job_qgraph_file = True
     _, when_save = config.search("whenSaveJobQgraph", {"default": WhenToSaveQuantumGraphs.TRANSFORM.name})
     if WhenToSaveQuantumGraphs[when_save.upper()] == WhenToSaveQuantumGraphs.NEVER:
         per_job_qgraph_file = False
 
-    # Verify workflow config values are same for all nodes in QuantumGraph
-    # for running the Quantum and compute_site.
-    job_command = None
-    job_compute_site = None
-    for qnode in qnodes:
-        _LOG.debug("taskClass=%s", qnode.taskDef.taskClass)
-        _LOG.debug("taskName=%s", qnode.taskDef.taskName)
-        _LOG.debug("label=%s", qnode.taskDef.label)
-
-        search_opt = {"curvals": {"curr_pipetask": qnode.taskDef.label}, "required": False}
-
-        _, command = config.search("runQuantumCommand", opt=search_opt)
-        if job_command is None:
-            job_command = command
-        elif job_command != command:
-            _LOG.error("Inconsistent command to run QuantumGraph\n"
-                       "Cluster %s Quantum Number %d\n"
-                       "Current cluster command: %s\n"
-                       "Inconsistent command: %s",
-                       gwjob.name, qnode.nodeId.number, job_command, command)
-            raise RuntimeError("Inconsistent run QuantumGraph command")
-
-        _, compute_site = config.search("computeSite", opt=search_opt)
-        if job_compute_site is None:
-            job_compute_site = compute_site
-        elif job_compute_site != compute_site:
-            _LOG.error("Inconsistent compute_site\n"
-                       "Cluster %s Quantum Number %d\n"
-                       "Current cluster compute_site: %s\n"
-                       "Inconsistent compute_site: %s",
-                       gwjob.name, qnode.nodeId.number, job_compute_site, compute_site)
-            raise RuntimeError("Inconsistent run QuantumGraph command")
-
+    qgraph_gwfile = None
     if per_job_qgraph_file:
-        gwfile = GenericWorkflowFile(f"qgraphFile_{gwjob.name}",
-                                     src_uri=create_job_quantum_graph_filename(gwjob, prefix),
-                                     wms_transfer=True,
-                                     job_access_remote=True,
-                                     job_shared=True)
+        qgraph_gwfile = GenericWorkflowFile(f"qgraphFile_{gwjob.name}",
+                                            src_uri=create_job_quantum_graph_filename(config, gwjob, prefix),
+                                            wms_transfer=True,
+                                            job_access_remote=True,
+                                            job_shared=True)
     else:
-        gwfile = generic_workflow.get_file("runQgraphFile")
-        gwjob.cmdvals = {"qgraphNodeId": ",".join(sorted([f"{qnode.nodeId.number}" for qnode in qnodes])),
-                         "qgraphId": qnodes[0].nodeId.buildId}
+        qgraph_gwfile = run_qgraph_file
 
-    generic_workflow.add_job_inputs(gwjob.name, gwfile)
-
-    gwjob.cmdline = job_command
-    create_command(config, generic_workflow, gwjob)
-    if job_compute_site is not None:
-        gwjob.compute_site = job_compute_site
-    update_job(config, gwjob)
+    return qgraph_gwfile
 
 
-def create_job_values_aggregate(config, qnodes, gwjob, pipetask_labels):
-    """Create job values that are aggregate of values from PipelineTasks
-    in QuantumGraph.
+def _get_job_values(config, search_opt, cmd_line_key):
+    """Gather generic workflow job values from the bps config.
 
     Parameters
     ----------
     config : `lsst.ctrl.bps.BpsConfig`
         Bps configuration.
-    qnodes : `list` [`lsst.pipe.base.QuantumGraph`]
-        Full run QuantumGraph.
-    gwjob : `lsst.ctrl.bps.GenericWorkflowJob`
-        Job in which to store the aggregate values.
-    pipetask_labels : `list` [`str`]
-        PipelineTask labels used in generating quanta summary tag.
+    search_opt : `dict` [`str`, `Any`]
+        Search options to be used when searching config.
+    cmd_line_key : `str` or None
+        Which command line key to search for (e.g., "runQuantumCommand").
+
+    Returns
+    -------
+    gwfile : `lsst.ctrl.bps.GenericWorkflowFile`
+        Representation of butler location (may not include filename).
     """
-    label_counts = dict.fromkeys(pipetask_labels, 0)
+    special_values = ['name', 'label', 'cmdline', 'pre_cmdline', 'post_cmdline']
 
-    gwjob.request_cpus = 0
-    gwjob.request_memory = 0
-    gwjob.request_disk = 0
-    gwjob.request_walltime = 0
+    job_values = {}
+    for field in dataclasses.fields(GenericWorkflowJob):
+        if field not in special_values:
+            # Variable names in yaml are camel case instead of snake case.
+            yaml_name = re.sub(r"_(\S)", lambda match: match.group(1).upper(), field.name)
+            found, value = config.search(yaml_name, opt=search_opt)
+            if not found and '_' in field.name:
+                # Just in case someone used snake case:
+                found, value = config.search(field.name, opt=search_opt)
+            if found:
+                job_values[field.name] = value
+            else:
+                job_values[field.name] = None
 
-    for qnode in qnodes:
-        label_counts[qnode.taskDef.label] += 1
+    if cmd_line_key:
+        found, cmdline = config.search(cmd_line_key, opt=search_opt)
+        # Make sure cmdline isn't None as that could be sent in as a
+        # default value in search_opt.
+        if found and cmdline:
+            cmd_parts = cmdline.split(" ", 1)
+            job_values["executable"] = cmd_parts[0]
+            if len(cmd_parts) > 1:
+                job_values["arguments"] = cmd_parts[1]
 
-        search_opt = {"curvals": {"curr_pipetask": qnode.taskDef.label}, "required": False, "default": 0}
-        _, request_cpus = config.search("requestCpus", opt=search_opt)
-        gwjob.request_cpus = max(gwjob.request_cpus, int(request_cpus))
-        _, request_memory = config.search("requestMemory", opt=search_opt)
-        gwjob.request_memory = max(gwjob.request_memory, int(request_memory))
-        _, request_disk = config.search("requestDisk", opt=search_opt)
-        gwjob.request_disk += int(request_disk)
-        _, request_walltime = config.search("requestWalltime", opt=search_opt)
-        gwjob.request_walltime += int(request_walltime)
+    return job_values
 
-    gwjob.tags["quanta_summary"] = ";".join([f"{k}:{v}" for k, v in label_counts.items() if v])
+
+def _handle_job_values_universal(quantum_job_values, gwjob):
+    """Handle job values that must be same value for every PipelineTask in
+    cluster.
+
+    Parameters
+    ----------
+    quantum_job_values : `dict` [`str`, `Any`]
+        Job values for running single Quantum.
+    gwjob : `lsst.ctrl.bps.GenericWorkflowJob`
+        Generic workflow job in which to store the universal values.
+    """
+    universal_values = ["arguments", "compute_site"]
+    for key in universal_values:
+        current_value = getattr(gwjob, key)
+        if not current_value:
+            setattr(gwjob, key, quantum_job_values[key])
+        elif current_value != quantum_job_values[key]:
+            _LOG.error("Inconsistent value for %s in "
+                       "Cluster %s Quantum Number %s\n"
+                       "Current cluster value: %s\n"
+                       "Quantum value: %s",
+                       key, gwjob.name, quantum_job_values.get("qgraphNodeId", "MISSING"), current_value,
+                       quantum_job_values[key])
+            raise RuntimeError(f"Inconsistent value for {key} in cluster {gwjob.name}.")
+
+    # Handle cmdline special
+    if not gwjob.executable:
+        gwjob.executable = GenericWorkflowExec(os.path.basename(quantum_job_values['executable']),
+                                               quantum_job_values['executable'], False)
+    elif quantum_job_values['executable'] != gwjob.executable.src_uri:
+        _LOG.error("Inconsistent value for %s in "
+                   "Cluster %s Quantum Number %s\n"
+                   "Current cluster value: %s\n"
+                   "Quantum value: %s",
+                   key, gwjob.name, quantum_job_values.get("executable", "MISSING"), gwjob.executable.src_uri,
+                   quantum_job_values[key])
+        raise RuntimeError(f"Inconsistent value for {key} in cluster {gwjob.name}.")
+
+
+def _handle_job_values_aggregate(quantum_job_values, gwjob):
+    """Handle job values that are aggregate of values from PipelineTasks
+    in QuantumGraph.
+
+    Parameters
+    ----------
+    quantum_job_values : `dict` [`str`, `Any`]
+        Job values for running single Quantum.
+    gwjob : `lsst.ctrl.bps.GenericWorkflowJob`
+        Generic workflow job in which to store the aggregate values.
+    """
+    values_max = ['request_cpus', 'request_memory']
+    values_sum = ['request_disk', 'request_walltime']
+
+    for key in values_max:
+        current_value = getattr(gwjob, key)
+        if not current_value:
+            setattr(gwjob, key, quantum_job_values[key])
+        else:
+            setattr(gwjob, key, max(getattr(gwjob, key), quantum_job_values[key]))
+
+    for key in values_sum:
+        current_value = getattr(gwjob, key)
+        if not current_value:
+            setattr(gwjob, key, quantum_job_values[key])
+        else:
+            setattr(gwjob, key, getattr(gwjob, key) + quantum_job_values[key])
 
 
 def create_generic_workflow(config, clustered_quanta_graph, name, prefix):
@@ -378,17 +468,24 @@ def create_generic_workflow(config, clustered_quanta_graph, name, prefix):
     generic_workflow : `lsst.ctrl.bps.GenericWorkflow`
         Generic workflow for the given ClusteredQuantumGraph + config.
     """
+    # Determine whether saving per-job QuantumGraph files in the loop.
+    save_per_job_qgraph = False
+    _, when_save = config.search("whenSaveJobQgraph", {"default": WhenToSaveQuantumGraphs.TRANSFORM.name})
+    if WhenToSaveQuantumGraphs[when_save.upper()] == WhenToSaveQuantumGraphs.TRANSFORM:
+        save_per_job_qgraph = True
+
     generic_workflow = GenericWorkflow(name)
 
     # Save full run QuantumGraph for use by jobs
     generic_workflow.add_file(GenericWorkflowFile("runQgraphFile",
-                                                  src_uri=config["run_qgraph_file"],
+                                                  src_uri=config["runQgraphFile"],
                                                   wms_transfer=True,
                                                   job_access_remote=True,
                                                   job_shared=True))
 
-    _, when_save = config.search("whenSaveJobQgraph", {"default": WhenToSaveQuantumGraphs.TRANSFORM.name})
-
+    qgraph = clustered_quanta_graph.graph["qgraph"]
+    task_labels = [task.label for task in qgraph.iterTaskGraph()]
+    run_label_counts = dict.fromkeys(task_labels, 0)
     for node_name, data in clustered_quanta_graph.nodes(data=True):
         _LOG.debug("clustered_quanta_graph: node_name=%s, len(cluster)=%s, label=%s, ids=%s", node_name,
                    len(data["qgraph_node_ids"]), data["label"], data["qgraph_node_ids"][:4])
@@ -397,66 +494,78 @@ def create_generic_workflow(config, clustered_quanta_graph, name, prefix):
             gwjob.tags = data["tags"]
         if "label" in data:
             gwjob.label = data["label"]
-        generic_workflow.add_job(gwjob)
+        # Getting labels in pipeline order.
+        label_counts = dict.fromkeys(task_labels, 0)
 
-        qgraph = clustered_quanta_graph.graph["qgraph"]
-        qnodes = []
+        # Get job info either common or aggregate for all Quanta in cluster.
         for node_id in data["qgraph_node_ids"]:
-            qnodes.append(qgraph.getQuantumNodeByNodeId(node_id))
-        pipetask_labels = [task.label for task in qgraph.iterTaskGraph()]
-        create_job_values_universal(config, qnodes, generic_workflow, gwjob, prefix)
-        create_job_values_aggregate(config, qnodes, gwjob, pipetask_labels)
+            qnode = qgraph.getQuantumNodeByNodeId(node_id)
+            label_counts[qnode.taskDef.label] += 1
 
-        if WhenToSaveQuantumGraphs[when_save.upper()] == WhenToSaveQuantumGraphs.TRANSFORM:
-            save_qg_subgraph(qgraph, generic_workflow.get_file(f"qgraph_{gwjob.name}").src_uri,
-                             data["qgraph_node_ids"])
+            search_opt = {"curvals": {"curr_pipetask": qnode.taskDef.label},
+                          "replaceVars": False,
+                          "expandEnvVars": False,
+                          "replaceEnvVars": True,
+                          "required": False}
+
+            quantum_job_values = _get_job_values(config, search_opt, "runQuantumCommand")
+
+            # Handle universal values.
+            _handle_job_values_universal(quantum_job_values, gwjob)
+
+            # Handle aggregate values.
+            _handle_job_values_aggregate(quantum_job_values, gwjob)
+
+        # Save summary of Quanta in job.
+        gwjob.tags["quanta_summary"] = ";".join([f"{k}:{v}" for k, v in label_counts.items() if v])
+        # Save job quanta counts to run
+        for key in task_labels:
+            run_label_counts[key] += label_counts[key]
+
+        # Update job with workflow attribute and profile values.
+        update_job(config, gwjob)
+        qgraph_gwfile = _get_qgraph_gwfile(config, gwjob, generic_workflow.get_file("runQgraphFile"),
+                                           config["submitPath"])
+        butler_gwfile = _get_butler_gwfile(config, config["submitPath"])
+
+        generic_workflow.add_job(gwjob)
+        generic_workflow.add_job_inputs(gwjob.name, [qgraph_gwfile, butler_gwfile])
+
+        gwjob.cmdvals["qgraphId"] = data["qgraph_node_ids"][0].buildId
+        gwjob.cmdvals["qgraphNodeId"] = ",".join(sorted([f"{node_id.number}" for node_id in
+                                                         data["qgraph_node_ids"]]))
+        _enhance_command(config, generic_workflow, gwjob)
+
+        # If writing per-job QuantumGraph files during TRANSFORM stage,
+        # write it now while in memory.
+        if save_per_job_qgraph:
+            save_qg_subgraph(qgraph, qgraph_gwfile.src_uri, data["qgraph_node_ids"])
+
+    # Save run's Quanta summary
+    run_summary = ";".join([f"{k}:{v}" for k, v in run_label_counts.items()])
+    generic_workflow.run_attrs["bps_run_summary"] = run_summary
 
     # Create job dependencies.
     for node_name in clustered_quanta_graph.nodes():
         for child in clustered_quanta_graph.successors(node_name):
             generic_workflow.add_job_relationships(node_name, child)
 
-    # Add initial workflow
+    # Add initial workflow.
     if config.get("runInit", "{default: False}"):
         add_workflow_init_nodes(config, generic_workflow)
-    add_workflow_attributes(config, generic_workflow)
 
-    return generic_workflow
-
-
-def add_workflow_attributes(config, generic_workflow):
-    """Add workflow-level attributes to given GenericWorkflow.
-
-    Parameters
-    ----------
-    config : `lsst.ctrl.bps.BpsConfig`
-        Bps configuration.
-    generic_workflow : `lsst.ctrl.bps.GenericWorkflow`
-        Generic workflow to which attributes should be added.
-    """
-    # Save run quanta summary and other workflow attributes to GenericWorkflow.
-    run_quanta_counts = {}
-    for job_name in generic_workflow:
-        job = generic_workflow.get_job(job_name)
-        if job.tags is not None and "quanta_summary" in job.tags:
-            for job_summary_part in job.tags["quanta_summary"].split(";"):
-                (label, cnt) = job_summary_part.split(":")
-                if label not in run_quanta_counts:
-                    run_quanta_counts[label] = 0
-                run_quanta_counts[label] += int(cnt)
-
-    run_quanta_summary = []
-    for label in run_quanta_counts:
-        run_quanta_summary.append("%s:%d" % (label, run_quanta_counts[label]))
-
-    generic_workflow.run_attrs.update({"bps_run_summary": ";".join(run_quanta_summary),
-                                       "bps_isjob": "True",
+    generic_workflow.run_attrs.update({"bps_isjob": "True",
                                        "bps_project": config["project"],
                                        "bps_campaign": config["campaign"],
                                        "bps_run": generic_workflow.name,
                                        "bps_operator": config["operator"],
                                        "bps_payload": config["payloadName"],
-                                       "bps_runsite": "TODO"})
+                                       "bps_runsite": config["computeSite"]})
+
+    # Add final job
+    add_final_job(config, generic_workflow, prefix)
+
+    return generic_workflow
 
 
 def create_generic_workflow_config(config, prefix):
@@ -478,3 +587,131 @@ def create_generic_workflow_config(config, prefix):
     generic_workflow_config["workflowName"] = config["uniqProcName"]
     generic_workflow_config["workflowPath"] = prefix
     return generic_workflow_config
+
+
+def add_final_job(config, generic_workflow, prefix):
+    """Add final workflow job depending upon configuration.
+
+    Parameters
+    ----------
+    config : `lsst.ctrl.bps.BpsConfig`
+        Bps configuration.
+    generic_workflow : `lsst.ctrl.bps.GenericWorkflow`
+        Generic workflow to which attributes should be added.
+    prefix : `str`
+        Directory in which to output final script.
+    """
+    _, when_create = config.search(".executionButler.whenCreate")
+    _, when_merge = config.search(".executionButler.whenMerge")
+
+    search_opt = {"searchobj": config[".executionButler"], "default": None}
+    if when_create.upper() != "NEVER" and when_merge.upper() != "NEVER":
+        # create gwjob
+        gwjob = GenericWorkflowJob("mergeExecutionButler")
+        gwjob.label = "mergeExecutionButler"
+
+        job_values = _get_job_values(config, search_opt, None)
+        for field in dataclasses.fields(GenericWorkflowJob):
+            if not getattr(gwjob, field.name) and job_values[field.name]:
+                setattr(gwjob, field.name, job_values[field.name])
+
+        update_job(config, gwjob)
+
+        # Create script and add command line to job.
+        gwjob.executable, gwjob.arguments = _create_final_command(config, prefix)
+
+        # Determine inputs from command line.
+        for file_key in re.findall(r"<FILE:([^>]+)>", gwjob.arguments):
+            gwfile = generic_workflow.get_file(file_key)
+            generic_workflow.add_job_inputs(gwjob.name, gwfile)
+
+        _enhance_command(config, generic_workflow, gwjob)
+
+        # Put transfer repo job in appropriate location in workflow.
+        if when_merge.upper() == "ALWAYS":
+            # add as special final job
+            generic_workflow.add_final(gwjob)
+        elif when_merge.upper() == "SUCCESS":
+            # add as regular sink node
+            add_final_job_as_sink(generic_workflow, gwjob)
+        else:
+            raise ValueError(f"Invalid value for executionButler.when_merge {when_merge}")
+
+        generic_workflow.run_attrs["bps_run_summary"] += ";mergeExecutionButler:1"
+
+
+def _create_final_command(config, prefix):
+    """Create the command and shell script for the final job.
+
+    Parameters
+    ----------
+    config : `lsst.ctrl.bps.BpsConfig`
+        Bps configuration.
+    prefix : `str`
+        Directory in which to output final script.
+
+    Returns
+    -------
+    executable : `lsst.ctrl.bps.GenericWorkflowExec`
+        Executable object for the final script.
+    arguments : `str`
+        Command line needed to call the final script.
+    """
+    search_opt = {'replaceVars': False, 'replaceEnvVars': False, 'expandEnvVars': False}
+
+    script_file = os.path.join(prefix, "final_job.bash")
+    with open(script_file, "w") as fh:
+        print("#!/bin/bash\n", file=fh)
+        print("set -e", file=fh)
+        print("set -x", file=fh)
+
+        print("butlerConfig=$1", file=fh)
+        print("executionButlerDir=$2", file=fh)
+
+        i = 1
+        found, command = config.search(f".executionButler.command{i}", opt=search_opt)
+        while found:
+            # Temporarily replace any env vars so formatter doesn't try to
+            # replace them.
+            command = re.sub(r"\${([^}]+)}", r"<BPSTMP:\1>", command)
+
+            # executionButlerDir and butlerConfig will be args to script and
+            # set to env vars
+            command = command.replace("{executionButlerDir}", "<BPSTMP:executionButlerDir>")
+            command = command.replace("{butlerConfig}", "<BPSTMP:butlerConfig>")
+
+            # Replace all other vars in command string
+            search_opt["replaceVars"] = True
+            command = config.formatter.format(command, config, search_opt)
+            search_opt["replaceVars"] = False
+
+            # Replace any temporary env place holders.
+            command = re.sub(r"<BPSTMP:([^>]+)>", r"${\1}", command)
+
+            print(command, file=fh)
+            i += 1
+            found, command = config.search(f".executionButler.command{i}", opt=search_opt)
+    os.chmod(script_file, 0o755)
+    executable = GenericWorkflowExec(os.path.basename(script_file), script_file, True)
+
+    _, orig_butler = config.search("butlerConfig")
+    # The execution butler was saved as butlerConfig in the workflow.
+    return executable, f"{orig_butler} <FILE:butlerConfig>"
+
+
+def add_final_job_as_sink(generic_workflow, final_job):
+    """Add final job as the single sink for the workflow.
+
+    Parameters
+    ----------
+    generic_workflow : `lsst.ctrl.bps.GenericWorkflow`
+        Generic workflow to which attributes should be added.
+    final_job : `lsst.ctrl.bps.GenericWorkflowJob`
+        Job to add as new sink node depending upon all previous sink nodes.
+    """
+    # Find sink nodes of generic workflow graph.
+    gw_sinks = [n for n in generic_workflow if generic_workflow.out_degree(n) == 0]
+    _LOG.debug("gw_sinks = %s", gw_sinks)
+
+    generic_workflow.add_job(final_job)
+    generic_workflow.add_job_relationships(gw_sinks, final_job.name)

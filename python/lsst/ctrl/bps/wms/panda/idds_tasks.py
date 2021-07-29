@@ -52,7 +52,7 @@ class IDDSWorkflowGenerator:
     bps_workflow : `lsst.ctrl.bps.GenericWorkflow`
         The generic workflow constructed by BPS system
 
-    config : `lsst.ctrl.bps.BPSConfig`
+    config : `lsst.ctrl.bps.BpsConfig`
         BPS configuration that includes necessary submit/runtime information,
         sufficiently defined in YAML file supplied in `submit` command
     """

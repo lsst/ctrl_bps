@@ -1,0 +1,8 @@
+* bps report
+
+  * Columns now are as wide as the widest value/heading
+    and some other minor formatting changes.
+
+  * Detailed report (--id) now has an Expected column
+    that shows expected counts per PipelineTask label
+    from the QuantumGraph.

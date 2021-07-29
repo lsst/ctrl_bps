@@ -1,0 +1,68 @@
+#USER pipelineYaml: "${OBS_SUBARU_DIR}/pipelines/DRP.yaml#processCcd"
+#  OR
+#USER qgraphFile: "/path/to/existing/file.qgraph"
+
+
+# At minimum, following group used in bps report and can be
+# used in WMS queries.  Users can use in other things such as "output". 
+#USER operator: special_name    # defaults to login on submit machine
+#USER project: dev
+#USER campaign: quick
+
+# Any extra site-specific settings needed for WMS
+#USER computeSite: ncsapool
+
+# Values defining input dataset as well as collection names of output
+payload:
+  #USER payloadName: pipelines_check    # Used in bps report, and default output collection
+  #USER butlerConfig: ${PIPELINES_CHECK_DIR}/DATA_REPO/butler.yaml
+  #USER inCollection: HSC/calib,HSC/raw/all,refcats
+  #USER dataQuery: exposure=903342 AND detector=10
+  runInit: true
+  output: "u/{operator}/{payloadName}"
+  outCollection: "{output}/{timestamp}"
+
+pipetask:
+  pipetaskInit:
+    # Notes: cannot have --extend-run, should have both -o and --output-run
+    # because this is where the chaining is currently done
+    runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask --long-log run -b {butlerConfig} -i {inCollection} -o {output} --output-run {outCollection} --init-only --register-dataset-types --qgraph {qgraphFile} {extraInitOptions}"
+  #OPT myTask:
+  #OPT   requestCpus:
+  #OPT   requestMemory:
+  #OPT   requestDisk:
+  #OPT   requestWalltime:
+  #OPT   runQuantumCommand:
+  #OPT   retries:
+
+# Default commands and usage requests for creating QuantumGraph, running Quantum.
+# Defaults to using full workflow QuantumGraph instead of per-job QuantumGraphs.
+whenSaveJobQgraph: "NEVER"
+createQuantumGraph: '${CTRL_MPEXEC_DIR}/bin/pipetask qgraph -d "{dataQuery}" -b {butlerConfig} -i {inCollection} -p {pipelineYaml} -q {qgraphFile} {extraQgraphOptions}'
+runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask --long-log run -b {butlerConfig} --output-run {outCollection} --qgraph {qgraphFile} --qgraph-id {qgraphId} --qgraph-node-id {qgraphNodeId} --skip-init-writes --extend-run --clobber-outputs --skip-existing {extraRunQuantumOptions}"
+requestMemory: 2048
+requestCpus: 1
+
+wmsServiceClass: lsst.ctrl.bps.wms.htcondor.htcondor_service.HTCondorService
+clusterAlgorithm: lsst.ctrl.bps.quantum_clustering_funcs.single_quantum_clustering
+
+# Templates for bps filenames
+submitPath: ${PWD}/submit/{outCollection}
+qgraphFileTemplate: "{uniqProcName}.qgraph"
+executionButlerTemplate: "{submitPath}/EXEC_REPO-{uniqProcName}"
+subDirTemplate: "{label}/{tract}/{patch}/{visit.day_obs}/{exposure.day_obs}/{band}/{subfilter}/{physical_filter}/{visit}/{exposure}"
+templateDataId: "{tract}_{patch}_{band}_{visit}_{exposure}_{detector}"
+
+# Whether to output bps-specific intermediate files
+saveDot: False
+saveGenericWorkflow: False
+saveClusteredQgraph: False
+
+# Temporary backward-compatibility settings
+useLazyCommands: True
+bpsUseShared: False
+
+# Execution Butler not yet the default
+executionButler:
+  whenCreate: "NEVER"
+  whenMerge: "NEVER"

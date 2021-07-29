@@ -301,21 +301,20 @@ class PegasusWorkflow(BaseWmsWorkflow):
         in commands are same on submit machine and compute machine.
         """
         _LOG.debug("GenericWorkflowJob=%s", gwf_job)
-        _LOG.debug("%s gwf_job.cmdline = %s", gwf_job.name, gwf_job.cmdline)
-        cmd_parts = gwf_job.cmdline.split(" ", 1)
 
         # Save transformation.
-        executable = Executable(os.path.basename(cmd_parts[0]), installed=True)
-        newexec = re.sub(r"<ENV:([^>]+)>", r"${\1}", cmd_parts[0])
+        executable = Executable(gwf_job.executable.name,
+                                installed=not gwf_job.executable.transfer_executable)
+        newexec = re.sub(r"<ENV:([^>]+)>", r"${\1}", gwf_job.executable.src_uri)
         _LOG.debug("Executable after replacing any environment variables = %s", newexec)
         executable.addPFN(PFN(f"file://{newexec}", gwf_job.compute_site))
         self.transformation_catalog.add(executable)
 
         # Create Pegasus Job.
-        job = Job(os.path.basename(cmd_parts[0]), id=gwf_job.name, node_label=gwf_job.label)
+        job = Job(gwf_job.executable.name, id=gwf_job.name, node_label=gwf_job.label)
 
-        if len(cmd_parts) > 1:
-            arguments = cmd_parts[1]
+        if gwf_job.arguments:
+            arguments = gwf_job.arguments
             # Replace command variables
             arguments = arguments.format(**gwf_job.cmdvals)
 

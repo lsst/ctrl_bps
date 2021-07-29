@@ -40,8 +40,11 @@ __all__ = [
 import getpass
 import logging
 import os
+import re
 import pickle
 import time
+import shutil
+
 
 from lsst.obs.base import Instrument
 
@@ -58,7 +61,7 @@ from .report import report
 _LOG = logging.getLogger(__name__)
 
 
-def _init_submission_driver(config_file):
+def _init_submission_driver(config_file, **kwargs):
     """Initialize runtime environment.
 
     Parameters
@@ -72,20 +75,45 @@ def _init_submission_driver(config_file):
         Batch Processing Service configuration.
     """
     config = BpsConfig(config_file, BPS_SEARCH_ORDER)
+
+    # Override config with command-line values
+    # Handle diffs between pipetask argument names vs bps yaml
+    translation = {"input": "inCollection",
+                   "output_run": "outCollection",
+                   "qgraph": "qgraphFile",
+                   "pipeline": "pipelineYaml"}
+    for key, value in kwargs.items():
+        # Don't want to override config with None or empty string values.
+        if value:
+            # pipetask argument parser converts some values to list,
+            # but bps will want string.
+            if not isinstance(value, str):
+                value = ",".join(value)
+            new_key = translation.get(key, re.sub(r"_(\S)", lambda match: match.group(1).upper(), key))
+            config[f".bps_cmdline.{new_key}"] = value
+
+    # Set some initial values
     config[".bps_defined.timestamp"] = Instrument.makeCollectionTimestamp()
-    if "uniqProcName" not in config:
-        config[".bps_defined.uniqProcName"] = config["outCollection"].replace("/", "_")
     if "operator" not in config:
         config[".bps_defined.operator"] = getpass.getuser()
+
+    if "uniqProcName" not in config:
+        config[".bps_defined.uniqProcName"] = config["outCollection"].replace("/", "_")
 
     # make submit directory to contain all outputs
     submit_path = config["submitPath"]
     os.makedirs(submit_path, exist_ok=True)
-    config[".bps_defined.submit_path"] = submit_path
+    config[".bps_defined.submitPath"] = submit_path
+
+    # save copy of configs (orig and expanded config)
+    shutil.copy2(config_file, submit_path)
+    with open(f"{submit_path}/{config['uniqProcName']}_config.yaml", "w") as fh:
+        config.dump(fh)
+
     return config
 
 
-def acquire_qgraph_driver(config_file):
+def acquire_qgraph_driver(config_file, **kwargs):
     """Read a quantum graph from a file or create one from pipeline definition.
 
     Parameters
@@ -101,17 +129,19 @@ def acquire_qgraph_driver(config_file):
         A graph representing quanta.
     """
     stime = time.time()
-    config = _init_submission_driver(config_file)
-    submit_path = config[".bps_defined.submit_path"]
+    config = _init_submission_driver(config_file, **kwargs)
+    submit_path = config[".bps_defined.submitPath"]
     _LOG.info("Acquiring QuantumGraph (it will be created from pipeline definition if needed)")
-    qgraph_file, qgraph = acquire_quantum_graph(config, out_prefix=submit_path)
+    qgraph_file, qgraph, execution_butler_dir = acquire_quantum_graph(config, out_prefix=submit_path)
+    config[".bps_defined.executionButlerDir"] = execution_butler_dir
     _LOG.info("Run QuantumGraph file %s", qgraph_file)
-    config[".bps_defined.run_qgraph_file"] = qgraph_file
+    config[".bps_defined.runQgraphFile"] = qgraph_file
     _LOG.info("Acquiring QuantumGraph took %.2f seconds", time.time() - stime)
+
     return config, qgraph
 
 
-def cluster_qgraph_driver(config_file):
+def cluster_qgraph_driver(config_file, **kwargs):
     """Group quanta into clusters.
 
     Parameters
@@ -127,12 +157,12 @@ def cluster_qgraph_driver(config_file):
         A graph representing clustered quanta.
     """
     stime = time.time()
-    config, qgraph = acquire_qgraph_driver(config_file)
+    config, qgraph = acquire_qgraph_driver(config_file, **kwargs)
     _LOG.info("Clustering quanta")
     clustered_qgraph = cluster_quanta(config, qgraph, config["uniqProcName"])
     _LOG.info("Clustering quanta took %.2f seconds", time.time() - stime)
 
-    submit_path = config[".bps_defined.submit_path"]
+    submit_path = config[".bps_defined.submitPath"]
     _, save_clustered_qgraph = config.search("saveClusteredQgraph", opt={"default": False})
     if save_clustered_qgraph:
         with open(os.path.join(submit_path, "bps_clustered_qgraph.pickle"), "wb") as outfh:
@@ -143,7 +173,7 @@ def cluster_qgraph_driver(config_file):
     return config, clustered_qgraph
 
 
-def transform_driver(config_file):
+def transform_driver(config_file, **kwargs):
     """Create a workflow for a specific workflow management system.
 
     Parameters
@@ -160,8 +190,8 @@ def transform_driver(config_file):
         workflow management system.
     """
     stime = time.time()
-    config, clustered_qgraph = cluster_qgraph_driver(config_file)
-    submit_path = config[".bps_defined.submit_path"]
+    config, clustered_qgraph = cluster_qgraph_driver(config_file, **kwargs)
+    submit_path = config[".bps_defined.submitPath"]
     _LOG.info("Creating Generic Workflow")
     generic_workflow, generic_workflow_config = transform(config, clustered_qgraph, submit_path)
     _LOG.info("Creating Generic Workflow took %.2f seconds", time.time() - stime)
@@ -178,7 +208,7 @@ def transform_driver(config_file):
     return generic_workflow_config, generic_workflow
 
 
-def prepare_driver(config_file):
+def prepare_driver(config_file, **kwargs):
     """Create a representation of the generic workflow.
 
     Parameters
@@ -195,8 +225,8 @@ def prepare_driver(config_file):
         workflow management system.
     """
     stime = time.time()
-    generic_workflow_config, generic_workflow = transform_driver(config_file)
-    submit_path = generic_workflow_config[".bps_defined.submit_path"]
+    generic_workflow_config, generic_workflow = transform_driver(config_file, **kwargs)
+    submit_path = generic_workflow_config[".bps_defined.submitPath"]
     _LOG.info("Creating specific implementation of workflow")
     wms_workflow = prepare(generic_workflow_config, generic_workflow, submit_path)
     wms_workflow_config = generic_workflow_config
@@ -205,7 +235,7 @@ def prepare_driver(config_file):
     return wms_workflow_config, wms_workflow
 
 
-def submit_driver(config_file):
+def submit_driver(config_file, **kwargs):
     """Submit workflow for execution.
 
     Parameters
@@ -213,7 +243,7 @@ def submit_driver(config_file):
     config_file : `str`
         Name of the configuration file.
     """
-    wms_workflow_config, wms_workflow = prepare_driver(config_file)
+    wms_workflow_config, wms_workflow = prepare_driver(config_file, **kwargs)
     submit(wms_workflow_config, wms_workflow)
     print(f"Run Id: {wms_workflow.run_id}")
 

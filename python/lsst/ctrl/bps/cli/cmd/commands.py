@@ -43,6 +43,7 @@ class BpsCommand(MWCommand):
 
 @click.command(cls=BpsCommand)
 @opt.config_file_argument(required=True)
+@opt.SubmissionOptions()
 def acquire(*args, **kwargs):
     """Create a new quantum graph or read existing one from a file.
     """
@@ -51,6 +52,7 @@ def acquire(*args, **kwargs):
 
 @click.command(cls=BpsCommand)
 @opt.config_file_argument(required=True)
+@opt.SubmissionOptions()
 def cluster(*args, **kwargs):
     """Create a clustered quantum graph.
     """
@@ -59,6 +61,7 @@ def cluster(*args, **kwargs):
 
 @click.command(cls=BpsCommand)
 @opt.config_file_argument(required=True)
+@opt.SubmissionOptions()
 def transform(*args, **kwargs):
     """Transform a quantum graph to a generic workflow.
     """
@@ -67,6 +70,7 @@ def transform(*args, **kwargs):
 
 @click.command(cls=BpsCommand)
 @opt.config_file_argument(required=True)
+@opt.SubmissionOptions()
 def prepare(*args, **kwargs):
     """Prepare a workflow for submission.
     """
@@ -75,6 +79,7 @@ def prepare(*args, **kwargs):
 
 @click.command(cls=BpsCommand)
 @opt.config_file_argument(required=True)
+@opt.SubmissionOptions()
 def submit(*args, **kwargs):
     """Submit a workflow for execution.
     """
