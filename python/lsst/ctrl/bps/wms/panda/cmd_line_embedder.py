@@ -101,7 +101,7 @@ class CommandLineEmbedder:
             file_suffix += '+' + item + ':' + lazy_vars.get(item, '')
         return file_suffix
 
-    def substitute_command_line(self, bps_file_name, cmd_line, lazy_vars, job_name):
+    def substitute_command_line(self, cmd_line, lazy_vars, job_name):
         """ Preprocesses the command line leaving for the egde node evaluation
         only parameters which are job / environment dependent
 
@@ -122,5 +122,5 @@ class CommandLineEmbedder:
 
         cmd_line = self.replace_static_parameters(cmd_line, lazy_vars)
         cmd_line = self.resolve_submission_side_env_vars(cmd_line)
-        file_name = bps_file_name + "+" + job_name+self.attach_pseudo_file_params(lazy_vars)
+        file_name = job_name + self.attach_pseudo_file_params(lazy_vars)
         return cmd_line, file_name

@@ -1,0 +1,107 @@
+pipelineYaml: "/sdf/home/j/jchiang/PanDA_testing/pipelines/cpBias.yaml"
+#  OR
+#USER qgraphFile: "/path/to/existing/file.qgraph"
+
+#PANDA plugin specific settings:
+idds_server: "https://aipanda015.cern.ch:443/idds"
+placeholderParams: ['qgraphNodeId', 'qgraphId']
+
+#IDF PanDA specific settings:
+#computing_cloud: LSST
+
+#SLAC PanDA specific settings:
+computing_cloud: US
+computeSite: DOMA_LSST_SLAC_TEST
+
+
+
+# At minimum, following group used in bps report and can be
+# used in WMS queries.  Users can use in other things such as "output". 
+operator: spodolsky    # defaults to login on submit machine
+project: dev
+campaign: quick
+
+# Any extra site-specific settings needed for WMS
+#USER computeSite: ncsapool
+
+# Make sure these values correspond to ones in the bin/run_demo.sh's
+# pipetask command line.
+payload:
+  payloadName: pipelines_check    # At minimum, used in bps report
+  runInit: true
+  output: "u/spadolski/bias_12781_panda_test/{timestamp}"
+  outCollection: u/spodolsky/bias_12781_panda_test/{timestamp}
+
+  butlerConfig: /sdf/group/lsst/camera/IandT/repo_gen3/panda_test_repo
+  inCollection: LSSTCam/raw/all,LSSTCam/calib
+  exposureList: "(3020111900015,3020111900016,3020111900017,3020111900018,3020111900019,3020111900020,3020111900021,3020111900022,3020111900023,3020111900024,3020111900025,3020111900026,3020111900027,3020111900028,3020111900029,3020111900030)"
+  dataQuery: "instrument='LSSTCam' and exposure in {exposureList}"
+
+  #USER butlerConfig: ${PIPELINES_CHECK_DIR}/DATA_REPO/butler.yaml
+  #USER inCollection: HSC/calib,HSC/raw/all,refcats
+  #USER dataQuery: exposure=903342 AND detector=10
+
+  payload_folder: payload
+  fileDistributionEndPoint: "/sdf/group/lsst/software/IandT/tmp/{payload_folder}/{uniqProcName}/"
+  runner_command: 'unset PYTHONPATH;export LSST_DB_AUTH=/sdf/home/l/lsstsvc1/.lsst/db-auth.yaml;source /sdf/group/lsst/software/IandT/stack-lsst_distrib-d_2021_08_03/loadLSST.bash;cd ${PILOT_HOME};pwd;ls -a;setup lsst_distrib;env;python3 ${CTRL_BPS_DIR}/python/lsst/ctrl/bps/wms/panda/edgenode/cmd_line_decoder.py _cmd_line_ '
+
+
+pipetask:
+  pipetaskInit:
+    runQuantumCommand: '${CTRL_MPEXEC_DIR}/bin/pipetask --long-log run -b {butlerConfig} -i {inCollection} --output-run {outCollection} --init-only --register-dataset-types --qgraph {fileDistributionEndPoint}/{qgraphFile} --clobber-outputs --no-versions --extend-run'
+
+  #OPT myTask:
+  #OPT   requestCpus:
+  #OPT   requestMemory:
+  #OPT   requestDisk:
+  #OPT   requestWalltime:
+  #OPT   runQuantumCommand:
+  #OPT   retries:
+
+
+executionButler:
+  whenCreate: "SUBMIT"
+  #USER executionButlerDir: "/my/exec/butler/dir"  # if user provided, otherwise uses executionButlerTemplate
+  createCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask qgraph -b {butlerConfig} --input {inCollection} --output-run {outCollection} --save-execution-butler {executionButlerDir} -g {qgraphFile}"
+
+  whenMerge: "ALWAYS"
+  implementation: JOB  # JOB, WORKFLOW
+  concurrency_limit: db_limit
+  command1: "${DAF_BUTLER_DIR}/bin/butler --log-level=VERBOSE transfer-datasets  {executionButlerDir} {butlerConfig} --collections {outCollection}"
+  command2: "${DAF_BUTLER_DIR}/bin/butler collection-chain {butlerConfig} {output} {outCollection} --mode=prepend"
+
+  # For --replace-run behavior need to run two collection-chain commands:
+  #command2: "${DAF_BUTLER_DIR}/bin/butler collection-chain {butlerConfig} {output} --mode=pop 1"
+  #command3: "${DAF_BUTLER_DIR}/bin/butler collection-chain {butlerConfig} {output} --mode=prepend {outCollection}"
+
+# Default commands and usage requests for creating QuantumGraph, running Quantum.
+# Defaults to using full workflow QuantumGraph instead of per-job QuantumGraphs.
+whenSaveJobQgraph: "NEVER"
+createQuantumGraph: '${CTRL_MPEXEC_DIR}/bin/pipetask qgraph -d "{dataQuery}" -b {butlerConfig} -i {inCollection} -p {pipelineYaml} -q {qgraphFile} {pipelineOptions}'
+runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask --long-log run -b {butlerConfig} --output-run {outCollection} --qgraph {fileDistributionEndPoint}/{qgraphFile} --qgraph-id {qgraphId} --qgraph-node-id {qgraphNodeId} --skip-init-writes --extend-run --clobber-outputs --skip-existing"
+
+#createQuantumGraph: '<ENV:CTRL_MPEXEC_DIR>/bin/pipetask qgraph -d "{dataQuery}" -b {butlerConfig} -i {inCollection} --instrument {instrument} -p {pipelineYaml} -q {qgraphFile} --qgraph-dot {qgraphFile}.dot'
+#runQuantumCommand: 'export LSST_DB_AUTH=/sdf/home/l/lsstsvc1/.lsst/db-auth.yaml;<ENV:CTRL_MPEXEC_DIR>/bin/pipetask --long-log  run -b {butlerConfig} -i {inCollection} --output-run {outCollection} --extend-run --skip-init-writes --qgraph {fileDistributionEndPoint}/{payload_folder}/{uniqProcName}/<FILE:runQgraphFile> --qgraph-id {qgraphId} --qgraph-node-id {qgraphNodeId} --clobber-outputs --skip-existing --no-versions'
+
+
+requestMemory: 2048
+requestCpus: 1
+
+wmsServiceClass: lsst.ctrl.bps.wms.panda.panda_service.PanDAService
+clusterAlgorithm: lsst.ctrl.bps.quantum_clustering_funcs.single_quantum_clustering
+
+# Template for bps filenames
+submitPath: ${PWD}/submit/{outCollection}
+qgraphFileTemplate: "{uniqProcName}.qgraph"
+executionButlerTemplate: "{submitPath}/EXEC_REPO-{uniqProcName}"
+subDirTemplate: "{label}/{tract}/{patch}/{visit.day_obs}/{exposure.day_obs}/{band}/{subfilter}/{physical_filter}/{visit}/{exposure}"
+templateDataId: "{tract}_{patch}_{band}_{visit}_{exposure}_{detector}"
+
+# Whether to output bps-specific intermediate files
+saveDot: False
+saveGenericWorkflow: False
+saveClusteredQgraph: False
+
+# Temporary backward-compatibility settings
+useLazyCommands: True
+useBpsShared: False
