@@ -21,7 +21,7 @@
 import click
 
 from lsst.daf.butler.cli.butler import LoaderCLI
-from lsst.daf.butler.cli.opt import log_level_option, long_log_option
+from lsst.daf.butler.cli.opt import log_level_option, long_log_option, log_file_option, log_tty_option
 from lsst.daf.butler.cli.utils import unwrap
 
 
@@ -46,7 +46,9 @@ class BpsCli(LoaderCLI):
                epilog=epilog)
 @log_level_option(default=["WARNING"])
 @long_log_option()
-def cli(log_level, long_log):
+@log_file_option()
+@log_tty_option()
+def cli(log_level, long_log, log_file, log_tty):
     pass
 
 
