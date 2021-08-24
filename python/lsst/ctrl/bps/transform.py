@@ -347,14 +347,14 @@ def _get_job_values(config, search_opt, cmd_line_key):
 
     Returns
     -------
-    gwfile : `lsst.ctrl.bps.GenericWorkflowFile`
-        Representation of butler location (may not include filename).
+    job_values : `dict` [ `str`, `Any` ]`
+        A mapping between job attributes and their values.
     """
     special_values = ['name', 'label', 'cmdline', 'pre_cmdline', 'post_cmdline']
 
     job_values = {}
     for field in dataclasses.fields(GenericWorkflowJob):
-        if field not in special_values:
+        if field.name not in special_values:
             # Variable names in yaml are camel case instead of snake case.
             yaml_name = re.sub(r"_(\S)", lambda match: match.group(1).upper(), field.name)
             found, value = config.search(yaml_name, opt=search_opt)
