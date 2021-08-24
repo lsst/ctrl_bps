@@ -429,22 +429,28 @@ def _handle_job_values_aggregate(quantum_job_values, gwjob):
     gwjob : `lsst.ctrl.bps.GenericWorkflowJob`
         Generic workflow job in which to store the aggregate values.
     """
-    values_max = ['request_cpus', 'request_memory']
-    values_sum = ['request_disk', 'request_walltime']
+    values_max = ["request_cpus", "request_memory"]
+    values_sum = ["request_disk", "request_walltime"]
+
+    relationships = {"request_memory": ["memory_multiplier", "number_of_retries"]}
 
     for key in values_max:
         current_value = getattr(gwjob, key)
-        if not current_value:
-            setattr(gwjob, key, quantum_job_values[key])
-        else:
-            setattr(gwjob, key, max(getattr(gwjob, key), quantum_job_values[key]))
+        quantum_value = quantum_job_values[key]
+        if current_value is None or current_value < quantum_value:
+            setattr(gwjob, key, quantum_value)
+            try:
+                for dep in relationships[key]:
+                    setattr(gwjob, dep, quantum_job_values[dep])
+            except KeyError as exc:
+                _LOG.debug("%s", exc)
 
     for key in values_sum:
         current_value = getattr(gwjob, key)
         if not current_value:
             setattr(gwjob, key, quantum_job_values[key])
         else:
-            setattr(gwjob, key, getattr(gwjob, key) + quantum_job_values[key])
+            setattr(gwjob, key, current_value + quantum_job_values[key])
 
 
 def create_generic_workflow(config, clustered_quanta_graph, name, prefix):

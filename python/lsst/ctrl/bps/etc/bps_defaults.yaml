@@ -33,7 +33,8 @@ pipetask:
   #OPT   requestDisk:
   #OPT   requestWalltime:
   #OPT   runQuantumCommand:
-  #OPT   retries:
+  #OPT   memoryMultiplier:
+  #OPT   numberOfRetries:
 
 # Default commands and usage requests for creating QuantumGraph, running Quantum.
 # Defaults to using full workflow QuantumGraph instead of per-job QuantumGraphs.

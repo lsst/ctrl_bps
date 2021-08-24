@@ -19,13 +19,19 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import pkgutil
+"""Default settings for the BPS service.
+"""
 
-__path__ = pkgutil.extend_path(__path__, __name__)
+__all__ = [
+    "DEFAULT_MEM_RETRIES",
+    "DEFAULT_HTC_EXEC_PATT",
+]
 
-from .bps_config import *
-from .clustered_quantum_graph import *
-from .defaults import *
-from .generic_workflow import *
-from .version import *
-from .wms_service import *
+
+DEFAULT_MEM_RETRIES = 5
+"""Default number of retries when memory autoscaling is enabled.
+"""
+
+DEFAULT_HTC_EXEC_PATT = ".*worker.*"
+"""Default pattern for searching execute machines in an HTCondor pool.
+"""
