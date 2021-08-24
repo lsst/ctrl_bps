@@ -436,6 +436,34 @@ Supported settings
     Amount of memory, in MB, a single Quantum execution of a particular pipetask
     will need (e.g., 2048).
 
+**memoryMultiplier**, optional
+    A positive number greater than 1.0 controlling how fast memory increases
+    between consecutive runs for jobs which failed due to insufficient memory.
+
+    The memory limit increases in a (approximately) geometric manner between
+    consecutive executions with ``memoryMultiplier`` playing a role of the
+    common ratio.  First time, the job is run with memory limit determined by
+    ``requestMemory``. If it fails due to the insufficient memory, it will be
+    retried with a new memory limit equal to the product of the
+    ``memoryMultiplier`` and the memory usage from the previous attempt.
+
+    The process will continue until number of retires reaches its limit
+    determined by ``numberOfRetries`` (5 by default) *or* the resultant memory
+    limit exceeds the memory available on a given computational resource (e.g.
+    a HTCondor pool).
+
+    If the ``memoryMultiplier`` is negative or less than 1.0, it will be
+    ignored and memory requirements will not change between runs.
+
+    At the moment, this feature is only supported by the HTCondor plugin.
+
+**numberOfRetries**, optional
+    The maximum number of retries allowed for a job (must be non-negative).
+    The default value is ``None`` meaning that the job will be run only once.
+    However, if automatic memory scaling is enabled (``memoryMultiplier`` is
+    set), the default value 5 will be used if ``numberOfRetries`` was not set
+    explicitly.
+
 **requestCpus**, optional
     Number of cpus that a single Quantum execution of a particular pipetask
     will need (e.g., 1).
