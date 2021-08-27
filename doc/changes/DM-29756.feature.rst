@@ -1,0 +1,6 @@
+* Add ``numberOfRetries`` option which specifies the maximum number of retries
+  allowed for a job.
+* Add ``memoryMultiplier`` option to allow for increasing the memory
+  requirements automatically between retries for jobs which exceeded memory
+  during their execution. At the moment this option is only supported by
+  HTCondor plugin.
