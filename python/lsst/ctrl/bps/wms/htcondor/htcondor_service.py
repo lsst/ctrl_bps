@@ -305,17 +305,23 @@ class HTCondorWorkflow(BaseWmsWorkflow):
                                       "bps_wms_workflow": f"{cls.__module__}.{cls.__name__}"})
 
         # Determine pool specific settings for future reference.
-        _, site = config.search("computeSite", opt={"default": "localhost"})
+        search_opts = {"default": DEFAULT_HTC_EXEC_PATT}
+        _, site = config.search("computeSite")
+        if site:
+            search_opts["curvals"] = {"curr_site": site}
+        _, patt = config.search("executeMachinesPattern", opt=search_opts)
 
-        _, patt = config.search("executeMachinesPattern")
-        if not patt:
-            search_opts = {"curvals": {"curr_site": site}, "default": DEFAULT_HTC_EXEC_PATT}
-            _, patt = config.search("executeMachinesPattern", opt=search_opts)
-        constraint = f'SlotTypeId != -1 && regexp("{patt}", Machine)'
-        slot_ads = condor_status(constraint=constraint)
-        if not slot_ads:
-            raise RuntimeError(f"No nodes in the HTCondor pool on site '{site}' matches '{patt}'")
-        config["bps_mem_limit"] = max(int(ad["TotalSlotMemory"]) for ad in slot_ads.values())
+        # Determine the hard limit for the memory requirement.
+        #
+        # Note:
+        # To reduce the number of data that need to be dealt with we are
+        # ignoring dynamic slots (if any) as, by definition, they cannot have
+        # more memory than the partitionable slot they are the part of.
+        constraint = f'SlotType != "Dynamic" && regexp("{patt}", Machine)'
+        pool_info = condor_status(constraint=constraint)
+        if not pool_info:
+            raise RuntimeError(f"No nodes in the HTCondor pool matches pattern '{patt}'")
+        config["bps_mem_limit"] = max(int(info["TotalSlotMemory"]) for info in pool_info.values())
 
         # Create all DAG jobs
         for job_name in generic_workflow:
@@ -473,6 +479,11 @@ def _translate_job_cmds(config, generic_workflow, gwjob):
     if gwjob.memory_multiplier:
         _, memory_limit = config.search("bps_mem_limit")
         jobcmds["request_memory"] = _create_request_memory_expr(gwjob.request_memory, gwjob.memory_multiplier)
+
+        # Periodically release jobs which are being held due to exceeding
+        # memory. Stop doing that (by removing the job from the HTCondor queue)
+        # after the maximal number of retries has been reached or the memory
+        # requirements cannot be satisfied.
         jobcmds["periodic_release"] = \
             "NumJobStarts <= JobMaxRetries && (HoldReasonCode == 34 || HoldReasonSubCode == 34)"
         jobcmds["periodic_remove"] = \
