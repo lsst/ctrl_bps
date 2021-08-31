@@ -44,10 +44,6 @@ from ... import (
     WmsStates
 )
 from ...bps_utils import chdir
-from ...defaults import (
-    DEFAULT_MEM_RETRIES,
-    DEFAULT_HTC_EXEC_PATT,
-)
 from .lssthtc import (
     HTCDag,
     HTCJob,
@@ -67,6 +63,10 @@ from .lssthtc import (
     summary_from_dag,
 )
 
+
+DEFAULT_HTC_EXEC_PATT = ".*worker.*"
+"""Default pattern for searching execute machines in an HTCondor pool.
+"""
 
 _LOG = logging.getLogger(__name__)
 
@@ -470,9 +470,8 @@ def _translate_job_cmds(config, generic_workflow, gwjob):
     if gwjob.request_memory:
         jobcmds["request_memory"] = f"{gwjob.request_memory}"
 
-    if gwjob.memory_multiplier and int(gwjob.memory_multiplier) > 0:
+    if gwjob.memory_multiplier:
         _, memory_limit = config.search("bps_mem_limit")
-        jobcmds.setdefault("max_retries", DEFAULT_MEM_RETRIES)
         jobcmds["request_memory"] = _create_request_memory_expr(gwjob.request_memory, gwjob.memory_multiplier)
         jobcmds["periodic_release"] = \
             "NumJobStarts <= JobMaxRetries && (HoldReasonCode == 34 || HoldReasonSubCode == 34)"

@@ -19,19 +19,14 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-"""Default settings for the BPS service.
+"""Symbolic constants
 """
 
 __all__ = [
     "DEFAULT_MEM_RETRIES",
-    "DEFAULT_HTC_EXEC_PATT",
 ]
 
 
 DEFAULT_MEM_RETRIES = 5
 """Default number of retries when memory autoscaling is enabled.
-"""
-
-DEFAULT_HTC_EXEC_PATT = ".*worker.*"
-"""Default pattern for searching execute machines in an HTCondor pool.
 """
