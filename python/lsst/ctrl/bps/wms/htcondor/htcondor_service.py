@@ -1242,13 +1242,16 @@ def _create_request_memory_expr(memory, multiplier):
 
     Returns
     -------
-    classad : `str`
+    ad : `str`
         A string representing an HTCondor ClassAd expression enabling safe
         memory scaling between job retries.
     """
     was_mem_exceeded = "LastJobStatus =?= 5 " \
-                       "&& (LastHoldReasonCode =?= 34 || LastHoldReasonCode =?= 3) " \
-                       "&& LastHoldReasonSubCode =?= 34"
+                       "&& (LastHoldReasonCode =?= 34 && LastHoldReasonSubCode =?= 0 " \
+                       "|| LastHoldReasonCode =?= 3 && LastHoldReasonSubCode =?= 34)"
+
+    # If job runs the first time ('MemoryUsage' is not defined), set the
+    # required memory to a given value.
     ad = f"ifThenElse({was_mem_exceeded}, " \
          f"ifThenElse(isUndefined(MemoryUsage), {memory}, int({multiplier} * MemoryUsage)), " \
          f"ifThenElse(isUndefined(MemoryUsage), {memory}, max({memory}, MemoryUsage)))"
