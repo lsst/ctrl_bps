@@ -797,21 +797,21 @@ def condor_status(constraint=None, coll=None):
 
     Returns
     -------
-    pool_info : `dict` [ `str`, Any ]
+    pool_info : `dict` [ `str`, `dict`[ `str, Any ] ]
         Mapping between HTCondor slot names and slot information (classAds).
     """
     if coll is None:
         coll = htcondor.Collector()
     try:
-        pool = coll.query(constraint=constraint)
+        pool_ads = coll.query(constraint=constraint)
     except RuntimeError as ex:
         raise RuntimeError(f"Problem querying the Collector.  (Constraint='{constraint}')") from ex
 
-    pool_ads = {}
-    for slot in pool:
-        pool_ads[slot["name"]] = dict(slot)
-    _LOG.debug("condor_status returned %d ads", len(pool_ads))
-    return pool_ads
+    pool_info = {}
+    for slot in pool_ads:
+        pool_info[slot["name"]] = dict(slot)
+    _LOG.debug("condor_status returned %d ads", len(pool_info))
+    return pool_info
 
 
 def summary_from_dag(dir_name):
