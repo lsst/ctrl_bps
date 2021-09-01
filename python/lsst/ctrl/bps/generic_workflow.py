@@ -143,6 +143,10 @@ class GenericWorkflowJob:
     """Values for variables in cmdline when using lazy command line creation.
     """
 
+    memory_multiplier: Optional[float]
+    """Memory growth rate between retries.
+    """
+
     request_memory: Optional[int]    # MB
     """Max memory (in MB) that the job is expected to need.
     """
@@ -239,6 +243,7 @@ class GenericWorkflowJob:
         self.executable = None
         self.arguments = None
         self.cmdvals = {}
+        self.memory_multiplier = None
         self.request_memory = None
         self.request_cpus = None
         self.request_disk = None
@@ -262,7 +267,7 @@ class GenericWorkflowJob:
 
     __slots__ = ("name", "label", "tags", "mail_to", "when_to_mail",
                  "executable", "arguments", "cmdvals",
-                 "request_memory", "request_cpus", "request_disk", "request_walltime",
+                 "memory_multiplier", "request_memory", "request_cpus", "request_disk", "request_walltime",
                  "number_of_retries", "retry_unless_exit", "abort_on_value", "abort_return_value",
                  "compute_site", "environment", "priority", "category", "concurrency_limit",
                  "queue", "pre_cmdline", "post_cmdline", "profile", "attrs")

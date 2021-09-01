@@ -27,10 +27,30 @@ levels where there are 1-1 or all-to-all relationships to nodes in next
 level.  LSST workflows are more complicated.
 """
 
-__all__ = ["DagStatus", "JobStatus", "NodeStatus", "RestrictedDict", "HTCJob", "HTCDag", "htc_escape",
-           "htc_write_attribs", "htc_write_condor_file", "htc_version", "htc_submit_dag", "condor_q",
-           "condor_history", "read_dag_status", "MISSING_ID", "summary_from_dag", "read_dag_log",
-           "read_node_status", "read_dag_nodes_log", "htc_check_dagman_output", "pegasus_name_to_label"]
+__all__ = [
+    "DagStatus",
+    "JobStatus",
+    "NodeStatus",
+    "RestrictedDict",
+    "HTCJob",
+    "HTCDag",
+    "htc_check_dagman_output",
+    "htc_escape",
+    "htc_write_attribs",
+    "htc_write_condor_file",
+    "htc_version",
+    "htc_submit_dag",
+    "condor_history",
+    "condor_q",
+    "condor_status",
+    "read_dag_status",
+    "MISSING_ID",
+    "summary_from_dag",
+    "read_dag_log",
+    "read_dag_nodes_log",
+    "read_node_status",
+    "pegasus_name_to_label"
+]
 
 
 import itertools
@@ -136,7 +156,10 @@ HTC_VALID_JOB_KEYS = {
     "requirements",
     "on_exit_hold",
     "on_exit_hold_reason",
-    "on_exit_hold_subcode"
+    "on_exit_hold_subcode",
+    "max_retries",
+    "periodic_release",
+    "periodic_remove",
 }
 HTC_VALID_JOB_DAG_KEYS = {"vars", "pre", "post", "retry", "retry_unless_exit",
                           "abort_dag_on", "abort_exit"}
@@ -760,6 +783,35 @@ def condor_history(constraint=None, schedd=None):
 
     _LOG.debug("condor_history returned %d jobs", len(jobads))
     return jobads
+
+
+def condor_status(constraint=None, coll=None):
+    """Get information about HTCondor pool.
+
+    Parameters
+    ----------
+    constraint : `str`, optional
+        Constraints to be passed to the query.
+    coll : `htcondor.Collector`, optional
+        Object representing HTCondor collector daemon.
+
+    Returns
+    -------
+    pool_info : `dict` [ `str`, `dict`[ `str, Any ] ]
+        Mapping between HTCondor slot names and slot information (classAds).
+    """
+    if coll is None:
+        coll = htcondor.Collector()
+    try:
+        pool_ads = coll.query(constraint=constraint)
+    except RuntimeError as ex:
+        raise RuntimeError(f"Problem querying the Collector.  (Constraint='{constraint}')") from ex
+
+    pool_info = {}
+    for slot in pool_ads:
+        pool_info[slot["name"]] = dict(slot)
+    _LOG.debug("condor_status returned %d ads", len(pool_info))
+    return pool_info
 
 
 def summary_from_dag(dir_name):

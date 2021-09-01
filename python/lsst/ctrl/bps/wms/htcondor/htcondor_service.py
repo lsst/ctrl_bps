@@ -53,15 +53,20 @@ from .lssthtc import (
     htc_check_dagman_output,
     htc_escape,
     htc_submit_dag,
-    read_node_status,
     read_dag_log,
     read_dag_status,
-    condor_q,
+    read_node_status,
     condor_history,
+    condor_q,
+    condor_status,
     pegasus_name_to_label,
     summary_from_dag,
 )
 
+
+DEFAULT_HTC_EXEC_PATT = ".*worker.*"
+"""Default pattern for searching execute machines in an HTCondor pool.
+"""
 
 _LOG = logging.getLogger(__name__)
 
@@ -299,6 +304,25 @@ class HTCondorWorkflow(BaseWmsWorkflow):
         htc_workflow.dag.add_attribs({"bps_wms_service": service_class,
                                       "bps_wms_workflow": f"{cls.__module__}.{cls.__name__}"})
 
+        # Determine pool specific settings for future reference.
+        search_opts = {"default": DEFAULT_HTC_EXEC_PATT}
+        _, site = config.search("computeSite")
+        if site:
+            search_opts["curvals"] = {"curr_site": site}
+        _, patt = config.search("executeMachinesPattern", opt=search_opts)
+
+        # Determine the hard limit for the memory requirement.
+        #
+        # Note:
+        # To reduce the number of data that need to be dealt with we are
+        # ignoring dynamic slots (if any) as, by definition, they cannot have
+        # more memory than the partitionable slot they are the part of.
+        constraint = f'SlotType != "Dynamic" && regexp("{patt}", Machine)'
+        pool_info = condor_status(constraint=constraint)
+        if not pool_info:
+            raise RuntimeError(f"No nodes in the HTCondor pool matches pattern '{patt}'")
+        config["bps_mem_limit"] = max(int(info["TotalSlotMemory"]) for info in pool_info.values())
+
         # Create all DAG jobs
         for job_name in generic_workflow:
             gwjob = generic_workflow.get_job(job_name)
@@ -362,8 +386,8 @@ class HTCondorWorkflow(BaseWmsWorkflow):
             "transfer_executable": "False",
             "getenv": "True",
 
-            # Exceeding memory sometimes triggering SIGBUS error.
-            # Tell htcondor to put SIGBUS jobs on hold.
+            # Exceeding memory sometimes triggering SIGBUS error. Tell htcondor
+            # to put SIGBUS jobs on hold.
             "on_exit_hold": "(ExitBySignal == true) && (ExitSignal == 7)",
             "on_exit_hold_reason": '"Job raised a signal 7.  Usually means job has gone over memory limit."',
             "on_exit_hold_subcode": "34"
@@ -443,11 +467,31 @@ def _translate_job_cmds(config, generic_workflow, gwjob):
         jobcmds[htckey] = getattr(gwjob, gwkey, None)
 
     # job commands that need modification
+    if gwjob.number_of_retries:
+        jobcmds["max_retries"] = f"{gwjob.number_of_retries}"
+
+    if gwjob.retry_unless_exit:
+        jobcmds["retry_until"] = f"{gwjob.retry_unless_exit}"
+
     if gwjob.request_disk:
         jobcmds["request_disk"] = f"{gwjob.request_disk}MB"
 
     if gwjob.request_memory:
-        jobcmds["request_memory"] = f"{gwjob.request_memory}MB"
+        jobcmds["request_memory"] = f"{gwjob.request_memory}"
+
+    if gwjob.memory_multiplier:
+        _, memory_limit = config.search("bps_mem_limit")
+        jobcmds["request_memory"] = _create_request_memory_expr(gwjob.request_memory, gwjob.memory_multiplier)
+
+        # Periodically release jobs which are being held due to exceeding
+        # memory. Stop doing that (by removing the job from the HTCondor queue)
+        # after the maximal number of retries has been reached or the memory
+        # requirements cannot be satisfied.
+        jobcmds["periodic_release"] = \
+            "NumJobStarts <= JobMaxRetries && (HoldReasonCode == 34 || HoldReasonSubCode == 34)"
+        jobcmds["periodic_remove"] = \
+            f"JobStatus == 1 && RequestMemory > {memory_limit} || " \
+            f"JobStatus == 5 && NumJobStarts > JobMaxRetries"
 
     # Assume concurrency_limit implemented using HTCondor concurrency limits.
     # May need to move to special site-specific implementation if sites use
@@ -491,9 +535,7 @@ def _translate_dag_cmds(gwjob):
         DAGMan commands for the job.
     """
     # Values in the dag script that just are name mappings.
-    dag_translation = {"number_of_retries": "retry",
-                       "retry_unless_exit": "retry_unless_exit",
-                       "abort_on_value": "abort_dag_on",
+    dag_translation = {"abort_on_value": "abort_dag_on",
                        "abort_return_value": "abort_exit"}
 
     dagcmds = {}
@@ -1187,3 +1229,31 @@ def _wms_id_to_cluster(wms_id):
         else:
             cluster_id = 0
     return cluster_id
+
+
+def _create_request_memory_expr(memory, multiplier):
+    """Construct an HTCondor ClassAd expression for safe memory scaling.
+
+    Parameters
+    ----------
+    memory : `int`
+        Requested memory in MB.
+    multiplier : `float`
+        Memory growth rate between retires.
+
+    Returns
+    -------
+    ad : `str`
+        A string representing an HTCondor ClassAd expression enabling safe
+        memory scaling between job retries.
+    """
+    was_mem_exceeded = "LastJobStatus =?= 5 " \
+                       "&& (LastHoldReasonCode =?= 34 && LastHoldReasonSubCode =?= 0 " \
+                       "|| LastHoldReasonCode =?= 3 && LastHoldReasonSubCode =?= 34)"
+
+    # If job runs the first time ('MemoryUsage' is not defined), set the
+    # required memory to a given value.
+    ad = f"ifThenElse({was_mem_exceeded}, " \
+         f"ifThenElse(isUndefined(MemoryUsage), {memory}, int({multiplier} * MemoryUsage)), " \
+         f"ifThenElse(isUndefined(MemoryUsage), {memory}, max({memory}, MemoryUsage)))"
+    return ad

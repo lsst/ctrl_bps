@@ -23,14 +23,26 @@
 """
 
 import logging
+import math
 import os
 import re
 import time
 import dataclasses
 
-from . import BpsConfig, GenericWorkflow, GenericWorkflowJob, GenericWorkflowFile, GenericWorkflowExec
-from .bps_utils import (save_qg_subgraph, WhenToSaveQuantumGraphs, create_job_quantum_graph_filename,
-                        _create_execution_butler)
+from . import (
+    DEFAULT_MEM_RETRIES,
+    BpsConfig,
+    GenericWorkflow,
+    GenericWorkflowJob,
+    GenericWorkflowFile,
+    GenericWorkflowExec,
+)
+from .bps_utils import (
+    save_qg_subgraph,
+    WhenToSaveQuantumGraphs,
+    create_job_quantum_graph_filename,
+    _create_execution_butler
+)
 
 _LOG = logging.getLogger(__name__)
 
@@ -347,14 +359,14 @@ def _get_job_values(config, search_opt, cmd_line_key):
 
     Returns
     -------
-    gwfile : `lsst.ctrl.bps.GenericWorkflowFile`
-        Representation of butler location (may not include filename).
+    job_values : `dict` [ `str`, `Any` ]`
+        A mapping between job attributes and their values.
     """
     special_values = ['name', 'label', 'cmdline', 'pre_cmdline', 'post_cmdline']
 
     job_values = {}
     for field in dataclasses.fields(GenericWorkflowJob):
-        if field not in special_values:
+        if field.name not in special_values:
             # Variable names in yaml are camel case instead of snake case.
             yaml_name = re.sub(r"_(\S)", lambda match: match.group(1).upper(), field.name)
             found, value = config.search(yaml_name, opt=search_opt)
@@ -365,6 +377,17 @@ def _get_job_values(config, search_opt, cmd_line_key):
                 job_values[field.name] = value
             else:
                 job_values[field.name] = None
+
+    # If the automatic memory scaling is enabled (i.e. the memory multiplier
+    # is set and it is a positive number greater than 1.0), adjust number
+    # of retries when necessary.  If the memory multiplier is invalid, disable
+    # automatic memory scaling.
+    if job_values["memory_multiplier"] is not None:
+        if math.ceil(float(job_values["memory_multiplier"])) > 1:
+            if job_values["number_of_retries"] is None:
+                job_values["number_of_retries"] = DEFAULT_MEM_RETRIES
+        else:
+            job_values["memory_multiplier"] = None
 
     if cmd_line_key:
         found, cmdline = config.search(cmd_line_key, opt=search_opt)
@@ -429,22 +452,43 @@ def _handle_job_values_aggregate(quantum_job_values, gwjob):
     gwjob : `lsst.ctrl.bps.GenericWorkflowJob`
         Generic workflow job in which to store the aggregate values.
     """
-    values_max = ['request_cpus', 'request_memory']
-    values_sum = ['request_disk', 'request_walltime']
+    values_max = ["memory_multiplier", "number_of_retries", "request_cpus", "request_memory"]
+    values_sum = ["request_disk", "request_walltime"]
 
     for key in values_max:
         current_value = getattr(gwjob, key)
-        if not current_value:
-            setattr(gwjob, key, quantum_job_values[key])
+        quantum_value = quantum_job_values[key]
+
+        needs_update = False
+        if current_value is None:
+            if quantum_value is not None:
+                needs_update = True
         else:
-            setattr(gwjob, key, max(getattr(gwjob, key), quantum_job_values[key]))
+            if quantum_value is not None and current_value < quantum_value:
+                needs_update = True
+        if needs_update:
+            setattr(gwjob, key, quantum_value)
+
+            # When updating memory requirements for a job, check if memory
+            # autoscaling is enabled. If it is, always use the memory
+            # multiplier and the number of retries which comes with the
+            # quantum.
+            #
+            # Note that as a result, the quantum with the biggest memory
+            # requirements will determine whether the memory autoscaling
+            # will be enabled (or disabled) depending on the value of its
+            # memory multiplier.
+            if key == "request_memory":
+                gwjob.memory_multiplier = quantum_job_values["memory_multiplier"]
+                if gwjob.memory_multiplier is not None:
+                    gwjob.number_of_retries = quantum_job_values["number_of_retries"]
 
     for key in values_sum:
         current_value = getattr(gwjob, key)
         if not current_value:
             setattr(gwjob, key, quantum_job_values[key])
         else:
-            setattr(gwjob, key, getattr(gwjob, key) + quantum_job_values[key])
+            setattr(gwjob, key, current_value + quantum_job_values[key])
 
 
 def create_generic_workflow(config, clustered_quanta_graph, name, prefix):
