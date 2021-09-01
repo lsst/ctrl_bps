@@ -12,6 +12,16 @@
 # Any extra site-specific settings needed for WMS
 #USER computeSite: ncsapool
 
+# Options that go between executable and command (e.g., between pipetask and run)
+defaultPreCmdOpts: "--long-log --log-level=VERBOSE"
+# for createQuantumGraph
+qgraphPreCmdOpts: "{defaultPreCmdOpts}"
+# for pipetaskInit
+initPreCmdOpts: "{defaultPreCmdOpts}"
+# for running Quanta
+runPreCmdOpts: "{defaultPreCmdOpts}"
+
+
 # Values defining input dataset as well as collection names of output
 payload:
   #USER payloadName: pipelines_check    # Used in bps report, and default output collection
@@ -26,7 +36,7 @@ pipetask:
   pipetaskInit:
     # Notes: cannot have --extend-run, should have both -o and --output-run
     # because this is where the chaining is currently done
-    runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask --long-log run -b {butlerConfig} -i {inCollection} -o {output} --output-run {outCollection} --init-only --register-dataset-types --qgraph {qgraphFile} {extraInitOptions}"
+    runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask {initPreCmdOpts} run -b {butlerConfig} -i {inCollection} -o {output} --output-run {outCollection} --qgraph {qgraphFile} --qgraph-id {qgraphId} --qgraph-node-id {qgraphNodeId} --clobber-outputs --init-only --register-dataset-types {extraInitOptions}"
   #OPT myTask:
   #OPT   requestCpus:
   #OPT   requestMemory:
@@ -39,8 +49,8 @@ pipetask:
 # Default commands and usage requests for creating QuantumGraph, running Quantum.
 # Defaults to using full workflow QuantumGraph instead of per-job QuantumGraphs.
 whenSaveJobQgraph: "NEVER"
-createQuantumGraph: '${CTRL_MPEXEC_DIR}/bin/pipetask qgraph -d "{dataQuery}" -b {butlerConfig} -i {inCollection} -p {pipelineYaml} -q {qgraphFile} {extraQgraphOptions}'
-runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask --long-log run -b {butlerConfig} --output-run {outCollection} --qgraph {qgraphFile} --qgraph-id {qgraphId} --qgraph-node-id {qgraphNodeId} --skip-init-writes --extend-run --clobber-outputs --skip-existing {extraRunQuantumOptions}"
+createQuantumGraph: '${CTRL_MPEXEC_DIR}/bin/pipetask {qgraphPreCmdOpts} qgraph -b {butlerConfig} -i {inCollection} -o {output} --output-run {outCollection} -p {pipelineYaml} -q {qgraphFile} -d "{dataQuery}" {extraQgraphOptions}'
+runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask {runPreCmdOpts} run -b {butlerConfig} -i {inCollection} -o {output} --output-run {outCollection} --qgraph {qgraphFile} --qgraph-id {qgraphId} --qgraph-node-id {qgraphNodeId} --clobber-outputs --skip-init-writes --extend-run {extraRunQuantumOptions}"
 requestMemory: 2048
 requestCpus: 1
 

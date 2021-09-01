@@ -43,6 +43,7 @@ from .bps_utils import (
     create_job_quantum_graph_filename,
     _create_execution_butler
 )
+from .pre_transform import read_quantum_graph
 
 _LOG = logging.getLogger(__name__)
 
@@ -165,6 +166,17 @@ def create_init_workflow(config, qgraph_gwfile):
 
     # Handle aggregate values.
     _handle_job_values_aggregate(job_values, gwjob)
+
+    # Pick a node id for each task (not quantum!) to avoid reading the entire
+    # quantum graph during the initialization stage.
+    qgraph = read_quantum_graph(qgraph_gwfile.src_uri)
+    node_ids = []
+    for task in qgraph.iterTaskGraph():
+        task_def = qgraph.findTaskDefByLabel(task.label)
+        node = next(iter(qgraph.getNodesForTask(task_def)))
+        node_ids.append(node.nodeId)
+    gwjob.cmdvals["qgraphId"] = qgraph.graphID
+    gwjob.cmdvals["qgraphNodeId"] = ",".join(sorted([f"{node_id.number}" for node_id in node_ids]))
 
     # Save summary of Quanta in job.
     gwjob.tags["quanta_summary"] = "pipetaskInit:1"
