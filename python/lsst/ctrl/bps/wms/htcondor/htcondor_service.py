@@ -470,6 +470,9 @@ def _translate_job_cmds(config, generic_workflow, gwjob):
     if gwjob.number_of_retries:
         jobcmds["max_retries"] = f"{gwjob.number_of_retries}"
 
+    if gwjob.retry_unless_exit:
+        jobcmds["retry_until"] = f"{gwjob.retry_unless_exit}"
+
     if gwjob.request_disk:
         jobcmds["request_disk"] = f"{gwjob.request_disk}MB"
 
@@ -532,9 +535,7 @@ def _translate_dag_cmds(gwjob):
         DAGMan commands for the job.
     """
     # Values in the dag script that just are name mappings.
-    dag_translation = {"number_of_retries": "retry",
-                       "retry_unless_exit": "retry_unless_exit",
-                       "abort_on_value": "abort_dag_on",
+    dag_translation = {"abort_on_value": "abort_dag_on",
                        "abort_return_value": "abort_exit"}
 
     dagcmds = {}
