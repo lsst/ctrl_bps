@@ -925,10 +925,12 @@ def _add_run_info(wms_path, job):
     """
     path = Path(wms_path) / "jobs"
     try:
-        jobdir = next(path.glob("*"), Path(wms_path))
+        subfile = next(path.glob("**/*.sub"))
+    except StopIteration:
+        job["bps_run"] = "Missing"
+    else:
+        _LOG.debug("_add_run_info: subfile = %s", subfile)
         try:
-            subfile = next(jobdir.glob("*.sub"))
-            _LOG.debug("_add_run_info: subfile = %s", subfile)
             with open(subfile, "r") as fh:
                 for line in fh:
                     if line.startswith("+bps_"):
@@ -938,11 +940,8 @@ def _add_run_info(wms_path, job):
                             job[m.group(1)] = m.group(2).replace('"', "")
                         else:
                             _LOG.debug("Could not parse attribute: %s", line)
-        except StopIteration:
-            job["bps_run"] = "Missing"
-
-    except PermissionError:
-        job["bps_run"] = "PermissionError"
+        except PermissionError:
+            job["bps_run"] = "PermissionError"
     _LOG.debug("After adding job = %s", job)
 
 
