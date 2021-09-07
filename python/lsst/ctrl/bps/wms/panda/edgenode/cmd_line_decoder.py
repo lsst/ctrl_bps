@@ -10,28 +10,116 @@ import os
 import re
 import sys
 import binascii
+from lsst.daf.butler import ButlerURI
 
 
-def replace_environment_vars(cmdline):
+def replace_placeholders(cmd_line, tag, replancements):
+    occurences_to_replace = re.findall(f'<{tag}:(.*?)>', cmd_line)
+    for placeholder in occurences_to_replace:
+        if placeholder in replancements:
+            cmd_line = cmd_line.replace(
+                f'<{tag}:{placeholder}>', replancements[placeholder])
+        else:
+            raise ValueError(f"ValueError exception thrown, because "
+                             f"{placeholder} is not found in the "
+                             f"replacement values and could "
+                             f"not be passed to the command line")
+    return cmd_line
+
+
+def replace_environment_vars(cmd_line):
     """
     Replaces placeholders to the actual environment variables.
-    :param cmdline: `str`
+    Parameters
+    ----------
+    cmd_line : `str`
         Command line
-    :return: cmdline: `str`
+
+    Returns
+    -------
+    cmdline: `str`
         Processed command line
     """
-    envs_to_replace = re.findall(r'<ENV:(.*?)>', cmdline)
-    for env_var in envs_to_replace:
-        if value := os.getenv(env_var):
-            cmdline = cmdline.replace('<ENV:' + env_var + '>', value)
-    return cmdline
+    environment_vars = os.environ
+    cmd_line = replace_placeholders(cmd_line, 'ENV', environment_vars)
+    return cmd_line
 
 
+def replace_files_placeholders(cmd_line, files):
+    """
+    Replaces placeholders for files.
+    Parameters
+    ----------
+    cmd_line : `str`
+        Command line
+    files : `str`
+        String with key:value pairs separated by the '+' sign.
+        Keys contain the file type (runQgraphFile,
+        butlerConfig, ...).
+        Values contains file names.
+
+    Returns
+    -------
+    cmd_line: `str`
+        Processed command line
+    """
+
+    files_key_vals = files.split('+')
+    files = {}
+    for file in files_key_vals:
+        file_name_placeholder, file_name = file.split(":")
+        files[file_name_placeholder] = file_name
+    cmd_line = replace_placeholders(cmd_line, 'FILE', files)
+    return cmd_line
+
+
+def deliver_input_files(src_path, files, skip_copy):
+    """
+    Delivers input files needed for a job
+    Parameters
+    ----------
+    src_path : `str`
+        URI for folder where the input files placed
+    files : `str`
+        String with file names separated by the '+' sign
+
+    Returns
+    -------
+    cmdline: `str`
+        Processed command line
+        :param skip_copy:
+    """
+
+    files = files.split('+')
+    src_uri = ButlerURI(src_path, forceDirectory=True)
+    for file in files:
+        file_name_placeholder, file_pfn = file.split(':')
+        if file_name_placeholder not in skip_copy.split("+"):
+            src = src_uri.join(file_pfn)
+            base_dir = None
+            if src.isdir():
+                files_to_copy = ButlerURI.findFileResources([src])
+                base_dir = file_pfn
+            else:
+                files_to_copy = [src]
+            dest_base = ButlerURI("", forceAbsolute=True, forceDirectory=True)
+            if base_dir:
+                dest_base = dest_base.join(base_dir)
+            for file_to_copy in files_to_copy:
+                dest = dest_base.join(file_to_copy.basename())
+                dest.transfer_from(file_to_copy, transfer="copy")
+                print(f"copied {file_to_copy.path} "
+                      f"to {dest.path}", file=sys.stderr)
+
+
+deliver_input_files(sys.argv[3], sys.argv[4], sys.argv[5])
 cmd_line = str(binascii.unhexlify(sys.argv[1]).decode())
 data_params = sys.argv[2].split("+")
 cmd_line = replace_environment_vars(cmd_line)
-cmd_line = cmd_line.replace("<FILE:runQgraphFile>", data_params[0])
+cmd_line = replace_files_placeholders(cmd_line, sys.argv[4])
 for key_value_pair in data_params[1:]:
     (key, value) = key_value_pair.split(":")
     cmd_line = cmd_line.replace("{" + key + "}", value)
+
 print(cmd_line)
+sys.exit(os.WEXITSTATUS(os.system(cmd_line)))

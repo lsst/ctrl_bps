@@ -1,0 +1,75 @@
+includeConfigs:
+- ${CTRL_BPS_DIR}/python/lsst/ctrl/bps/wms/panda/conf_example/pipelines_check_idf.yaml
+
+
+#PANDA plugin specific settings:
+idds_server: "https://aipanda015.cern.ch:443/idds"
+placeholderParams: ['qgraphNodeId', 'qgraphId']
+
+#IDF PanDA specific settings:
+computing_cloud: LSST
+
+#SLAC PanDA specific settings:
+#computing_cloud: US
+#computeSite: DOMA_LSST_SLAC_TEST
+
+operator: special_name    # defaults to login on submit machine
+project: dev
+campaign: quick
+
+
+##################################################################################################################
+# The following are default values to be moved to
+# etc/bps_defaults when using execution butler becomes
+# the default.
+executionButler:
+  whenCreate: "SUBMIT"
+  #USER executionButlerDir: "/my/exec/butler/dir"  # if user provided, otherwise uses executionButlerTemplate
+  createCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask qgraph -b {butlerConfig} --input {inCollection} --output-run {outCollection} --save-execution-butler {executionButlerDir} -g {qgraphFile}"
+  whenMerge: "ALWAYS"
+  implementation: JOB  # JOB, WORKFLOW
+  concurrency_limit: db_limit
+
+  # What commands to run as part of the merge step:
+  command1: "${DAF_BUTLER_DIR}/bin/butler --log-level=VERBOSE transfer-datasets  {executionButlerDir} {butlerConfig} --collections {outCollection}"
+  command2: "${DAF_BUTLER_DIR}/bin/butler collection-chain {butlerConfig} {output} {outCollection} --mode=prepend"
+
+  # For --replace-run behavior need to run two collection-chain commands
+  # in addition to the transfer-datasets:
+  #command2: "${DAF_BUTLER_DIR}/bin/butler collection-chain {butlerConfig} {output} --mode=pop 1"
+  #command3: "${DAF_BUTLER_DIR}/bin/butler collection-chain {butlerConfig} {output} --mode=prepend {outCollection}"
+
+pipetask:
+  pipetaskInit:
+    # Notes:  Declaring and chaining now happen within execution butler
+    # steps.  So, this command no longer needs -o and must have
+    # --extend-run.
+    runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask --long-log run -b {butlerConfig} -i {inCollection} --output-run {outCollection} --init-only --register-dataset-types --qgraph {fileDistributionEndPoint}/{qgraphFile} --extend-run --clobber-outputs --no-versions"
+
+# Default commands and usage requests for creating QuantumGraph, running Quantum.
+# Defaults to using full workflow QuantumGraph instead of per-job QuantumGraphs.
+whenSaveJobQgraph: "NEVER"
+createQuantumGraph: '${CTRL_MPEXEC_DIR}/bin/pipetask qgraph -d "{dataQuery}" -b {butlerConfig} -i {inCollection} -p {pipelineYaml} -q {qgraphFile} {pipelineOptions}'
+runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask --long-log run -b {butlerConfig} --output-run {outCollection} --qgraph {fileDistributionEndPoint}/{qgraphFile} --qgraph-id {qgraphId} --qgraph-node-id {qgraphNodeId} --skip-init-writes --extend-run --clobber-outputs --skip-existing"
+
+requestMemory: 2048
+requestCpus: 1
+
+wmsServiceClass: lsst.ctrl.bps.wms.panda.panda_service.PanDAService
+clusterAlgorithm: lsst.ctrl.bps.quantum_clustering_funcs.single_quantum_clustering
+
+# Template for bps filenames
+submitPath: ${PWD}/submit/{outCollection}
+qgraphFileTemplate: "{uniqProcName}.qgraph"
+executionButlerTemplate: "{submitPath}/EXEC_REPO-{uniqProcName}"
+subDirTemplate: "{label}/{tract}/{patch}/{visit.day_obs}/{exposure.day_obs}/{band}/{subfilter}/{physical_filter}/{visit}/{exposure}"
+templateDataId: "{tract}_{patch}_{band}_{visit}_{exposure}_{detector}"
+
+# Whether to output bps-specific intermediate files
+saveDot: False
+saveGenericWorkflow: False
+saveClusteredQgraph: False
+
+# Temporary backward-compatibility settings
+useLazyCommands: True
+useBpsShared: False

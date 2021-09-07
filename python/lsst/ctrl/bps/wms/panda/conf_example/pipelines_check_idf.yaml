@@ -1,0 +1,16 @@
+pipelineYaml: "${OBS_SUBARU_DIR}/pipelines/DRP.yaml#processCcd"
+
+payload:
+  payloadName: pipelines_check
+  runInit: true
+  output: "u/{operator}/{payload_name}"
+  outCollection: "{output}/{timestamp}"
+  butlerConfig: s3://butler-us-central1-panda-dev/hsc/butler.yaml
+  inCollection: HSC/calib,HSC/raw/all,refcats
+  dataQuery: "tract = 9615 and patch=30 and detector IN (10..11) and instrument='HSC' and skymap='hsc_rings_v1' and band in ('r')"
+
+  sw_image: "spodolsky/centos:7-stack-lsst_distrib-d_2021_09_06"
+  fileDistributionEndPoint: "s3://butler-us-central1-panda-dev/hsc/{payload_folder}/{uniqProcName}/"
+  s3_endpoint_url: "https://storage.googleapis.com"
+  payload_folder: payload
+  runner_command: 'docker run --network host --privileged --env AWS_ACCESS_KEY_ID=$(</credentials/AWS_ACCESS_KEY_ID) --env AWS_SECRET_ACCESS_KEY=$(</credentials/AWS_SECRET_ACCESS_KEY) --env PGPASSWORD=$(</credentials/PGPASSWORD) --env S3_ENDPOINT_URL=${S3_ENDPOINT_URL} {sw_image} /bin/bash -c "source /opt/lsst/software/stack/loadLSST.bash;cd /tmp;ls -a;setup lsst_distrib;pwd;python3 \${CTRL_BPS_DIR}/python/lsst/ctrl/bps/wms/panda/edgenode/cmd_line_decoder.py _cmd_line_ " >&2;'

@@ -21,6 +21,25 @@
 import os.path
 from dataclasses import dataclass
 from lsst.ctrl.bps.wms.panda.cmd_line_embedder import CommandLineEmbedder
+from lsst.ctrl.bps import GenericWorkflowJob, GenericWorkflow
+
+
+@dataclass
+class FileDescriptor:
+    """
+    Holds parameters needed to define a file used by a job of task
+    """
+    name: str = None
+    """Name of the file"""
+    distribution_url: str = None
+    """URL of the location where this file to be distributed
+     to the edge node"""
+    submission_url: str = None
+    """Path to file on the submission node"""
+    direct_IO: bool = False
+    """Is the file to be used remotely"""
+    delivered: bool = False
+    """Is is this file has been delivered to the distribution endpoint"""
 
 
 @dataclass
@@ -29,16 +48,33 @@ class RubinTask:
     Holds parameters needed to define a PanDA task
     """
     name: str = None
+    """Name of the task"""
     step: str = None
+    """Processing step"""
     queue: str = None
+    """Computing queue where the task to be submitted"""
     executable: str = None
-    maxwalltime: int = None  # Maximum allowed walltime in seconds
-    maxattempt: int = None  # Maximum number of jobs attempts in a task
-    maxrss: int = None  # Maximum size of RAM to be used by a job
+    """The task command line to be executed"""
+    maxwalltime: int = None
+    """Maximum allowed walltime in seconds"""
+    maxattempt: int = None
+    """Maximum number of jobs attempts in a task"""
+    maxrss: int = None
+    """Maximum size of RAM to be used by a job"""
     cloud: str = None
-    lfns: list = None
-    local_pfns: list = None
+    """Computing cloud in CRIC registry where the task should
+     be submitted to"""
+    jobs_pseudo_inputs: list = None
+    """Name of preudo input to be used by task and defining jobs"""
+    files_used_by_task: list = None
+    """List of physical files necessary for running a task"""
     dependencies: list = None
+    """List of upstream tasks and its pseudoinput parameters
+     needed for running jobs in this task"""
+    is_final: bool = False
+    """Is this a finalization task"""
+    is_dag_end: bool = False
+    """Is this task is on the end of the DAG"""
 
 
 class IDDSWorkflowGenerator:
@@ -63,8 +99,8 @@ class IDDSWorkflowGenerator:
         self.jobs_steps = {}
         self.tasks_steps = {}
         self.tasks_cmd_lines = {}
+        self.dag_end_tasks = set()
         self.computing_cloud = config.get("computing_cloud")
-        self.qgraph_file = os.path.basename(config['bps_defined']['run_qgraph_file'])
         _, v = config.search("maxwalltime", opt={"default": 90000})
         self.maxwalltime = v
         _, v = config.search("maxattempt", opt={"default": 5})
@@ -86,6 +122,23 @@ class IDDSWorkflowGenerator:
         """
         return self.bps_config['workflowName'] + '_' + step
 
+    def fill_input_files(self, task_name):
+        files = []
+        jobs = [job_name for job_name in self.bps_workflow if
+                self.bps_workflow.get_job(job_name).label == self.tasks_steps[task_name]]
+        for job in jobs:
+            for gwfile in self.bps_workflow.get_job_inputs(
+                    job, transfer_only=True):
+                file = FileDescriptor()
+                file.name = gwfile.name
+                file.submission_url = gwfile.src_uri
+                file.distribution_url = os.path.join(
+                    self.bps_config['fileDistributionEndPoint'],
+                    os.path.basename(gwfile.src_uri))
+                file.direct_IO = gwfile.job_access_remote
+                files.append(file)
+        return files
+
     def define_tasks(self):
         """Provide tasks definition sufficient for PanDA submission
 
@@ -102,22 +155,67 @@ class IDDSWorkflowGenerator:
             task = RubinTask()
             task.step = task_name
             task.name = task.step
-            bps_node = next(filter(lambda x: x['job'].label == self.tasks_steps[task_name],
-                                   self.bps_workflow.nodes.values()))['job']
-
+            picked_job_name = next(filter(
+                lambda job_name: self.bps_workflow.get_job(job_name).label
+                == self.tasks_steps[task_name],
+                self.bps_workflow))
+            bps_node = self.bps_workflow.get_job(picked_job_name)
             task.queue = bps_node.compute_site
-            task.lfns = list(jobs)
+            task.jobs_pseudo_inputs = list(jobs)
             task.maxattempt = self.maxattempt
             task.maxwalltime = self.maxwalltime
             task.maxrss = bps_node.request_memory
             task.cloud = self.computing_cloud
-            if bps_node.compute_site:
-                task.queue = bps_node.compute_site
-                task.maxrss = 0
             task.executable = self.tasks_cmd_lines[task_name]
+            task.files_used_by_task = self.fill_input_files(task_name)
+            task.is_final = False
+            task.is_dag_end = self.tasks_steps[task_name] in self.dag_end_tasks
             tasks.append(task)
         self.add_dependencies(tasks, tasks_dependency_map)
+        final_task = self.get_final_task()
+        tasks.append(final_task)
         return tasks
+
+    def get_final_task(self):
+        """If final job exists in generic workflow, create DAG final task
+
+        Returns
+        -------
+        task : `RubinTask`
+            The final task for a workflow
+        """
+        final_job = self.bps_workflow.get_final()
+        if final_job and isinstance(final_job, GenericWorkflowJob):
+            task = RubinTask()
+            bash_file = FileDescriptor()
+            bash_file.submission_url = final_job.executable.src_uri
+            bash_file.distribution_url = os.path.join(
+                self.bps_config["fileDistributionEndPoint"],
+                final_job.executable.name)
+            task.executable = \
+                f"bash ./{final_job.executable.name} {final_job.arguments}"
+
+            task.step = final_job.label
+            task.name = self.define_task_name(final_job.label)
+            task.queue = final_job.compute_site
+            task.jobs_pseudo_inputs = []
+
+            # This string implements empty pattern for dependencies
+            task.dependencies = [{"name": "pure_pseudoinput+qgraphNodeId:+qgraphId:",
+                                  "submitted": False, "dependencies": []}]
+
+            task.maxattempt = self.maxattempt
+            task.maxwalltime = self.maxwalltime
+            task.maxrss = final_job.request_memory
+            task.cloud = self.computing_cloud
+            task.files_used_by_task = [bash_file]
+            task.is_final = True
+            task.is_dag_end = False
+            return task
+        elif final_job and isinstance(final_job, GenericWorkflow):
+            raise NotImplementedError("PanDA plugin does not support a workflow as the final job")
+        elif final_job:
+            return TypeError(f"Invalid type for GenericWorkflow.get_final() results ({type(final_job)})")
 
     def add_dependencies(self, tasks, tasks_dependency_map):
         """Add the dependency list to a task definition. This list defines all
@@ -168,8 +266,7 @@ class IDDSWorkflowGenerator:
         for job_name in self.bps_workflow:
             gwjob = self.bps_workflow.get_job(job_name)
             cmd_line, pseudo_file_name = \
-                cmd_line_embedder.substitute_command_line(self.qgraph_file,
-                                                          gwjob.cmdline,
+                cmd_line_embedder.substitute_command_line(gwjob.executable.src_uri + ' ' + gwjob.arguments,
                                                           gwjob.cmdvals, job_name)
             self.tasks_cmd_lines[self.define_task_name(gwjob.label)] = cmd_line
             self.jobs_steps[pseudo_file_name] = gwjob.label
@@ -178,9 +275,14 @@ class IDDSWorkflowGenerator:
             for parent_name in predecessors:
                 parent_job = self.bps_workflow.get_job(parent_name)
                 cmd_line_parent, pseudo_file_parent = \
-                    cmd_line_embedder.substitute_command_line(self.qgraph_file, parent_job.cmdline,
+                    cmd_line_embedder.substitute_command_line(parent_job.executable.src_uri + ' '
+                                                              + parent_job.arguments,
                                                               parent_job.cmdvals, parent_name)
                 dependency_map.get(pseudo_file_name).append(pseudo_file_parent)
+
+            successors = self.bps_workflow.successors(job_name)
+            if next(successors, None) is None:
+                self.dag_end_tasks.add(gwjob.label)
         return dependency_map
 
     def split_map_over_tasks(self, raw_dependency_map):
