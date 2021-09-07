@@ -668,7 +668,7 @@ def add_final_job(config, generic_workflow, prefix):
 
         job_values = _get_job_values(config, search_opt, None)
         for field in dataclasses.fields(GenericWorkflowJob):
-            if not getattr(gwjob, field.name) and job_values[field.name]:
+            if not getattr(gwjob, field.name) and job_values.get(field.name, None):
                 setattr(gwjob, field.name, job_values[field.name])
 
         update_job(config, gwjob)
