@@ -419,6 +419,10 @@ Supported settings
 **createQuantumGraph**
     The command line specification for generating QuantumGraphs.
 
+**executeMachinesPattern**, optional
+    A regular expression used for looking up available computational
+    resources. By default it is set to ``.*worker.*``.
+
 **operator**
     Name of the Operator who made a submission.  Displayed in ``bps report``
     output.  Defaults to the Operator's username.
@@ -456,6 +460,19 @@ Supported settings
     ignored and memory requirements will not change between runs.
 
     At the moment, this feature is only supported by the HTCondor plugin.
+
+**memoryLimit**, optional
+    The memory threshold, in MB, to control the memory scaling.
+
+    Jobs which memory requirements exceed this threshold will be removed from
+    the job queue even if maximal number of retires (defined by
+    ``numberOfRetries``) has not been reached yet. 
+
+    If not set, BPS will try to determine it automatically by querying
+    available computational resources (e.g. execute machines in an HTCondor
+    pool) which match the pattern defined by ``executeMachinesPattern``.
+
+    It has no effect if ``memoryMultiplier`` is not set.
 
 **numberOfRetries**, optional
     The maximum number of retries allowed for a job (must be non-negative).
