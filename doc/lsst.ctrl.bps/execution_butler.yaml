@@ -1,0 +1,28 @@
+##################################################################################################################
+# The following are default values to be moved to
+# etc/bps_defaults.yaml when using execution butler becomes
+# the default.
+executionButler:
+  whenCreate: "SUBMIT"
+  #OPT executionButlerDir: "/my/exec/butler/dir"  # User-provided or defaults to executionButlerTemplate
+  createCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask qgraph -b {butlerConfig} -i {inCollection} -o {output} --output-run {outCollection} --save-execution-butler {executionButlerDir} -g {qgraphFile} --skip-existing-in {outCollection}"
+  whenMerge: "ALWAYS"
+  implementation: JOB  # Added for future flexibility, e.g., if prefer workflow instead of shell script.
+  concurrency_limit: db_limit
+
+  mergePreCmdOpts: "{defaultPreCmdOpts}"
+  command1: "${DAF_BUTLER_DIR}/bin/butler {mergePreCmdOpts} transfer-datasets  {executionButlerDir} {butlerConfig} --collections {outCollection}"
+  command2: "${DAF_BUTLER_DIR}/bin/butler {mergePreCmdOpts} collection-chain {butlerConfig} {output} --flatten --mode=extend {inCollection}"
+  command3: "${DAF_BUTLER_DIR}/bin/butler {mergePreCmdOpts} collection-chain {butlerConfig} {output} --flatten --mode=prepend {outCollection}"
+
+pipetask:
+  pipetaskInit:
+    # Notes:  Declaring and chaining now happen within execution butler
+    # steps.  So, this command no longer needs -o and must have
+    # --extend-run.
+    runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask {initPreCmdOpts} run -b {butlerConfig} -i {inCollection} -o {output} --output-run {outCollection} --qgraph {qgraphFile} --qgraph-id {qgraphId} --qgraph-node-id {qgraphNodeId} --clobber-outputs --init-only --extend-run {extraInitOptions}"
+
+##same as other? runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask {runPreCmdOpts} run -b {butlerConfig} --output-run {outCollection} --qgraph {qgraphFile} --qgraph-id {qgraphId} --qgraph-node-id {qgraphNodeId} --clobber-outputs --skip-init-writes --extend-run {extraRunQuantumOptions}"
+##same as other? createQuantumGraph: '${CTRL_MPEXEC_DIR}/bin/pipetask {qgraphPreCmdOpts} qgraph -b {butlerConfig} -i {inCollection} -o {output} --output-run {outCollection} -p {pipelineYaml} -q {qgraphFile} -d "{dataQuery}" {extraQgraphOptions}'
+
+
