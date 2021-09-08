@@ -304,24 +304,26 @@ class HTCondorWorkflow(BaseWmsWorkflow):
         htc_workflow.dag.add_attribs({"bps_wms_service": service_class,
                                       "bps_wms_workflow": f"{cls.__module__}.{cls.__name__}"})
 
-        # Determine pool specific settings for future reference.
-        search_opts = {"default": DEFAULT_HTC_EXEC_PATT}
-        _, site = config.search("computeSite")
-        if site:
-            search_opts["curvals"] = {"curr_site": site}
-        _, patt = config.search("executeMachinesPattern", opt=search_opts)
-
         # Determine the hard limit for the memory requirement.
-        #
-        # Note:
-        # To reduce the number of data that need to be dealt with we are
-        # ignoring dynamic slots (if any) as, by definition, they cannot have
-        # more memory than the partitionable slot they are the part of.
-        constraint = f'SlotType != "Dynamic" && regexp("{patt}", Machine)'
-        pool_info = condor_status(constraint=constraint)
-        if not pool_info:
-            raise RuntimeError(f"No nodes in the HTCondor pool matches pattern '{patt}'")
-        config["bps_mem_limit"] = max(int(info["TotalSlotMemory"]) for info in pool_info.values())
+        found, limit = config.search('memoryLimit')
+        if not found:
+            search_opts = {"default": DEFAULT_HTC_EXEC_PATT}
+            _, site = config.search("computeSite")
+            if site:
+                search_opts["curvals"] = {"curr_site": site}
+            _, patt = config.search("executeMachinesPattern", opt=search_opts)
+
+            # To reduce the amount of data, ignore dynamic slots (if any) as,
+            # by definition, they cannot have more memory than
+            # the partitionable slot they are the part of.
+            constraint = f'SlotType != "Dynamic" && regexp("{patt}", Machine)'
+            pool_info = condor_status(constraint=constraint)
+            try:
+                limit = max(int(info["TotalSlotMemory"]) for info in pool_info.values())
+            except ValueError:
+                _LOG.debug("No execute machine in the pool matches %s", patt)
+        if limit:
+            config[".bps_defined.memory_limit"] = limit
 
         # Create all DAG jobs
         for job_name in generic_workflow:
@@ -480,7 +482,13 @@ def _translate_job_cmds(config, generic_workflow, gwjob):
         jobcmds["request_memory"] = f"{gwjob.request_memory}"
 
     if gwjob.memory_multiplier:
-        _, memory_limit = config.search("bps_mem_limit")
+        # Do not use try-except! At the moment, BpsConfig returns an empty
+        # string if it does not contain the key.
+        memory_limit = config[".bps_defined.memory_limit"]
+        if not memory_limit:
+            raise RuntimeError("Memory autoscaling enabled, but automatic detection of the memory limit "
+                               "failed; setting it explicitly with 'memoryLimit' or changing worker node "
+                               "search pattern 'executeMachinesPattern' might help.")
         jobcmds["request_memory"] = _create_request_memory_expr(gwjob.request_memory, gwjob.memory_multiplier)
 
         # Periodically release jobs which are being held due to exceeding
