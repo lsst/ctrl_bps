@@ -1,0 +1,1 @@
+Make pipetask responsible for initalization read only select nodes from the quantum graph.
