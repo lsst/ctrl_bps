@@ -464,7 +464,7 @@ Supported settings
 **memoryLimit**, optional
     The memory threshold, in MB, to control the memory scaling.
 
-    Jobs which memory requirements exceed this threshold will be removed from
+    Jobs whose memory requirements exceed this threshold will be removed from
     the job queue even if maximal number of retires (defined by
     ``numberOfRetries``) has not been reached yet. 
 
