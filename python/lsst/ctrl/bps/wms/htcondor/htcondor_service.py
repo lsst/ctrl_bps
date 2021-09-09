@@ -934,8 +934,8 @@ def _add_run_info(wms_path, job):
     path = Path(wms_path) / "jobs"
     try:
         subfile = next(path.glob("**/*.sub"))
-    except StopIteration:
-        job["bps_run"] = "Missing"
+    except (StopIteration, PermissionError):
+        job["bps_run"] = "Unavailable"
     else:
         _LOG.debug("_add_run_info: subfile = %s", subfile)
         try:
