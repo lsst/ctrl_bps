@@ -44,6 +44,7 @@ from .bps_utils import (
     _create_execution_butler
 )
 
+
 _LOG = logging.getLogger(__name__)
 
 
@@ -105,7 +106,7 @@ def update_job(config, job):
                 job.profile[key] = val
 
 
-def add_workflow_init_nodes(config, generic_workflow):
+def add_workflow_init_nodes(config, qgraph, generic_workflow):
     """Add nodes to workflow graph that perform initialization steps.
 
     Assumes that all of the initialization should be executed prior to any
@@ -115,12 +116,14 @@ def add_workflow_init_nodes(config, generic_workflow):
     ----------
     config : `lsst.ctrl.bps.BpsConfig`
         BPS configuration.
+    qgraph : `lsst.pipe.base.graph.QuantumGraph`
+        The quantum graph the generic workflow represents.
     generic_workflow : `lsst.ctrl.bps.GenericWorkflow`
         Generic workflow to which the initialization steps should be added.
     """
     # Create a workflow graph that will have task and file nodes necessary for
     # initializing the pipeline execution
-    init_workflow = create_init_workflow(config, generic_workflow.get_file("runQgraphFile"))
+    init_workflow = create_init_workflow(config, qgraph, generic_workflow.get_file("runQgraphFile"))
     _LOG.debug("init_workflow nodes = %s", init_workflow.nodes())
     generic_workflow.add_workflow_source(init_workflow)
     old_run_summary = generic_workflow.run_attrs.get("bps_run_summary", "")
@@ -128,13 +131,15 @@ def add_workflow_init_nodes(config, generic_workflow):
     generic_workflow.run_attrs["bps_run_summary"] = ';'.join(x for x in [init_summary, old_run_summary] if x)
 
 
-def create_init_workflow(config, qgraph_gwfile):
+def create_init_workflow(config, qgraph, qgraph_gwfile):
     """Create workflow for running initialization job(s).
 
     Parameters
     ----------
     config : `lsst.ctrl.bps.BpsConfig`
         BPS configuration.
+    qgraph : `lsst.pipe.base.graph.QuantumGraph`
+        The quantum graph the generic workflow represents.
     qgraph_gwfile : `lsst.ctrl.bps.GenericWorkflowFile`
         File object for the full run QuantumGraph file.
 
@@ -165,6 +170,16 @@ def create_init_workflow(config, qgraph_gwfile):
 
     # Handle aggregate values.
     _handle_job_values_aggregate(job_values, gwjob)
+
+    # Pick a node id for each task (not quantum!) to avoid reading the entire
+    # quantum graph during the initialization stage.
+    node_ids = []
+    for task in qgraph.iterTaskGraph():
+        task_def = qgraph.findTaskDefByLabel(task.label)
+        node = next(iter(qgraph.getNodesForTask(task_def)))
+        node_ids.append(node.nodeId)
+    gwjob.cmdvals["qgraphId"] = qgraph.graphID
+    gwjob.cmdvals["qgraphNodeId"] = ",".join(sorted([f"{node_id.number}" for node_id in node_ids]))
 
     # Save summary of Quanta in job.
     gwjob.tags["quanta_summary"] = "pipetaskInit:1"
@@ -596,7 +611,7 @@ def create_generic_workflow(config, clustered_quanta_graph, name, prefix):
 
     # Add initial workflow.
     if config.get("runInit", "{default: False}"):
-        add_workflow_init_nodes(config, generic_workflow)
+        add_workflow_init_nodes(config, qgraph, generic_workflow)
 
     generic_workflow.run_attrs.update({"bps_isjob": "True",
                                        "bps_project": config["project"],
@@ -656,7 +671,7 @@ def add_final_job(config, generic_workflow, prefix):
 
         job_values = _get_job_values(config, search_opt, None)
         for field in dataclasses.fields(GenericWorkflowJob):
-            if not getattr(gwjob, field.name) and job_values[field.name]:
+            if not getattr(gwjob, field.name) and job_values.get(field.name, None):
                 setattr(gwjob, field.name, job_values[field.name])
 
         update_job(config, gwjob)
