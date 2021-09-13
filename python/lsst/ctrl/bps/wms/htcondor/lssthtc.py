@@ -752,13 +752,27 @@ def condor_q(constraint=None, schedd=None):
     except RuntimeError as ex:
         raise RuntimeError(f"Problem querying the Schedd.  (Constraint='{constraint}')") from ex
 
-    # convert list to dictionary
-    jobads = {}
-    for jobinfo in joblist:
-        del jobinfo["Environment"]
-        del jobinfo["Env"]
+    queries = []
+    coll_query = htcondor.Collector().locateAll(htcondor.DaemonTypes.Schedd)
+    for schedd_ad in coll_query:
+        schedd_obj = htcondor.Schedd(schedd_ad)
+        queries.append(schedd_obj.xquery(requirements=constraint))
 
-        jobads[f"{jobinfo['ClusterId']}.{jobinfo['ProcId']}"] = dict(jobinfo)
+    jobads = {}
+    for query in htcondor.poll(queries):
+        schedd_name = query.tag()
+        for jobinfo in query.nextAdsNonBlocking():
+            del jobinfo["Environment"]
+            del jobinfo["Env"]
+            jobads[f"{jobinfo['ClusterId']}.{jobinfo['ProcId']}"] = dict(jobinfo)
+
+    # convert list to dictionary
+    #jobads = {}
+    #for jobinfo in joblist:
+    #    del jobinfo["Environment"]
+    #    del jobinfo["Env"]
+    #
+    #    jobads[f"{jobinfo['ClusterId']}.{jobinfo['ProcId']}"] = dict(jobinfo)
 
     return jobads
 
@@ -1091,25 +1105,41 @@ def read_dag_nodes_log(wms_path):
     info : `dict`
         HTCondor job information read from the log file mapped to HTCondor
         job id.
+
+    Raises
+    ------
+    FileNotFoundError
+        If cannot find DAGMan node log in given wms_path.
     """
-    filename = next(Path(wms_path).glob("*.dag.nodes.log"))
+    try:
+        filename = next(Path(wms_path).glob("*.dag.nodes.log"))
+    except StopIteration as exc:
+        raise FileNotFoundError(f"DAGMan node log not found in {wms_path}") from exc
     _LOG.debug("dag node log filename: %s", filename)
-    job_event_log = htcondor.JobEventLog(str(filename))
+
     info = {}
+    job_event_log = htcondor.JobEventLog(str(filename))
     for event in job_event_log.events(stop_after=0):
         id_ = f"{event['Cluster']}.{event['Proc']}"
         if id_ not in info:
             info[id_] = {}
         info[id_].update(event)
         info[id_][f"{event.type.name.lower()}_time"] = event["EventTime"]
-
-    # add more condor_q-like info to info parsed from log file
     for job in info.values():
         _tweak_log_info(filename, job)
     return info
 
 
 def _tweak_log_info(filename, job):
+    """Add more condor-q-like info to info parsed from the log file.
+
+    Parameters
+    ----------
+    filename : `pathlib.Path`
+        Name of the DAGMan log.
+    job : `dict` [ `str`, Any ]
+        A mapping between HTCondor job id and job information read from the log.
+    """
     _LOG.debug("_tweak_log_info: %s %s", filename, job)
     try:
         job["ClusterId"] = job["Cluster"]
@@ -1141,7 +1171,7 @@ def _tweak_log_info(filename, job):
 
 
 def htc_check_dagman_output(wms_path):
-    """Check the DAGman output for error messages.
+    """Check the DAGMan output for error messages.
 
     Parameter
     ----------
@@ -1151,7 +1181,7 @@ def htc_check_dagman_output(wms_path):
     Returns
     -------
     message : `str`
-        Message containing error messages from the DAGman output.  Empty
+        Message containing error messages from the DAGMan output.  Empty
         string if no messages.
     """
     message = ""

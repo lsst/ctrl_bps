@@ -119,7 +119,7 @@ class HTCondorService(BaseWmsService):
             htc_submit_dag(workflow.dag, {})
             workflow.run_id = workflow.dag.run_id
 
-    def list_submitted_jobs(self, wms_id=None, user=None, require_bps=True, pass_thru=None):
+    def list_submitted_jobs(self, wms_id=None, run=None, user=None, require_bps=True, pass_thru=None):
         """Query WMS for list of submitted WMS workflows/jobs.
 
         This should be a quick lookup function to create list of jobs for
@@ -129,6 +129,8 @@ class HTCondorService(BaseWmsService):
         ----------
         wms_id : `int` or `str`, optional
             Id or path that can be used by WMS service to look up job.
+        run : `str`, optional
+            Run name (Run collection with / replaced with _).
         user : `str`, optional
             User whose submitted jobs should be listed.
         require_bps : `bool`, optional
@@ -142,15 +144,18 @@ class HTCondorService(BaseWmsService):
             Only job ids to be used by cancel and other functions.  Typically
             this means top-level jobs (i.e., not children jobs).
         """
-        _LOG.debug("list_submitted_jobs params: wms_id=%s, user=%s, require_bps=%s, pass_thru=%s",
-                   wms_id, user, require_bps, pass_thru)
+        _LOG.debug("list_submitted_jobs params: wms_id=%s, run=%s, user=%s, require_bps=%s, pass_thru=%s",
+                   wms_id, run, user, require_bps, pass_thru)
         constraint = ""
+        schedd_name = None
 
         if wms_id is None:
-            if user is not None:
+            if run is not None:
+                constraint = f'(bps_run == "{run}")'
+            elif user is not None:
                 constraint = f'(Owner == "{user}")'
         else:
-            cluster_id = _wms_id_to_cluster(wms_id)
+            cluster_id, _ = _wms_id_to_cluster(wms_id)
             if cluster_id != 0:
                 constraint = f"(DAGManJobId == {cluster_id} || ClusterId == {cluster_id})"
 
@@ -172,13 +177,13 @@ class HTCondorService(BaseWmsService):
         job_ids = []
         for job_id, job_info in jobs.items():
             _LOG.debug("job_id=%s DAGManJobId=%s", job_id, job_info.get("DAGManJobId", "None"))
-            if "DAGManJobId" not in job_info:    # orphaned job
-                job_ids.append(job_id)
+            if "DAGManJobId" not in job_info:
+                job_ids.append(job_info.get("GlobalJobId", job_id))
             else:
                 _LOG.debug("Looking for %s", f"{job_info['DAGManJobId']}.0")
                 _LOG.debug("\tin jobs.keys() = %s", jobs.keys())
-                if f"{job_info['DAGManJobId']}.0" not in jobs:
-                    job_ids.append(job_id)
+                if f"{job_info['DAGManJobId']}.0" not in jobs:   # orphaned job
+                    job_ids.append(job_info.get("GlobalJobId", job_id))
 
         _LOG.debug("job_ids = %s", job_ids)
         return job_ids
@@ -247,13 +252,14 @@ class HTCondorService(BaseWmsService):
         """
         _LOG.debug("Canceling wms_id = %s", wms_id)
 
-        cluster_id = _wms_id_to_cluster(wms_id)
+        cluster_id, schedd_name = _wms_id_to_cluster(wms_id)
+        return False, f"Would have deleted {cluster_id} on {schedd_name}"
         if cluster_id == 0:
             deleted = False
             message = "Invalid id"
         else:
             _LOG.debug("Canceling cluster_id = %s", cluster_id)
-            schedd = htcondor.Schedd()
+            schedd = htcondor.Schedd(schedd_name)
             constraint = f"ClusterId == {cluster_id}"
             if pass_thru is not None and "-forcex" in pass_thru:
                 pass_thru_2 = pass_thru.replace("-forcex", "")
@@ -842,8 +848,8 @@ def _create_detailed_report_from_jobs(wms_workflow_id, jobs):
     ----------
     wms_workflow_id : `str`
         Run lookup restricted to given user.
-    jobs : `float`
-        How many previous days to search for run information.
+    jobs : `dict` [ `str`, `dict` [ `str`, Any ] ]
+        Mapping HTCondor job id to job information.
 
     Returns
     -------
@@ -857,6 +863,7 @@ def _create_detailed_report_from_jobs(wms_workflow_id, jobs):
         _LOG.error("Job ID %s is not a DAG job.", wms_workflow_id)
         return {}
     report = WmsRunReport(wms_id=wms_workflow_id,
+                          global_wms_id=dag_job.get("GlobalJobId", str(MISSING_ID)),
                           path=dag_job["Iwd"],
                           label=dag_job.get("bps_job_label", "MISS"),
                           run=dag_job.get("bps_run", "MISS"),
@@ -950,6 +957,7 @@ def _summary_report(user, hist, pass_thru):
         if "bps_run" not in job:
             _add_run_info(job["Iwd"], job)
         report = WmsRunReport(wms_id=str(job.get("ClusterId", MISSING_ID)),
+                              global_wms_id=job.get("GlobalJobId", str(MISSING_ID)),
                               path=job["Iwd"],
                               label=job.get("bps_job_label", "MISS"),
                               run=job.get("bps_run", "MISS"),
@@ -1278,21 +1286,33 @@ def _wms_id_to_cluster(wms_id):
     -------
     cluster_id : `int`
         HTCondor cluster id.
+    schedd_name : `str`
+        Name of scheduler.
     """
-    # If wms_id represents path, get numeric id.
-    try:
-        cluster_id = int(float(wms_id))
-    except ValueError:
-        wms_path = Path(wms_id)
-        if wms_path.exists():
-            try:
-                cluster_id, _ = read_dag_log(wms_id)
-                cluster_id = int(float(cluster_id))
-            except StopIteration:
+    cluster_id = 0
+    schedd_name = None
+
+    # check if htcondor global job id
+    #   e.g., lsst-devl01.ncsa.illinois.edu#176956.0#1617756250
+    m = re.match(r"^([^#]+)#(\d*\.?\d*)#\d+$", wms_id)
+    if m:
+        cluster_id = m.group(2)
+        schedd_name = m.group(1)
+    else:
+        # If wms_id represents path, get numeric id
+        try:
+            cluster_id = int(float(wms_id))
+        except ValueError:
+            wms_path = Path(wms_id)
+            if wms_path.exists():
+                try:
+                    cluster_id, _ = read_dag_log(wms_id)
+                    cluster_id = int(float(cluster_id))
+                except StopIteration:
+                    cluster_id = 0
+            else:
                 cluster_id = 0
-        else:
-            cluster_id = 0
-    return cluster_id
+    return cluster_id, schedd_name
 
 
 def _create_request_memory_expr(memory, multiplier):

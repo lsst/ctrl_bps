@@ -203,6 +203,7 @@ def print_single_run_summary(run_report):
     print("\n\n")
 
     # Print more run information.
+    print(f"Global WMS ID: {run_report.global_wms_id}")
     print(f"Path: {run_report.path}")
     print("\n\n")
 

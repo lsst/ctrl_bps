@@ -30,7 +30,7 @@ from lsst.utils import doImport
 _LOG = logging.getLogger(__name__)
 
 
-def cancel(wms_service, wms_id=None, user=None, require_bps=True, pass_thru=None):
+def cancel(wms_service, wms_id=None, run=None, user=None, require_bps=True, pass_thru=None):
     """Cancel submitted workflows.
 
     Parameters
@@ -39,6 +39,8 @@ def cancel(wms_service, wms_id=None, user=None, require_bps=True, pass_thru=None
         Name of the Workload Management System service class.
     wms_id : `str`, optional
         ID or path of job that should be canceled.
+    run : `str`, optional
+        Run name (Run collection with / replaced with _).
     user : `str`, optional
         User whose submitted jobs should be canceled.
     require_bps : `bool`, optional
@@ -46,8 +48,8 @@ def cancel(wms_service, wms_id=None, user=None, require_bps=True, pass_thru=None
     pass_thru : `str`, optional
         Information to pass through to WMS.
     """
-    _LOG.debug("Cancel params: wms_id=%s, user=%s, require_bps=%s, pass_thru=%s",
-               wms_id, user, require_bps, pass_thru)
+    _LOG.debug("Cancel params: wms_id=%s, run=%s, user=%s, require_bps=%s, pass_thru=%s",
+               wms_id, run, user, require_bps, pass_thru)
 
     if isinstance(wms_service, str):
         wms_service_class = doImport(wms_service)
@@ -55,7 +57,7 @@ def cancel(wms_service, wms_id=None, user=None, require_bps=True, pass_thru=None
     else:
         service = wms_service
 
-    jobs = service.list_submitted_jobs(wms_id, user, require_bps, pass_thru)
+    jobs = service.list_submitted_jobs(wms_id, run, user, require_bps, pass_thru)
     if len(jobs) == 0:
         print("0 jobs found matching arguments.")
     else:
