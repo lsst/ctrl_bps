@@ -832,7 +832,7 @@ def _get_info_from_path(wms_path):
         message = htc_check_dagman_output(wms_path)
         _LOG.debug("_get_info: id = %s, total_jobs = %s", wms_workflow_id,
                    jobs[wms_workflow_id]["total_jobs"])
-    except StopIteration:
+    except FileNotFoundError:
         message = f"Could not find HTCondor files in {wms_path}"
         _LOG.warning(message)
         wms_workflow_id = MISSING_ID
@@ -1308,7 +1308,7 @@ def _wms_id_to_cluster(wms_id):
                 try:
                     cluster_id, _ = read_dag_log(wms_id)
                     cluster_id = int(float(cluster_id))
-                except StopIteration:
+                except FileNotFoundError:
                     cluster_id = 0
             else:
                 cluster_id = 0

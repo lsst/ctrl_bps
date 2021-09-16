@@ -1057,21 +1057,26 @@ def read_dag_log(wms_path):
 
     Returns
     -------
-    info : `dict` [`str`, `Any`]
+    wms_workflow_id : `str`
+        HTCondor job id (i.e., <ClusterId>.<ProcId>) of the DAGMan job.
+    dag_info : `dict` [`str`, `Any`]
         HTCondor job information read from the log file mapped to HTCondor
         job id.
 
     Raises
     ------
-    StopIteration
-        If cannot find DAGMan log file in given wms_path.
+    FileNotFoundError
+        If cannot find DAGMan log in given wms_path.
     """
     wms_workflow_id = 0
     dag_info = {}
 
     path = Path(wms_path)
     if path.exists():
-        filename = next(path.glob("*.dag.dagman.log"))
+        try:
+            filename = next(path.glob("*.dag.dagman.log"))
+        except StopIteration as exc:
+            raise FileNotFoundError(f"DAGMan log not found in {wms_path}") from exc
         _LOG.debug("dag node log filename: %s", filename)
 
         info = {}
@@ -1183,12 +1188,20 @@ def htc_check_dagman_output(wms_path):
     message : `str`
         Message containing error messages from the DAGMan output.  Empty
         string if no messages.
-    """
-    message = ""
-    filename = next(Path(wms_path).glob("*.dag.dagman.out"))
 
+    Raises
+    ------
+    FileNotFoundError
+        If cannot find DAGMan standard output file in given wms_path.
+    """
     try:
-        _LOG.debug("dag output filename: %s", filename)
+        filename = next(Path(wms_path).glob("*.dag.dagman.out"))
+    except StopIteration as exc:
+        raise FileNotFoundError(f"DAGMan standard output file not found in {wms_path}") from exc
+    _LOG.debug("dag output filename: %s", filename)
+
+    message = ""
+    try:
         with open(filename, "r") as fh:
             last_submit_failed = ""
             for line in fh:
