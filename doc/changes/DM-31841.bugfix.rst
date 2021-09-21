@@ -1,0 +1,1 @@
+Fix issue with job attributes not being set.

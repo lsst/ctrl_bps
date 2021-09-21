@@ -206,8 +206,8 @@ class GenericWorkflowJob:
     """
 
     queue: Optional[str]
-    """Name of queue to use.  Different WMS can translate
-    this concept differently.
+    """Name of queue to use. Different WMS can translate this concept
+    differently.
     """
 
     pre_cmdline: Optional[str]
