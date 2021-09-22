@@ -10,5 +10,4 @@ payload:
   payloadName: pipelines_check
   butlerConfig: ${PIPELINES_CHECK_DIR}/DATA_REPO/butler.yaml
   inCollection: HSC/calib,HSC/raw/all,refcats
-  #output: "u/{operator}/{payload_name}"
   dataQuery: exposure=903342 AND detector=10
