@@ -511,7 +511,7 @@ Supported settings
          runInit: true
 
        pipetask:
-         pipetask_init:
+         pipetaskInit:
            runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask --long-log run -b {butlerConfig} -i {inCollection} --output {output} --output-run {outCollection} --init-only --register-dataset-types --qgraph {qgraphFile} --clobber-outputs"
            requestMemory: 2048
 
@@ -671,7 +671,7 @@ New Yaml Section
        createCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask qgraph -b {butlerConfig} --input {inCollection} --output-run {outCollection} --save-execution-butler {executionButlerDir} -g {qgraphFile}"
        whenMerge: "ALWAYS"
        implementation: JOB  # JOB, WORKFLOW
-       concurrency_limit: db_limit
+       concurrencyLimit: db_limit
        command1: "${DAF_BUTLER_DIR}/bin/butler --log-level=VERBOSE transfer-datasets  {executionButlerDir} {butlerConfig} --collections {outCollection}"
        command2: "${DAF_BUTLER_DIR}/bin/butler collection-chain {butlerConfig} {output} {outCollection} --mode=prepend"
 

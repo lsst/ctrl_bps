@@ -8,7 +8,7 @@ executionButler:
   createCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask qgraph -b {butlerConfig} -i {inCollection} -o {output} --output-run {outCollection} --save-execution-butler {executionButlerDir} -g {qgraphFile} --skip-existing-in {outCollection}"
   whenMerge: "ALWAYS"
   implementation: JOB  # Added for future flexibility, e.g., if prefer workflow instead of shell script.
-  concurrency_limit: db_limit
+  concurrencyLimit: db_limit
 
   mergePreCmdOpts: "{defaultPreCmdOpts}"
   command1: "${DAF_BUTLER_DIR}/bin/butler {mergePreCmdOpts} transfer-datasets  {executionButlerDir} {butlerConfig} --collections {outCollection}"
