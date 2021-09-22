@@ -70,7 +70,7 @@ _ATTRS_MISC = {
     "cmdvals",
     "environment",
     "pre_cmdline",
-    "post_cmdline"
+    "post_cmdline",
     "profile",
     "attrs",
 }

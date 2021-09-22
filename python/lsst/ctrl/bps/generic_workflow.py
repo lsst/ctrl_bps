@@ -220,6 +220,10 @@ class GenericWorkflowJob:
     Should be executed regardless of exit status.
     """
 
+    preemptible: Optional[bool]
+    """The flag indicated whether the job can be preempted.
+    """
+
     profile: Optional[dict]
     """Nested dictionary of WMS-specific key/value pairs with primary key being
     WMS key (e.g., pegasus, condor, panda).
@@ -261,6 +265,7 @@ class GenericWorkflowJob:
         self.queue = None
         self.pre_cmdline = None
         self.post_cmdline = None
+        self.preemptible = None
         self.profile = {}
         self.attrs = {}
         self.environment = {}
@@ -270,7 +275,7 @@ class GenericWorkflowJob:
                  "memory_multiplier", "request_memory", "request_cpus", "request_disk", "request_walltime",
                  "number_of_retries", "retry_unless_exit", "abort_on_value", "abort_return_value",
                  "compute_site", "environment", "priority", "category", "concurrency_limit",
-                 "queue", "pre_cmdline", "post_cmdline", "profile", "attrs")
+                 "queue", "pre_cmdline", "post_cmdline", "preemptible", "profile", "attrs")
 
     def __hash__(self):
         return hash(self.name)

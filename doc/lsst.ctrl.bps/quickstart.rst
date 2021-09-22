@@ -485,6 +485,11 @@ Supported settings
     Number of cpus that a single Quantum execution of a particular pipetask
     will need (e.g., 1).
 
+**preemptible**, optional
+    A flag indicating whether a job can be safely preempted.  Defaults to True
+    which means that unless indicated otherwise any job in the workflow can be
+    safely preempted.
+
 **uniqProcName**
     Used when giving names to graphs, default names to output files, etc.  If
     not specified by user, BPS tries to use ``outCollection`` with '/' replaced
