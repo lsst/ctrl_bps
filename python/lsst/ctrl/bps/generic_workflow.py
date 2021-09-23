@@ -221,7 +221,7 @@ class GenericWorkflowJob:
     """
 
     preemptible: Optional[bool]
-    """The flag indicated whether the job can be preempted.
+    """The flag indicating whether the job can be preempted.
     """
 
     profile: Optional[dict]

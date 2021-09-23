@@ -453,15 +453,14 @@ def _handle_job_values(attributes, quantum_job_values, gwjob):
 
     Parameters
     ----------
-    attributes: `dict` [ `str`, `dict` [ `str`, Any ] ]
+    attributes: `dict` [`str`, Iterable [`str`]]
         Job attributes grouped by category.  Supported categories are:
-        * ``universal``: job attributes that need to be the same
-          in the cluster,
+        * ``universal``: job attributes that need to be the same in the cluster,
         * ``max``: job attributes that need to be set to their maximal values
           in the cluster,
         * ``sum``: job attributes that need to be sum of their values
           in the cluster.
-    quantum_job_values : `dict` [ `str`, Any ]
+    quantum_job_values : `dict` [`str`, Any]
         Job values for running single Quantum.
     gwjob : `lsst.ctrl.bps.GenericWorkflowJob`
         Generic workflow job in which to store the universal values.
@@ -482,10 +481,10 @@ def _handle_job_values_universal(attributes, quantum_job_values, gwjob):
 
     Parameters
     ----------
-    attributes : Iterable [ `str` ]
+    attributes : Iterable [`str`]
         A list of field names which must have a single value for the entire
         cluster.
-    quantum_job_values : `dict` [ `str`, Any ]
+    quantum_job_values : `dict` [`str`, Any]
         Job values for running single Quantum.
     gwjob : `lsst.ctrl.bps.GenericWorkflowJob`
         Generic workflow job in which to store the universal values.
@@ -514,7 +513,7 @@ def _handle_job_values_max(attributes, quantum_job_values, gwjob):
 
     Parameters
     ----------
-    attributes : Iterable [ `str` ]
+    attributes : Iterable [`str`]
         The names of job attributes which needs to be set to their maximum
         value in the entire cluster.
     quantum_job_values : `dict` [`str`, `Any`]
@@ -559,8 +558,8 @@ def _handle_job_values_sum(attributes, quantum_job_values, gwjob):
 
     Parameters
     ----------
-    attributes : Iterable [ `str` ]
-        The names of job attributes which needs to be a sums of the respective
+    attributes : Iterable [`str`]
+        The names of job attributes which need to be a sum of the respective
         attributes in the entire cluster.
     quantum_job_values : `dict` [`str`, `Any`]
         Job values for running single Quantum.
