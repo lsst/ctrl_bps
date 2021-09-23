@@ -451,7 +451,7 @@ Supported settings
     retried with a new memory limit equal to the product of the
     ``memoryMultiplier`` and the memory usage from the previous attempt.
 
-    The process will continue until number of retires reaches its limit
+    The process will continue until number of retries reaches its limit
     determined by ``numberOfRetries`` (5 by default) *or* the resultant memory
     limit exceeds the memory available on a given computational resource (e.g.
     a HTCondor pool).
@@ -465,7 +465,7 @@ Supported settings
     The memory threshold, in MB, to control the memory scaling.
 
     Jobs whose memory requirements exceed this threshold will be removed from
-    the job queue even if maximal number of retires (defined by
+    the job queue even if maximal number of retries (defined by
     ``numberOfRetries``) has not been reached yet. 
 
     If not set, BPS will try to determine it automatically by querying
@@ -486,7 +486,7 @@ Supported settings
     will need (e.g., 1).
 
 **preemptible**, optional
-    A flag indicating whether a job can be safely preempted.  Defaults to True
+    A flag indicating whether a job can be safely preempted.  Defaults to true
     which means that unless indicated otherwise any job in the workflow can be
     safely preempted.
 

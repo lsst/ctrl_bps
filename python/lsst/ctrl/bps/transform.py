@@ -455,7 +455,8 @@ def _handle_job_values(attributes, quantum_job_values, gwjob):
     ----------
     attributes: `dict` [`str`, Iterable [`str`]]
         Job attributes grouped by category.  Supported categories are:
-        * ``universal``: job attributes that need to be the same in the cluster,
+        * ``universal``: job attributes that need to be the same
+          in the cluster,
         * ``max``: job attributes that need to be set to their maximal values
           in the cluster,
         * ``sum``: job attributes that need to be sum of their values
