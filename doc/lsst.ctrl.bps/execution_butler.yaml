@@ -19,4 +19,5 @@ pipetask:
   pipetaskInit:
     # Notes:  Declaring and chaining now happen within execution butler steps.
     # This command no longer needs -o and must have # --extend-run.
+    # If you update this command, update the one in the PanDA-plugin too
     runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask {initPreCmdOpts} run -b {butlerConfig} -i {inCollection} -o {output} --output-run {outCollection} --qgraph {qgraphFile} --qgraph-id {qgraphId} --qgraph-node-id {qgraphNodeId} --clobber-outputs --init-only --extend-run {extraInitOptions}"

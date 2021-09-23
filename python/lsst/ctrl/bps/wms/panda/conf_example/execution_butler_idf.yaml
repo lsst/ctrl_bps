@@ -1,0 +1,23 @@
+includeConfigs:
+- ${CTRL_BPS_DIR}/doc/lsst.ctrl.bps/execution_butler.yaml
+
+#PANDA plugin specific settings:
+idds_server: "https://aipanda015.cern.ch:443/idds"
+placeholderParams: ['qgraphNodeId', 'qgraphId']
+
+#IDF PanDA specific settings:
+computing_cloud: LSST
+
+#SLAC PanDA specific settings:
+#computing_cloud: US
+#computeSite: DOMA_LSST_SLAC_TEST
+
+pipetask:
+  pipetaskInit:
+    # This is differnt from the default only in --qgraph {fileDistributionEndPoint}/{qgraphFile}
+    runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask {initPreCmdOpts} run -b {butlerConfig} -i {inCollection} -o {output} --output-run {outCollection} --qgraph {fileDistributionEndPoint}/{qgraphFile} --qgraph-id {qgraphId} --qgraph-node-id {qgraphNodeId} --clobber-outputs --init-only --extend-run {extraInitOptions}"
+
+
+runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask {runPreCmdOpts} run -b {butlerConfig} -i {inCollection} -o {output} --output-run {outCollection} --qgraph {fileDistributionEndPoint}/{qgraphFile} --qgraph-id {qgraphId} --qgraph-node-id {qgraphNodeId} --clobber-outputs --skip-init-writes --extend-run {extraRunQuantumOptions}"
+
+wmsServiceClass: lsst.ctrl.bps.wms.panda.panda_service.PanDAService
