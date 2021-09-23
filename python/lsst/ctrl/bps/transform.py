@@ -44,6 +44,39 @@ from .bps_utils import (
     _create_execution_butler
 )
 
+# All available job attributes.
+_ATTRS_ALL = set([field.name for field in dataclasses.fields(GenericWorkflowJob)])
+
+# Job attributes that need to be set to their maximal value in the cluster.
+_ATTRS_MAX = {
+    "memory_multiplier",
+    "number_of_retries",
+    "request_cpus",
+    "request_memory",
+}
+
+# Job attributes that need to be set to sum of their values in the cluster.
+_ATTRS_SUM = {
+    "request_disk",
+    "request_walltime",
+}
+
+# Job attributes do not fall into a specific category
+_ATTRS_MISC = {
+    "name",
+    "label",
+    "tags",
+    "cmdline",
+    "cmdvals",
+    "environment",
+    "pre_cmdline",
+    "post_cmdline",
+    "profile",
+    "attrs",
+}
+
+# Attributes that need to be the same for each quanta in the cluster.
+_ATTRS_UNIVERSAL = _ATTRS_ALL - (_ATTRS_MAX | _ATTRS_MISC | _ATTRS_SUM)
 
 _LOG = logging.getLogger(__name__)
 
@@ -165,11 +198,9 @@ def create_init_workflow(config, qgraph, qgraph_gwfile):
 
     job_values = _get_job_values(config, search_opt, "runQuantumCommand")
 
-    # Handle universal values.
-    _handle_job_values_universal(job_values, gwjob)
-
-    # Handle aggregate values.
-    _handle_job_values_aggregate(job_values, gwjob)
+    # Adjust job attributes values if necessary.
+    attrs = {"universal": _ATTRS_UNIVERSAL, "max": _ATTRS_MAX, "sum": _ATTRS_SUM}
+    _handle_job_values(attrs, job_values, gwjob)
 
     # Pick a node id for each task (not quantum!) to avoid reading the entire
     # quantum graph during the initialization stage.
@@ -409,101 +440,139 @@ def _get_job_values(config, search_opt, cmd_line_key):
         # Make sure cmdline isn't None as that could be sent in as a
         # default value in search_opt.
         if found and cmdline:
-            cmd_parts = cmdline.split(" ", 1)
-            job_values["executable"] = cmd_parts[0]
-            if len(cmd_parts) > 1:
-                job_values["arguments"] = cmd_parts[1]
+            cmd, args = cmdline.split(" ", 1)
+            job_values["executable"] = GenericWorkflowExec(os.path.basename(cmd), cmd, False)
+            if args:
+                job_values["arguments"] = args
 
     return job_values
 
 
-def _handle_job_values_universal(quantum_job_values, gwjob):
-    """Handle job values that must be same value for every PipelineTask in
-    cluster.
+def _handle_job_values(attributes, quantum_job_values, gwjob):
+    """Set the job attributes in the cluster to their correct values.
 
     Parameters
     ----------
-    quantum_job_values : `dict` [`str`, `Any`]
+    attributes: `dict` [`str`, Iterable [`str`]]
+        Job attributes grouped by category.  Supported categories are:
+        * ``universal``: job attributes that need to be the same
+          in the cluster,
+        * ``max``: job attributes that need to be set to their maximal values
+          in the cluster,
+        * ``sum``: job attributes that need to be sum of their values
+          in the cluster.
+    quantum_job_values : `dict` [`str`, Any]
         Job values for running single Quantum.
     gwjob : `lsst.ctrl.bps.GenericWorkflowJob`
         Generic workflow job in which to store the universal values.
     """
-    universal_values = ["arguments", "compute_site"]
-    for key in universal_values:
-        current_value = getattr(gwjob, key)
-        if not current_value:
-            setattr(gwjob, key, quantum_job_values[key])
-        elif current_value != quantum_job_values[key]:
-            _LOG.error("Inconsistent value for %s in "
-                       "Cluster %s Quantum Number %s\n"
-                       "Current cluster value: %s\n"
-                       "Quantum value: %s",
-                       key, gwjob.name, quantum_job_values.get("qgraphNodeId", "MISSING"), current_value,
-                       quantum_job_values[key])
-            raise RuntimeError(f"Inconsistent value for {key} in cluster {gwjob.name}.")
-
-    # Handle cmdline special
-    if not gwjob.executable:
-        gwjob.executable = GenericWorkflowExec(os.path.basename(quantum_job_values['executable']),
-                                               quantum_job_values['executable'], False)
-    elif quantum_job_values['executable'] != gwjob.executable.src_uri:
-        _LOG.error("Inconsistent value for %s in "
-                   "Cluster %s Quantum Number %s\n"
-                   "Current cluster value: %s\n"
-                   "Quantum value: %s",
-                   key, gwjob.name, quantum_job_values.get("executable", "MISSING"), gwjob.executable.src_uri,
-                   quantum_job_values[key])
-        raise RuntimeError(f"Inconsistent value for {key} in cluster {gwjob.name}.")
+    dispatcher = {
+        'universal': _handle_job_values_universal,
+        'max': _handle_job_values_max,
+        'sum': _handle_job_values_sum,
+    }
+    for type_, func in dispatcher.items():
+        attrs = attributes[type_]
+        func(attrs, quantum_job_values, gwjob)
 
 
-def _handle_job_values_aggregate(quantum_job_values, gwjob):
-    """Handle job values that are aggregate of values from PipelineTasks
-    in QuantumGraph.
+def _handle_job_values_universal(attributes, quantum_job_values, gwjob):
+    """Handle job attributes that must have the same value for every quantum
+    in the cluster.
 
     Parameters
     ----------
+    attributes : Iterable [`str`]
+        A list of field names which must have a single value for the entire
+        cluster.
+    quantum_job_values : `dict` [`str`, Any]
+        Job values for running single Quantum.
+    gwjob : `lsst.ctrl.bps.GenericWorkflowJob`
+        Generic workflow job in which to store the universal values.
+    """
+    for attr in attributes:
+        current_value = getattr(gwjob, attr)
+        try:
+            quantum_value = quantum_job_values[attr]
+        except KeyError:
+            continue
+        else:
+            if not current_value:
+                setattr(gwjob, attr, quantum_value)
+            elif current_value != quantum_value:
+                _LOG.error("Inconsistent value for %s in Cluster %s Quantum Number %s\n"
+                           "Current cluster value: %s\n"
+                           "Quantum value: %s",
+                           attr, gwjob.name, quantum_job_values.get("qgraphNodeId", "MISSING"), current_value,
+                           quantum_value)
+                raise RuntimeError(f"Inconsistent value for {attr} in cluster {gwjob.name}.")
+
+
+def _handle_job_values_max(attributes, quantum_job_values, gwjob):
+    """Handle job attributes that should be set to their maximum value in
+    the in cluster.
+
+    Parameters
+    ----------
+    attributes : Iterable [`str`]
+        The names of job attributes which needs to be set to their maximum
+        value in the entire cluster.
     quantum_job_values : `dict` [`str`, `Any`]
         Job values for running single Quantum.
     gwjob : `lsst.ctrl.bps.GenericWorkflowJob`
         Generic workflow job in which to store the aggregate values.
     """
-    values_max = ["memory_multiplier", "number_of_retries", "request_cpus", "request_memory"]
-    values_sum = ["request_disk", "request_walltime"]
-
-    for key in values_max:
-        current_value = getattr(gwjob, key)
-        quantum_value = quantum_job_values[key]
-
-        needs_update = False
-        if current_value is None:
-            if quantum_value is not None:
-                needs_update = True
+    for attr in attributes:
+        current_value = getattr(gwjob, attr)
+        try:
+            quantum_value = quantum_job_values[attr]
+        except KeyError:
+            continue
         else:
-            if quantum_value is not None and current_value < quantum_value:
-                needs_update = True
-        if needs_update:
-            setattr(gwjob, key, quantum_value)
+            needs_update = False
+            if current_value is None:
+                if quantum_value is not None:
+                    needs_update = True
+            else:
+                if quantum_value is not None and current_value < quantum_value:
+                    needs_update = True
+            if needs_update:
+                setattr(gwjob, attr, quantum_value)
 
-            # When updating memory requirements for a job, check if memory
-            # autoscaling is enabled. If it is, always use the memory
-            # multiplier and the number of retries which comes with the
-            # quantum.
-            #
-            # Note that as a result, the quantum with the biggest memory
-            # requirements will determine whether the memory autoscaling
-            # will be enabled (or disabled) depending on the value of its
-            # memory multiplier.
-            if key == "request_memory":
-                gwjob.memory_multiplier = quantum_job_values["memory_multiplier"]
-                if gwjob.memory_multiplier is not None:
-                    gwjob.number_of_retries = quantum_job_values["number_of_retries"]
+                # When updating memory requirements for a job, check if memory
+                # autoscaling is enabled. If it is, always use the memory
+                # multiplier and the number of retries which comes with the
+                # quantum.
+                #
+                # Note that as a result, the quantum with the biggest memory
+                # requirements will determine whether the memory autoscaling
+                # will be enabled (or disabled) depending on the value of its
+                # memory multiplier.
+                if attr == "request_memory":
+                    gwjob.memory_multiplier = quantum_job_values["memory_multiplier"]
+                    if gwjob.memory_multiplier is not None:
+                        gwjob.number_of_retries = quantum_job_values["number_of_retries"]
 
-    for key in values_sum:
-        current_value = getattr(gwjob, key)
+
+def _handle_job_values_sum(attributes, quantum_job_values, gwjob):
+    """Handle job attributes that are the sum of their values in the cluster.
+
+    Parameters
+    ----------
+    attributes : Iterable [`str`]
+        The names of job attributes which need to be a sum of the respective
+        attributes in the entire cluster.
+    quantum_job_values : `dict` [`str`, `Any`]
+        Job values for running single Quantum.
+    gwjob : `lsst.ctrl.bps.GenericWorkflowJob`
+        Generic workflow job in which to store the aggregate values.
+    """
+    for attr in attributes:
+        current_value = getattr(gwjob, attr)
         if not current_value:
-            setattr(gwjob, key, quantum_job_values[key])
+            setattr(gwjob, attr, quantum_job_values[attr])
         else:
-            setattr(gwjob, key, current_value + quantum_job_values[key])
+            setattr(gwjob, attr, current_value + quantum_job_values[attr])
 
 
 def create_generic_workflow(config, clustered_quanta_graph, name, prefix):
@@ -553,6 +622,7 @@ def create_generic_workflow(config, clustered_quanta_graph, name, prefix):
             gwjob.tags = data["tags"]
         if "label" in data:
             gwjob.label = data["label"]
+
         # Getting labels in pipeline order.
         label_counts = dict.fromkeys(task_labels, 0)
 
@@ -566,14 +636,10 @@ def create_generic_workflow(config, clustered_quanta_graph, name, prefix):
                           "expandEnvVars": False,
                           "replaceEnvVars": True,
                           "required": False}
-
             quantum_job_values = _get_job_values(config, search_opt, "runQuantumCommand")
 
-            # Handle universal values.
-            _handle_job_values_universal(quantum_job_values, gwjob)
-
-            # Handle aggregate values.
-            _handle_job_values_aggregate(quantum_job_values, gwjob)
+            attrs = {"universal": _ATTRS_UNIVERSAL, "max": _ATTRS_MAX, "sum": _ATTRS_SUM}
+            _handle_job_values(attrs, quantum_job_values, gwjob)
 
         # Save summary of Quanta in job.
         gwjob.tags["quanta_summary"] = ";".join([f"{k}:{v}" for k, v in label_counts.items() if v])

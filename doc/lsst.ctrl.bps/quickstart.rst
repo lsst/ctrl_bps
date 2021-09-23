@@ -451,7 +451,7 @@ Supported settings
     retried with a new memory limit equal to the product of the
     ``memoryMultiplier`` and the memory usage from the previous attempt.
 
-    The process will continue until number of retires reaches its limit
+    The process will continue until number of retries reaches its limit
     determined by ``numberOfRetries`` (5 by default) *or* the resultant memory
     limit exceeds the memory available on a given computational resource (e.g.
     a HTCondor pool).
@@ -465,7 +465,7 @@ Supported settings
     The memory threshold, in MB, to control the memory scaling.
 
     Jobs whose memory requirements exceed this threshold will be removed from
-    the job queue even if maximal number of retires (defined by
+    the job queue even if maximal number of retries (defined by
     ``numberOfRetries``) has not been reached yet. 
 
     If not set, BPS will try to determine it automatically by querying
@@ -484,6 +484,11 @@ Supported settings
 **requestCpus**, optional
     Number of cpus that a single Quantum execution of a particular pipetask
     will need (e.g., 1).
+
+**preemptible**, optional
+    A flag indicating whether a job can be safely preempted.  Defaults to true
+    which means that unless indicated otherwise any job in the workflow can be
+    safely preempted.
 
 **uniqProcName**
     Used when giving names to graphs, default names to output files, etc.  If
@@ -511,7 +516,7 @@ Supported settings
          runInit: true
 
        pipetask:
-         pipetask_init:
+         pipetaskInit:
            runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask --long-log run -b {butlerConfig} -i {inCollection} --output {output} --output-run {outCollection} --init-only --register-dataset-types --qgraph {qgraphFile} --clobber-outputs"
            requestMemory: 2048
 
@@ -671,7 +676,7 @@ New Yaml Section
        createCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask qgraph -b {butlerConfig} --input {inCollection} --output-run {outCollection} --save-execution-butler {executionButlerDir} -g {qgraphFile}"
        whenMerge: "ALWAYS"
        implementation: JOB  # JOB, WORKFLOW
-       concurrency_limit: db_limit
+       concurrencyLimit: db_limit
        command1: "${DAF_BUTLER_DIR}/bin/butler --log-level=VERBOSE transfer-datasets  {executionButlerDir} {butlerConfig} --collections {outCollection}"
        command2: "${DAF_BUTLER_DIR}/bin/butler collection-chain {butlerConfig} {output} {outCollection} --mode=prepend"
 

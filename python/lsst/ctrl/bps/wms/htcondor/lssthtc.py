@@ -797,7 +797,7 @@ def condor_status(constraint=None, coll=None):
 
     Returns
     -------
-    pool_info : `dict` [ `str`, `dict`[ `str, Any ] ]
+    pool_info : `dict` [`str`, `dict` [ `str, Any ]]
         Mapping between HTCondor slot names and slot information (classAds).
     """
     if coll is None:

@@ -51,6 +51,7 @@ pipetask:
 whenSaveJobQgraph: "NEVER"
 createQuantumGraph: '${CTRL_MPEXEC_DIR}/bin/pipetask {qgraphPreCmdOpts} qgraph -b {butlerConfig} -i {inCollection} -o {output} --output-run {outCollection} -p {pipelineYaml} -q {qgraphFile} -d "{dataQuery}" {extraQgraphOptions}'
 runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask {runPreCmdOpts} run -b {butlerConfig} -i {inCollection} -o {output} --output-run {outCollection} --qgraph {qgraphFile} --qgraph-id {qgraphId} --qgraph-node-id {qgraphNodeId} --clobber-outputs --skip-init-writes --extend-run {extraRunQuantumOptions}"
+preemptible: True
 requestMemory: 2048
 requestCpus: 1
 
