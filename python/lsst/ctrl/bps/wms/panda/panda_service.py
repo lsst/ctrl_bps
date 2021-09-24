@@ -92,10 +92,8 @@ class PanDAService(BaseWmsService):
         ----------
         cmd_line : `str`
             UTF-8 based functional part of the command line
-
         distribution_path : `str`
             URI of path where all files are located for distribution
-
         files `list` [`str`]
             File names needed for a task
 

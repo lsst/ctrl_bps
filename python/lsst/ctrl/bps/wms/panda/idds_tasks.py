@@ -100,7 +100,6 @@ class IDDSWorkflowGenerator:
         self.tasks_steps = {}
         self.tasks_cmd_lines = {}
         self.dag_end_tasks = set()
-        self.computing_cloud = config.get("computing_cloud")
         _, v = config.search("maxwalltime", opt={"default": 90000})
         self.maxwalltime = v
         _, v = config.search("maxattempt", opt={"default": 5})
@@ -160,12 +159,12 @@ class IDDSWorkflowGenerator:
                 == self.tasks_steps[task_name],
                 self.bps_workflow))
             bps_node = self.bps_workflow.get_job(picked_job_name)
-            task.queue = bps_node.compute_site
+            task.queue = bps_node.queue
+            task.cloud = bps_node.compute_site
             task.jobs_pseudo_inputs = list(jobs)
             task.maxattempt = self.maxattempt
             task.maxwalltime = self.maxwalltime
             task.maxrss = bps_node.request_memory
-            task.cloud = self.computing_cloud
             task.executable = self.tasks_cmd_lines[task_name]
             task.files_used_by_task = self.fill_input_files(task_name)
             task.is_final = False
@@ -197,7 +196,8 @@ class IDDSWorkflowGenerator:
 
             task.step = final_job.label
             task.name = self.define_task_name(final_job.label)
-            task.queue = final_job.compute_site
+            task.queue = final_job.queue
+            task.cloud = final_job.compute_site
             task.jobs_pseudo_inputs = []
 
             # This string implements empty pattern for dependencies
@@ -207,7 +207,6 @@ class IDDSWorkflowGenerator:
             task.maxattempt = self.maxattempt
             task.maxwalltime = self.maxwalltime
             task.maxrss = final_job.request_memory
-            task.cloud = self.computing_cloud
             task.files_used_by_task = [bash_file]
             task.is_final = True
             task.is_dag_end = False
