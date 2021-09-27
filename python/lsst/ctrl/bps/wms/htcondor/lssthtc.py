@@ -612,6 +612,10 @@ class HTCDag(networkx.DiGraph):
             Names of child jobs
         """
         assert isinstance(job, HTCJob)
+
+        # Add dag level attributes to each job
+        job.add_job_attrs(self.graph["attr"])
+
         self.add_node(job.name, data=job)
 
         if parent_names is not None:

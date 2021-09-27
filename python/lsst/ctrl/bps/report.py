@@ -212,10 +212,6 @@ def print_single_run_summary(run_report):
     label_order = []
     by_label_expected = {}
     if run_report.run_summary:
-        # Workaround until get pipetaskInit job into run_summary
-        if not run_report.run_summary.startswith("pipetaskInit"):
-            label_order.append("pipetaskInit")
-            by_label_expected["pipetaskInit"] = 1
         for part in run_report.run_summary.split(";"):
             label, count = part.split(":")
             label_order.append(label)
