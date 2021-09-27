@@ -573,7 +573,7 @@ class HTCDag(networkx.DiGraph):
     def __init__(self, data=None, name=""):
         super().__init__(data=data, name=name)
 
-        self.graph["attr"] = dict()
+        self.graph["attr"] = {}
         self.graph["run_id"] = None
         self.graph["submit_path"] = None
         self.graph["final_job"] = None

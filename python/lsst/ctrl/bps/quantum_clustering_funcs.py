@@ -25,8 +25,8 @@ import re
 import logging
 from collections import defaultdict
 
-from . import QuantaCluster, ClusteredQuantumGraph
 from lsst.pipe.base import NodeId
+from . import QuantaCluster, ClusteredQuantumGraph
 
 
 _LOG = logging.getLogger(__name__)
@@ -121,7 +121,7 @@ def dimension_clustering(config, qgraph, name):
 
         if "clusterTemplate" in cluster_config[cluster_label]:
             template = cluster_config[cluster_label]["clusterTemplate"]
-        elif len(cluster_dims):
+        elif cluster_dims:
             template = f"{cluster_label}_" + "_".join(f"{{{dim}}}" for dim in cluster_dims)
         else:
             template = cluster_label
@@ -130,7 +130,7 @@ def dimension_clustering(config, qgraph, name):
         cluster_tasks = [pt.strip() for pt in cluster_config[cluster_label]["pipetasks"].split(",")]
         for task_label in cluster_tasks:
             if task_label in task_labels_seen:
-                raise ValueError(f"Task label {task_label} appears in more than one cluster definition."
+                raise ValueError(f"Task label {task_label} appears in more than one cluster definition.  "
                                  "Aborting submission.")
             task_labels_seen.add(task_label)
 
@@ -188,7 +188,6 @@ def dimension_clustering(config, qgraph, name):
     for task_def in qgraph.iterTaskGraph():
         if task_def.label not in task_labels_seen:
             _LOG.info("Creating 1-quantum clusters for task %s", task_def.label)
-            task_labels_seen.add(task_label)
             found, template = config.search("templateDataId",
                                             opt={"curvals": {"curr_pipetask": task_def.label},
                                                  "replaceVars": False})
@@ -216,8 +215,8 @@ def dimension_clustering(config, qgraph, name):
                 nid = NodeId(e.args[0], qgraph.graphID)
                 qnode = qgraph.getQuantumNodeByNodeId(nid)
 
-                print("Quanta missing when clustering: %s, %s" % (qnode.taskDef.label,
-                                                                  qnode.quantum.dataId.byName()))
+                print(f"Quanta missing when clustering: {qnode.taskDef.label}, "
+                      f"{qnode.quantum.dataId.byName()}")
                 raise
 
     return cqgraph

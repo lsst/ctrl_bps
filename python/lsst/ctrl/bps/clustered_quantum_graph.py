@@ -30,8 +30,8 @@ import logging
 import re
 import pickle
 from collections import Counter, defaultdict
-from networkx import DiGraph
 from pathlib import Path
+from networkx import DiGraph
 
 from lsst.daf.butler import DimensionUniverse
 from lsst.daf.butler.core.utils import iterable
@@ -43,19 +43,15 @@ _LOG = logging.getLogger(__name__)
 
 
 class QuantaCluster:
-    """
+    """Information about the cluster and Quanta belonging to it.
+
+    Parameters
+    ----------
     name: `str`
         Lookup key (logical file name) of file/directory. Must
         be unique within ClusteredQuantumGraph.
-
     label: `str`
         Value used to group clusters.
-
-    _qgraph_node_ids: `list` [`lsst.pipe.base.NodeId`]
-        List of Quantum node ids in cluster.
-
-    _task_label_counts: `collections.Counter`
-
     tags : `dict` [`str`, `Any`], optional
         Arbitrary key/value pairs for the cluster.
 
@@ -73,7 +69,7 @@ class QuantaCluster:
         self._task_label_counts = Counter()
         self.tags = tags
         if self.tags is None:
-            self.tags = dict()
+            self.tags = {}
 
     @classmethod
     def from_quantum_node(cls, quantum_node, template):
@@ -142,15 +138,12 @@ class QuantaCluster:
 
         Parameters
         ----------
-        node_id : `lsst.pipe.base.NodeId` or int
+        node_id : `lsst.pipe.base.NodeId`
             ID for quantumNode to be added to cluster.
         task_label : `str`
             Task label for quantumNode to be added to cluster.
         """
-        nid = node_id
-        if isinstance(node_id, int):
-            nid = NodeId(nid, self._quantum_graph.graphID)
-        self._qgraph_node_ids.append(nid)
+        self._qgraph_node_ids.append(node_id)
         self._task_label_counts[task_label] += 1
 
     def __str__(self):
@@ -163,16 +156,17 @@ class QuantaCluster:
         # to be unique.
         if isinstance(other, str):
             return self.name == other
-        elif isinstance(other, QuantaCluster):
+
+        if isinstance(other, QuantaCluster):
             return self.name == other.name
-        else:
-            return False
+
+        return False
 
     def __hash__(self) -> int:
         return hash(self.name)
 
 
-class ClusteredQuantumGraph():
+class ClusteredQuantumGraph:
     """Graph where the data for a node is a subgraph of the full
     QuantumGraph represented by a list of node ids.
 
@@ -235,7 +229,7 @@ class ClusteredQuantumGraph():
 
         Parameters
         ----------
-        cluster: `QuantaCluster` or `Iterable` [ `QuantaCluster` ]
+        clusters_for_adding: `QuantaCluster` or `Iterable` [`QuantaCluster`]
             The cluster to be added to the ClusteredQuantumGraph.
         """
         for cluster in iterable(clusters_for_adding):
@@ -273,12 +267,12 @@ class ClusteredQuantumGraph():
         attr = self._cluster_graph.nodes[name]
         return attr['cluster']
 
-    def get_quantum_node(self, id):
+    def get_quantum_node(self, id_):
         """Retrieve a QuantumNode from the ClusteredQuantumGraph by ID.
 
         Parameters
         ----------
-        id : `lsst.pipe.base.NodeId` or int
+        id_ : `lsst.pipe.base.NodeId` or int
             ID of the QuantumNode to retrieve.
 
         Returns
@@ -292,8 +286,8 @@ class ClusteredQuantumGraph():
             Raised if the ClusteredQuantumGraph does not contain
             a QuantumNode with given ID.
         """
-        node_id = id
-        if isinstance(id, int):
+        node_id = id_
+        if isinstance(id_, int):
             node_id = NodeId(id, self._quantum_graph.graphID)
         _LOG.debug("get_quantum_node: node_id = %s", node_id)
         return self._quantum_graph.getQuantumNodeByNodeId(node_id)
@@ -329,7 +323,7 @@ class ClusteredQuantumGraph():
 
         Returns
         -------
-        clusters : `Iterator`
+        clusters : `Iterator` [`lsst.ctrl.bps.QuantaCluster`]
             Iterator over successors of given cluster.
         """
         return map(self.get_cluster, self._cluster_graph.successors(name))
@@ -345,7 +339,7 @@ class ClusteredQuantumGraph():
 
         Returns
         -------
-        clusters : `Iterator`
+        clusters : `Iterator` [`lsst.ctrl.bps.QuantaCluster`]
             Iterator over predecessors of given cluster.
         """
         return map(self.get_cluster, self._cluster_graph.predecessors(name))
@@ -371,7 +365,7 @@ class ClusteredQuantumGraph():
             raise KeyError(f"{self.name} does not have a cluster named {parent}")
         if not self._cluster_graph.has_node(child):
             raise KeyError(f"{self.name} does not have a cluster named {child}")
-        _LOG.debug(f"add_dependency: adding edge {parent} {child}")
+        _LOG.debug("add_dependency: adding edge %s %s", parent, child)
 
         if isinstance(parent, QuantaCluster):
             pname = parent.name
@@ -418,7 +412,7 @@ class ClusteredQuantumGraph():
         if format_ is None:
             format_ = path.suffix[1:]  # suffix includes the leading period
 
-        if format_ not in ("pickle"):
+        if format_ not in {"pickle"}:
             raise RuntimeError(f"Unknown format ({format_})")
 
         if not self._quantum_graph_filename:
@@ -486,9 +480,10 @@ class ClusteredQuantumGraph():
         if format_ is None:
             format_ = path.suffix[1:]  # suffix includes the leading period
 
-        if format_ not in ("pickle"):
+        if format_ not in {"pickle"}:
             raise RuntimeError(f"Unknown format ({format_})")
 
+        cgraph = None
         if format_ == "pickle":
             dim_univ = DimensionUniverse()
             with open(filename, "rb") as fh:
@@ -496,4 +491,4 @@ class ClusteredQuantumGraph():
 
             # The QuantumGraph was saved separately
             cgraph._quantum_graph = QuantumGraph.loadUri(cgraph._quantum_graph_filename, dim_univ)
-            return cgraph
+        return cgraph

@@ -31,8 +31,8 @@ import logging
 import copy
 import string
 import re
-import inflection
 from importlib.resources import path as resources_path
+import inflection
 
 from lsst.daf.butler.core.config import Config
 
@@ -101,7 +101,7 @@ class BpsConfig(Config):
         try:
             config = Config(other)
         except RuntimeError:
-            raise RuntimeError("A BpsConfig could not be loaded from other: %s" % other)
+            raise RuntimeError(f"A BpsConfig could not be loaded from other: {other}")
         self.update(config)
 
         if isinstance(other, BpsConfig):
@@ -290,12 +290,12 @@ class BpsConfig(Config):
             found = True  # ????
 
         if not found and opt.get("required", False):
-            print("\n\nError: search for %s failed" % (key))
+            print(f"\n\nError: search for {key} failed")
             print("\tcurrent = ", self.get("current"))
             print("\topt = ", opt)
             print("\tcurvals = ", curvals)
             print("\n\n")
-            raise KeyError("Error: Search failed (%s)" % key)
+            raise KeyError(f"Error: Search failed {key}")
 
         _LOG.debug("found=%s, value=%s", found, value)
 

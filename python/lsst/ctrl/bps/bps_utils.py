@@ -169,7 +169,7 @@ def create_count_summary(counts):
         parse_count_summary().
     """
     summary = ""
-    if counts is not None:
+    if isinstance(counts, dict):
         summary = ";".join([f"{key}:{counts[key]}" for key in counts])
     return summary
 

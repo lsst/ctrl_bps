@@ -619,10 +619,7 @@ def create_generic_workflow(config, cqgraph, name, prefix):
 
         # For purposes of whether to continue searching for a value is whether
         # the value evaluates to False.
-        unset_attributes = set()
-        for attr in _ATTRS_ALL:
-            if not getattr(gwjob, attr):
-                unset_attributes.add(attr)
+        unset_attributes = {attr for attr in _ATTRS_ALL if not getattr(gwjob, attr)}
 
         _LOG.debug("unset_attributes=%s", unset_attributes)
         _LOG.debug("set=%s", _ATTRS_ALL - unset_attributes)

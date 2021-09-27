@@ -346,7 +346,7 @@ class GenericWorkflow(DiGraph):
         return jcounts
 
     def __iter__(self):
-        """
+        """Return iterator of job names in topologically sorted order.
         """
         return topological_sort(self)
 

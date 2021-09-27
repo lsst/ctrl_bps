@@ -116,7 +116,7 @@ class HTCondorService(BaseWmsService):
         # directory.
         with chdir(workflow.submit_path):
             _LOG.info("Submitting from directory: %s", os.getcwd())
-            htc_submit_dag(workflow.dag, dict())
+            htc_submit_dag(workflow.dag, {})
             workflow.run_id = workflow.dag.run_id
 
     def list_submitted_jobs(self, wms_id=None, user=None, require_bps=True, pass_thru=None):
