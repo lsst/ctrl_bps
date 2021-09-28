@@ -29,8 +29,10 @@ import dataclasses
 import itertools
 import logging
 from typing import Optional
+from collections import Counter
 
-import networkx as nx
+from networkx import DiGraph, read_gpickle, write_gpickle, topological_sort
+from networkx.algorithms.dag import is_directed_acyclic_graph
 
 from lsst.daf.butler.core.utils import iterable
 from .bps_draw import draw_networkx_dot
@@ -125,6 +127,10 @@ class GenericWorkflowJob:
     label: Optional[str]
     """Primary user-facing label for job.  Does not need to be unique
     and may be used for summary reports.
+    """
+
+    quanta_counts: Optional[Counter]
+    """Counts of quanta per task label in job.
     """
 
     tags: Optional[dict]
@@ -243,6 +249,7 @@ class GenericWorkflowJob:
     def __init__(self, name: str):
         self.name = name
         self.label = None
+        self.quanta_counts = Counter()
         self.tags = {}
         self.executable = None
         self.arguments = None
@@ -270,7 +277,7 @@ class GenericWorkflowJob:
         self.attrs = {}
         self.environment = {}
 
-    __slots__ = ("name", "label", "tags", "mail_to", "when_to_mail",
+    __slots__ = ("name", "label", "quanta_counts", "tags", "mail_to", "when_to_mail",
                  "executable", "arguments", "cmdvals",
                  "memory_multiplier", "request_memory", "request_cpus", "request_disk", "request_walltime",
                  "number_of_retries", "retry_unless_exit", "abort_on_value", "abort_return_value",
@@ -281,7 +288,7 @@ class GenericWorkflowJob:
         return hash(self.name)
 
 
-class GenericWorkflow(nx.DiGraph):
+class GenericWorkflow(DiGraph):
     """A generic representation of a workflow used to submit to specific
     workflow management systems.
 
@@ -290,10 +297,10 @@ class GenericWorkflow(nx.DiGraph):
     name : `str`
         Name of generic workflow.
     incoming_graph_data : `Any`, optional
-        Data used to initialized graph that is passed through to nx.DiGraph
+        Data used to initialized graph that is passed through to DiGraph
         constructor.  Can be any type supported by networkx.DiGraph.
     attr : `dict`
-        Keyword arguments passed through to nx.DiGraph constructor.
+        Keyword arguments passed through to DiGraph constructor.
     """
     def __init__(self, name, incoming_graph_data=None, **attr):
         super().__init__(incoming_graph_data, **attr)
@@ -316,6 +323,32 @@ class GenericWorkflow(nx.DiGraph):
             Name of generic workflow.
         """
         return self._name
+
+    @property
+    def quanta_counts(self):
+        """Counts of quanta per task label in workflow (`collections.Counter`).
+        """
+        qcounts = Counter()
+        for job_name in self:
+            gwjob = self.get_job(job_name)
+            if gwjob.quanta_counts is not None:
+                qcounts += gwjob.quanta_counts
+        return qcounts
+
+    @property
+    def job_counts(self):
+        """Counts of jobs per job label in workflow (`collections.Counter`).
+        """
+        jcounts = Counter()
+        for job_name in self:
+            gwjob = self.get_job(job_name)
+            jcounts[gwjob.label] += 1
+        return jcounts
+
+    def __iter__(self):
+        """Return iterator of job names in topologically sorted order.
+        """
+        return topological_sort(self)
 
     def get_files(self, data=False, transfer_only=True):
         """Retrieve files from generic workflow.
@@ -616,7 +649,7 @@ class GenericWorkflow(nx.DiGraph):
             Format in which to write the data. It defaults to pickle format.
         """
         if format_ == "pickle":
-            nx.write_gpickle(self, stream)
+            write_gpickle(self, stream)
         else:
             raise RuntimeError(f"Unknown format ({format_})")
 
@@ -639,7 +672,7 @@ class GenericWorkflow(nx.DiGraph):
             Generic workflow loaded from the given stream
         """
         if format_ == "pickle":
-            return nx.read_gpickle(stream)
+            return read_gpickle(stream)
 
         raise RuntimeError(f"Unknown format ({format_})")
 
@@ -647,7 +680,7 @@ class GenericWorkflow(nx.DiGraph):
         """Run checks to ensure this is still a valid generic workflow graph.
         """
         # Make sure a directed acyclic graph
-        assert nx.algorithms.dag.is_directed_acyclic_graph(self)
+        assert is_directed_acyclic_graph(self)
 
     def add_workflow_source(self, workflow):
         """Add given workflow as new source to this workflow.

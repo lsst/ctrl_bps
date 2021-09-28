@@ -41,7 +41,6 @@ import getpass
 import logging
 import os
 import re
-import pickle
 import time
 import shutil
 
@@ -49,7 +48,6 @@ import shutil
 from lsst.obs.base import Instrument
 
 from . import BPS_SEARCH_ORDER, BpsConfig
-from .bps_draw import draw_networkx_dot
 from .pre_transform import acquire_quantum_graph, cluster_quanta
 from .transform import transform
 from .prepare import prepare
@@ -165,11 +163,10 @@ def cluster_qgraph_driver(config_file, **kwargs):
     submit_path = config[".bps_defined.submitPath"]
     _, save_clustered_qgraph = config.search("saveClusteredQgraph", opt={"default": False})
     if save_clustered_qgraph:
-        with open(os.path.join(submit_path, "bps_clustered_qgraph.pickle"), "wb") as outfh:
-            pickle.dump(clustered_qgraph, outfh)
+        clustered_qgraph.save(os.path.join(submit_path, "bps_clustered_qgraph.pickle"))
     _, save_dot = config.search("saveDot", opt={"default": False})
     if save_dot:
-        draw_networkx_dot(clustered_qgraph, os.path.join(submit_path, "bps_clustered_qgraph.dot"))
+        clustered_qgraph.draw(os.path.join(submit_path, "bps_clustered_qgraph.dot"))
     return config, clustered_qgraph
 
 

@@ -43,7 +43,10 @@ from ... import (
     WmsJobReport,
     WmsStates
 )
-from ...bps_utils import chdir
+from ...bps_utils import (
+    chdir,
+    create_count_summary
+)
 from .lssthtc import (
     HTCDag,
     HTCJob,
@@ -113,7 +116,7 @@ class HTCondorService(BaseWmsService):
         # directory.
         with chdir(workflow.submit_path):
             _LOG.info("Submitting from directory: %s", os.getcwd())
-            htc_submit_dag(workflow.dag, dict())
+            htc_submit_dag(workflow.dag, {})
             workflow.run_id = workflow.dag.run_id
 
     def list_submitted_jobs(self, wms_id=None, user=None, require_bps=True, pass_thru=None):
@@ -302,7 +305,9 @@ class HTCondorWorkflow(BaseWmsWorkflow):
         _LOG.debug("htcondor dag attribs %s", generic_workflow.run_attrs)
         htc_workflow.dag.add_attribs(generic_workflow.run_attrs)
         htc_workflow.dag.add_attribs({"bps_wms_service": service_class,
-                                      "bps_wms_workflow": f"{cls.__module__}.{cls.__name__}"})
+                                      "bps_wms_workflow": f"{cls.__module__}.{cls.__name__}",
+                                      "bps_run_quanta": create_count_summary(generic_workflow.quanta_counts),
+                                      "bps_job_summary": create_count_summary(generic_workflow.job_counts)})
 
         # Determine the hard limit for the memory requirement.
         found, limit = config.search('memoryLimit')
@@ -410,14 +415,10 @@ class HTCondorWorkflow(BaseWmsWorkflow):
 
         htc_job.add_dag_cmds(_translate_dag_cmds(gwjob))
 
-        # Add run level attributes to job.
-        htc_job.add_job_attrs(generic_workflow.run_attrs)
-
         # Add job attributes to job.
         _LOG.debug("gwjob.attrs = %s", gwjob.attrs)
         htc_job.add_job_attrs(gwjob.attrs)
-        if gwjob.tags:
-            htc_job.add_job_attrs({"bps_job_quanta": gwjob.tags.get("quanta_summary", "")})
+        htc_job.add_job_attrs({"bps_job_quanta": create_count_summary(gwjob.quanta_counts)})
         htc_job.add_job_attrs({"bps_job_name": gwjob.name,
                                "bps_job_label": gwjob.label})
 
