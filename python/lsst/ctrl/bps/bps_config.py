@@ -257,6 +257,12 @@ class BpsConfig(Config):
 
         _LOG.debug("curvals = %s", curvals)
 
+        # There's a problem with the searchobj being a BpsConfig
+        # and its handling of __getitem__.  Until that part of
+        # BpsConfig is rewritten, force the searchobj to a Config.
+        if "searchobj" in opt:
+            opt["searchobj"] = Config(opt["searchobj"])
+
         if key in curvals:
             _LOG.debug("found %s in curvals", key)
             found = True
