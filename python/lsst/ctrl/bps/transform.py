@@ -45,27 +45,24 @@ from .bps_utils import (
 )
 
 # All available job attributes.
-_ATTRS_ALL = set([field.name for field in dataclasses.fields(GenericWorkflowJob)])
+_ATTRS_ALL = frozenset([field.name for field in dataclasses.fields(GenericWorkflowJob)])
 
 # Job attributes that need to be set to their maximal value in the cluster.
-_ATTRS_MAX = {
+_ATTRS_MAX = frozenset({
     "memory_multiplier",
     "number_of_retries",
     "request_cpus",
     "request_memory",
-}
+})
 
 # Job attributes that need to be set to sum of their values in the cluster.
-_ATTRS_SUM = {
+_ATTRS_SUM = frozenset({
     "request_disk",
     "request_walltime",
-}
+})
 
 # Job attributes do not fall into a specific category
-_ATTRS_MISC = {
-    "name",
-    "label",
-    "tags",
+_ATTRS_MISC = frozenset({
     "cmdline",
     "cmdvals",
     "environment",
@@ -73,22 +70,22 @@ _ATTRS_MISC = {
     "post_cmdline",
     "profile",
     "attrs",
-}
+})
 
 # Attributes that need to be the same for each quanta in the cluster.
-_ATTRS_UNIVERSAL = _ATTRS_ALL - (_ATTRS_MAX | _ATTRS_MISC | _ATTRS_SUM)
+_ATTRS_UNIVERSAL = frozenset(_ATTRS_ALL - (_ATTRS_MAX | _ATTRS_MISC | _ATTRS_SUM))
 
 _LOG = logging.getLogger(__name__)
 
 
-def transform(config, clustered_quantum_graph, prefix):
+def transform(config, cqgraph, prefix):
     """Transform a ClusteredQuantumGraph to a GenericWorkflow.
 
     Parameters
     ----------
     config : `lsst.ctrl.bps.BpsConfig`
         BPS configuration.
-    clustered_quantum_graph : `lsst.ctrl.bps.ClusteredQuantumGraph`
+    cqgraph : `lsst.ctrl.bps.ClusteredQuantumGraph`
         A clustered quantum graph to transform into a generic workflow.
     prefix : `str`
         Root path for any output files.
@@ -100,11 +97,6 @@ def transform(config, clustered_quantum_graph, prefix):
     generic_workflow_config : `lsst.ctrl.bps.BpsConfig`
         Configuration to accompany GenericWorkflow.
     """
-    if "name" in clustered_quantum_graph.graph and clustered_quantum_graph.graph["name"] is not None:
-        name = clustered_quantum_graph.graph["name"]
-    else:
-        _, name = config.search("uniqProcName", opt={"required": True})
-
     _, when_create = config.search(".executionButler.whenCreate")
     if when_create.upper() == "TRANSFORM":
         _LOG.info("Creating execution butler")
@@ -113,7 +105,12 @@ def transform(config, clustered_quantum_graph, prefix):
         _create_execution_butler(config, config["runQgraphFile"], execution_butler_dir, prefix)
         _LOG.info("Creating execution butler took %.2f seconds", time.time() - stime)
 
-    generic_workflow = create_generic_workflow(config, clustered_quantum_graph, name, prefix)
+    if cqgraph.name is not None:
+        name = cqgraph.name
+    else:
+        _, name = config.search("uniqProcName", opt={"required": True})
+
+    generic_workflow = create_generic_workflow(config, cqgraph, name, prefix)
     generic_workflow_config = create_generic_workflow_config(config, prefix)
 
     return generic_workflow, generic_workflow_config
@@ -159,9 +156,6 @@ def add_workflow_init_nodes(config, qgraph, generic_workflow):
     init_workflow = create_init_workflow(config, qgraph, generic_workflow.get_file("runQgraphFile"))
     _LOG.debug("init_workflow nodes = %s", init_workflow.nodes())
     generic_workflow.add_workflow_source(init_workflow)
-    old_run_summary = generic_workflow.run_attrs.get("bps_run_summary", "")
-    init_summary = init_workflow.run_attrs.get("bps_run_summary", "")
-    generic_workflow.run_attrs["bps_run_summary"] = ';'.join(x for x in [init_summary, old_run_summary] if x)
 
 
 def create_init_workflow(config, qgraph, qgraph_gwfile):
@@ -194,13 +188,13 @@ def create_init_workflow(config, qgraph, qgraph_gwfile):
 
     # create job for executing --init-only
     gwjob = GenericWorkflowJob("pipetaskInit")
-    gwjob.label = "pipetaskInit"
 
     job_values = _get_job_values(config, search_opt, "runQuantumCommand")
+    job_values["name"] = "pipetaskInit"
+    job_values["label"] = "pipetaskInit"
 
     # Adjust job attributes values if necessary.
-    attrs = {"universal": _ATTRS_UNIVERSAL, "max": _ATTRS_MAX, "sum": _ATTRS_SUM}
-    _handle_job_values(attrs, job_values, gwjob)
+    _handle_job_values(job_values, gwjob)
 
     # Pick a node id for each task (not quantum!) to avoid reading the entire
     # quantum graph during the initialization stage.
@@ -212,16 +206,12 @@ def create_init_workflow(config, qgraph, qgraph_gwfile):
     gwjob.cmdvals["qgraphId"] = qgraph.graphID
     gwjob.cmdvals["qgraphNodeId"] = ",".join(sorted([f"{node_id.number}" for node_id in node_ids]))
 
-    # Save summary of Quanta in job.
-    gwjob.tags["quanta_summary"] = "pipetaskInit:1"
-
     # Update job with workflow attribute and profile values.
     update_job(config, gwjob)
 
     init_workflow.add_job(gwjob)
     butler_gwfile = _get_butler_gwfile(config, config["submitPath"])
     init_workflow.add_job_inputs(gwjob.name, [qgraph_gwfile, butler_gwfile])
-    init_workflow.run_attrs["bps_run_summary"] = gwjob.tags["quanta_summary"]
     _enhance_command(config, init_workflow, gwjob)
 
     return init_workflow
@@ -241,6 +231,8 @@ def _enhance_command(config, generic_workflow, gwjob):
         Generic workflow job to which the updated executable, arguments,
         and values should be saved.
     """
+    _LOG.debug("gwjob given to _enhance_command: %s", gwjob)
+
     search_opt = {"curvals": {"curr_pipetask": gwjob.label},
                   "replaceVars": False,
                   "expandEnvVars": False,
@@ -408,21 +400,13 @@ def _get_job_values(config, search_opt, cmd_line_key):
     job_values : `dict` [ `str`, `Any` ]`
         A mapping between job attributes and their values.
     """
-    special_values = ['name', 'label', 'cmdline', 'pre_cmdline', 'post_cmdline']
-
     job_values = {}
-    for field in dataclasses.fields(GenericWorkflowJob):
-        if field.name not in special_values:
-            # Variable names in yaml are camel case instead of snake case.
-            yaml_name = re.sub(r"_(\S)", lambda match: match.group(1).upper(), field.name)
-            found, value = config.search(yaml_name, opt=search_opt)
-            if not found and '_' in field.name:
-                # Just in case someone used snake case:
-                found, value = config.search(field.name, opt=search_opt)
-            if found:
-                job_values[field.name] = value
-            else:
-                job_values[field.name] = None
+    for attr in _ATTRS_ALL:
+        found, value = config.search(attr, opt=search_opt)
+        if found:
+            job_values[attr] = value
+        else:
+            job_values[attr] = None
 
     # If the automatic memory scaling is enabled (i.e. the memory multiplier
     # is set and it is a positive number greater than 1.0), adjust number
@@ -448,49 +432,42 @@ def _get_job_values(config, search_opt, cmd_line_key):
     return job_values
 
 
-def _handle_job_values(attributes, quantum_job_values, gwjob):
+def _handle_job_values(quantum_job_values, gwjob, attributes=_ATTRS_ALL):
     """Set the job attributes in the cluster to their correct values.
 
     Parameters
     ----------
-    attributes: `dict` [`str`, Iterable [`str`]]
-        Job attributes grouped by category.  Supported categories are:
-        * ``universal``: job attributes that need to be the same
-          in the cluster,
-        * ``max``: job attributes that need to be set to their maximal values
-          in the cluster,
-        * ``sum``: job attributes that need to be sum of their values
-          in the cluster.
     quantum_job_values : `dict` [`str`, Any]
         Job values for running single Quantum.
     gwjob : `lsst.ctrl.bps.GenericWorkflowJob`
         Generic workflow job in which to store the universal values.
+    attributes: `Iterable` [`str`], optional
+        Job attributes to be set in the job following different rules.
+        The default value is _ATTRS_ALL.
     """
-    dispatcher = {
-        'universal': _handle_job_values_universal,
-        'max': _handle_job_values_max,
-        'sum': _handle_job_values_sum,
-    }
-    for type_, func in dispatcher.items():
-        attrs = attributes[type_]
-        func(attrs, quantum_job_values, gwjob)
+    _LOG.debug("Call to _handle_job_values")
+    _handle_job_values_universal(quantum_job_values, gwjob, attributes)
+    _handle_job_values_max(quantum_job_values, gwjob, attributes)
+    _handle_job_values_sum(quantum_job_values, gwjob, attributes)
 
 
-def _handle_job_values_universal(attributes, quantum_job_values, gwjob):
+def _handle_job_values_universal(quantum_job_values, gwjob, attributes=_ATTRS_UNIVERSAL):
     """Handle job attributes that must have the same value for every quantum
     in the cluster.
 
     Parameters
     ----------
-    attributes : Iterable [`str`]
-        A list of field names which must have a single value for the entire
-        cluster.
     quantum_job_values : `dict` [`str`, Any]
         Job values for running single Quantum.
     gwjob : `lsst.ctrl.bps.GenericWorkflowJob`
         Generic workflow job in which to store the universal values.
+    attributes: `Iterable` [`str`], optional
+        Job attributes to be set in the job following different rules.
+        The default value is _ATTRS_UNIVERSAL.
     """
-    for attr in attributes:
+    for attr in _ATTRS_UNIVERSAL & set(attributes):
+        _LOG.debug("Handling job %s (job=%s, quantum=%s)", attr, getattr(gwjob, attr),
+                   quantum_job_values.get(attr, "MISSING"))
         current_value = getattr(gwjob, attr)
         try:
             quantum_value = quantum_job_values[attr]
@@ -508,21 +485,21 @@ def _handle_job_values_universal(attributes, quantum_job_values, gwjob):
                 raise RuntimeError(f"Inconsistent value for {attr} in cluster {gwjob.name}.")
 
 
-def _handle_job_values_max(attributes, quantum_job_values, gwjob):
+def _handle_job_values_max(quantum_job_values, gwjob, attributes=_ATTRS_MAX):
     """Handle job attributes that should be set to their maximum value in
     the in cluster.
 
     Parameters
     ----------
-    attributes : Iterable [`str`]
-        The names of job attributes which needs to be set to their maximum
-        value in the entire cluster.
     quantum_job_values : `dict` [`str`, `Any`]
         Job values for running single Quantum.
     gwjob : `lsst.ctrl.bps.GenericWorkflowJob`
         Generic workflow job in which to store the aggregate values.
+    attributes: `Iterable` [`str`], optional
+        Job attributes to be set in the job following different rules.
+        The default value is _ATTR_MAX.
     """
-    for attr in attributes:
+    for attr in _ATTRS_MAX & set(attributes):
         current_value = getattr(gwjob, attr)
         try:
             quantum_value = quantum_job_values[attr]
@@ -554,20 +531,20 @@ def _handle_job_values_max(attributes, quantum_job_values, gwjob):
                         gwjob.number_of_retries = quantum_job_values["number_of_retries"]
 
 
-def _handle_job_values_sum(attributes, quantum_job_values, gwjob):
+def _handle_job_values_sum(quantum_job_values, gwjob, attributes=_ATTRS_SUM):
     """Handle job attributes that are the sum of their values in the cluster.
 
     Parameters
     ----------
-    attributes : Iterable [`str`]
-        The names of job attributes which need to be a sum of the respective
-        attributes in the entire cluster.
     quantum_job_values : `dict` [`str`, `Any`]
         Job values for running single Quantum.
     gwjob : `lsst.ctrl.bps.GenericWorkflowJob`
         Generic workflow job in which to store the aggregate values.
+    attributes: `Iterable` [`str`], optional
+        Job attributes to be set in the job following different rules.
+        The default value is _ATTRS_SUM.
     """
-    for attr in attributes:
+    for attr in _ATTRS_SUM & set(attributes):
         current_value = getattr(gwjob, attr)
         if not current_value:
             setattr(gwjob, attr, quantum_job_values[attr])
@@ -575,7 +552,7 @@ def _handle_job_values_sum(attributes, quantum_job_values, gwjob):
             setattr(gwjob, attr, current_value + quantum_job_values[attr])
 
 
-def create_generic_workflow(config, clustered_quanta_graph, name, prefix):
+def create_generic_workflow(config, cqgraph, name, prefix):
     """Create a generic workflow from a ClusteredQuantumGraph such that it
     has information needed for WMS (e.g., command lines).
 
@@ -583,7 +560,7 @@ def create_generic_workflow(config, clustered_quanta_graph, name, prefix):
     ----------
     config : `lsst.ctrl.bps.BpsConfig`
         BPS configuration.
-    clustered_quanta_graph : `lsst.ctrl.bps.ClusteredQuantumGraph`
+    cqgraph : `lsst.ctrl.bps.ClusteredQuantumGraph`
         ClusteredQuantumGraph for running a specific pipeline on a specific
         payload.
     name : `str`
@@ -611,41 +588,50 @@ def create_generic_workflow(config, clustered_quanta_graph, name, prefix):
                                                   job_access_remote=True,
                                                   job_shared=True))
 
-    qgraph = clustered_quanta_graph.graph["qgraph"]
-    task_labels = [task.label for task in qgraph.iterTaskGraph()]
-    run_label_counts = dict.fromkeys(task_labels, 0)
-    for node_name, data in clustered_quanta_graph.nodes(data=True):
-        _LOG.debug("clustered_quanta_graph: node_name=%s, len(cluster)=%s, label=%s, ids=%s", node_name,
-                   len(data["qgraph_node_ids"]), data["label"], data["qgraph_node_ids"][:4])
-        gwjob = GenericWorkflowJob(node_name)
-        if "tags" in data:
-            gwjob.tags = data["tags"]
-        if "label" in data:
-            gwjob.label = data["label"]
+    for cluster in cqgraph.clusters():
+        _LOG.debug("Loop over clusters: %s, %s", cluster, type(cluster))
+        _LOG.debug("cqgraph: name=%s, len=%s, label=%s, ids=%s", cluster.name,
+                   len(cluster.qgraph_node_ids), cluster.label, cluster.qgraph_node_ids)
 
-        # Getting labels in pipeline order.
-        label_counts = dict.fromkeys(task_labels, 0)
+        gwjob = GenericWorkflowJob(cluster.name)
 
-        # Get job info either common or aggregate for all Quanta in cluster.
-        for node_id in data["qgraph_node_ids"]:
-            qnode = qgraph.getQuantumNodeByNodeId(node_id)
-            label_counts[qnode.taskDef.label] += 1
+        # First get job values from cluster or cluster config
+        search_opt = {"curvals": {},
+                      "replaceVars": False,
+                      "expandEnvVars": False,
+                      "replaceEnvVars": True,
+                      "required": False}
 
-            search_opt = {"curvals": {"curr_pipetask": qnode.taskDef.label},
-                          "replaceVars": False,
-                          "expandEnvVars": False,
-                          "replaceEnvVars": True,
-                          "required": False}
+        # If some config values are set for this cluster
+        if cluster.label in config["cluster"]:
+            _LOG.debug("config['cluster'][%s] = %s", cluster.label, config["cluster"][cluster.label])
+            cluster_job_values = _get_job_values(config["cluster"][cluster.label], search_opt,
+                                                 "runQuantumCommand")
+        else:
+            cluster_job_values = {}
+
+        cluster_job_values['name'] = cluster.name
+        cluster_job_values['label'] = cluster.label
+        cluster_job_values['quanta_counts'] = cluster.quanta_counts
+        cluster_job_values['tags'] = cluster.tags
+        _LOG.debug("cluster_job_values = %s", cluster_job_values)
+        _handle_job_values(cluster_job_values, gwjob, cluster_job_values.keys())
+
+        # For purposes of whether to continue searching for a value is whether
+        # the value evaluates to False.
+        unset_attributes = {attr for attr in _ATTRS_ALL if not getattr(gwjob, attr)}
+
+        _LOG.debug("unset_attributes=%s", unset_attributes)
+        _LOG.debug("set=%s", _ATTRS_ALL - unset_attributes)
+
+        # For job info not defined at cluster level, attempt to get job info
+        # either common or aggregate for all Quanta in cluster.
+        for node_id in iter(cluster.qgraph_node_ids):
+            _LOG.debug("node_id=%s", node_id)
+            qnode = cqgraph.get_quantum_node(node_id)
+            search_opt['curvals'] = {"curr_pipetask": qnode.taskDef.label}
             quantum_job_values = _get_job_values(config, search_opt, "runQuantumCommand")
-
-            attrs = {"universal": _ATTRS_UNIVERSAL, "max": _ATTRS_MAX, "sum": _ATTRS_SUM}
-            _handle_job_values(attrs, quantum_job_values, gwjob)
-
-        # Save summary of Quanta in job.
-        gwjob.tags["quanta_summary"] = ";".join([f"{k}:{v}" for k, v in label_counts.items() if v])
-        # Save job quanta counts to run
-        for key in task_labels:
-            run_label_counts[key] += label_counts[key]
+            _handle_job_values(quantum_job_values, gwjob, unset_attributes)
 
         # Update job with workflow attribute and profile values.
         update_job(config, gwjob)
@@ -656,28 +642,24 @@ def create_generic_workflow(config, clustered_quanta_graph, name, prefix):
         generic_workflow.add_job(gwjob)
         generic_workflow.add_job_inputs(gwjob.name, [qgraph_gwfile, butler_gwfile])
 
-        gwjob.cmdvals["qgraphId"] = data["qgraph_node_ids"][0].buildId
+        gwjob.cmdvals["qgraphId"] = cqgraph.qgraph.graphID
         gwjob.cmdvals["qgraphNodeId"] = ",".join(sorted([f"{node_id.number}" for node_id in
-                                                         data["qgraph_node_ids"]]))
+                                                         cluster.qgraph_node_ids]))
         _enhance_command(config, generic_workflow, gwjob)
 
         # If writing per-job QuantumGraph files during TRANSFORM stage,
         # write it now while in memory.
         if save_per_job_qgraph:
-            save_qg_subgraph(qgraph, qgraph_gwfile.src_uri, data["qgraph_node_ids"])
-
-    # Save run's Quanta summary
-    run_summary = ";".join([f"{k}:{v}" for k, v in run_label_counts.items()])
-    generic_workflow.run_attrs["bps_run_summary"] = run_summary
+            save_qg_subgraph(cqgraph.qgraph, qgraph_gwfile.src_uri, cluster.qgraph_node_ids)
 
     # Create job dependencies.
-    for node_name in clustered_quanta_graph.nodes():
-        for child in clustered_quanta_graph.successors(node_name):
-            generic_workflow.add_job_relationships(node_name, child)
+    for parent in cqgraph.clusters():
+        for child in cqgraph.successors(parent):
+            generic_workflow.add_job_relationships(parent.name, child.name)
 
     # Add initial workflow.
     if config.get("runInit", "{default: False}"):
-        add_workflow_init_nodes(config, qgraph, generic_workflow)
+        add_workflow_init_nodes(config, cqgraph.qgraph, generic_workflow)
 
     generic_workflow.run_attrs.update({"bps_isjob": "True",
                                        "bps_project": config["project"],
@@ -736,9 +718,9 @@ def add_final_job(config, generic_workflow, prefix):
         gwjob.label = "mergeExecutionButler"
 
         job_values = _get_job_values(config, search_opt, None)
-        for field in dataclasses.fields(GenericWorkflowJob):
-            if not getattr(gwjob, field.name) and job_values.get(field.name, None):
-                setattr(gwjob, field.name, job_values[field.name])
+        for attr in _ATTRS_ALL:
+            if not getattr(gwjob, attr) and job_values.get(attr, None):
+                setattr(gwjob, attr, job_values[attr])
 
         update_job(config, gwjob)
 
@@ -761,8 +743,6 @@ def add_final_job(config, generic_workflow, prefix):
             add_final_job_as_sink(generic_workflow, gwjob)
         else:
             raise ValueError(f"Invalid value for executionButler.when_merge {when_merge}")
-
-        generic_workflow.run_attrs["bps_run_summary"] += ";mergeExecutionButler:1"
 
 
 def _create_final_command(config, prefix):

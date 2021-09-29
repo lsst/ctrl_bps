@@ -573,7 +573,7 @@ class HTCDag(networkx.DiGraph):
     def __init__(self, data=None, name=""):
         super().__init__(data=data, name=name)
 
-        self.graph["attr"] = dict()
+        self.graph["attr"] = {}
         self.graph["run_id"] = None
         self.graph["submit_path"] = None
         self.graph["final_job"] = None
@@ -612,6 +612,10 @@ class HTCDag(networkx.DiGraph):
             Names of child jobs
         """
         assert isinstance(job, HTCJob)
+
+        # Add dag level attributes to each job
+        job.add_job_attrs(self.graph["attr"])
+
         self.add_node(job.name, data=job)
 
         if parent_names is not None:

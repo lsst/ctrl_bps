@@ -766,6 +766,77 @@ The major differences visible to users are:
         - final_post_mergeExecutionButler.out: An internal file for debugging
           incorrect reporting of final run status.
 
+.. _clustering:
+
+Clustering
+----------
+
+The description of all the Quanta to be executed by a submission exists in the
+full QuantumGraph for the run.  bps breaks that work up into compute jobs
+where each compute job is assigned a subgraph of the full QuantumGraph.  This
+subgraph of Quanta is called a `cluster`.  bps can be configured to use 
+different clustering algorithms by setting `clusterAlgorithm`.  The default
+is single Quantum per Job.
+
+Single Quantum per Job
+^^^^^^^^^^^^^^^^^^^^^^
+
+This is the default clustering algorithm.  Each job gets a cluster containing
+a single Quantum.
+
+Compute job names are based upon the Quantum dataId + `templateDataId`. The
+PipelineTask label is used for grouping jobs in bps report output.
+
+Config Entries (not currently needed as it is the default):
+
+.. code-block:: YAML
+
+   clusterAlgorithm: lsst.ctrl.bps.quantum_clustering_funcs.single_quantum_clustering
+
+
+User-defined Dimension Clustering
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This algorithm creates clusters based upon user-definitions that specify
+which PipelineTask labels go in the cluster and what dimensions to use to
+divide them into compute jobs.  Requested job resources (and other
+job-based values) can be set within the each cluster definition.  If a
+particular resource value is not defined there, bps will try to determine
+the value from the pipetask definitions for the Quanta in the cluster.  For
+example, request_memory would first come from the cluster config, then the
+max of all the request_memory in the cluster, or finally any global default.
+
+Compute job names are based upon the dimensions used for clustering.  The
+cluster label is used for grouping jobs in bps report output.
+
+The minimum configuration information is a label, a list of PipelineTask
+labels, and a list of dimensions.  Sometimes a submission may want to treat
+two dimensions as the same thing (e.g., visit and exposure) in terms of
+putting Quanta in the same cluster.  That is handled in the config via 
+`equalDimensions` (a comma-separated list of dimA:dimB pairs).
+
+Job dependencies are created based upon the Quanta dependencies.  This means
+that the naming and order of the clusters in the submission yaml does not
+matter. The algorithm will fail if a circular dependency is created.  It will
+also fail if a PipelineTask label is included in more than one cluster section.
+
+Any Quanta not covered in the cluster config will fall back to the single
+Quanta per Job algorithm.
+
+Relevant Config Entries:
+
+.. code-block:: YAML
+
+    clusterAlgorithm: lsst.ctrl.bps.quantum_clustering_funcs.dimension_clustering
+    cluster:
+        # Repeat cluster subsection for however many clusters there are
+        clusterLabel1:
+            pipetasks: label1, label2     # comma-separated list of labels
+            dimensions: dim1, dim2        # comma-separated list of dimensions
+            equalDimensions: dim1:dim1a   # e.g., visit:exposure
+            # request_cpus: N        # Overrides for jobs in this cluster
+            # request_memory: NNNN   # MB, Overrides for jobs in this cluster
+
 .. _bps-troubleshooting:
 
 Troubleshooting

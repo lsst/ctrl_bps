@@ -30,6 +30,7 @@ import contextlib
 import logging
 from pathlib import Path
 from enum import Enum
+from collections import Counter
 
 
 _LOG = logging.getLogger(__name__)
@@ -150,3 +151,45 @@ def _create_execution_butler(config, qgraph_filename, execution_butler_dir, out_
         print(command, file=fh)
         print("\n", file=fh)  # Note: want a blank line
         subprocess.run(shlex.split(command), shell=False, check=True, stdout=fh, stderr=subprocess.STDOUT)
+
+
+def create_count_summary(counts):
+    """Create summary from count mapping.
+
+    Parameters
+    ----------
+    count : `collections.Counter` or `dict` [`str`, `int`]
+        Mapping of counts to keys.
+
+    Returns
+    -------
+    summary : `str`
+        Semi-colon delimited string of key:count pairs.
+        (e.g. "key1:cnt1;key2;cnt2")  Parsable by
+        parse_count_summary().
+    """
+    summary = ""
+    if isinstance(counts, dict):
+        summary = ";".join([f"{key}:{counts[key]}" for key in counts])
+    return summary
+
+
+def parse_count_summary(summary):
+    """Parse summary into count mapping.
+
+    Parameters
+    ----------
+    summary : `str`
+        Semi-colon delimited string of key:count pairs.
+
+    Returns
+    -------
+    counts : `collections.Counter`
+        Mapping representation of given summary for easier
+        individual count lookup.
+    """
+    counts = Counter()
+    for part in summary.split(";"):
+        label, count = part.split(":")
+        counts[label] = count
+    return counts
