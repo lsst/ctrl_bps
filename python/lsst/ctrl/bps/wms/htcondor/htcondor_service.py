@@ -506,7 +506,7 @@ def _translate_job_cmds(config, generic_workflow, gwjob):
     # May need to move to special site-specific implementation if sites use
     # other mechanisms.
     if gwjob.concurrency_limit:
-        jobcmds["concurrency_limit"] = ",".join(gwjob.concurrency_limit)
+        jobcmds["concurrency_limit"] = gwjob.concurrency_limit
 
     # Handle command line
     if gwjob.executable.transfer_executable:
