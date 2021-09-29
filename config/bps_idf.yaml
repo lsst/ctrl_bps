@@ -8,6 +8,10 @@ placeholderParams: ['qgraphNodeId', 'qgraphId']
 
 #IDF PanDA specific settings:
 computeSite: LSST
+payload:
+  s3_endpoint_url: "https://storage.googleapis.com"
+  payload_folder: payload
+  fileDistributionEndPoint: "s3://butler-us-central1-panda-dev/dc2/{payload_folder}/{uniqProcName}/"
 
 #SLAC PanDA specific settings:
 #computing_cloud: US
