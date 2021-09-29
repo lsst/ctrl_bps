@@ -34,9 +34,9 @@ payload:
 
 pipetask:
   pipetaskInit:
-    # Notes: cannot have --extend-run, should have both -o and --output-run
-    # because this is where the chaining is currently done
-    runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask {initPreCmdOpts} run -b {butlerConfig} -i {inCollection} -o {output} --output-run {outCollection} --qgraph {qgraphFile} --qgraph-id {qgraphId} --qgraph-node-id {qgraphNodeId} --clobber-outputs --init-only --register-dataset-types {extraInitOptions}"
+    # Notes:  Declaring and chaining now happen within execution butler steps.
+    # This command no longer needs -o and must have # --extend-run.
+    runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask {initPreCmdOpts} run -b {butlerConfig} -i {inCollection} -o {output} --output-run {outCollection} --qgraph {qgraphFile} --qgraph-id {qgraphId} --qgraph-node-id {qgraphNodeId} --clobber-outputs --init-only --extend-run {extraInitOptions}"
   #OPT myTask:
   #OPT   requestCpus:
   #OPT   requestMemory:
@@ -74,7 +74,16 @@ saveClusteredQgraph: False
 useLazyCommands: True
 bpsUseShared: False
 
-# Execution Butler not yet the default
 executionButler:
-  whenCreate: "NEVER"
-  whenMerge: "NEVER"
+  whenCreate: "SUBMIT"
+  #OPT executionButlerDir: "/my/exec/butler/dir"  # User-provided or defaults to executionButlerTemplate
+  createCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask qgraph -b {butlerConfig} -i {inCollection} -o {output} --output-run {outCollection} --save-execution-butler {executionButlerDir} -g {qgraphFile}"
+  whenMerge: "ALWAYS"
+  implementation: JOB  # Added for future flexibility, e.g., if prefer workflow instead of shell script.
+  concurrencyLimit: db_limit
+
+  mergePreCmdOpts: "{defaultPreCmdOpts}"
+  command1: "${DAF_BUTLER_DIR}/bin/butler {mergePreCmdOpts} transfer-datasets {executionButlerDir} {butlerConfig} --collections {outCollection}"
+  command2: "${DAF_BUTLER_DIR}/bin/butler {mergePreCmdOpts} collection-chain {butlerConfig} {output} --flatten --mode=extend {inCollection}"
+  command3: "${DAF_BUTLER_DIR}/bin/butler {mergePreCmdOpts} collection-chain {butlerConfig} {output} --flatten --mode=prepend {outCollection}"
+

@@ -1,0 +1,18 @@
+# THIS FILE MAY BE DEPRECATED IN FUTURE VERSIONS
+#
+# This turns off the default bps use of execution butler
+# Execution butler is used to limit database connections.
+# Turning off execution butler should only be done after
+# reporting problems with it turned on.
+
+# Turn off Execution Butler
+executionButler:
+  whenCreate: "NEVER"
+  whenMerge: "NEVER"
+
+# The pipetaskInit command is different when not using execution butler
+pipetask:
+  pipetaskInit:
+    # Notes: cannot have --extend-run, should have both -o and --output-run
+    # because this is where the chaining is currently done
+    runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask {initPreCmdOpts} run -b {butlerConfig} -i {inCollection} -o {output} --output-run {outCollection} --qgraph {qgraphFile} --qgraph-id {qgraphId} --qgraph-node-id {qgraphNodeId} --clobber-outputs --init-only --register-dataset-types {extraInitOptions}"
