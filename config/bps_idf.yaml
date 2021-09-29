@@ -1,5 +1,5 @@
 includeConfigs:
-- pipelines_check_idf.yaml
+- ${CTRL_BPS_DIR}/doc/lsst.ctrl.bps/execution_butler.yaml
 
 
 #PANDA plugin specific settings:
@@ -12,10 +12,6 @@ computeSite: LSST
 #SLAC PanDA specific settings:
 #computing_cloud: US
 #computeSite: DOMA_LSST_SLAC_TEST
-
-operator: special_name    # defaults to login on submit machine
-project: dev
-campaign: quick
 
 
 ##################################################################################################################

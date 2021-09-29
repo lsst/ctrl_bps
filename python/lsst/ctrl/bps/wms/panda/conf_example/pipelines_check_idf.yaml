@@ -1,3 +1,6 @@
+includeConfigs:
+- ${CTRL_BPS_DIR}/config/bps_idf.yaml
+
 pipelineYaml: "${OBS_SUBARU_DIR}/pipelines/DRP.yaml#processCcd"
 
 payload:
