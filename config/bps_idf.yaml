@@ -1,7 +1,3 @@
-includeConfigs:
-- ${CTRL_BPS_DIR}/doc/lsst.ctrl.bps/execution_butler.yaml
-
-
 #PANDA plugin specific settings:
 idds_server: "https://aipanda015.cern.ch:443/idds"
 placeholderParams: ['qgraphNodeId', 'qgraphId']
@@ -18,36 +14,20 @@ payload:
 #computeSite: DOMA_LSST_SLAC_TEST
 
 
-##################################################################################################################
-# The following are default values to be moved to
-# etc/bps_defaults when using execution butler becomes
-# the default.
 executionButler:
-  whenCreate: "SUBMIT"
-  createCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask qgraph -b {butlerConfig} -i {inCollection} -o {output} --output-run {outCollection} --save-execution-butler {executionButlerDir} -g {qgraphFile} --skip-existing-in {outCollection}"
-
-  whenMerge: "ALWAYS"
-  implementation: JOB  # JOB, WORKFLOW
-  concurrency_limit: db_limit
-
-  mergePreCmdOpts: "{defaultPreCmdOpts}"
-  command1: "${DAF_BUTLER_DIR}/bin/butler {mergePreCmdOpts} transfer-datasets  {executionButlerDir} {butlerConfig} --collections {outCollection}"
-  command2: "${DAF_BUTLER_DIR}/bin/butler {mergePreCmdOpts} collection-chain {butlerConfig} {output} --flatten --mode=extend {inCollection}"
-  command3: "${DAF_BUTLER_DIR}/bin/butler {mergePreCmdOpts} collection-chain {butlerConfig} {output} --flatten --mode=prepend {outCollection}"
   queue: "DOMA_LSST_GOOGLE_MERGE"
 
 pipetask:
   pipetaskInit:
-    # Notes:  Declaring and chaining now happen within execution butler
-    # steps.  So, this command no longer needs -o and must have
-    # --extend-run.
+    # This is different from the ctrl_bps default only in the addition of {fileDistributionEndPoint}
     runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask {initPreCmdOpts} run -b {butlerConfig} -i {inCollection} -o {output} --output-run {outCollection} --qgraph {fileDistributionEndPoint}/{qgraphFile} --qgraph-id {qgraphId} --qgraph-node-id {qgraphNodeId} --clobber-outputs --init-only --extend-run {extraInitOptions}"
   forcedPhotCoadd:
     queue: "DOMA_LSST_GOOGLE_TEST_HIMEM_NON_PREEMPT"
 
-runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask --long-log run -b {butlerConfig} --output-run {outCollection} --qgraph {fileDistributionEndPoint}/{qgraphFile} --qgraph-id {qgraphId} --qgraph-node-id {qgraphNodeId} --skip-init-writes --extend-run --clobber-outputs --skip-existing"
+# This is different from the ctrl_bps default only in the addition of {fileDistributionEndPoint}
+runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask {runPreCmdOpts} run -b {butlerConfig} -i {inCollection} -o {output} --output-run {outCollection} --qgraph {fileDistributionEndPoint}/{qgraphFile} --qgraph-id {qgraphId} --qgraph-node-id {qgraphNodeId} --clobber-outputs --skip-init-writes --extend-run {extraRunQuantumOptions}"
+
 
 #this is a series of setup commands preceding the actual core SW execution
 runner_command: 'docker run --network host --privileged --env AWS_ACCESS_KEY_ID=$(</credentials/AWS_ACCESS_KEY_ID) --env AWS_SECRET_ACCESS_KEY=$(</credentials/AWS_SECRET_ACCESS_KEY) --env PGPASSWORD=$(</credentials/PGPASSWORD) --env S3_ENDPOINT_URL=${S3_ENDPOINT_URL} {sw_image} /bin/bash -c "source /opt/lsst/software/stack/loadLSST.bash;cd /tmp;ls -a;setup lsst_distrib;pwd;python3 \${CTRL_BPS_DIR}/python/lsst/ctrl/bps/wms/panda/edgenode/cmd_line_decoder.py _cmd_line_ " >&2;'
 wmsServiceClass: lsst.ctrl.bps.wms.panda.panda_service.PanDAService
-
