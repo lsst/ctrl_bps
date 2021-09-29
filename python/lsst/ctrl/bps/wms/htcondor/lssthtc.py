@@ -640,6 +640,9 @@ class HTCDag(networkx.DiGraph):
         job : `HTCJob`
             HTCJob to add to the HTCDag as a FINAL job.
         """
+        # Add dag level attributes to each job
+        job.add_job_attrs(self.graph["attr"])
+
         self.graph['final_job'] = job
 
     def del_job(self, job_name):
@@ -859,6 +862,13 @@ def summary_from_dag(dir_name):
                             counts[label] += 1
                         else:
                             _LOG.warning("Parse DAG: unmatched job line: %s", line)
+                elif line.startswith("FINAL"):
+                    m = re.match(r"FINAL ([^\s]+) jobs/([^/]+)/", line)
+                    if m:
+                        label = m.group(2)
+                        job_name_to_pipetask[m.group(1)] = label
+                        counts[label] += 1
+
     except (OSError, PermissionError, StopIteration):
         pass
 

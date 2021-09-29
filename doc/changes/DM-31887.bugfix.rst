@@ -1,1 +1,2 @@
-Fix variable substitution in merge job commands.
+* Fix variable substitution in merge job commands.
+* Fix bug where final job doesn't appear in report.
