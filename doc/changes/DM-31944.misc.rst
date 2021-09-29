@@ -1,0 +1,1 @@
+Persist bps DAG attributes across manual restarts.
