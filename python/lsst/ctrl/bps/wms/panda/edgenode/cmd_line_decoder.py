@@ -28,8 +28,8 @@ def replace_placeholders(cmd_line, tag, replancements):
 
 
 def replace_environment_vars(cmd_line):
-    """
-    Replaces placeholders to the actual environment variables.
+    """ Replaces placeholders to the actual environment variables.
+
     Parameters
     ----------
     cmd_line : `str`
@@ -46,8 +46,8 @@ def replace_environment_vars(cmd_line):
 
 
 def replace_files_placeholders(cmd_line, files):
-    """
-    Replaces placeholders for files.
+    """Replaces placeholders for files.
+
     Parameters
     ----------
     cmd_line : `str`
@@ -74,8 +74,8 @@ def replace_files_placeholders(cmd_line, files):
 
 
 def deliver_input_files(src_path, files, skip_copy):
-    """
-    Delivers input files needed for a job
+    """Delivers input files needed for a job
+
     Parameters
     ----------
     src_path : `str`
@@ -116,7 +116,13 @@ deliver_input_files(sys.argv[3], sys.argv[4], sys.argv[5])
 cmd_line = str(binascii.unhexlify(sys.argv[1]).decode())
 data_params = sys.argv[2].split("+")
 cmd_line = replace_environment_vars(cmd_line)
+
+"""This call replaces the pipetask command line placeholders
+ with actual data provided in the script call
+ in form placeholder1:file1+placeholder2:file2:...
+"""
 cmd_line = replace_files_placeholders(cmd_line, sys.argv[4])
+
 for key_value_pair in data_params[1:]:
     (key, value) = key_value_pair.split(":")
     cmd_line = cmd_line.replace("{" + key + "}", value)
