@@ -206,7 +206,7 @@ class GenericWorkflowJob:
     throttling jobs within a single workflow).
     """
 
-    concurrency_limit: Optional[list]
+    concurrency_limit: Optional[str]
     """Names of concurrency limits that the WMS plugin can appropriately
     translate to limit the number of this job across all running workflows.
     """
@@ -268,7 +268,7 @@ class GenericWorkflowJob:
         self.abort_return_value = None
         self.priority = None
         self.category = None
-        self.concurrency_limit = []
+        self.concurrency_limit = None
         self.queue = None
         self.pre_cmdline = None
         self.post_cmdline = None

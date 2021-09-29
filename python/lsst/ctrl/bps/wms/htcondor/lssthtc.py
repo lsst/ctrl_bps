@@ -359,10 +359,6 @@ def htc_submit_dag(htc_dag, submit_options=None):
     else:
         sub = _htc_submit_dag_old(htc_dag.graph["dag_filename"], submit_options)
 
-    # add attributes to dag submission
-    for key, value in htc_dag.graph["attr"].items():
-        sub[f"+{key}"] = f'"{htc_escape(value)}"'
-
     # submit DAG to HTCondor's schedd
     schedd = htcondor.Schedd()
     with schedd.transaction() as txn:
@@ -684,6 +680,11 @@ class HTCDag(networkx.DiGraph):
                 print(f"PARENT {edge[0]} CHILD {edge[1]}", file=fh)
             print(f"DOT {self.name}.dot", file=fh)
             print(f"NODE_STATUS_FILE {self.name}.node_status", file=fh)
+
+            # Add bps attributes to dag submission
+            for key, value in self.graph["attr"].items():
+                print(f'SET_JOB_ATTR {key}= "{htc_escape(value)}"', file=fh)
+
             if self.graph["final_job"]:
                 job = self.graph["final_job"]
                 job.write_submit_file(submit_path, job_subdir)
