@@ -1186,7 +1186,11 @@ def _htc_node_status_to_wms_state(job):
     elif status == NodeStatus.DONE:
         wms_state = WmsStates.SUCCEEDED
     elif status == NodeStatus.ERROR:
-        wms_state = WmsStates.FAILED
+        # Use job exist instead of post script exit
+        if "DAGMAN error 0" in job["StatusDetails"]:
+            wms_state = WmsStates.SUCCEEDED
+        else:
+            wms_state = WmsStates.FAILED
 
     return wms_state
 
