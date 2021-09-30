@@ -1,6 +1,0 @@
-includeConfigs:
-- ${CTRL_BPS_DIR}/doc/lsst.ctrl.bps/pipelines_check.yaml
-- ${CTRL_BPS_DIR}/doc/lsst.ctrl.bps/execution_butler.yaml
-
-payload:
-  output: u/{operator}/pcheck_ebutler

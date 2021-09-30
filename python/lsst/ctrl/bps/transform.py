@@ -762,7 +762,8 @@ def _create_final_command(config, prefix):
     arguments : `str`
         Command line needed to call the final script.
     """
-    search_opt = {'replaceVars': False, 'replaceEnvVars': False, 'expandEnvVars': False}
+    search_opt = {'replaceVars': False, 'replaceEnvVars': False, 'expandEnvVars': False,
+                  'searchobj': config['executionButler']}
 
     script_file = os.path.join(prefix, "final_job.bash")
     with open(script_file, "w") as fh:
