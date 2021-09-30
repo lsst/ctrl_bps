@@ -1,0 +1,1 @@
+Provide a cleaned up version of default config yaml for PanDA-pluging on IDF
