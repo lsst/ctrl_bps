@@ -346,12 +346,13 @@ class GenericWorkflow(DiGraph):
 
         # Final is separate
         final = self.get_final()
-        if isinstance(final, GenericWorkflow):
-            for job_name in final:
-                gwjob = final.get_job(job_name)
-                jcounts[gwjob.label] += 1
-        else:
-            jcounts[final.label] += 1
+        if final:
+            if isinstance(final, GenericWorkflow):
+                for job_name in final:
+                    gwjob = final.get_job(job_name)
+                    jcounts[gwjob.label] += 1
+            else:
+                jcounts[final.label] += 1
 
         return jcounts
 
