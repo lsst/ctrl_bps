@@ -990,7 +990,7 @@ def _get_run_summary(job):
         Number of jobs per PipelineTask label in approximate pipeline order.
         Format: <label>:<count>[;<label>:<count>]+
     """
-    summary = job.get("bps_job_summary", None)
+    summary = job.get("bps_job_summary", job.get("bps_run_summary", None))
     if not summary:
         summary, _ = summary_from_dag(job["Iwd"])
         if not summary:
