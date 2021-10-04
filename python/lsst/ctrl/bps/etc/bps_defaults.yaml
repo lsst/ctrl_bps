@@ -30,14 +30,14 @@ payload:
   #USER dataQuery: exposure=903342 AND detector=10
   runInit: true
   output: "u/{operator}/{payloadName}"
-  outCollection: "{output}/{timestamp}"
+  outputRun: "{output}/{timestamp}"
 
 pipetask:
   pipetaskInit:
     # Notes:  Declaring and chaining now happen within execution butler steps.
     # This command no longer needs -o and must have --extend-run.
     # Change panda-plugin's config at config/bps_idf.yaml too when changing runQuantumCommand
-    runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask {initPreCmdOpts} run -b {butlerConfig} -i {inCollection} -o {output} --output-run {outCollection} --qgraph {qgraphFile} --qgraph-id {qgraphId} --qgraph-node-id {qgraphNodeId} --clobber-outputs --init-only --extend-run {extraInitOptions}"
+    runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask {initPreCmdOpts} run -b {butlerConfig} -i {inCollection} -o {output} --output-run {outputRun} --qgraph {qgraphFile} --qgraph-id {qgraphId} --qgraph-node-id {qgraphNodeId} --clobber-outputs --init-only --extend-run {extraInitOptions}"
   #OPT myTask:
   #OPT   requestCpus:
   #OPT   requestMemory:
@@ -50,9 +50,9 @@ pipetask:
 # Default commands and usage requests for creating QuantumGraph, running Quantum.
 # Defaults to using full workflow QuantumGraph instead of per-job QuantumGraphs.
 whenSaveJobQgraph: "NEVER"
-createQuantumGraph: '${CTRL_MPEXEC_DIR}/bin/pipetask {qgraphPreCmdOpts} qgraph -b {butlerConfig} -i {inCollection} -o {output} --output-run {outCollection} -p {pipelineYaml} -q {qgraphFile} -d "{dataQuery}" {extraQgraphOptions}'
+createQuantumGraph: '${CTRL_MPEXEC_DIR}/bin/pipetask {qgraphPreCmdOpts} qgraph -b {butlerConfig} -i {inCollection} -o {output} --output-run {outputRun} -p {pipelineYaml} -q {qgraphFile} -d "{dataQuery}" {extraQgraphOptions}'
 # Change panda-plugin's config at config/bps_idf.yaml too when changing runQuantumCommand
-runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask {runPreCmdOpts} run -b {butlerConfig} -i {inCollection} -o {output} --output-run {outCollection} --qgraph {qgraphFile} --qgraph-id {qgraphId} --qgraph-node-id {qgraphNodeId} --clobber-outputs --skip-init-writes --extend-run {extraRunQuantumOptions}"
+runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask {runPreCmdOpts} run -b {butlerConfig} -i {inCollection} -o {output} --output-run {outputRun} --qgraph {qgraphFile} --qgraph-id {qgraphId} --qgraph-node-id {qgraphNodeId} --clobber-outputs --skip-init-writes --extend-run {extraRunQuantumOptions}"
 preemptible: True
 requestMemory: 2048
 requestCpus: 1
@@ -62,7 +62,7 @@ bpsUseShared: True
 clusterAlgorithm: lsst.ctrl.bps.quantum_clustering_funcs.single_quantum_clustering
 
 # Templates for bps filenames
-submitPath: ${PWD}/submit/{outCollection}
+submitPath: ${PWD}/submit/{outputRun}
 qgraphFileTemplate: "{uniqProcName}.qgraph"
 executionButlerTemplate: "{submitPath}/EXEC_REPO-{uniqProcName}"
 subDirTemplate: "{label}/{tract}/{patch}/{visit.day_obs}/{exposure.day_obs}/{band}/{subfilter}/{physical_filter}/{visit}/{exposure}"
@@ -79,13 +79,13 @@ useLazyCommands: True
 executionButler:
   whenCreate: "SUBMIT"
   #OPT executionButlerDir: "/my/exec/butler/dir"  # User-provided or defaults to executionButlerTemplate
-  createCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask qgraph -b {butlerConfig} -i {inCollection} -o {output} --output-run {outCollection} --save-execution-butler {executionButlerDir} -g {qgraphFile}"
+  createCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask qgraph -b {butlerConfig} -i {inCollection} -o {output} --output-run {outputRun} --save-execution-butler {executionButlerDir} -g {qgraphFile}"
   whenMerge: "ALWAYS"
   implementation: JOB  # Added for future flexibility, e.g., if prefer workflow instead of shell script.
   concurrencyLimit: db_limit
 
   mergePreCmdOpts: "{defaultPreCmdOpts}"
-  command1: "${DAF_BUTLER_DIR}/bin/butler {mergePreCmdOpts} transfer-datasets {executionButlerDir} {butlerConfig} --collections {outCollection}"
+  command1: "${DAF_BUTLER_DIR}/bin/butler {mergePreCmdOpts} transfer-datasets {executionButlerDir} {butlerConfig} --collections {outputRun}"
   command2: "${DAF_BUTLER_DIR}/bin/butler {mergePreCmdOpts} collection-chain {butlerConfig} {output} --flatten --mode=extend {inCollection}"
-  command3: "${DAF_BUTLER_DIR}/bin/butler {mergePreCmdOpts} collection-chain {butlerConfig} {output} --flatten --mode=prepend {outCollection}"
+  command3: "${DAF_BUTLER_DIR}/bin/butler {mergePreCmdOpts} collection-chain {butlerConfig} {output} --flatten --mode=prepend {outputRun}"
 
