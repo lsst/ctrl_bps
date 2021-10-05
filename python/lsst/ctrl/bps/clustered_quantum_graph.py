@@ -34,7 +34,7 @@ from pathlib import Path
 from networkx import DiGraph
 
 from lsst.daf.butler import DimensionUniverse
-from lsst.daf.butler.core.utils import iterable
+from lsst.utils.iteration import ensure_iterable
 from lsst.pipe.base import QuantumGraph, NodeId
 from .bps_draw import draw_networkx_dot
 
@@ -232,7 +232,7 @@ class ClusteredQuantumGraph:
         clusters_for_adding: `QuantaCluster` or `Iterable` [`QuantaCluster`]
             The cluster to be added to the ClusteredQuantumGraph.
         """
-        for cluster in iterable(clusters_for_adding):
+        for cluster in ensure_iterable(clusters_for_adding):
             if not isinstance(cluster, QuantaCluster):
                 raise TypeError(f"Must be type QuantaCluster (given: {type(cluster)})")
 
