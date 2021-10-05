@@ -261,7 +261,7 @@ def submit_driver(config_file, **kwargs):
     print(f"Run Id: {wms_workflow.run_id}")
 
 
-def report_driver(wms_service, run_id, user, hist_days, pass_thru):
+def report_driver(wms_service, run_id, user, hist_days, pass_thru, is_global=False):
     """Print out summary of jobs submitted for execution.
 
     Parameters
@@ -276,8 +276,13 @@ def report_driver(wms_service, run_id, user, hist_days, pass_thru):
         Number of days
     pass_thru : `str`
         A string to pass directly to the WMS service class.
+    is_global : `bool`, optional
+        If set, all available job queues will be queried for job information.
+        Defaults to False, which means that only a local job queue will be
+        queried for information. Only applicable for WMS using distributed job
+        queues (e.g., HTCondor).
     """
-    report(wms_service, run_id, user, hist_days, pass_thru)
+    report(wms_service, run_id, user, hist_days, pass_thru, is_global=is_global)
 
 
 def cancel_driver(wms_service, run_id, user, require_bps, pass_thru):

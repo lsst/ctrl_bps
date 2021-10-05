@@ -151,7 +151,7 @@ class BaseWmsService:
         """
         raise NotImplementedError
 
-    def report(self, wms_workflow_id=None, user=None, hist=0, pass_thru=None):
+    def report(self, wms_workflow_id=None, user=None, hist=0, pass_thru=None, is_global=False):
         """Query WMS for status of submitted WMS workflows.
 
         Parameters
@@ -164,6 +164,14 @@ class BaseWmsService:
             Number of days to expand report to include finished WMS workflows.
         pass_thru : `str`, optional
             Additional arguments to pass through to the specific WMS service.
+        is_global : `bool`, optional
+            If set, all available job queues will be queried for job
+            information.  Defaults to False, which means that only a local job
+            queue will be queried for information.
+
+            Only make sense in the context of a WMS using distributed job
+            queues (e.g. HTCondor). A WMS with a centralized queue (e.g. PanDA)
+            can safely ignore it.
 
         Returns
         -------

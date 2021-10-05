@@ -42,7 +42,9 @@ __all__ = [
     "htc_submit_dag",
     "condor_history",
     "condor_q",
+    "condor_search",
     "condor_status",
+    "condor_update",
     "read_dag_status",
     "MISSING_ID",
     "summary_from_dag",
@@ -64,6 +66,7 @@ from enum import IntEnum
 from pathlib import Path
 import pprint
 import subprocess
+from datetime import datetime, timedelta
 
 import networkx
 import classad
@@ -730,82 +733,109 @@ class HTCDag(networkx.DiGraph):
         networkx.drawing.nx_pydot.write_dot(self, filename)
 
 
-def condor_q(constraint=None, schedd=None):
+def condor_q(constraint=None, schedds=None):
     """Query HTCondor for current jobs.
 
     Parameters
     ----------
     constraint : `str`, optional
         Constraints to be passed to job query.
-    schedd : `htcondor.Schedd`, optional
-        HTCondor scheduler which to query for job information
+    schedds : `dict` [ `str`, `htcondor.Schedd` ], optional
+        HTCondor schedulers which to query for job information. If None
+        (default), the query will be run against local scheduler only.
 
     Returns
     -------
-    jobads : `dict`
-        Mapping HTCondor job id to job information
+    job_info : `dict` [ `str`, `dict` [ `str`, Any ] ]
+        Mappings between HTCondor job ids to job information grouped by
+        scheduler names.
     """
-    if not schedd:
-        schedd = htcondor.Schedd()
-    try:
-        joblist = schedd.query(constraint=constraint)
-    except RuntimeError as ex:
-        raise RuntimeError(f"Problem querying the Schedd.  (Constraint='{constraint}')") from ex
+    if not schedds:
+        coll = htcondor.Collector()
+        schedd_ad = coll.locate(htcondor.DaemonTypes.Schedd)
+        schedds = {schedd_ad["Name"]: htcondor.Schedd(schedd_ad)}
 
-    queries = []
-    coll_query = htcondor.Collector().locateAll(htcondor.DaemonTypes.Schedd)
-    for schedd_ad in coll_query:
-        schedd_obj = htcondor.Schedd(schedd_ad)
-        queries.append(schedd_obj.xquery(requirements=constraint))
+    queries = [schedd.xquery(requirements=constraint) for schedd in schedds.values()]
 
-    jobads = {}
+    job_info = {}
     for query in htcondor.poll(queries):
         schedd_name = query.tag()
-        for jobinfo in query.nextAdsNonBlocking():
-            del jobinfo["Environment"]
-            del jobinfo["Env"]
-            jobads[f"{jobinfo['ClusterId']}.{jobinfo['ProcId']}"] = dict(jobinfo)
-
-    # convert list to dictionary
-    #jobads = {}
-    #for jobinfo in joblist:
-    #    del jobinfo["Environment"]
-    #    del jobinfo["Env"]
-    #
-    #    jobads[f"{jobinfo['ClusterId']}.{jobinfo['ProcId']}"] = dict(jobinfo)
-
-    return jobads
+        job_info.setdefault(schedd_name, {})
+        for job_ad in query.nextAdsNonBlocking():
+            del job_ad["Environment"]
+            del job_ad["Env"]
+            id_ = f"{int(job_ad['ClusterId'])}.{int(job_ad['ProcId'])}"
+            job_info[schedd_name][id_] = dict(job_ad)
+    _LOG.debug("condor_q returned %d jobs", len(job_info))
+    return {key: val for key, val in job_info.items() if val}
 
 
-def condor_history(constraint=None, schedd=None):
+def condor_history(constraint=None, schedds=None):
     """Get information about completed jobs from HTCondor history.
 
     Parameters
     ----------
     constraint : `str`, optional
         Constraints to be passed to job query.
-    schedd : `htcondor.Schedd`, optional
-        HTCondor scheduler which to query for job information
+    schedds : `dict` [ `str`, `htcondor.Schedd` ], optional
+        HTCondor schedulers which to query for job information. If None
+        (default), the query will be run against the history file of
+        the local scheduler only.
 
     Returns
     -------
-    jobads : `dict`
-        Mapping HTCondor job id to job information
+    job_info : `dict` [ `str, `dict` [ `str`, Any ] ]
+        Mappings between HTCondor job ids to job information grouped by
+        scheduler names.
     """
-    if not schedd:
-        schedd = htcondor.Schedd()
-    _LOG.debug("condor_history constraint = %s", constraint)
-    joblist = schedd.history(constraint, projection=[], match=-1)
+    if not schedds:
+        coll = htcondor.Collector()
+        schedd_ad = coll.locate(htcondor.DaemonTypes.Schedd)
+        schedds = {schedd_ad["Name"]: htcondor.Schedd(schedd_ad)}
 
-    # convert list to dictionary
-    jobads = {}
-    for jobinfo in joblist:
-        del jobinfo["Environment"]
-        del jobinfo["Env"]
-        jobads[f"{jobinfo['ClusterId']}.{jobinfo['ProcId']}"] = dict(jobinfo)
+    job_info = {}
+    for schedd_name, schedd in schedds.items():
+        job_info[schedd_name] = {}
+        for job_ad in schedd.history(requirements=constraint, projection=[]):
+            del job_ad["Environment"]
+            del job_ad["Env"]
+            id_ = f"{int(job_ad['ClusterId'])}.{int(job_ad['ProcId'])}"
+            job_info[schedd_name][id_] = dict(job_ad)
+    _LOG.debug("condor_history returned %d jobs", len(job_info))
+    return {key: val for key, val in job_info.items() if val}
 
-    _LOG.debug("condor_history returned %d jobs", len(jobads))
-    return jobads
+
+def condor_search(constraint=None, hist=None, schedds=None):
+    """Search for running and finished jobs satisfying given criteria.
+
+    Parameters
+    ----------
+    constraint : `str`, optional
+        Constraints to be passed to job query.
+    hist : `float`
+        Limit history search to this many days.
+    schedds : `dict` [`str`, `htcondor.Schedd`], optional
+        The list of the HTCondor schedulers which to query for job information.
+        If None (default), only the local scheduler will be queried.
+
+    Returns
+    -------
+    job_info : `dict` [ `str`, `dict` [ `str`, Any ] ]
+        Mappings between HTCondor job ids to job information grouped by
+        scheduler names.
+    """
+    if not schedds:
+        coll = htcondor.Collector()
+        schedd_ad = coll.locate(htcondor.DaemonTypes.Schedd)
+        schedds = {schedd_ad["Name"]: htcondor.Schedd(schedd_ad)}
+
+    job_info = condor_q(constraint=constraint, schedds=schedds)
+    if hist is not None:
+        epoch = (datetime.now() - timedelta(days=hist)).timestamp()
+        constraint += f" && (CompletionDate >= {epoch} || JobFinishedHookDone >= {epoch})"
+        hist_info = condor_history(constraint, schedds=schedds)
+        condor_update(job_info, hist_info)
+    return job_info
 
 
 def condor_status(constraint=None, coll=None):
@@ -827,7 +857,7 @@ def condor_status(constraint=None, coll=None):
         coll = htcondor.Collector()
     try:
         pool_ads = coll.query(constraint=constraint)
-    except RuntimeError as ex:
+    except OSError as ex:
         raise RuntimeError(f"Problem querying the Collector.  (Constraint='{constraint}')") from ex
 
     pool_info = {}
@@ -835,6 +865,32 @@ def condor_status(constraint=None, coll=None):
         pool_info[slot["name"]] = dict(slot)
     _LOG.debug("condor_status returned %d ads", len(pool_info))
     return pool_info
+
+
+def condor_update(job_info, other_info):
+    """Update results of a job query with results from another query.
+
+    Parameters
+    ----------
+    job_info : `dict` [ `str`, `dict` [ `str`, Any ] ]
+        Results of the job query that needs to be updated.
+    other_info : `dict` [ `str`, `dict` [ `str`, Any ] ]
+        Results of the other job query.
+
+    Returns
+    -------
+    job_info : `dict` [ `str`, `dict` [ `str`, Any ] ]
+        The updated results.
+    """
+    for name, others in other_info.items():
+        try:
+            jobs = job_info[name]
+        except KeyError:
+            job_info[name] = others
+        else:
+            for id_, ad in others.items():
+                jobs.setdefault(id_, {}).update(ad)
+    return job_info
 
 
 def summary_from_dag(dir_name):
@@ -1143,11 +1199,13 @@ def _tweak_log_info(filename, job):
     filename : `pathlib.Path`
         Name of the DAGMan log.
     job : `dict` [ `str`, Any ]
-        A mapping between HTCondor job id and job information read from the log.
+        A mapping between HTCondor job id and job information read from
+        the log.
     """
     _LOG.debug("_tweak_log_info: %s %s", filename, job)
     try:
         job["ClusterId"] = job["Cluster"]
+        job["ProcId"] = job["Proc"]
         job["Iwd"] = str(filename.parent)
         job["Owner"] = filename.owner()
         if job["MyType"] == "ExecuteEvent":
