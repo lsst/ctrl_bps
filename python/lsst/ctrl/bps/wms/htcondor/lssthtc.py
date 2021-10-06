@@ -762,13 +762,13 @@ def condor_q(constraint=None, schedds=None):
     ----------
     constraint : `str`, optional
         Constraints to be passed to job query.
-    schedds : `dict` [ `str`, `htcondor.Schedd` ], optional
+    schedds : `dict` [`str`, `htcondor.Schedd`], optional
         HTCondor schedulers which to query for job information. If None
         (default), the query will be run against local scheduler only.
 
     Returns
     -------
-    job_info : `dict` [ `str`, `dict` [ `str`, Any ] ]
+    job_info : `dict` [`str`, `dict` [`str`, Any]]
         Mappings between HTCondor job ids to job information grouped by
         scheduler names.
     """
@@ -799,14 +799,14 @@ def condor_history(constraint=None, schedds=None):
     ----------
     constraint : `str`, optional
         Constraints to be passed to job query.
-    schedds : `dict` [ `str`, `htcondor.Schedd` ], optional
+    schedds : `dict` [`str`, `htcondor.Schedd`], optional
         HTCondor schedulers which to query for job information. If None
         (default), the query will be run against the history file of
         the local scheduler only.
 
     Returns
     -------
-    job_info : `dict` [ `str, `dict` [ `str`, Any ] ]
+    job_info : `dict` [`str, `dict` [`str`, Any]]
         Mappings between HTCondor job ids to job information grouped by
         scheduler names.
     """
@@ -842,7 +842,7 @@ def condor_search(constraint=None, hist=None, schedds=None):
 
     Returns
     -------
-    job_info : `dict` [ `str`, `dict` [ `str`, Any ] ]
+    job_info : `dict` [ `str`, `dict` [`str`, Any]]
         Mappings between HTCondor job ids to job information grouped by
         scheduler names.
     """
@@ -872,7 +872,7 @@ def condor_status(constraint=None, coll=None):
 
     Returns
     -------
-    pool_info : `dict` [`str`, `dict` [ `str, Any ]]
+    pool_info : `dict` [`str`, `dict` [`str`, Any]]
         Mapping between HTCondor slot names and slot information (classAds).
     """
     if coll is None:
@@ -894,14 +894,14 @@ def condor_update(job_info, other_info):
 
     Parameters
     ----------
-    job_info : `dict` [ `str`, `dict` [ `str`, Any ] ]
+    job_info : `dict` [`str`, `dict` [`str`, Any]]
         Results of the job query that needs to be updated.
-    other_info : `dict` [ `str`, `dict` [ `str`, Any ] ]
+    other_info : `dict` [`str`, `dict` [`str`, Any]]
         Results of the other job query.
 
     Returns
     -------
-    job_info : `dict` [ `str`, `dict` [ `str`, Any ] ]
+    job_info : `dict` [`str`, `dict` [`str`, Any]]
         The updated results.
     """
     for name, others in other_info.items():
@@ -1006,7 +1006,7 @@ def read_dag_status(wms_path):
 
     Returns
     -------
-    dag_classad : `dict`
+    dag_ad : `dict` [`str`, Any]
         DAG summary information.
     """
     dag_classad = {}
@@ -1058,7 +1058,7 @@ def read_node_status(wms_path):
 
     Returns
     -------
-    dag_classad : `dict` or `classad.ClassAd`
+    jobs : `dict` [`str`, Any]
         DAG summary information.
     """
     # Get jobid info from other places to fill in gaps in info from node_status
@@ -1185,7 +1185,7 @@ def read_dag_nodes_log(wms_path):
 
     Returns
     -------
-    info : `dict`
+    info : `dict` [`str`, Any]
         HTCondor job information read from the log file mapped to HTCondor
         job id.
 
