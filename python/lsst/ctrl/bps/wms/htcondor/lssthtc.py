@@ -1009,7 +1009,7 @@ def read_dag_status(wms_path):
     dag_ad : `dict` [`str`, Any]
         DAG summary information.
     """
-    dag_classad = {}
+    dag_ad = {}
 
     # While this is probably more up to date than dag classad, only read from
     # file if need to.
@@ -1018,34 +1018,34 @@ def read_dag_status(wms_path):
             node_stat_file = next(Path(wms_path).glob("*.node_status"))
             _LOG.debug("Reading Node Status File %s", node_stat_file)
             with open(node_stat_file, "r") as infh:
-                dag_classad = classad.parseNext(infh)  # pylint: disable=E1101
+                dag_ad = classad.parseNext(infh)  # pylint: disable=E1101
         except StopIteration:
             pass
 
-        if not dag_classad:
+        if not dag_ad:
             # Pegasus check here
             try:
                 metrics_file = next(Path(wms_path).glob("*.dag.metrics"))
                 with open(metrics_file, "r") as infh:
                     metrics = json.load(infh)
-                dag_classad["NodesTotal"] = metrics.get("jobs", 0)
-                dag_classad["NodesFailed"] = metrics.get("jobs_failed", 0)
-                dag_classad["NodesDone"] = metrics.get("jobs_succeeded", 0)
-                dag_classad["pegasus_version"] = metrics.get("planner_version", "")
+                dag_ad["NodesTotal"] = metrics.get("jobs", 0)
+                dag_ad["NodesFailed"] = metrics.get("jobs_failed", 0)
+                dag_ad["NodesDone"] = metrics.get("jobs_succeeded", 0)
+                dag_ad["pegasus_version"] = metrics.get("planner_version", "")
             except StopIteration:
                 try:
                     metrics_file = next(Path(wms_path).glob("*.metrics"))
                     with open(metrics_file, "r") as infh:
                         metrics = json.load(infh)
-                    dag_classad["NodesTotal"] = metrics["wf_metrics"]["total_jobs"]
-                    dag_classad["pegasus_version"] = metrics.get("version", "")
+                    dag_ad["NodesTotal"] = metrics["wf_metrics"]["total_jobs"]
+                    dag_ad["pegasus_version"] = metrics.get("version", "")
                 except StopIteration:
                     pass
     except (OSError, PermissionError):
         pass
 
-    _LOG.debug("read_dag_status: %s", dag_classad)
-    return dict(dag_classad)
+    _LOG.debug("read_dag_status: %s", dag_ad)
+    return dict(dag_ad)
 
 
 def read_node_status(wms_path):
