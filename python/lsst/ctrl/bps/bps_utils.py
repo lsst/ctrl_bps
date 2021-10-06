@@ -70,8 +70,7 @@ def create_job_quantum_graph_filename(config, job, out_prefix=None):
     Parameters
     ----------
     config : `lsst.ctrl.bps.BpsConfig`
-        BPS configuration (at minimum must contain qgraphFile and
-        outCollection).
+        BPS configuration.
     job : `lsst.ctrl.bps.GenericWorkflowJob`
         Job for which the QuantumGraph file is being saved.
     out_prefix : `str`, optional
@@ -125,8 +124,7 @@ def _create_execution_butler(config, qgraph_filename, execution_butler_dir, out_
     Parameters
     ----------
     config : `lsst.ctrl.bps.BpsConfig`
-        BPS configuration (at minimum must contain qgraphFile and
-        outCollection).
+        BPS configuration.
     qgraph_filename : `str`
         Run QuantumGraph filename.
     execution_butler_dir : `str`
