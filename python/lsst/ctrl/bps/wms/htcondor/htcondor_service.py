@@ -56,6 +56,7 @@ from .lssthtc import (
     htc_check_dagman_output,
     htc_escape,
     htc_submit_dag,
+    read_dag_global_id,
     read_dag_log,
     read_dag_status,
     read_node_status,
@@ -848,6 +849,7 @@ def _get_info_from_path(wms_path):
         # Add more info for DAGman job
         job = jobs[wms_workflow_id]
         job.update(read_dag_status(wms_path))
+        job.update(read_dag_global_id(wms_path))
         job["total_jobs"], job["state_counts"] = _get_state_counts_from_jobs(wms_workflow_id, jobs)
         if "bps_run" not in job:
             _add_run_info(wms_path, job)

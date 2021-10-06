@@ -45,13 +45,14 @@ __all__ = [
     "condor_search",
     "condor_status",
     "condor_update",
-    "read_dag_status",
     "MISSING_ID",
     "summary_from_dag",
+    "read_dag_global_id",
     "read_dag_log",
     "read_dag_nodes_log",
+    "read_dag_status",
     "read_node_status",
-    "pegasus_name_to_label"
+    "pegasus_name_to_label",
 ]
 
 
@@ -363,10 +364,30 @@ def htc_submit_dag(htc_dag, submit_options=None):
     else:
         sub = _htc_submit_dag_old(htc_dag.graph["dag_filename"], submit_options)
 
-    # submit DAG to HTCondor's schedd
-    schedd = htcondor.Schedd()
+    # Submit DAG to HTCondor's schedd.
+    coll = htcondor.Collector()
+    schedd_ad = coll.locate(htcondor.DaemonTypes.Schedd)
+    schedd = htcondor.Schedd(location_ad=schedd_ad)
     with schedd.transaction() as txn:
-        htc_dag.run_id = sub.queue(txn)
+        sub_ads = []
+        sub.queue(txn, ad_results=sub_ads)
+        htc_dag.run_id = f"{sub_ads[0]['ClusterId']}.{sub_ads[0]['ProcId']}"
+
+    # Sadly, the ClassAd from Submit.queue() (see above) does not have
+    # 'GlobalJobId'. So we need to run a fully fledged query to get it.
+    schedd_name = schedd_ad["Name"]
+    job_info = condor_q(constraint=f"ClusterId = {int(float(htc_dag.run_id))}", schedds={schedd_name: schedd})
+    try:
+        job_id = next(iter(job_info[schedd_name].keys()))
+    except StopIteration:
+        _LOG.debug("Job with id '%s' not found", htc_dag.run_id)
+    else:
+        try:
+            with open(f"{htc_dag.name}.gid.json", "w") as fh:
+                job_ad = job_info[schedd_name][job_id]
+                json.dump({"GlobalJobId": job_ad["GlobalJobId"]}, fh)
+        except (KeyError, IOError, PermissionError) as exc:
+            _LOG.debug("Persisting global job id failed: %s", exc)
 
 
 def _htc_submit_dag_old(dag_filename, submit_options=None):
@@ -1189,6 +1210,39 @@ def read_dag_nodes_log(wms_path):
     for job in info.values():
         _tweak_log_info(filename, job)
     return info
+
+
+def read_dag_global_id(wms_path):
+    """Read DAGMan global job id from the file.
+
+    Parameters
+    ----------
+    wms_path : `str`
+        Path containing the file with the DAGMan global id.
+
+    Returns
+    -------
+    dag_ad : `dict` [ `str`, Any]
+        HTCondor classAd-like information read from the file mapped to HTCondor
+        job id.
+
+    Raises
+    ------
+    FileNotFoundError
+        If cannot find DAGMan node log in given wms_path.
+    """
+    try:
+        filename = next(Path(wms_path).glob("*.gid.json"))
+    except StopIteration as exc:
+        raise FileNotFoundError(f"DAGMan file with global id not found in {wms_path}") from exc
+    _LOG.debug("DAGMan global id filename: %s", filename)
+    try:
+        with open(filename) as fh:
+            dag_ad = json.load(fh)
+    except (IOError, PermissionError) as exc:
+        _LOG.debug("Retrieving DAGMan global id failed: %s", exc)
+        dag_ad = {}
+    return dag_ad
 
 
 def _tweak_log_info(filename, job):
