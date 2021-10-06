@@ -4,7 +4,7 @@
 
 
 # At minimum, following group used in bps report and can be
-# used in WMS queries.  Users can use in other things such as "output". 
+# used in WMS queries.  Users can use in other things such as "output".
 #USER operator: special_name    # defaults to login on submit machine
 #USER project: dev
 #USER campaign: quick

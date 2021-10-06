@@ -16,7 +16,7 @@ computeSite: DOMA_LSST_SLAC_TEST
 
 
 # At minimum, following group used in bps report and can be
-# used in WMS queries.  Users can use in other things such as "output". 
+# used in WMS queries.  Users can use in other things such as "output".
 operator: spodolsky    # defaults to login on submit machine
 project: dev
 campaign: quick
