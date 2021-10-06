@@ -72,6 +72,7 @@ from datetime import datetime, timedelta
 import networkx
 import classad
 import htcondor
+from packaging import version
 
 
 _LOG = logging.getLogger(__name__)
@@ -345,7 +346,7 @@ def htc_version():
     version_info = re.match(r"\$CondorVersion: (\d+).(\d+).(\d+)", htcondor.version())
     if version_info is None:
         raise RuntimeError("Problems parsing condor version")
-    return f"{int(version_info.group(1)):04}.{int(version_info.group(2)):04}.{int(version_info.group(3)):04}"
+    return f"{int(version_info.group(1))}.{int(version_info.group(2))}.{int(version_info.group(3))}"
 
 
 def htc_submit_dag(htc_dag, submit_options=None):
@@ -358,8 +359,8 @@ def htc_submit_dag(htc_dag, submit_options=None):
     submit_options : `dict`
         Extra options for condor_submit_dag
     """
-    ver = htc_version()
-    if ver >= "8.9.3":
+    ver = version.parse(htc_version())
+    if ver >= version.parse("8.9.3"):
         sub = htcondor.Submit.from_dag(htc_dag.graph["dag_filename"], submit_options)
     else:
         sub = _htc_submit_dag_old(htc_dag.graph["dag_filename"], submit_options)
