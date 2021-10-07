@@ -16,7 +16,7 @@ computeSite: DOMA_LSST_SLAC_TEST
 
 
 # At minimum, following group used in bps report and can be
-# used in WMS queries.  Users can use in other things such as "output". 
+# used in WMS queries.  Users can use in other things such as "output".
 operator: spodolsky    # defaults to login on submit machine
 project: dev
 campaign: quick
@@ -67,7 +67,7 @@ executionButler:
   whenMerge: "ALWAYS"
   implementation: JOB  # JOB, WORKFLOW
   concurrency_limit: db_limit
-  command1: "${DAF_BUTLER_DIR}/bin/butler --log-level=VERBOSE transfer-datasets  {executionButlerDir} {butlerConfig} --collections {outputRun}"
+  command1: "${DAF_BUTLER_DIR}/bin/butler --log-level=VERBOSE transfer-datasets  {executionButlerDir} {butlerConfig} --collections {outputRun} --register-dataset-types"
   command2: "${DAF_BUTLER_DIR}/bin/butler collection-chain {butlerConfig} {output} {outputRun} --mode=prepend"
 
   # For --replace-run behavior need to run two collection-chain commands:
