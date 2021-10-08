@@ -34,7 +34,7 @@ from collections import Counter
 from networkx import DiGraph, read_gpickle, write_gpickle, topological_sort
 from networkx.algorithms.dag import is_directed_acyclic_graph
 
-from lsst.daf.butler.core.utils import iterable
+from lsst.utils.iteration import ensure_iterable
 from .bps_draw import draw_networkx_dot
 
 _LOG = logging.getLogger(__name__)
@@ -435,7 +435,7 @@ class GenericWorkflow(DiGraph):
             Children job names.
         """
         if parents is not None and children is not None:
-            self.add_edges_from(itertools.product(iterable(parents), iterable(children)))
+            self.add_edges_from(itertools.product(ensure_iterable(parents), ensure_iterable(children)))
 
     def add_edges_from(self, ebunch_to_add, **attr):
         """Add several edges between jobs in the generic workflow.
@@ -512,7 +512,7 @@ class GenericWorkflow(DiGraph):
             File object(s) to be added as inputs to the specified job.
         """
         self._inputs.setdefault(job_name, [])
-        for file in iterable(files):
+        for file in ensure_iterable(files):
             # Save the central copy
             if file.name not in self._files:
                 self._files[file.name] = file
@@ -589,7 +589,7 @@ class GenericWorkflow(DiGraph):
         """
         self._outputs.setdefault(job_name, [])
 
-        for file_ in iterable(files):
+        for file_ in ensure_iterable(files):
             # Save the central copy
             if file_.name not in self._files:
                 self._files[file_.name] = file_
