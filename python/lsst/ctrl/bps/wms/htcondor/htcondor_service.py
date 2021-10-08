@@ -599,18 +599,40 @@ def _replace_file_vars(config, arguments, workflow, gwjob):
 
     # Replace input file placeholders with paths.
     for gwfile in workflow.get_job_inputs(gwjob.name, data=True, transfer_only=False):
-        if gwfile.wms_transfer and not use_shared or not gwfile.job_shared:
-            uri = os.path.basename(gwfile.src_uri)
-        else:
+        if not gwfile.wms_transfer:
+            # Must assume full URI if in command line and told WMS is not
+            # responsible for transferring file.
             uri = gwfile.src_uri
+        elif use_shared:
+            if gwfile.job_shared:
+                # Have shared filesystems and jobs can share file.
+                uri = gwfile.src_uri
+            else:
+                # Taking advantage of inside knowledge.  Not future-proof.
+                # Temporary fix until have job wrapper that pulls files
+                # within job.
+                if gwfile.name == "butlerConfig" and not Path(gwfile.src_uri).suffix:
+                    uri = "butler.yaml"
+                else:
+                    uri = os.path.basename(gwfile.src_uri)
+        else:  # Using push transfer
+            uri = os.path.basename(gwfile.src_uri)
         arguments = arguments.replace(f"<FILE:{gwfile.name}>", uri)
 
     # Replace output file placeholders with paths.
     for gwfile in workflow.get_job_outputs(gwjob.name, data=True, transfer_only=False):
-        if gwfile.wms_transfer and not use_shared or not gwfile.job_shared:
-            uri = os.path.basename(gwfile.src_uri)
-        else:
+        if not gwfile.wms_transfer:
+            # Must assume full URI if in command line and told WMS is not
+            # responsible for transferring file.
             uri = gwfile.src_uri
+        elif use_shared:
+            if gwfile.job_shared:
+                # Have shared filesystems and jobs can share file.
+                uri = gwfile.src_uri
+            else:
+                uri = os.path.basename(gwfile.src_uri)
+        else:  # Using push transfer
+            uri = os.path.basename(gwfile.src_uri)
         arguments = arguments.replace(f"<FILE:{gwfile.name}>", uri)
     return arguments
 
@@ -664,8 +686,36 @@ def _handle_job_inputs(generic_workflow: GenericWorkflow, job_name: str, use_sha
     inputs = []
     for gwf_file in generic_workflow.get_job_inputs(job_name, data=True, transfer_only=True):
         _LOG.debug("src_uri=%s", gwf_file.src_uri)
-        if not use_shared or not gwf_file.job_shared:
-            inputs.append(os.path.relpath(gwf_file.src_uri, out_prefix))
+
+        uri = Path(gwf_file.src_uri)
+
+        # Note if use_shared and job_shared, don't need to transfer file.
+
+        if not use_shared:  # Copy file using push to job
+            inputs.append(str(uri.relative_to(out_prefix)))
+        elif not gwf_file.job_shared:  # Jobs require own copy
+
+            # if using shared filesystem, but still need copy in job. Use
+            # HTCondor's curl plugin for a local copy.
+
+            # Execution butler is represented as a directory which the
+            # curl plugin does not handle. Taking advantage of inside
+            # knowledge for temporary fix until have job wrapper that pulls
+            # files within job.
+            if gwf_file.name == "butlerConfig":
+                # The execution butler directory doesn't normally exist
+                # until the submit phase so checking for suffix instead
+                # of using is_dir().
+                if uri.suffix:  # Single file, so just copy.
+                    inputs.append(f"file://{uri}")
+                else:
+                    inputs.append(f"file://{uri / 'butler.yaml'}")
+                    inputs.append(f"file://{uri / 'gen3.sqlite3'}")
+            elif uri.is_dir():
+                raise RuntimeError("HTCondor plugin cannot transfer directories locally within job (%s)",
+                                   gwf_file.src_uri)
+            else:
+                inputs.append(f"file://{uri}")
 
     if inputs:
         htc_commands["transfer_input_files"] = ",".join(inputs)
