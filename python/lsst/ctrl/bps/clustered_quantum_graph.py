@@ -95,7 +95,7 @@ class QuantaCluster:
         # Gather info for name template into a dictionary.
         info = data_id.byName()
         info["label"] = label
-        info["node_id"] = node_id
+        info["node_number"] = node_id.number
         _LOG.debug("template = %s", template)
         _LOG.debug("info for template = %s", info)
 
