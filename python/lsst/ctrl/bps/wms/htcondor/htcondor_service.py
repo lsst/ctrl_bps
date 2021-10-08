@@ -1310,13 +1310,18 @@ def _create_request_memory_expr(memory, multiplier):
         A string representing an HTCondor ClassAd expression enabling safe
         memory scaling between job retries.
     """
+    # ClassAds 'Last*' are UNDEFINED when a job is put in the job queue.
+    # The special comparison operators ensure that all comparisons below will
+    # evaluate to FALSE in this case.
     was_mem_exceeded = "LastJobStatus =?= 5 " \
                        "&& (LastHoldReasonCode =?= 34 && LastHoldReasonSubCode =?= 0 " \
                        "|| LastHoldReasonCode =?= 3 && LastHoldReasonSubCode =?= 34)"
 
-    # If job runs the first time ('MemoryUsage' is not defined), set the
-    # required memory to a given value.
-    ad = f"ifThenElse({was_mem_exceeded}, " \
-         f"ifThenElse(isUndefined(MemoryUsage), {memory}, int({multiplier} * MemoryUsage)), " \
-         f"ifThenElse(isUndefined(MemoryUsage), {memory}, max({memory}, MemoryUsage)))"
+    # If job runs the first time or was held for reasons other than exceeding
+    # the memory, set the required memory to the requested value or use
+    # the memory value measured by HTCondor (MemoryUsage) depending on
+    # whichever is greater.
+    ad = f"({was_mem_exceeded}) " \
+         f"? int({memory} * pow({multiplier}, NumJobStarts)) " \
+         f": max({{{memory}, MemoryUsage ?: 0}}))"
     return ad
