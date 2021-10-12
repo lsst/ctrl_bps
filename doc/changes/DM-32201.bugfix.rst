@@ -1,0 +1,1 @@
+Fix execution butler with HTCondor plugin bug when output collection has period.
