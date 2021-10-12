@@ -58,6 +58,7 @@ requestMemory: 2048
 requestCpus: 1
 
 wmsServiceClass: lsst.ctrl.bps.wms.htcondor.htcondor_service.HTCondorService
+bpsUseShared: True
 clusterAlgorithm: lsst.ctrl.bps.quantum_clustering_funcs.single_quantum_clustering
 
 # Templates for bps filenames
@@ -74,7 +75,6 @@ saveClusteredQgraph: False
 
 # Temporary backward-compatibility settings
 useLazyCommands: True
-bpsUseShared: False
 
 executionButler:
   whenCreate: "SUBMIT"
