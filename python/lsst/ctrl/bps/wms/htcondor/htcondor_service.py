@@ -611,7 +611,7 @@ def _replace_file_vars(config, arguments, workflow, gwjob):
                 # Taking advantage of inside knowledge.  Not future-proof.
                 # Temporary fix until have job wrapper that pulls files
                 # within job.
-                if gwfile.name == "butlerConfig" and not Path(gwfile.src_uri).suffix:
+                if gwfile.name == "butlerConfig" and Path(gwfile.src_uri).suffix != ".yaml":
                     uri = "butler.yaml"
                 else:
                     uri = os.path.basename(gwfile.src_uri)
@@ -703,10 +703,11 @@ def _handle_job_inputs(generic_workflow: GenericWorkflow, job_name: str, use_sha
             # knowledge for temporary fix until have job wrapper that pulls
             # files within job.
             if gwf_file.name == "butlerConfig":
-                # The execution butler directory doesn't normally exist
-                # until the submit phase so checking for suffix instead
-                # of using is_dir().
-                if uri.suffix:  # Single file, so just copy.
+                # The execution butler directory doesn't normally exist until
+                # the submit phase so checking for suffix instead of using
+                # is_dir().  If other non-yaml file exists they would have a
+                # different gwf_file.name.
+                if uri.suffix == ".yaml":  # Single file, so just copy.
                     inputs.append(f"file://{uri}")
                 else:
                     inputs.append(f"file://{uri / 'butler.yaml'}")
