@@ -41,11 +41,11 @@ import getpass
 import logging
 import os
 import re
-import time
 import shutil
 
 
 from lsst.obs.base import Instrument
+from lsst.utils.timer import time_this
 
 from . import BPS_SEARCH_ORDER, BpsConfig
 from .pre_transform import acquire_quantum_graph, cluster_quanta
@@ -126,16 +126,15 @@ def acquire_qgraph_driver(config_file, **kwargs):
     qgraph : `lsst.pipe.base.graph.QuantumGraph`
         A graph representing quanta.
     """
-    stime = time.time()
     config = _init_submission_driver(config_file, **kwargs)
     submit_path = config[".bps_defined.submitPath"]
-    _LOG.info("Acquiring QuantumGraph (it will be created from pipeline definition if needed)")
-    qgraph_file, qgraph, execution_butler_dir = acquire_quantum_graph(config, out_prefix=submit_path)
-    config[".bps_defined.executionButlerDir"] = execution_butler_dir
-    _LOG.info("Run QuantumGraph file %s", qgraph_file)
-    config[".bps_defined.runQgraphFile"] = qgraph_file
-    _LOG.info("Acquiring QuantumGraph took %.2f seconds", time.time() - stime)
 
+    _LOG.info("Starting acquire stage (generating and/or reading quantum graph)")
+    with time_this(log=_LOG, level=logging.INFO, prefix=None, msg="Acquire stage completed"):
+        qgraph_file, qgraph, execution_butler_dir = acquire_quantum_graph(config, out_prefix=submit_path)
+
+    config[".bps_defined.executionButlerDir"] = execution_butler_dir
+    config[".bps_defined.runQgraphFile"] = qgraph_file
     return config, qgraph
 
 
@@ -154,11 +153,11 @@ def cluster_qgraph_driver(config_file, **kwargs):
     clustered_qgraph : `lsst.ctrl.bps.ClusteredQuantumGraph`
         A graph representing clustered quanta.
     """
-    stime = time.time()
     config, qgraph = acquire_qgraph_driver(config_file, **kwargs)
-    _LOG.info("Clustering quanta")
-    clustered_qgraph = cluster_quanta(config, qgraph, config["uniqProcName"])
-    _LOG.info("Clustering quanta took %.2f seconds", time.time() - stime)
+
+    _LOG.info("Starting cluster stage (grouping quanta into jobs)")
+    with time_this(log=_LOG, level=logging.INFO, prefix=None, msg="Cluster stage completed"):
+        clustered_qgraph = cluster_quanta(config, qgraph, config["uniqProcName"])
 
     submit_path = config[".bps_defined.submitPath"]
     _, save_clustered_qgraph = config.search("saveClusteredQgraph", opt={"default": False})
@@ -186,13 +185,13 @@ def transform_driver(config_file, **kwargs):
         Representation of the abstract/scientific workflow specific to a given
         workflow management system.
     """
-    stime = time.time()
     config, clustered_qgraph = cluster_qgraph_driver(config_file, **kwargs)
     submit_path = config[".bps_defined.submitPath"]
-    _LOG.info("Creating Generic Workflow")
-    generic_workflow, generic_workflow_config = transform(config, clustered_qgraph, submit_path)
-    _LOG.info("Creating Generic Workflow took %.2f seconds", time.time() - stime)
-    _LOG.info("Generic Workflow name %s", generic_workflow.name)
+
+    _LOG.info("Starting transform stage (creating generic workflow)")
+    with time_this(log=_LOG, level=logging.INFO, prefix=None, msg="Transform stage completed"):
+        generic_workflow, generic_workflow_config = transform(config, clustered_qgraph, submit_path)
+        _LOG.info("Generic workflow name '%s'", generic_workflow.name)
 
     _, save_workflow = config.search("saveGenericWorkflow", opt={"default": False})
     if save_workflow:
@@ -221,13 +220,14 @@ def prepare_driver(config_file, **kwargs):
         Representation of the abstract/scientific workflow specific to a given
         workflow management system.
     """
-    stime = time.time()
     generic_workflow_config, generic_workflow = transform_driver(config_file, **kwargs)
     submit_path = generic_workflow_config[".bps_defined.submitPath"]
-    _LOG.info("Creating specific implementation of workflow")
-    wms_workflow = prepare(generic_workflow_config, generic_workflow, submit_path)
+
+    _LOG.info("Starting prepare stage (creating specific implementation of workflow)")
+    with time_this(log=_LOG, level=logging.INFO, prefix=None, msg="Prepare stage completed"):
+        wms_workflow = prepare(generic_workflow_config, generic_workflow, submit_path)
+
     wms_workflow_config = generic_workflow_config
-    _LOG.info("Creating specific implementation of workflow took %.2f seconds", time.time() - stime)
     print(f"Submit dir: {wms_workflow.submit_path}")
     return wms_workflow_config, wms_workflow
 
@@ -240,8 +240,15 @@ def submit_driver(config_file, **kwargs):
     config_file : `str`
         Name of the configuration file.
     """
-    wms_workflow_config, wms_workflow = prepare_driver(config_file, **kwargs)
-    submit(wms_workflow_config, wms_workflow)
+    _LOG.info("Starting submission process")
+    with time_this(log=_LOG, level=logging.INFO, prefix=None, msg="Completed entire submission process"):
+        wms_workflow_config, wms_workflow = prepare_driver(config_file, **kwargs)
+
+        _LOG.info("Starting submit stage")
+        with time_this(log=_LOG, level=logging.INFO, prefix=None, msg="Completed submit stage"):
+            submit(wms_workflow_config, wms_workflow)
+            _LOG.info("Run '%s' submitted for execution with id '%s'", wms_workflow.name, wms_workflow.run_id)
+
     print(f"Run Id: {wms_workflow.run_id}")
 
 
