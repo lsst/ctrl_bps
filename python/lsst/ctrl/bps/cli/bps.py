@@ -50,7 +50,7 @@ class BpsCli(LoaderCLI):
 @click.command(cls=BpsCli,
                context_settings=dict(help_option_names=["-h", "--help"]),
                epilog=epilog)
-@log_level_option(default=["WARNING"])
+@log_level_option(default=["INFO"])
 @long_log_option()
 @log_file_option()
 @log_tty_option()
