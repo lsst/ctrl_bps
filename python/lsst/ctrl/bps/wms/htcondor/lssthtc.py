@@ -148,6 +148,7 @@ HTC_VALID_JOB_KEYS = {
     "concurrency_limit",
     "transfer_executable",
     "transfer_input_files",
+    "transfer_output_files",
     "request_cpus",
     "request_memory",
     "request_disk",
