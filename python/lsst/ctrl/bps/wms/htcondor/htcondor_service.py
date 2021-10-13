@@ -390,6 +390,7 @@ class HTCondorWorkflow(BaseWmsWorkflow):
             "universe": "vanilla",
             "should_transfer_files": "YES",
             "when_to_transfer_output": "ON_EXIT_OR_EVICT",
+            "transfer_output_files": '""',  # Set to empty string to disable
             "transfer_executable": "False",
             "getenv": "True",
 
