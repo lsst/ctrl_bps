@@ -144,11 +144,6 @@ If submission was successfully, it will output something like this:
    Submit dir: /home/jdoe/tmp/bps/submit/shared/pipecheck/20201111T13h34m08s
    Run Id: 176261
 
-Adding ``--log-level INFO`` option to the command line outputs more information
-especially for those wanting to watch how long the various submission stages
-take. 
-
-
 Additional Submit Options
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
