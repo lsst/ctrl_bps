@@ -26,8 +26,9 @@ import logging
 import math
 import os
 import re
-import time
 import dataclasses
+
+from lsst.utils.timer import time_this
 
 from . import (
     DEFAULT_MEM_RETRIES,
@@ -99,11 +100,10 @@ def transform(config, cqgraph, prefix):
     """
     _, when_create = config.search(".executionButler.whenCreate")
     if when_create.upper() == "TRANSFORM":
-        _LOG.info("Creating execution butler")
-        stime = time.time()
         _, execution_butler_dir = config.search(".bps_defined.executionButlerDir")
-        _create_execution_butler(config, config["runQgraphFile"], execution_butler_dir, prefix)
-        _LOG.info("Creating execution butler took %.2f seconds", time.time() - stime)
+        _LOG.info("Creating execution butler in '%s'", execution_butler_dir)
+        with time_this(log=_LOG, level=logging.LEVEL, prefix=None, msg="Creating execution butler completed"):
+            _create_execution_butler(config, config["runQgraphFile"], execution_butler_dir, prefix)
 
     if cqgraph.name is not None:
         name = cqgraph.name
