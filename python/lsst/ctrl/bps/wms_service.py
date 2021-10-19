@@ -124,8 +124,7 @@ class BaseWmsService:
         """
         raise NotImplementedError
 
-    def list_submitted_jobs(
-            self, wms_id=None, run=None, user=None, require_bps=True, pass_thru=None, is_global=False):
+    def list_submitted_jobs(self, wms_id=None, user=None, require_bps=True, pass_thru=None, is_global=False):
         """Query WMS for list of submitted WMS workflows/jobs.
 
         This should be a quick lookup function to create list of jobs for

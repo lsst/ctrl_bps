@@ -44,10 +44,10 @@ __all__ = [
     "condor_q",
     "condor_search",
     "condor_status",
-    "condor_update",
+    "update_job_info",
     "MISSING_ID",
     "summary_from_dag",
-    "read_dag_global_id",
+    "read_dag_info",
     "read_dag_log",
     "read_dag_nodes_log",
     "read_dag_status",
@@ -369,26 +369,37 @@ def htc_submit_dag(htc_dag, submit_options=None):
     coll = htcondor.Collector()
     schedd_ad = coll.locate(htcondor.DaemonTypes.Schedd)
     schedd = htcondor.Schedd(location_ad=schedd_ad)
+
+    jobs_ads = []
     with schedd.transaction() as txn:
-        sub_ads = []
-        sub.queue(txn, ad_results=sub_ads)
-        htc_dag.run_id = f"{sub_ads[0]['ClusterId']}.{sub_ads[0]['ProcId']}"
+        sub.queue(txn, ad_results=jobs_ads)
+
+    # Submit.queue() above will raise RuntimeError if submission fails, so
+    # 'job_ad' should contain the ad at this point.
+    dag_ad = jobs_ads[0]
+
+    htc_dag.run_id = f"{dag_ad['ClusterId']}.{dag_ad['ProcId']}"
 
     # Sadly, the ClassAd from Submit.queue() (see above) does not have
     # 'GlobalJobId'. So we need to run a fully fledged query to get it.
     schedd_name = schedd_ad["Name"]
-    job_info = condor_q(constraint=f"ClusterId = {int(float(htc_dag.run_id))}", schedds={schedd_name: schedd})
-    try:
-        job_id = next(iter(job_info[schedd_name].keys()))
-    except StopIteration:
-        _LOG.debug("Job with id '%s' not found", htc_dag.run_id)
-    else:
+    dag_info = condor_q(constraint=f"ClusterId = {int(float(htc_dag.run_id))}", schedds={schedd_name: schedd})
+    if dag_info:
+        dag_ad = dag_info[schedd_name][htc_dag.run_id]
         try:
-            with open(f"{htc_dag.name}.gid.json", "w") as fh:
-                job_ad = job_info[schedd_name][job_id]
-                json.dump({"GlobalJobId": job_ad["GlobalJobId"]}, fh)
+            with open(f"{htc_dag.name}.info.json", "w") as fh:
+                info = {
+                    schedd_name: {
+                        htc_dag.run_id: {
+                            key: val for key, val in dag_ad.items() if key in {"ClusterId", "GlobalJobId"}
+                        }
+                    }
+                }
+                json.dump(info, fh)
         except (KeyError, IOError, PermissionError) as exc:
-            _LOG.debug("Persisting global job id failed: %s", exc)
+            _LOG.debug("Persisting DAGMan job info failed: %s", exc)
+    else:
+        _LOG.debug("DAGMan job with id '%s' not found", htc_dag.run_id)
 
 
 def _htc_submit_dag_old(dag_filename, submit_options=None):
@@ -775,7 +786,7 @@ def condor_q(constraint=None, schedds=None):
     if not schedds:
         coll = htcondor.Collector()
         schedd_ad = coll.locate(htcondor.DaemonTypes.Schedd)
-        schedds = {schedd_ad["Name"]: htcondor.Schedd(schedd_ad)}
+        schedds = {schedd_ad["Name"]: htcondor.Schedd(location_ad=schedd_ad)}
 
     queries = [schedd.xquery(requirements=constraint) for schedd in schedds.values()]
 
@@ -813,7 +824,7 @@ def condor_history(constraint=None, schedds=None):
     if not schedds:
         coll = htcondor.Collector()
         schedd_ad = coll.locate(htcondor.DaemonTypes.Schedd)
-        schedds = {schedd_ad["Name"]: htcondor.Schedd(schedd_ad)}
+        schedds = {schedd_ad["Name"]: htcondor.Schedd(location_ad=schedd_ad)}
 
     job_info = {}
     for schedd_name, schedd in schedds.items():
@@ -849,14 +860,14 @@ def condor_search(constraint=None, hist=None, schedds=None):
     if not schedds:
         coll = htcondor.Collector()
         schedd_ad = coll.locate(htcondor.DaemonTypes.Schedd)
-        schedds = {schedd_ad["Name"]: htcondor.Schedd(schedd_ad)}
+        schedds = {schedd_ad["Name"]: htcondor.Schedd(locate_ad=schedd_ad)}
 
     job_info = condor_q(constraint=constraint, schedds=schedds)
     if hist is not None:
         epoch = (datetime.now() - timedelta(days=hist)).timestamp()
         constraint += f" && (CompletionDate >= {epoch} || JobFinishedHookDone >= {epoch})"
         hist_info = condor_history(constraint, schedds=schedds)
-        condor_update(job_info, hist_info)
+        update_job_info(job_info, hist_info)
     return job_info
 
 
@@ -889,7 +900,7 @@ def condor_status(constraint=None, coll=None):
     return pool_info
 
 
-def condor_update(job_info, other_info):
+def update_job_info(job_info, other_info):
     """Update results of a job query with results from another query.
 
     Parameters
@@ -904,11 +915,11 @@ def condor_update(job_info, other_info):
     job_info : `dict` [`str`, `dict` [`str`, Any]]
         The updated results.
     """
-    for name, others in other_info.items():
+    for schedd_name, others in other_info.items():
         try:
-            jobs = job_info[name]
+            jobs = job_info[schedd_name]
         except KeyError:
-            job_info[name] = others
+            job_info[schedd_name] = others
         else:
             for id_, ad in others.items():
                 jobs.setdefault(id_, {}).update(ad)
@@ -1213,19 +1224,18 @@ def read_dag_nodes_log(wms_path):
     return info
 
 
-def read_dag_global_id(wms_path):
-    """Read DAGMan global job id from the file.
+def read_dag_info(wms_path):
+    """Read DAGMan job info from the file.
 
     Parameters
     ----------
     wms_path : `str`
-        Path containing the file with the DAGMan global id.
+        Path containing the file with the DAGMan job info.
 
     Returns
     -------
-    dag_ad : `dict` [ `str`, Any]
-        HTCondor classAd-like information read from the file mapped to HTCondor
-        job id.
+    dag_info : `dict` [`str`, `dict` [`str`, Any]]
+        HTCondor job information.
 
     Raises
     ------
@@ -1233,17 +1243,17 @@ def read_dag_global_id(wms_path):
         If cannot find DAGMan node log in given wms_path.
     """
     try:
-        filename = next(Path(wms_path).glob("*.gid.json"))
+        filename = next(Path(wms_path).glob("*.info.json"))
     except StopIteration as exc:
         raise FileNotFoundError(f"DAGMan file with global id not found in {wms_path}") from exc
     _LOG.debug("DAGMan global id filename: %s", filename)
     try:
         with open(filename) as fh:
-            dag_ad = json.load(fh)
+            dag_info = json.load(fh)
     except (IOError, PermissionError) as exc:
         _LOG.debug("Retrieving DAGMan global id failed: %s", exc)
-        dag_ad = {}
-    return dag_ad
+        dag_info = {}
+    return dag_info
 
 
 def _tweak_log_info(filename, job):
