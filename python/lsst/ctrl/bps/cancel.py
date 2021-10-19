@@ -45,6 +45,14 @@ def cancel(wms_service, wms_id=None, user=None, require_bps=True, pass_thru=None
         Whether to require given run_id/user to be a bps submitted job.
     pass_thru : `str`, optional
         Information to pass through to WMS.
+    is_global : `bool`, optional
+        A flag indicating if all available job queues needs to be checked when
+        looking for jobs to cancel. Defaults to False which means only local
+        job queue will be checked.
+
+        Only make sense in the context of a WMS using distributed job queues
+        (e.g. HTCondor).  A WMS with a centralized job queue (e.g. PanDA) can
+        safely ignore it.
     """
     _LOG.debug("Cancel params: wms_id=%s, user=%s, require_bps=%s, pass_thru=%s, is_global=%s",
                wms_id, user, require_bps, pass_thru, is_global)
@@ -55,9 +63,9 @@ def cancel(wms_service, wms_id=None, user=None, require_bps=True, pass_thru=None
     else:
         service = wms_service
 
-    jobs = service.list_submitted_jobs(wms_id, run, user, require_bps, pass_thru)
+    jobs = service.list_submitted_jobs(wms_id, user, require_bps, pass_thru, is_global)
     if len(jobs) == 0:
-        print("0 jobs found matching arguments.")
+        print("0 jobs found matching the search criteria")
     else:
         for job_id in sorted(jobs):
             results = service.cancel(job_id, pass_thru)

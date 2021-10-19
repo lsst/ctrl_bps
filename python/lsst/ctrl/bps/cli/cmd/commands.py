@@ -119,6 +119,8 @@ def report(*args, **kwargs):
               help="Only cancel jobs submitted via bps.")
 @click.option("--pass-thru", "pass_thru", default=str(),
               help="Pass the given string to the WMS service.")
+@click.option("--global/--no-global", "is_global", default=False,
+              help="Cancel jobs matching the search criteria from all job queues.")
 def cancel(*args, **kwargs):
     """Cancel submitted workflow(s).
     """

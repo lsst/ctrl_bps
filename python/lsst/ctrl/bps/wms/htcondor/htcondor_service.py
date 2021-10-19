@@ -122,7 +122,8 @@ class HTCondorService(BaseWmsService):
             htc_submit_dag(workflow.dag, {})
             workflow.run_id = workflow.dag.run_id
 
-    def list_submitted_jobs(self, wms_id=None, run=None, user=None, require_bps=True, pass_thru=None):
+    def list_submitted_jobs(
+            self, wms_id=None, run=None, user=None, require_bps=True, pass_thru=None, is_global=False):
         """Query WMS for list of submitted WMS workflows/jobs.
 
         This should be a quick lookup function to create list of jobs for
@@ -140,6 +141,9 @@ class HTCondorService(BaseWmsService):
             Whether to require jobs returned in list to be bps-submitted jobs.
         pass_thru : `str`, optional
             Information to pass through to WMS.
+        is_global : `bool`, optional
+            If set, all job queues (and their histories) will be queried for
+            job information. False by default.
 
         Returns
         -------

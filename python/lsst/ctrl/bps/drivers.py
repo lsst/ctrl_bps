@@ -285,7 +285,7 @@ def report_driver(wms_service, run_id, user, hist_days, pass_thru, is_global=Fal
     report(wms_service, run_id, user, hist_days, pass_thru, is_global=is_global)
 
 
-def cancel_driver(wms_service, run_id, user, require_bps, pass_thru):
+def cancel_driver(wms_service, run_id, user, require_bps, pass_thru, is_global=False):
     """Cancel submitted workflows.
 
     Parameters
@@ -300,5 +300,13 @@ def cancel_driver(wms_service, run_id, user, require_bps, pass_thru):
         Whether to require given run_id/user to be a bps submitted job.
     pass_thru : `str`
         Information to pass through to WMS.
+    is_global : `bool`, optional
+        If set, all available job queues will be checked for jobs to cancel.
+        Defaults to False which means that only a local job queue will be
+        checked.
+
+        Only make sense in the context of a WMS using distributed job queues
+        (e.g., HTCondor).  A WMS with a centralized job queue (e.g. PanDA) can
+        safely ignore it.
     """
-    cancel(wms_service, run_id, user, require_bps, pass_thru)
+    cancel(wms_service, run_id, user, require_bps, pass_thru, is_global=is_global)
