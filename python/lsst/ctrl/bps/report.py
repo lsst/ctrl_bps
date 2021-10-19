@@ -219,6 +219,7 @@ def print_single_run_summary(run_report, is_global=False):
 
     # Print more run information.
     print(f"Path: {run_report.path}")
+    print(f"Global job id: {run_report.global_wms_id}")
     print("\n\n")
 
     by_label = group_jobs_by_label(run_report.jobs)
