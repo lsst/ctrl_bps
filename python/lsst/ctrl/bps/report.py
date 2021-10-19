@@ -67,24 +67,23 @@ def report(wms_service, run_id, user, hist_days, pass_thru, is_global=False):
         hist_days = max(hist_days, 2)
 
     runs, message = wms_service.report(run_id, user, hist_days, pass_thru, is_global=is_global)
+    if message:
+        print(message)
 
     if run_id:
-        if not runs:
-            print(f"No information found for id='{run_id}'.")
-            print(f"Double check id and retry with a larger --hist value"
-                  f"(currently: {hist_days})")
         for run in runs:
             print_single_run_summary(run, is_global=is_global)
+        if not runs and not message:
+            print(f"No records found for job id '{run_id}'. "
+                  f"Hints: Double check id, retry with a larger --hist value currently: {hist_days}), "
+                  f"and/or use --global to search all job queues.")
     else:
         summary = init_summary()
         for run in sorted(runs, key=lambda j: j.wms_id):
             summary = add_single_run_summary(summary, run, is_global=is_global)
         for line in summary.pformat_all():
             print(line)
-        print("\n\n")
-    if message:
-        print(message)
-        print("\n\n")
+    print("\n\n")
 
 
 def init_summary():

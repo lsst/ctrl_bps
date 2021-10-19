@@ -839,7 +839,7 @@ def _report_from_id(wms_workflow_id, hist, schedds=None):
     matching_dag_info = [job_info for job_info in results.values()]
     if len(matching_dag_info) == 0:
         run_reports = {}
-        message = f"No records found for job id '{wms_workflow_id}'"
+        message = ""
     elif len(matching_dag_info) == 1:
         dag_info = matching_dag_info[0]
         dag_id = next(iter(dag_info))
@@ -860,11 +860,12 @@ def _report_from_id(wms_workflow_id, hist, schedds=None):
         _update_jobs(job_info, path_jobs)
 
         run_reports = _create_detailed_report_from_jobs(dag_id, job_info)
+        message = ""
     else:
-        run_reports = {}
         ids = [ad["GlobalJobId"] for dag_info in matching_dag_info for ad in dag_info.values()]
+        run_reports = {}
         message = f"More than one job matches id '{wms_workflow_id}', " \
-                  f"their global ids are: {', '.join(ids)}"
+                  f"their global ids are: {', '.join(ids)}. Rerun with one of the global ids"
     return run_reports, message
 
 
