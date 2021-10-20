@@ -1291,6 +1291,8 @@ def _tweak_log_info(filename, job):
                 _LOG.error("Could not determine exit status for job (missing %s): %s", str(ex), job)
         elif job["MyType"] == "SubmitEvent":
             job["JobStatus"] = JobStatus.IDLE
+        elif job["MyType"] == "JobAbortedEvent":
+            job["JobStatus"] = JobStatus.REMOVED
         else:
             _LOG.debug("Unknown log event type: %s", job["MyType"])
     except KeyError:
