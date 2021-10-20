@@ -368,7 +368,7 @@ def htc_submit_dag(htc_dag, submit_options=None):
     # Submit DAG to HTCondor's schedd.
     coll = htcondor.Collector()
     schedd_ad = coll.locate(htcondor.DaemonTypes.Schedd)
-    schedd = htcondor.Schedd(location_ad=schedd_ad)
+    schedd = htcondor.Schedd(schedd_ad)
 
     jobs_ads = []
     with schedd.transaction() as txn:
@@ -786,7 +786,7 @@ def condor_q(constraint=None, schedds=None):
     if not schedds:
         coll = htcondor.Collector()
         schedd_ad = coll.locate(htcondor.DaemonTypes.Schedd)
-        schedds = {schedd_ad["Name"]: htcondor.Schedd(location_ad=schedd_ad)}
+        schedds = {schedd_ad["Name"]: htcondor.Schedd(schedd_ad)}
 
     queries = [schedd.xquery(requirements=constraint) for schedd in schedds.values()]
 
@@ -824,7 +824,7 @@ def condor_history(constraint=None, schedds=None):
     if not schedds:
         coll = htcondor.Collector()
         schedd_ad = coll.locate(htcondor.DaemonTypes.Schedd)
-        schedds = {schedd_ad["Name"]: htcondor.Schedd(location_ad=schedd_ad)}
+        schedds = {schedd_ad["Name"]: htcondor.Schedd(schedd_ad)}
 
     job_info = {}
     for schedd_name, schedd in schedds.items():

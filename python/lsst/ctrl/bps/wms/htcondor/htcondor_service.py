@@ -206,7 +206,7 @@ class HTCondorService(BaseWmsService):
                 constraint += f" && ({pass_thru})"
 
         # Create a list of scheduler daemons which need to be queried.
-        schedds = {ad["Name"]: htcondor.Schedd(location_ad=ad) for ad in schedd_ads}
+        schedds = {ad["Name"]: htcondor.Schedd(ad) for ad in schedd_ads}
 
         _LOG.debug("constraint = %s, schedds = %s", constraint, ", ".join(schedds))
         results = condor_q(constraint=constraint, schedds=schedds)
@@ -309,7 +309,7 @@ class HTCondorService(BaseWmsService):
         else:
             _LOG.debug("Canceling job managed by schedd_name = %s with cluster_id = %s",
                        cluster_id, schedd_ad["Name"])
-            schedd = htcondor.Schedd(location_ad=schedd_ad)
+            schedd = htcondor.Schedd(schedd_ad)
 
             constraint = f"ClusterId == {cluster_id}"
             if pass_thru is not None and "-forcex" in pass_thru:
@@ -1399,7 +1399,7 @@ def _wms_id_to_cluster(wms_id):
     elif id_type == WmsIdType.GLOBAL:
         constraint = f'GlobalJobId == "{wms_id}"'
         schedd_ads = {ad["Name"]: ad for ad in coll.locateAll(htcondor.DaemonTypes.Schedd)}
-        schedds = [htcondor.Schedd(location_ad=ad) for ad in schedd_ads.values()]
+        schedds = [htcondor.Schedd(ad) for ad in schedd_ads.values()]
         queries = [schedd.xquery(requirements=constraint, projection=["ClusterId"]) for schedd in schedds]
         results = {query.tag(): dict(ads[0]) for query in htcondor.poll(queries)
                    if (ads := query.nextAdsNonBlocking())}
