@@ -65,7 +65,8 @@ def cancel(wms_service, wms_id=None, user=None, require_bps=True, pass_thru=None
 
     jobs = service.list_submitted_jobs(wms_id, user, require_bps, pass_thru, is_global)
     if len(jobs) == 0:
-        print("0 jobs found matching the search criteria")
+        print("No job matches the search criteria. "
+              "Hints: Double check id, and/or use --global to search all job queues.")
     else:
         for job_id in sorted(jobs):
             results = service.cancel(job_id, pass_thru)
