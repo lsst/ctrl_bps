@@ -67,8 +67,6 @@ def report(wms_service, run_id, user, hist_days, pass_thru, is_global=False):
         hist_days = max(hist_days, 2)
 
     runs, message = wms_service.report(run_id, user, hist_days, pass_thru, is_global=is_global)
-    if message:
-        print(message)
 
     if run_id:
         for run in runs:
@@ -79,11 +77,13 @@ def report(wms_service, run_id, user, hist_days, pass_thru, is_global=False):
                   f"and/or use --global to search all job queues.")
     else:
         summary = init_summary()
-        for run in sorted(runs, key=lambda j: j.wms_id):
+        for run in sorted(runs, key=lambda j: j.wms_id if not is_global else j.global_wms_id):
             summary = add_single_run_summary(summary, run, is_global=is_global)
         for line in summary.pformat_all():
             print(line)
-    print("\n\n")
+    if message:
+        print(message)
+        print("\n\n")
 
 
 def init_summary():
