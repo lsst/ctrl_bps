@@ -252,30 +252,20 @@ class HTCondorService(BaseWmsService):
             Extra message for report command to print.  This could be pointers
             to documentation or to WMS specific commands.
         """
-        coll = htcondor.Collector()
-
-        schedd_ads = []
-        if is_global:
-            schedd_ads.extend(coll.locateAll(htcondor.DaemonTypes.Schedd))
-        else:
-            schedd_ads.append(coll.locate(htcondor.DaemonTypes.Schedd))
-        schedulers = {ad["Name"]: htcondor.Schedd(ad) for ad in schedd_ads}
-
         if wms_workflow_id:
             id_type = _wms_id_type(wms_workflow_id)
             if id_type == WmsIdType.LOCAL:
+                schedulers = _locate_schedds(locate_all=is_global)
                 run_reports, message = _report_from_id(wms_workflow_id, hist, schedds=schedulers)
             elif id_type == WmsIdType.GLOBAL:
-                # If provided with global job id, always query all job queues.
-                if not is_global:
-                    schedulers = {ad["Name"]: htcondor.Schedd(ad)
-                                  for ad in coll.locateAll(htcondor.DaemonTypes.Schedd)}
+                schedulers = _locate_schedds(locate_all=True)
                 run_reports, message = _report_from_id(wms_workflow_id, hist, schedds=schedulers)
             elif id_type == WmsIdType.PATH:
                 run_reports, message = _report_from_path(wms_workflow_id)
             else:
                 run_reports, message = {}, 'Invalid job id'
         else:
+            schedulers = _locate_schedds(locate_all=is_global)
             run_reports, message = _summary_report(user, hist, pass_thru, schedds=schedulers)
         _LOG.debug("report: %s, %s", run_reports, message)
 
@@ -1453,3 +1443,29 @@ def _create_request_memory_expr(memory, multiplier):
          f"? int({memory} * pow({multiplier}, NumJobStarts)) " \
          f": max({{{memory}, MemoryUsage ?: 0}}))"
     return ad
+
+
+def _locate_schedds(locate_all=False):
+    """Find out Scheduler daemons in an HTCondor pool.
+
+    Parameters
+    ----------
+    locate_all : `bool`, optional
+        If True, all available schedulers in the HTCondor pool will be located.
+        False by default which means that the search will be limited to looking
+        for the Scheduler running on a local host.
+
+    Returns
+    -------
+    schedds : `dict` [`str`, `htcondor.Schedd`]
+        A mapping between Scheduler names and Python objects allowing for
+        interacting with them.
+    """
+    coll = htcondor.Collector()
+
+    schedd_ads = []
+    if locate_all:
+        schedd_ads.extend(coll.locateAll(htcondor.DaemonTypes.Schedd))
+    else:
+        schedd_ads.append(coll.locate(htcondor.DaemonTypes.Schedd))
+    return {ad["Name"]: htcondor.Schedd(ad) for ad in schedd_ads}
