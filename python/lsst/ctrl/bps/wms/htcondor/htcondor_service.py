@@ -159,7 +159,8 @@ class HTCondorService(BaseWmsService):
             Information to pass through to WMS.
         is_global : `bool`, optional
             If set, all job queues (and their histories) will be queried for
-            job information. False by default.
+            job information. Defaults to False which means that only the local
+            job queue will be queried.
 
         Returns
         -------
@@ -242,7 +243,8 @@ class HTCondorService(BaseWmsService):
             Constraints to pass through to HTCondor.
         is_global : `bool`, optional
             If set, all job queues (and their histories) will be queried for
-            job information. False by default.
+            job information. Defaults to False which means that only the local
+            job queue will be queried.
 
         Returns
         -------
@@ -888,7 +890,8 @@ def _get_info_from_path(wms_path):
         job = jobs[wms_workflow_id]
         job.update(read_dag_status(wms_path))
 
-        # Add 'GlobalJobId' to DAGMan job.
+        # Add extra pieces of information which cannot be found in HTCondor
+        # generated files like 'GlobalJobId'.
         job_info = read_dag_info(wms_path)
         schedd_name = next(iter(job_info))
         job_ad = next(iter(job_info[schedd_name].values()))
@@ -997,8 +1000,6 @@ def _summary_report(user, hist, pass_thru, schedds=None):
             constraint += f' && (Owner == "{user}" || bps_operator == "{user}")'
 
     job_info = condor_search(constraint=constraint, hist=hist, schedds=schedds)
-
-    # _LOG.debug("Job ids from queue and history %s", job_info.keys())
 
     # Have list of DAGMan jobs, need to get run_report info.
     run_reports = {}

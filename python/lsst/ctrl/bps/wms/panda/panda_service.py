@@ -263,9 +263,9 @@ class PanDAService(BaseWmsService):
         pass_thru : `str`
             Constraints to pass through to HTCondor.
         is_global : `bool`, optional
-            If set, all job queues (and their histories) will be queried for
-            job information. False by default. Only applicable in the context
-            of a WMS using distributed job queues.
+            If set, all available job queues will be queried for job
+            information. Defaults to False which means that only a local job
+            queue will be queried for information.
 
         Returns
         -------

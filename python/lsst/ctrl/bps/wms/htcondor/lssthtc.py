@@ -354,7 +354,7 @@ def htc_submit_dag(htc_dag, submit_options=None):
 
     Parameters
     ----------
-    htc_dag : `HtcDag`
+    htc_dag : `HTCDag`
         DAG to submit to HTCondor
     submit_options : `dict`
         Extra options for condor_submit_dag
@@ -380,8 +380,10 @@ def htc_submit_dag(htc_dag, submit_options=None):
 
     htc_dag.run_id = f"{dag_ad['ClusterId']}.{dag_ad['ProcId']}"
 
-    # Sadly, the ClassAd from Submit.queue() (see above) does not have
-    # 'GlobalJobId'. So we need to run a fully fledged query to get it.
+    # Store additional pieces of information (e.g. 'GlobalJobId') which cannot
+    # be retrieved later from the files produced by HTCondor. Sadly,
+    # the ClassAd from Submit.queue() (see above) does not have 'GlobalJobId'.
+    # So we need to run a fully fledged query to get it anyway.
     schedd_name = schedd_ad["Name"]
     dag_info = condor_q(constraint=f"ClusterId == {int(float(htc_dag.run_id))}",
                         schedds={schedd_name: schedd})
@@ -768,9 +770,10 @@ def condor_q(constraint=None, schedds=None):
 
     Returns
     -------
-    job_info : `dict` [`str`, `dict` [`str`, Any]]
-        Mappings between HTCondor job ids to job information grouped by
-        scheduler names.
+    job_info : `dict` [`str`, `dict` [`str`, `dict` [`str` Any]]]
+        Information about jobs satisfying the search criteria where for each
+        Scheduler, local HTCondor job ids are mapped to their respective
+        classads.
     """
     if not schedds:
         coll = htcondor.Collector()
@@ -788,7 +791,10 @@ def condor_q(constraint=None, schedds=None):
             del job_ad["Env"]
             id_ = f"{int(job_ad['ClusterId'])}.{int(job_ad['ProcId'])}"
             job_info[schedd_name][id_] = dict(job_ad)
-    _LOG.debug("condor_q returned %d jobs", len(job_info))
+    _LOG.debug("condor_q returned %d jobs", sum(len(val) for val in job_info.values()))
+
+    # When returning the results filter out entries for schedulers with no jobs
+    # matching the search criteria.
     return {key: val for key, val in job_info.items() if val}
 
 
@@ -806,9 +812,10 @@ def condor_history(constraint=None, schedds=None):
 
     Returns
     -------
-    job_info : `dict` [`str, `dict` [`str`, Any]]
-        Mappings between HTCondor job ids to job information grouped by
-        scheduler names.
+    job_info : `dict` [`str`, `dict` [`str`, `dict` [`str` Any]]]
+        Information about jobs satisfying the search criteria where for each
+        Scheduler, local HTCondor job ids are mapped to their respective
+        classads.
     """
     if not schedds:
         coll = htcondor.Collector()
@@ -823,7 +830,10 @@ def condor_history(constraint=None, schedds=None):
             del job_ad["Env"]
             id_ = f"{int(job_ad['ClusterId'])}.{int(job_ad['ProcId'])}"
             job_info[schedd_name][id_] = dict(job_ad)
-    _LOG.debug("condor_history returned %d jobs", len(job_info))
+    _LOG.debug("condor_history returned %d jobs", sum(len(val) for val in job_info.values()))
+
+    # When returning the results filter out entries for schedulers with no jobs
+    # matching the search criteria.
     return {key: val for key, val in job_info.items() if val}
 
 
@@ -842,9 +852,10 @@ def condor_search(constraint=None, hist=None, schedds=None):
 
     Returns
     -------
-    job_info : `dict` [ `str`, `dict` [`str`, Any]]
-        Mappings between HTCondor job ids to job information grouped by
-        scheduler names.
+    job_info : `dict` [`str`, `dict` [`str`, `dict` [`str` Any]]]
+        Information about jobs satisfying the search criteria where for each
+        Scheduler, local HTCondor job ids are mapped to their respective
+        classads.
     """
     if not schedds:
         coll = htcondor.Collector()
@@ -1208,13 +1219,16 @@ def read_dag_nodes_log(wms_path):
             info[id_] = {}
         info[id_].update(event)
         info[id_][f"{event.type.name.lower()}_time"] = event["EventTime"]
+
+    # Add more condor_q-like info to info parsed from log file.
     for job in info.values():
         _tweak_log_info(filename, job)
+
     return info
 
 
 def read_dag_info(wms_path):
-    """Read DAGMan job info from the file.
+    """Read custom DAGMan job information from the file.
 
     Parameters
     ----------
@@ -1229,26 +1243,24 @@ def read_dag_info(wms_path):
     Raises
     ------
     FileNotFoundError
-        If cannot find DAGMan node log in given wms_path.
+        If cannot find DAGMan job info file in the given location.
     """
     try:
         filename = next(Path(wms_path).glob("*.info.json"))
     except StopIteration as exc:
-        raise FileNotFoundError(f"DAGMan file with global id not found in {wms_path}") from exc
-    _LOG.debug("DAGMan global id filename: %s", filename)
+        raise FileNotFoundError(f"File with DAGMan job information not found in {wms_path}") from exc
+    _LOG.debug("DAGMan job information filename: %s", filename)
     try:
         with open(filename) as fh:
             dag_info = json.load(fh)
     except (IOError, PermissionError) as exc:
-        _LOG.debug("Retrieving DAGMan global id failed: %s", exc)
+        _LOG.debug("Retrieving DAGMan job information failed: %s", exc)
         dag_info = {}
     return dag_info
 
 
 def write_dag_info(filename, dag_info):
-    """Writes select pieces of information about DAGMan job.
-
-
+    """Writes custom job information about DAGMan job.
 
     Parameters
     ----------
@@ -1272,11 +1284,11 @@ def write_dag_info(filename, dag_info):
             }
             json.dump(info, fh)
     except (KeyError, IOError, PermissionError) as exc:
-        _LOG.debug("Persisting DAGMan job info failed: %s", exc)
+        _LOG.debug("Persisting DAGMan job information failed: %s", exc)
 
 
 def _tweak_log_info(filename, job):
-    """Add more condor-q-like info to info parsed from the log file.
+    """Massage the given job info has same structure as if came from condor_q.
 
     Parameters
     ----------

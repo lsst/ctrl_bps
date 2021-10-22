@@ -53,9 +53,11 @@ def report(wms_service, run_id, user, hist_days, pass_thru, is_global=False):
     pass_thru : `str`
         A string to pass directly to the WMS service class.
     is_global : `bool`, optional
-        A flag indicating if all available job queues needs to be queried for
-        job information. Defaults to False which means only local job queue
-        will be queried. Only applicable for WMS using distributed job queues
+        If set, all available job queues will be queried for job information.
+        Defaults to False which means that only a local job queue will be
+        queried for information.
+
+        Only applicable in the context of a WMS using distributed job queues
         (e.g., HTCondor).
     """
     wms_service_class = doImport(wms_service)
@@ -73,7 +75,7 @@ def report(wms_service, run_id, user, hist_days, pass_thru, is_global=False):
             print_single_run_summary(run, is_global=is_global)
         if not runs and not message:
             print(f"No records found for job id '{run_id}'. "
-                  f"Hints: Double check id, retry with a larger --hist value currently: {hist_days}), "
+                  f"Hints: Double check id, retry with a larger --hist value (currently: {hist_days}), "
                   f"and/or use --global to search all job queues.")
     else:
         summary = init_summary()
@@ -118,9 +120,11 @@ def add_single_run_summary(summary, run_report, is_global=False):
     run_report : `lsst.ctrl.bps.WmsRunReport`
         Information for single run.
     is_global : `bool`, optional
-        A flag indicating whether to use a local or a global job id in the run
-        summary. Defaults to False which means the local job id will be used.
-        Only applicable for a WMS using distributed job queues
+        If set, all available job queues will be queried for job information.
+        Defaults to False which means that only a local job queue will be
+        queried for information.
+
+        Only applicable in the context of a WMS using distributed job queues
         (e.g., HTCondor).
     """
     # Flag any running workflow that might need human attention
@@ -204,9 +208,11 @@ def print_single_run_summary(run_report, is_global=False):
     run_report : `lsst.ctrl.bps.WmsRunReport`
         Summary runtime info for a run + runtime info for jobs.
     is_global : `bool`, optional
-        A flag indicating whether to use a local or a global job id in the run
-        summary. Defaults to False which means the local job id will be used.
-        Only applicable for a WMS using distributed job queues
+        If set, all available job queues will be queried for job information.
+        Defaults to False which means that only a local job queue will be
+        queried for information.
+
+        Only applicable in the context of a WMS using distributed job queues
         (e.g., HTCondor).
     """
     # Print normal run summary.

@@ -278,9 +278,11 @@ def report_driver(wms_service, run_id, user, hist_days, pass_thru, is_global=Fal
         A string to pass directly to the WMS service class.
     is_global : `bool`, optional
         If set, all available job queues will be queried for job information.
-        Defaults to False, which means that only a local job queue will be
-        queried for information. Only applicable for WMS using distributed job
-        queues (e.g., HTCondor).
+        Defaults to False which means that only a local job queue will be
+        queried for information.
+
+        Only applicable in the context of a WMS using distributed job queues
+        (e.g., HTCondor).
     """
     report(wms_service, run_id, user, hist_days, pass_thru, is_global=is_global)
 
@@ -305,8 +307,7 @@ def cancel_driver(wms_service, run_id, user, require_bps, pass_thru, is_global=F
         Defaults to False which means that only a local job queue will be
         checked.
 
-        Only make sense in the context of a WMS using distributed job queues
-        (e.g., HTCondor).  A WMS with a centralized job queue (e.g. PanDA) can
-        safely ignore it.
+        Only applicable in the context of a WMS using distributed job queues
+        (e.g., HTCondor).
     """
     cancel(wms_service, run_id, user, require_bps, pass_thru, is_global=is_global)

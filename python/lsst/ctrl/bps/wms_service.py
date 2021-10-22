@@ -136,19 +136,17 @@ class BaseWmsService:
             Id or path that can be used by WMS service to look up job.
         user : `str`, optional
             User whose submitted jobs should be listed.
-        run : `str`, optional
-            Run name (Run collection with / replaced with _).
         require_bps : `bool`, optional
             Whether to require jobs returned in list to be bps-submitted jobs.
         pass_thru : `str`, optional
             Information to pass through to WMS.
         is_global : `bool`, optional
             If set, all available job queues will be queried for job
-            information.  Defaults to False, which means that only a local job
+            information.  Defaults to False which means that only a local job
             queue will be queried for information.
 
-            Only make sense in the context of a WMS using distributed job
-            queues (e.g. HTCondor). A WMS with a centralized job queue
+            Only applicable in the context of a WMS using distributed job
+            queues (e.g., HTCondor). A WMS with a centralized job queue
             (e.g. PanDA) can safely ignore it.
 
         Returns
@@ -174,11 +172,11 @@ class BaseWmsService:
             Additional arguments to pass through to the specific WMS service.
         is_global : `bool`, optional
             If set, all available job queues will be queried for job
-            information.  Defaults to False, which means that only a local job
+            information.  Defaults to False which means that only a local job
             queue will be queried for information.
 
-            Only make sense in the context of a WMS using distributed job
-            queues (e.g. HTCondor). A WMS with a centralized job queue
+            Only applicable in the context of a WMS using distributed job
+            queues (e.g., HTCondor). A WMS with a centralized job queue
             (e.g. PanDA) can safely ignore it.
 
         Returns

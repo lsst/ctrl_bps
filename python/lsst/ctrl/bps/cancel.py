@@ -46,13 +46,12 @@ def cancel(wms_service, wms_id=None, user=None, require_bps=True, pass_thru=None
     pass_thru : `str`, optional
         Information to pass through to WMS.
     is_global : `bool`, optional
-        A flag indicating if all available job queues needs to be checked when
-        looking for jobs to cancel. Defaults to False which means only local
-        job queue will be checked.
+        If set, all available job queues will be checked for jobs to cancel.
+        Defaults to False which means that only a local job queue will be
+        checked.
 
-        Only make sense in the context of a WMS using distributed job queues
-        (e.g. HTCondor).  A WMS with a centralized job queue (e.g. PanDA) can
-        safely ignore it.
+        Only applicable in the context of a WMS using distributed job queues
+        (e.g., HTCondor).
     """
     _LOG.debug("Cancel params: wms_id=%s, user=%s, require_bps=%s, pass_thru=%s, is_global=%s",
                wms_id, user, require_bps, pass_thru, is_global)
