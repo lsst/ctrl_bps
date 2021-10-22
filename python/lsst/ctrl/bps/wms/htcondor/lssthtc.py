@@ -383,21 +383,10 @@ def htc_submit_dag(htc_dag, submit_options=None):
     # Sadly, the ClassAd from Submit.queue() (see above) does not have
     # 'GlobalJobId'. So we need to run a fully fledged query to get it.
     schedd_name = schedd_ad["Name"]
-    dag_info = condor_q(constraint=f"ClusterId = {int(float(htc_dag.run_id))}", schedds={schedd_name: schedd})
+    dag_info = condor_q(constraint=f"ClusterId == {int(float(htc_dag.run_id))}",
+                        schedds={schedd_name: schedd})
     if dag_info:
-        dag_ad = dag_info[schedd_name][htc_dag.run_id]
-        try:
-            with open(f"{htc_dag.name}.info.json", "w") as fh:
-                info = {
-                    schedd_name: {
-                        htc_dag.run_id: {
-                            key: val for key, val in dag_ad.items() if key in {"ClusterId", "GlobalJobId"}
-                        }
-                    }
-                }
-                json.dump(info, fh)
-        except (KeyError, IOError, PermissionError) as exc:
-            _LOG.debug("Persisting DAGMan job info failed: %s", exc)
+        write_dag_info(f"{htc_dag.name}.info.json", dag_info)
     else:
         _LOG.debug("DAGMan job with id '%s' not found", htc_dag.run_id)
 
@@ -1254,6 +1243,36 @@ def read_dag_info(wms_path):
         _LOG.debug("Retrieving DAGMan global id failed: %s", exc)
         dag_info = {}
     return dag_info
+
+
+def write_dag_info(filename, dag_info):
+    """Writes select pieces of information about DAGMan job.
+
+
+
+    Parameters
+    ----------
+    filename : `str`
+        Name of the file where the information will be stored.
+    dag_info : `dict` [`str` `dict` [`str` Any]]
+        Information about the DAGMan job.
+    """
+    schedd_name = next(iter(dag_info))
+    dag_id = next(iter(dag_info[schedd_name]))
+    dag_ad = dag_info[schedd_name][dag_id]
+    try:
+        with open(filename, "w") as fh:
+            info = {
+                schedd_name: {
+                    dag_id: {
+                        "ClusterId": dag_ad["ClusterId"],
+                        "GlobalJobId": dag_ad["GlobalJobId"]
+                    }
+                }
+            }
+            json.dump(info, fh)
+    except (KeyError, IOError, PermissionError) as exc:
+        _LOG.debug("Persisting DAGMan job info failed: %s", exc)
 
 
 def _tweak_log_info(filename, job):
