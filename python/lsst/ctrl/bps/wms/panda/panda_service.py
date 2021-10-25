@@ -248,7 +248,7 @@ class PanDAService(BaseWmsService):
 
         return files_plc_hldr, direct_IO_files
 
-    def report(self, wms_workflow_id=None, user=None, hist=0, pass_thru=None):
+    def report(self, wms_workflow_id=None, user=None, hist=0, pass_thru=None, is_global=False):
         """Stub for future implementation of the report method
         Expected to return run information based upon given constraints.
 
@@ -262,6 +262,10 @@ class PanDAService(BaseWmsService):
             Limit history search to this many days.
         pass_thru : `str`
             Constraints to pass through to HTCondor.
+        is_global : `bool`, optional
+            If set, all available job queues will be queried for job
+            information. Defaults to False which means that only a local job
+            queue will be queried for information.
 
         Returns
         -------

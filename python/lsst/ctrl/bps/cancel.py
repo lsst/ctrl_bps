@@ -30,7 +30,7 @@ from lsst.utils import doImport
 _LOG = logging.getLogger(__name__)
 
 
-def cancel(wms_service, wms_id=None, user=None, require_bps=True, pass_thru=None):
+def cancel(wms_service, wms_id=None, user=None, require_bps=True, pass_thru=None, is_global=False):
     """Cancel submitted workflows.
 
     Parameters
@@ -45,9 +45,16 @@ def cancel(wms_service, wms_id=None, user=None, require_bps=True, pass_thru=None
         Whether to require given run_id/user to be a bps submitted job.
     pass_thru : `str`, optional
         Information to pass through to WMS.
+    is_global : `bool`, optional
+        If set, all available job queues will be checked for jobs to cancel.
+        Defaults to False which means that only a local job queue will be
+        checked.
+
+        Only applicable in the context of a WMS using distributed job queues
+        (e.g., HTCondor).
     """
-    _LOG.debug("Cancel params: wms_id=%s, user=%s, require_bps=%s, pass_thru=%s",
-               wms_id, user, require_bps, pass_thru)
+    _LOG.debug("Cancel params: wms_id=%s, user=%s, require_bps=%s, pass_thru=%s, is_global=%s",
+               wms_id, user, require_bps, pass_thru, is_global)
 
     if isinstance(wms_service, str):
         wms_service_class = doImport(wms_service)
@@ -55,13 +62,14 @@ def cancel(wms_service, wms_id=None, user=None, require_bps=True, pass_thru=None
     else:
         service = wms_service
 
-    jobs = service.list_submitted_jobs(wms_id, user, require_bps, pass_thru)
+    jobs = service.list_submitted_jobs(wms_id, user, require_bps, pass_thru, is_global)
     if len(jobs) == 0:
-        print("0 jobs found matching arguments.")
+        print("No job matches the search criteria. "
+              "Hints: Double check id, and/or use --global to search all job queues.")
     else:
         for job_id in sorted(jobs):
             results = service.cancel(job_id, pass_thru)
             if results[0]:
-                print(f"Successfully canceled: {job_id}")
+                print(f"Successfully canceled job with id '{job_id}'")
             else:
-                print(f"Couldn't cancel job with id = {job_id} ({results[1]})")
+                print(f"Couldn't cancel job with id '{job_id}' ({results[1]})")

@@ -42,14 +42,17 @@ __all__ = [
     "htc_submit_dag",
     "condor_history",
     "condor_q",
+    "condor_search",
     "condor_status",
-    "read_dag_status",
+    "update_job_info",
     "MISSING_ID",
     "summary_from_dag",
+    "read_dag_info",
     "read_dag_log",
     "read_dag_nodes_log",
+    "read_dag_status",
     "read_node_status",
-    "pegasus_name_to_label"
+    "pegasus_name_to_label",
 ]
 
 
@@ -64,10 +67,12 @@ from enum import IntEnum
 from pathlib import Path
 import pprint
 import subprocess
+from datetime import datetime, timedelta
 
 import networkx
 import classad
 import htcondor
+from packaging import version
 
 
 _LOG = logging.getLogger(__name__)
@@ -341,7 +346,7 @@ def htc_version():
     version_info = re.match(r"\$CondorVersion: (\d+).(\d+).(\d+)", htcondor.version())
     if version_info is None:
         raise RuntimeError("Problems parsing condor version")
-    return f"{int(version_info.group(1)):04}.{int(version_info.group(2)):04}.{int(version_info.group(3)):04}"
+    return f"{int(version_info.group(1))}.{int(version_info.group(2))}.{int(version_info.group(3))}"
 
 
 def htc_submit_dag(htc_dag, submit_options=None):
@@ -349,21 +354,43 @@ def htc_submit_dag(htc_dag, submit_options=None):
 
     Parameters
     ----------
-    htc_dag : `HtcDag`
+    htc_dag : `HTCDag`
         DAG to submit to HTCondor
     submit_options : `dict`
         Extra options for condor_submit_dag
     """
-    ver = htc_version()
-    if ver >= "8.9.3":
+    ver = version.parse(htc_version())
+    if ver >= version.parse("8.9.3"):
         sub = htcondor.Submit.from_dag(htc_dag.graph["dag_filename"], submit_options)
     else:
         sub = _htc_submit_dag_old(htc_dag.graph["dag_filename"], submit_options)
 
-    # submit DAG to HTCondor's schedd
-    schedd = htcondor.Schedd()
+    # Submit DAG to HTCondor's schedd.
+    coll = htcondor.Collector()
+    schedd_ad = coll.locate(htcondor.DaemonTypes.Schedd)
+    schedd = htcondor.Schedd(schedd_ad)
+
+    jobs_ads = []
     with schedd.transaction() as txn:
-        htc_dag.run_id = sub.queue(txn)
+        sub.queue(txn, ad_results=jobs_ads)
+
+    # Submit.queue() above will raise RuntimeError if submission fails, so
+    # 'job_ad' should contain the ad at this point.
+    dag_ad = jobs_ads[0]
+
+    htc_dag.run_id = f"{dag_ad['ClusterId']}.{dag_ad['ProcId']}"
+
+    # Store additional pieces of information (e.g. 'GlobalJobId') which cannot
+    # be retrieved later from the files produced by HTCondor. Sadly,
+    # the ClassAd from Submit.queue() (see above) does not have 'GlobalJobId'.
+    # So we need to run a fully fledged query to get it anyway.
+    schedd_name = schedd_ad["Name"]
+    dag_info = condor_q(constraint=f"ClusterId == {int(float(htc_dag.run_id))}",
+                        schedds={schedd_name: schedd})
+    if dag_info:
+        write_dag_info(f"{htc_dag.name}.info.json", dag_info)
+    else:
+        _LOG.debug("DAGMan job with id '%s' not found", htc_dag.run_id)
 
 
 def _htc_submit_dag_old(dag_filename, submit_options=None):
@@ -730,68 +757,118 @@ class HTCDag(networkx.DiGraph):
         networkx.drawing.nx_pydot.write_dot(self, filename)
 
 
-def condor_q(constraint=None, schedd=None):
+def condor_q(constraint=None, schedds=None):
     """Query HTCondor for current jobs.
 
     Parameters
     ----------
     constraint : `str`, optional
         Constraints to be passed to job query.
-    schedd : `htcondor.Schedd`, optional
-        HTCondor scheduler which to query for job information
+    schedds : `dict` [`str`, `htcondor.Schedd`], optional
+        HTCondor schedulers which to query for job information. If None
+        (default), the query will be run against local scheduler only.
 
     Returns
     -------
-    jobads : `dict`
-        Mapping HTCondor job id to job information
+    job_info : `dict` [`str`, `dict` [`str`, `dict` [`str` Any]]]
+        Information about jobs satisfying the search criteria where for each
+        Scheduler, local HTCondor job ids are mapped to their respective
+        classads.
     """
-    if not schedd:
-        schedd = htcondor.Schedd()
-    try:
-        joblist = schedd.query(constraint=constraint)
-    except RuntimeError as ex:
-        raise RuntimeError(f"Problem querying the Schedd.  (Constraint='{constraint}')") from ex
+    if not schedds:
+        coll = htcondor.Collector()
+        schedd_ad = coll.locate(htcondor.DaemonTypes.Schedd)
+        schedds = {schedd_ad["Name"]: htcondor.Schedd(schedd_ad)}
 
-    # convert list to dictionary
-    jobads = {}
-    for jobinfo in joblist:
-        del jobinfo["Environment"]
-        del jobinfo["Env"]
+    queries = [schedd.xquery(requirements=constraint) for schedd in schedds.values()]
 
-        jobads[f"{jobinfo['ClusterId']}.{jobinfo['ProcId']}"] = dict(jobinfo)
+    job_info = {}
+    for query in htcondor.poll(queries):
+        schedd_name = query.tag()
+        job_info.setdefault(schedd_name, {})
+        for job_ad in query.nextAdsNonBlocking():
+            del job_ad["Environment"]
+            del job_ad["Env"]
+            id_ = f"{int(job_ad['ClusterId'])}.{int(job_ad['ProcId'])}"
+            job_info[schedd_name][id_] = dict(job_ad)
+    _LOG.debug("condor_q returned %d jobs", sum(len(val) for val in job_info.values()))
 
-    return jobads
+    # When returning the results filter out entries for schedulers with no jobs
+    # matching the search criteria.
+    return {key: val for key, val in job_info.items() if val}
 
 
-def condor_history(constraint=None, schedd=None):
+def condor_history(constraint=None, schedds=None):
     """Get information about completed jobs from HTCondor history.
 
     Parameters
     ----------
     constraint : `str`, optional
         Constraints to be passed to job query.
-    schedd : `htcondor.Schedd`, optional
-        HTCondor scheduler which to query for job information
+    schedds : `dict` [`str`, `htcondor.Schedd`], optional
+        HTCondor schedulers which to query for job information. If None
+        (default), the query will be run against the history file of
+        the local scheduler only.
 
     Returns
     -------
-    jobads : `dict`
-        Mapping HTCondor job id to job information
+    job_info : `dict` [`str`, `dict` [`str`, `dict` [`str` Any]]]
+        Information about jobs satisfying the search criteria where for each
+        Scheduler, local HTCondor job ids are mapped to their respective
+        classads.
     """
-    if not schedd:
-        schedd = htcondor.Schedd()
-    _LOG.debug("condor_history constraint = %s", constraint)
-    joblist = schedd.history(constraint, projection=[], match=-1)
+    if not schedds:
+        coll = htcondor.Collector()
+        schedd_ad = coll.locate(htcondor.DaemonTypes.Schedd)
+        schedds = {schedd_ad["Name"]: htcondor.Schedd(schedd_ad)}
 
-    # convert list to dictionary
-    jobads = {}
-    for jobinfo in joblist:
-        del jobinfo["Environment"]
-        del jobinfo["Env"]
-        jobads[f"{jobinfo['ClusterId']}.{jobinfo['ProcId']}"] = dict(jobinfo)
+    job_info = {}
+    for schedd_name, schedd in schedds.items():
+        job_info[schedd_name] = {}
+        for job_ad in schedd.history(requirements=constraint, projection=[]):
+            del job_ad["Environment"]
+            del job_ad["Env"]
+            id_ = f"{int(job_ad['ClusterId'])}.{int(job_ad['ProcId'])}"
+            job_info[schedd_name][id_] = dict(job_ad)
+    _LOG.debug("condor_history returned %d jobs", sum(len(val) for val in job_info.values()))
 
-    _LOG.debug("condor_history returned %d jobs", len(jobads))
-    return jobads
+    # When returning the results filter out entries for schedulers with no jobs
+    # matching the search criteria.
+    return {key: val for key, val in job_info.items() if val}
+
+
+def condor_search(constraint=None, hist=None, schedds=None):
+    """Search for running and finished jobs satisfying given criteria.
+
+    Parameters
+    ----------
+    constraint : `str`, optional
+        Constraints to be passed to job query.
+    hist : `float`
+        Limit history search to this many days.
+    schedds : `dict` [`str`, `htcondor.Schedd`], optional
+        The list of the HTCondor schedulers which to query for job information.
+        If None (default), only the local scheduler will be queried.
+
+    Returns
+    -------
+    job_info : `dict` [`str`, `dict` [`str`, `dict` [`str` Any]]]
+        Information about jobs satisfying the search criteria where for each
+        Scheduler, local HTCondor job ids are mapped to their respective
+        classads.
+    """
+    if not schedds:
+        coll = htcondor.Collector()
+        schedd_ad = coll.locate(htcondor.DaemonTypes.Schedd)
+        schedds = {schedd_ad["Name"]: htcondor.Schedd(locate_ad=schedd_ad)}
+
+    job_info = condor_q(constraint=constraint, schedds=schedds)
+    if hist is not None:
+        epoch = (datetime.now() - timedelta(days=hist)).timestamp()
+        constraint += f" && (CompletionDate >= {epoch} || JobFinishedHookDone >= {epoch})"
+        hist_info = condor_history(constraint, schedds=schedds)
+        update_job_info(job_info, hist_info)
+    return job_info
 
 
 def condor_status(constraint=None, coll=None):
@@ -806,14 +883,14 @@ def condor_status(constraint=None, coll=None):
 
     Returns
     -------
-    pool_info : `dict` [`str`, `dict` [ `str, Any ]]
+    pool_info : `dict` [`str`, `dict` [`str`, Any]]
         Mapping between HTCondor slot names and slot information (classAds).
     """
     if coll is None:
         coll = htcondor.Collector()
     try:
         pool_ads = coll.query(constraint=constraint)
-    except RuntimeError as ex:
+    except OSError as ex:
         raise RuntimeError(f"Problem querying the Collector.  (Constraint='{constraint}')") from ex
 
     pool_info = {}
@@ -821,6 +898,32 @@ def condor_status(constraint=None, coll=None):
         pool_info[slot["name"]] = dict(slot)
     _LOG.debug("condor_status returned %d ads", len(pool_info))
     return pool_info
+
+
+def update_job_info(job_info, other_info):
+    """Update results of a job query with results from another query.
+
+    Parameters
+    ----------
+    job_info : `dict` [`str`, `dict` [`str`, Any]]
+        Results of the job query that needs to be updated.
+    other_info : `dict` [`str`, `dict` [`str`, Any]]
+        Results of the other job query.
+
+    Returns
+    -------
+    job_info : `dict` [`str`, `dict` [`str`, Any]]
+        The updated results.
+    """
+    for schedd_name, others in other_info.items():
+        try:
+            jobs = job_info[schedd_name]
+        except KeyError:
+            job_info[schedd_name] = others
+        else:
+            for id_, ad in others.items():
+                jobs.setdefault(id_, {}).update(ad)
+    return job_info
 
 
 def summary_from_dag(dir_name):
@@ -914,10 +1017,10 @@ def read_dag_status(wms_path):
 
     Returns
     -------
-    dag_classad : `dict`
+    dag_ad : `dict` [`str`, Any]
         DAG summary information.
     """
-    dag_classad = {}
+    dag_ad = {}
 
     # While this is probably more up to date than dag classad, only read from
     # file if need to.
@@ -926,34 +1029,34 @@ def read_dag_status(wms_path):
             node_stat_file = next(Path(wms_path).glob("*.node_status"))
             _LOG.debug("Reading Node Status File %s", node_stat_file)
             with open(node_stat_file, "r") as infh:
-                dag_classad = classad.parseNext(infh)  # pylint: disable=E1101
+                dag_ad = classad.parseNext(infh)  # pylint: disable=E1101
         except StopIteration:
             pass
 
-        if not dag_classad:
+        if not dag_ad:
             # Pegasus check here
             try:
                 metrics_file = next(Path(wms_path).glob("*.dag.metrics"))
                 with open(metrics_file, "r") as infh:
                     metrics = json.load(infh)
-                dag_classad["NodesTotal"] = metrics.get("jobs", 0)
-                dag_classad["NodesFailed"] = metrics.get("jobs_failed", 0)
-                dag_classad["NodesDone"] = metrics.get("jobs_succeeded", 0)
-                dag_classad["pegasus_version"] = metrics.get("planner_version", "")
+                dag_ad["NodesTotal"] = metrics.get("jobs", 0)
+                dag_ad["NodesFailed"] = metrics.get("jobs_failed", 0)
+                dag_ad["NodesDone"] = metrics.get("jobs_succeeded", 0)
+                dag_ad["pegasus_version"] = metrics.get("planner_version", "")
             except StopIteration:
                 try:
                     metrics_file = next(Path(wms_path).glob("*.metrics"))
                     with open(metrics_file, "r") as infh:
                         metrics = json.load(infh)
-                    dag_classad["NodesTotal"] = metrics["wf_metrics"]["total_jobs"]
-                    dag_classad["pegasus_version"] = metrics.get("version", "")
+                    dag_ad["NodesTotal"] = metrics["wf_metrics"]["total_jobs"]
+                    dag_ad["pegasus_version"] = metrics.get("version", "")
                 except StopIteration:
                     pass
     except (OSError, PermissionError):
         pass
 
-    _LOG.debug("read_dag_status: %s", dag_classad)
-    return dict(dag_classad)
+    _LOG.debug("read_dag_status: %s", dag_ad)
+    return dict(dag_ad)
 
 
 def read_node_status(wms_path):
@@ -966,7 +1069,7 @@ def read_node_status(wms_path):
 
     Returns
     -------
-    dag_classad : `dict` or `classad.ClassAd`
+    jobs : `dict` [`str`, Any]
         DAG summary information.
     """
     # Get jobid info from other places to fill in gaps in info from node_status
@@ -1043,21 +1146,26 @@ def read_dag_log(wms_path):
 
     Returns
     -------
-    info : `dict` [`str`, `Any`]
+    wms_workflow_id : `str`
+        HTCondor job id (i.e., <ClusterId>.<ProcId>) of the DAGMan job.
+    dag_info : `dict` [`str`, `Any`]
         HTCondor job information read from the log file mapped to HTCondor
         job id.
 
     Raises
     ------
-    StopIteration
-        If cannot find DAGMan log file in given wms_path.
+    FileNotFoundError
+        If cannot find DAGMan log in given wms_path.
     """
     wms_workflow_id = 0
     dag_info = {}
 
     path = Path(wms_path)
     if path.exists():
-        filename = next(path.glob("*.dag.dagman.log"))
+        try:
+            filename = next(path.glob("*.dag.dagman.log"))
+        except StopIteration as exc:
+            raise FileNotFoundError(f"DAGMan log not found in {wms_path}") from exc
         _LOG.debug("dag node log filename: %s", filename)
 
         info = {}
@@ -1088,14 +1196,23 @@ def read_dag_nodes_log(wms_path):
 
     Returns
     -------
-    info : `dict`
+    info : `dict` [`str`, Any]
         HTCondor job information read from the log file mapped to HTCondor
         job id.
+
+    Raises
+    ------
+    FileNotFoundError
+        If cannot find DAGMan node log in given wms_path.
     """
-    filename = next(Path(wms_path).glob("*.dag.nodes.log"))
+    try:
+        filename = next(Path(wms_path).glob("*.dag.nodes.log"))
+    except StopIteration as exc:
+        raise FileNotFoundError(f"DAGMan node log not found in {wms_path}") from exc
     _LOG.debug("dag node log filename: %s", filename)
-    job_event_log = htcondor.JobEventLog(str(filename))
+
     info = {}
+    job_event_log = htcondor.JobEventLog(str(filename))
     for event in job_event_log.events(stop_after=0):
         id_ = f"{event['Cluster']}.{event['Proc']}"
         if id_ not in info:
@@ -1103,16 +1220,88 @@ def read_dag_nodes_log(wms_path):
         info[id_].update(event)
         info[id_][f"{event.type.name.lower()}_time"] = event["EventTime"]
 
-    # add more condor_q-like info to info parsed from log file
+    # Add more condor_q-like info to info parsed from log file.
     for job in info.values():
         _tweak_log_info(filename, job)
+
     return info
 
 
+def read_dag_info(wms_path):
+    """Read custom DAGMan job information from the file.
+
+    Parameters
+    ----------
+    wms_path : `str`
+        Path containing the file with the DAGMan job info.
+
+    Returns
+    -------
+    dag_info : `dict` [`str`, `dict` [`str`, Any]]
+        HTCondor job information.
+
+    Raises
+    ------
+    FileNotFoundError
+        If cannot find DAGMan job info file in the given location.
+    """
+    try:
+        filename = next(Path(wms_path).glob("*.info.json"))
+    except StopIteration as exc:
+        raise FileNotFoundError(f"File with DAGMan job information not found in {wms_path}") from exc
+    _LOG.debug("DAGMan job information filename: %s", filename)
+    try:
+        with open(filename) as fh:
+            dag_info = json.load(fh)
+    except (IOError, PermissionError) as exc:
+        _LOG.debug("Retrieving DAGMan job information failed: %s", exc)
+        dag_info = {}
+    return dag_info
+
+
+def write_dag_info(filename, dag_info):
+    """Writes custom job information about DAGMan job.
+
+    Parameters
+    ----------
+    filename : `str`
+        Name of the file where the information will be stored.
+    dag_info : `dict` [`str` `dict` [`str` Any]]
+        Information about the DAGMan job.
+    """
+    schedd_name = next(iter(dag_info))
+    dag_id = next(iter(dag_info[schedd_name]))
+    dag_ad = dag_info[schedd_name][dag_id]
+    try:
+        with open(filename, "w") as fh:
+            info = {
+                schedd_name: {
+                    dag_id: {
+                        "ClusterId": dag_ad["ClusterId"],
+                        "GlobalJobId": dag_ad["GlobalJobId"]
+                    }
+                }
+            }
+            json.dump(info, fh)
+    except (KeyError, IOError, PermissionError) as exc:
+        _LOG.debug("Persisting DAGMan job information failed: %s", exc)
+
+
 def _tweak_log_info(filename, job):
+    """Massage the given job info has same structure as if came from condor_q.
+
+    Parameters
+    ----------
+    filename : `pathlib.Path`
+        Name of the DAGMan log.
+    job : `dict` [ `str`, Any ]
+        A mapping between HTCondor job id and job information read from
+        the log.
+    """
     _LOG.debug("_tweak_log_info: %s %s", filename, job)
     try:
         job["ClusterId"] = job["Cluster"]
+        job["ProcId"] = job["Proc"]
         job["Iwd"] = str(filename.parent)
         job["Owner"] = filename.owner()
         if job["MyType"] == "ExecuteEvent":
@@ -1133,6 +1322,8 @@ def _tweak_log_info(filename, job):
                 _LOG.error("Could not determine exit status for job (missing %s): %s", str(ex), job)
         elif job["MyType"] == "SubmitEvent":
             job["JobStatus"] = JobStatus.IDLE
+        elif job["MyType"] == "JobAbortedEvent":
+            job["JobStatus"] = JobStatus.REMOVED
         else:
             _LOG.debug("Unknown log event type: %s", job["MyType"])
     except KeyError:
@@ -1141,7 +1332,7 @@ def _tweak_log_info(filename, job):
 
 
 def htc_check_dagman_output(wms_path):
-    """Check the DAGman output for error messages.
+    """Check the DAGMan output for error messages.
 
     Parameter
     ----------
@@ -1151,14 +1342,22 @@ def htc_check_dagman_output(wms_path):
     Returns
     -------
     message : `str`
-        Message containing error messages from the DAGman output.  Empty
+        Message containing error messages from the DAGMan output.  Empty
         string if no messages.
-    """
-    message = ""
-    filename = next(Path(wms_path).glob("*.dag.dagman.out"))
 
+    Raises
+    ------
+    FileNotFoundError
+        If cannot find DAGMan standard output file in given wms_path.
+    """
     try:
-        _LOG.debug("dag output filename: %s", filename)
+        filename = next(Path(wms_path).glob("*.dag.dagman.out"))
+    except StopIteration as exc:
+        raise FileNotFoundError(f"DAGMan standard output file not found in {wms_path}") from exc
+    _LOG.debug("dag output filename: %s", filename)
+
+    message = ""
+    try:
         with open(filename, "r") as fh:
             last_submit_failed = ""
             for line in fh:

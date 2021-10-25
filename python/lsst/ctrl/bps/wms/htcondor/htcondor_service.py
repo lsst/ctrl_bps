@@ -29,7 +29,7 @@ import dataclasses
 import os
 import re
 import logging
-from datetime import datetime, timedelta
+from enum import IntEnum, auto
 from pathlib import Path
 
 import htcondor
@@ -56,15 +56,37 @@ from .lssthtc import (
     htc_check_dagman_output,
     htc_escape,
     htc_submit_dag,
+    read_dag_info,
     read_dag_log,
     read_dag_status,
     read_node_status,
-    condor_history,
     condor_q,
+    condor_search,
     condor_status,
     pegasus_name_to_label,
     summary_from_dag,
 )
+
+
+class WmsIdType(IntEnum):
+    """Type of valid WMS ids.
+    """
+
+    UNKNOWN = auto()
+    """The type of id cannot be determined.
+    """
+
+    LOCAL = auto()
+    """The id is HTCondor job's ClusterId (with optional '.ProcId').
+    """
+
+    GLOBAL = auto()
+    """Id is a HTCondor's global job id.
+    """
+
+    PATH = auto()
+    """Id is a submission path.
+    """
 
 
 DEFAULT_HTC_EXEC_PATT = ".*worker.*"
@@ -119,7 +141,7 @@ class HTCondorService(BaseWmsService):
             htc_submit_dag(workflow.dag, {})
             workflow.run_id = workflow.dag.run_id
 
-    def list_submitted_jobs(self, wms_id=None, user=None, require_bps=True, pass_thru=None):
+    def list_submitted_jobs(self, wms_id=None, user=None, require_bps=True, pass_thru=None, is_global=False):
         """Query WMS for list of submitted WMS workflows/jobs.
 
         This should be a quick lookup function to create list of jobs for
@@ -135,6 +157,10 @@ class HTCondorService(BaseWmsService):
             Whether to require jobs returned in list to be bps-submitted jobs.
         pass_thru : `str`, optional
             Information to pass through to WMS.
+        is_global : `bool`, optional
+            If set, all job queues (and their histories) will be queried for
+            job information. Defaults to False which means that only the local
+            job queue will be queried.
 
         Returns
         -------
@@ -142,60 +168,83 @@ class HTCondorService(BaseWmsService):
             Only job ids to be used by cancel and other functions.  Typically
             this means top-level jobs (i.e., not children jobs).
         """
-        _LOG.debug("list_submitted_jobs params: wms_id=%s, user=%s, require_bps=%s, pass_thru=%s",
-                   wms_id, user, require_bps, pass_thru)
-        constraint = ""
+        _LOG.debug("list_submitted_jobs params: "
+                   "wms_id=%s, user=%s, require_bps=%s, pass_thru=%s, is_global=%s",
+                   wms_id, user, require_bps, pass_thru, is_global)
 
+        # Determine which Schedds will be queried for job information.
+        coll = htcondor.Collector()
+
+        schedd_ads = []
+        if is_global:
+            schedd_ads.extend(coll.locateAll(htcondor.DaemonTypes.Schedd))
+        else:
+            schedd_ads.append(coll.locate(htcondor.DaemonTypes.Schedd))
+
+        # Construct appropriate constraint expression using provided arguments.
+        constraint = "False"
         if wms_id is None:
             if user is not None:
                 constraint = f'(Owner == "{user}")'
         else:
-            cluster_id = _wms_id_to_cluster(wms_id)
-            if cluster_id != 0:
+            schedd_ad, cluster_id, id_type = _wms_id_to_cluster(wms_id)
+            if cluster_id is not None:
                 constraint = f"(DAGManJobId == {cluster_id} || ClusterId == {cluster_id})"
 
+                # If provided id is either a submission path or a global id,
+                # make sure the right Schedd will be queried regardless of
+                # 'is_global' value.
+                if id_type in {WmsIdType.GLOBAL, WmsIdType.PATH}:
+                    schedd_ads = [schedd_ad]
         if require_bps:
             constraint += ' && (bps_isjob == "True")'
-
         if pass_thru:
             if "-forcex" in pass_thru:
                 pass_thru_2 = pass_thru.replace("-forcex", "")
                 if pass_thru_2 and not pass_thru_2.isspace():
-                    constraint += f"&& ({pass_thru_2})"
+                    constraint += f" && ({pass_thru_2})"
             else:
                 constraint += f" && ({pass_thru})"
 
-        _LOG.debug("constraint = %s", constraint)
-        jobs = condor_q(constraint)
+        # Create a list of scheduler daemons which need to be queried.
+        schedds = {ad["Name"]: htcondor.Schedd(ad) for ad in schedd_ads}
+
+        _LOG.debug("constraint = %s, schedds = %s", constraint, ", ".join(schedds))
+        results = condor_q(constraint=constraint, schedds=schedds)
 
         # Prune child jobs where DAG job is in queue (i.e., aren't orphans).
         job_ids = []
-        for job_id, job_info in jobs.items():
-            _LOG.debug("job_id=%s DAGManJobId=%s", job_id, job_info.get("DAGManJobId", "None"))
-            if "DAGManJobId" not in job_info:    # orphaned job
-                job_ids.append(job_id)
-            else:
-                _LOG.debug("Looking for %s", f"{job_info['DAGManJobId']}.0")
-                _LOG.debug("\tin jobs.keys() = %s", jobs.keys())
-                if f"{job_info['DAGManJobId']}.0" not in jobs:
-                    job_ids.append(job_id)
+        for schedd_name, job_info in results.items():
+            for job_id, job_ad in job_info.items():
+                _LOG.debug("job_id=%s DAGManJobId=%s", job_id, job_ad.get("DAGManJobId", "None"))
+                if "DAGManJobId" not in job_ad:
+                    job_ids.append(job_ad.get("GlobalJobId", job_id))
+                else:
+                    _LOG.debug("Looking for %s", f"{job_ad['DAGManJobId']}.0")
+                    _LOG.debug("\tin jobs.keys() = %s", job_info.keys())
+                    if f"{job_ad['DAGManJobId']}.0" not in job_info:  # orphaned job
+                        job_ids.append(job_ad.get("GlobalJobId", job_id))
 
         _LOG.debug("job_ids = %s", job_ids)
         return job_ids
 
-    def report(self, wms_workflow_id=None, user=None, hist=0, pass_thru=None):
+    def report(self, wms_workflow_id=None, user=None, hist=0, pass_thru=None, is_global=False):
         """Return run information based upon given constraints.
 
         Parameters
         ----------
-        wms_workflow_id : `str`
+        wms_workflow_id : `str`, optional
             Limit to specific run based on id.
-        user : `str`
+        user : `str`, optional
             Limit results to runs for this user.
-        hist : `float`
-            Limit history search to this many days.
-        pass_thru : `str`
+        hist : `float`, optional
+            Limit history search to this many days. Defaults to 0.
+        pass_thru : `str`, optional
             Constraints to pass through to HTCondor.
+        is_global : `bool`, optional
+            If set, all job queues (and their histories) will be queried for
+            job information. Defaults to False which means that only the local
+            job queue will be queried.
 
         Returns
         -------
@@ -205,24 +254,21 @@ class HTCondorService(BaseWmsService):
             Extra message for report command to print.  This could be pointers
             to documentation or to WMS specific commands.
         """
-        message = ""
-
         if wms_workflow_id:
-            # Explicitly checking if wms_workflow_id can be converted to a
-            # float instead of using try/except to avoid catching a different
-            # ValueError from _report_from_id
-            try:
-                float(wms_workflow_id)
-                is_float = True
-            except ValueError:  # Don't need TypeError here as None goes to else branch.
-                is_float = False
-
-            if is_float:
-                run_reports, message = _report_from_id(float(wms_workflow_id), hist)
-            else:
+            id_type = _wms_id_type(wms_workflow_id)
+            if id_type == WmsIdType.LOCAL:
+                schedulers = _locate_schedds(locate_all=is_global)
+                run_reports, message = _report_from_id(wms_workflow_id, hist, schedds=schedulers)
+            elif id_type == WmsIdType.GLOBAL:
+                schedulers = _locate_schedds(locate_all=True)
+                run_reports, message = _report_from_id(wms_workflow_id, hist, schedds=schedulers)
+            elif id_type == WmsIdType.PATH:
                 run_reports, message = _report_from_path(wms_workflow_id)
+            else:
+                run_reports, message = {}, 'Invalid job id'
         else:
-            run_reports, message = _summary_report(user, hist, pass_thru)
+            schedulers = _locate_schedds(locate_all=is_global)
+            run_reports, message = _summary_report(user, hist, pass_thru, schedds=schedulers)
         _LOG.debug("report: %s, %s", run_reports, message)
 
         return list(run_reports.values()), message
@@ -233,7 +279,7 @@ class HTCondorService(BaseWmsService):
         Parameters
         ----------
         wms_id : `str`
-            ID or path of job that should be canceled.
+            Id or path of job that should be canceled.
         pass_thru : `str`, optional
             Information to pass through to WMS.
 
@@ -247,13 +293,16 @@ class HTCondorService(BaseWmsService):
         """
         _LOG.debug("Canceling wms_id = %s", wms_id)
 
-        cluster_id = _wms_id_to_cluster(wms_id)
-        if cluster_id == 0:
+        schedd_ad, cluster_id, _ = _wms_id_to_cluster(wms_id)
+
+        if cluster_id is None:
             deleted = False
-            message = "Invalid id"
+            message = "invalid id"
         else:
-            _LOG.debug("Canceling cluster_id = %s", cluster_id)
-            schedd = htcondor.Schedd()
+            _LOG.debug("Canceling job managed by schedd_name = %s with cluster_id = %s",
+                       cluster_id, schedd_ad["Name"])
+            schedd = htcondor.Schedd(schedd_ad)
+
             constraint = f"ClusterId == {cluster_id}"
             if pass_thru is not None and "-forcex" in pass_thru:
                 pass_thru_2 = pass_thru.replace("-forcex", "")
@@ -749,15 +798,18 @@ def _report_from_path(wms_path):
     return run_reports, message
 
 
-def _report_from_id(wms_workflow_id, hist):
-    """Gather run information from a given run directory.
+def _report_from_id(wms_workflow_id, hist, schedds=None):
+    """Gather run information using workflow id.
 
     Parameters
     ----------
-    wms_workflow_id : `int` or `str`
+    wms_workflow_id : `str`
         Limit to specific run based on id.
     hist : `float`
         Limit history search to this many days.
+    schedds : `dict` [ `str`, `htcondor.Schedd` ], optional
+        HTCondor schedulers which to query for job information. If None
+        (default), all queries will be run against the local scheduler only.
 
     Returns
     -------
@@ -767,27 +819,51 @@ def _report_from_id(wms_workflow_id, hist):
     message : `str`
         Message to be printed with the summary report.
     """
-    constraint = f"(DAGManJobId == {int(float(wms_workflow_id))} || ClusterId == " \
-                 f"{int(float(wms_workflow_id))})"
-    jobs = condor_q(constraint)
-    if hist:
-        epoch = (datetime.now() - timedelta(days=hist)).timestamp()
-        constraint += f" && (CompletionDate >= {epoch} || JobFinishedHookDone >= {epoch})"
-        hist_jobs = condor_history(constraint)
-        _update_jobs(jobs, hist_jobs)
-
-    # keys in dictionary will be strings of format "ClusterId.ProcId"
-    wms_workflow_id = str(wms_workflow_id)
-    if not wms_workflow_id.endswith(".0"):
-        wms_workflow_id += ".0"
-
-    if wms_workflow_id in jobs:
-        _, path_jobs, message = _get_info_from_path(jobs[wms_workflow_id]["Iwd"])
-        _update_jobs(jobs, path_jobs)
-        run_reports = _create_detailed_report_from_jobs(wms_workflow_id, jobs)
+    dag_constraint = 'regexp("dagman$", Cmd)'
+    try:
+        cluster_id = int(float(wms_workflow_id))
+    except ValueError:
+        dag_constraint += f' && GlobalJobId == "{wms_workflow_id}"'
     else:
+        dag_constraint += f" && ClusterId == {cluster_id}"
+
+    # With the current implementation of the condor_* functions the query will
+    # always return only one match per Scheduler.
+    #
+    # Even in the highly unlikely situation where HTCondor history (which
+    # condor_search queries too) is long enough to have jobs from before the
+    # cluster ids were rolled over (and as a result there is more then one job
+    # with the same cluster id) they will not show up in the results.
+    schedd_dag_info = condor_search(constraint=dag_constraint, hist=hist, schedds=schedds)
+    if len(schedd_dag_info) == 0:
         run_reports = {}
-        message = f"Found 0 records for run id {wms_workflow_id}"
+        message = ""
+    elif len(schedd_dag_info) == 1:
+        _, dag_info = schedd_dag_info.popitem()
+        dag_id, dag_ad = dag_info.popitem()
+
+        # Create a mapping between jobs and their classads. The keys will be
+        # of format 'ClusterId.ProcId'.
+        job_info = {dag_id: dag_ad}
+
+        # Find jobs (nodes) belonging to that DAGMan job.
+        job_constraint = f"DAGManJobId == {int(float(dag_id))}"
+        schedd_job_info = condor_search(constraint=job_constraint, hist=hist, schedds=schedds)
+        _, node_info = schedd_job_info.popitem()
+        job_info.update(node_info)
+
+        # Collect additional pieces of information about jobs using HTCondor
+        # files in the submission directory.
+        _, path_jobs, message = _get_info_from_path(dag_ad["Iwd"])
+        _update_jobs(job_info, path_jobs)
+
+        run_reports = _create_detailed_report_from_jobs(dag_id, job_info)
+        message = ""
+    else:
+        ids = [ad["GlobalJobId"] for dag_info in schedd_dag_info.values() for ad in dag_info.values()]
+        run_reports = {}
+        message = f"More than one job matches id '{wms_workflow_id}', " \
+                  f"their global ids are: {', '.join(ids)}. Rerun with one of the global ids"
     return run_reports, message
 
 
@@ -810,6 +886,7 @@ def _get_info_from_path(wms_path):
     message : `str`
         Message to be printed with the summary report.
     """
+    messages = []
     try:
         wms_workflow_id, jobs = read_dag_log(wms_path)
         _LOG.debug("_get_info_from_path: from dag log %s = %s", wms_workflow_id, jobs)
@@ -819,19 +896,43 @@ def _get_info_from_path(wms_path):
         # Add more info for DAGman job
         job = jobs[wms_workflow_id]
         job.update(read_dag_status(wms_path))
+
         job["total_jobs"], job["state_counts"] = _get_state_counts_from_jobs(wms_workflow_id, jobs)
         if "bps_run" not in job:
             _add_run_info(wms_path, job)
 
         message = htc_check_dagman_output(wms_path)
+        if message:
+            messages.append(message)
         _LOG.debug("_get_info: id = %s, total_jobs = %s", wms_workflow_id,
                    jobs[wms_workflow_id]["total_jobs"])
-    except StopIteration:
-        message = f"Could not find HTCondor files in {wms_path}"
+
+        # Add extra pieces of information which cannot be found in HTCondor
+        # generated files like 'GlobalJobId'.
+        #
+        # Do not treat absence of this file as a serious error. Neither runs
+        # submitted with earlier versions of the plugin nor the runs submitted
+        # with Pegasus plugin will have it at the moment. However, once enough
+        # time passes and Pegasus plugin will have its own report() method
+        # (instead of sneakily using HTCondor's one), the lack of that file
+        # should be treated as seriously as lack of any other file.
+        try:
+            job_info = read_dag_info(wms_path)
+        except FileNotFoundError as exc:
+            message = f"Warn: Some information may not be available: {exc}"
+            messages.append(message)
+        else:
+            schedd_name = next(iter(job_info))
+            job_ad = next(iter(job_info[schedd_name].values()))
+            job.update(job_ad)
+    except FileNotFoundError:
+        message = f"Could not find HTCondor files in '{wms_path}'"
         _LOG.warning(message)
+        messages.append(message)
         wms_workflow_id = MISSING_ID
         jobs = {}
 
+    message = '\n'.join([msg for msg in messages if msg])
     return wms_workflow_id, jobs, message
 
 
@@ -841,9 +942,9 @@ def _create_detailed_report_from_jobs(wms_workflow_id, jobs):
     Parameters
     ----------
     wms_workflow_id : `str`
-        Run lookup restricted to given user.
-    jobs : `float`
-        How many previous days to search for run information.
+        The run id to create the report for.
+    jobs : `dict` [`str`, `dict` [`str`, Any]]
+        Mapping HTCondor job id to job information.
 
     Returns
     -------
@@ -853,10 +954,8 @@ def _create_detailed_report_from_jobs(wms_workflow_id, jobs):
     """
     _LOG.debug("_create_detailed_report: id = %s, job = %s", wms_workflow_id, jobs[wms_workflow_id])
     dag_job = jobs[wms_workflow_id]
-    if "total_jobs" not in dag_job or "DAGNodeName" in dag_job:
-        _LOG.error("Job ID %s is not a DAG job.", wms_workflow_id)
-        return {}
-    report = WmsRunReport(wms_id=wms_workflow_id,
+    report = WmsRunReport(wms_id=f"{dag_job['ClusterId']}.{dag_job['ProcId']}",
+                          global_wms_id=dag_job.get("GlobalJobId", "MISS"),
                           path=dag_job["Iwd"],
                           label=dag_job.get("bps_job_label", "MISS"),
                           run=dag_job.get("bps_run", "MISS"),
@@ -870,27 +969,27 @@ def _create_detailed_report_from_jobs(wms_workflow_id, jobs):
                           total_number_jobs=dag_job["total_jobs"],
                           job_state_counts=dag_job["state_counts"])
 
-    try:
-        for job in jobs.values():
-            if job["ClusterId"] != int(float(wms_workflow_id)):
-                job_report = WmsJobReport(wms_id=job["ClusterId"],
-                                          name=job.get("DAGNodeName", str(job["ClusterId"])),
-                                          label=job.get("bps_job_label",
-                                                        pegasus_name_to_label(job["DAGNodeName"])),
-                                          state=_htc_status_to_wms_state(job))
+    for job_id, job_info in jobs.items():
+        try:
+            if job_info["ClusterId"] != int(float(wms_workflow_id)):
+                job_report = WmsJobReport(wms_id=job_id,
+                                          name=job_info.get("DAGNodeName", job_id),
+                                          label=job_info.get("bps_job_label",
+                                                             pegasus_name_to_label(job_info["DAGNodeName"])),
+                                          state=_htc_status_to_wms_state(job_info))
                 if job_report.label == "init":
                     job_report.label = "pipetaskInit"
                 report.jobs.append(job_report)
-    except KeyError as ex:
-        _LOG.error("Job missing key '%s': %s", str(ex), job)
-        raise
+        except KeyError as ex:
+            _LOG.error("Job missing key '%s': %s", str(ex), job_info)
+            raise
 
     run_reports = {report.wms_id: report}
     _LOG.debug("_create_detailed_report: run_reports = %s", run_reports)
     return run_reports
 
 
-def _summary_report(user, hist, pass_thru):
+def _summary_report(user, hist, pass_thru, schedds=None):
     """Gather run information to be used in generating summary reports.
 
     Parameters
@@ -923,47 +1022,39 @@ def _summary_report(user, hist, pass_thru):
         if user:
             constraint += f' && (Owner == "{user}" || bps_operator == "{user}")'
 
-        # Check runs in queue.
-        jobs = condor_q(constraint)
-
-    if hist:
-        epoch = (datetime.now() - timedelta(days=hist)).timestamp()
-        constraint += f" && (CompletionDate >= {epoch} || JobFinishedHookDone >= {epoch})"
-        hist_jobs = condor_history(constraint)
-        _update_jobs(jobs, hist_jobs)
-
-    _LOG.debug("Job ids from queue and history %s", jobs.keys())
+    job_info = condor_search(constraint=constraint, hist=hist, schedds=schedds)
 
     # Have list of DAGMan jobs, need to get run_report info.
     run_reports = {}
-    for job in jobs.values():
-        total_jobs, state_counts = _get_state_counts_from_dag_job(job)
-        # If didn't get from queue information (e.g., Kerberos bug),
-        # try reading from file.
-        if total_jobs == 0:
-            try:
-                job.update(read_dag_status(job["Iwd"]))
-                total_jobs, state_counts = _get_state_counts_from_dag_job(job)
-            except StopIteration:
-                pass   # don't kill report can't find htcondor files
+    for jobs in job_info.values():
+        for job_id, job in jobs.items():
+            total_jobs, state_counts = _get_state_counts_from_dag_job(job)
+            # If didn't get from queue information (e.g., Kerberos bug),
+            # try reading from file.
+            if total_jobs == 0:
+                try:
+                    job.update(read_dag_status(job["Iwd"]))
+                    total_jobs, state_counts = _get_state_counts_from_dag_job(job)
+                except StopIteration:
+                    pass   # don't kill report can't find htcondor files
 
-        if "bps_run" not in job:
-            _add_run_info(job["Iwd"], job)
-        report = WmsRunReport(wms_id=str(job.get("ClusterId", MISSING_ID)),
-                              path=job["Iwd"],
-                              label=job.get("bps_job_label", "MISS"),
-                              run=job.get("bps_run", "MISS"),
-                              project=job.get("bps_project", "MISS"),
-                              campaign=job.get("bps_campaign", "MISS"),
-                              payload=job.get("bps_payload", "MISS"),
-                              operator=_get_owner(job),
-                              run_summary=_get_run_summary(job),
-                              state=_htc_status_to_wms_state(job),
-                              jobs=[],
-                              total_number_jobs=total_jobs,
-                              job_state_counts=state_counts)
-
-        run_reports[report.wms_id] = report
+            if "bps_run" not in job:
+                _add_run_info(job["Iwd"], job)
+            report = WmsRunReport(wms_id=job_id,
+                                  global_wms_id=job["GlobalJobId"],
+                                  path=job["Iwd"],
+                                  label=job.get("bps_job_label", "MISS"),
+                                  run=job.get("bps_run", "MISS"),
+                                  project=job.get("bps_project", "MISS"),
+                                  campaign=job.get("bps_campaign", "MISS"),
+                                  payload=job.get("bps_payload", "MISS"),
+                                  operator=_get_owner(job),
+                                  run_summary=_get_run_summary(job),
+                                  state=_htc_status_to_wms_state(job),
+                                  jobs=[],
+                                  total_number_jobs=total_jobs,
+                                  job_state_counts=state_counts)
+            run_reports[report.global_wms_id] = report
 
     return run_reports, ""
 
@@ -1266,8 +1357,36 @@ def _update_jobs(jobs1, jobs2):
             jobs1[jid] = jinfo
 
 
+def _wms_id_type(wms_id):
+    """Determine the type of the WMS id.
+
+    Parameters
+    ----------
+    wms_id : `str`
+        WMS id identifying a job.
+
+    Returns
+    -------
+    id_type : `lsst.ctrl.bps.htcondor.WmsIdType`
+        Type of WMS id.
+    """
+    try:
+        int(float(wms_id))
+    except ValueError:
+        wms_path = Path(wms_id)
+        if wms_path.exists():
+            id_type = WmsIdType.PATH
+        else:
+            id_type = WmsIdType.GLOBAL
+    except TypeError:
+        id_type = WmsIdType.UNKNOWN
+    else:
+        id_type = WmsIdType.LOCAL
+    return id_type
+
+
 def _wms_id_to_cluster(wms_id):
-    """Convert WMS ID to cluster ID.
+    """Convert WMS id to cluster id.
 
     Parameters
     ----------
@@ -1276,23 +1395,45 @@ def _wms_id_to_cluster(wms_id):
 
     Returns
     -------
+    schedd_ad : `classad.ClassAd`
+        ClassAd describing the scheduler managing the job with the given id.
     cluster_id : `int`
         HTCondor cluster id.
+    id_type : `lsst.ctrl.bps.wms.htcondor.IdType`
+        The type of the provided id.
     """
-    # If wms_id represents path, get numeric id.
-    try:
+    coll = htcondor.Collector()
+
+    schedd_ad = None
+    cluster_id = None
+    id_type = _wms_id_type(wms_id)
+    if id_type == WmsIdType.LOCAL:
+        schedd_ad = coll.locate(htcondor.DaemonTypes.Schedd)
         cluster_id = int(float(wms_id))
-    except ValueError:
-        wms_path = Path(wms_id)
-        if wms_path.exists():
-            try:
-                cluster_id, _ = read_dag_log(wms_id)
-                cluster_id = int(float(cluster_id))
-            except StopIteration:
-                cluster_id = 0
+    elif id_type == WmsIdType.GLOBAL:
+        constraint = f'GlobalJobId == "{wms_id}"'
+        schedd_ads = {ad["Name"]: ad for ad in coll.locateAll(htcondor.DaemonTypes.Schedd)}
+        schedds = [htcondor.Schedd(ad) for ad in schedd_ads.values()]
+        queries = [schedd.xquery(requirements=constraint, projection=["ClusterId"]) for schedd in schedds]
+        results = {query.tag(): dict(ads[0]) for query in htcondor.poll(queries)
+                   if (ads := query.nextAdsNonBlocking())}
+        if results:
+            schedd_name = next(iter(results))
+            schedd_ad = schedd_ads[schedd_name]
+            cluster_id = results[schedd_name]["ClusterId"]
+    elif id_type == WmsIdType.PATH:
+        try:
+            job_info = read_dag_info(wms_id)
+        except (FileNotFoundError, PermissionError, IOError):
+            pass
         else:
-            cluster_id = 0
-    return cluster_id
+            schedd_name = next(iter(job_info))
+            job_id = next(iter(job_info[schedd_name]))
+            schedd_ad = coll.locate(htcondor.DaemonTypes.Schedd, schedd_name)
+            cluster_id = int(float(job_id))
+    else:
+        pass
+    return schedd_ad, cluster_id, id_type
 
 
 def _create_request_memory_expr(memory, multiplier):
@@ -1326,3 +1467,29 @@ def _create_request_memory_expr(memory, multiplier):
          f"? int({memory} * pow({multiplier}, NumJobStarts)) " \
          f": max({{{memory}, MemoryUsage ?: 0}}))"
     return ad
+
+
+def _locate_schedds(locate_all=False):
+    """Find out Scheduler daemons in an HTCondor pool.
+
+    Parameters
+    ----------
+    locate_all : `bool`, optional
+        If True, all available schedulers in the HTCondor pool will be located.
+        False by default which means that the search will be limited to looking
+        for the Scheduler running on a local host.
+
+    Returns
+    -------
+    schedds : `dict` [`str`, `htcondor.Schedd`]
+        A mapping between Scheduler names and Python objects allowing for
+        interacting with them.
+    """
+    coll = htcondor.Collector()
+
+    schedd_ads = []
+    if locate_all:
+        schedd_ads.extend(coll.locateAll(htcondor.DaemonTypes.Schedd))
+    else:
+        schedd_ads.append(coll.locate(htcondor.DaemonTypes.Schedd))
+    return {ad["Name"]: htcondor.Schedd(ad) for ad in schedd_ads}

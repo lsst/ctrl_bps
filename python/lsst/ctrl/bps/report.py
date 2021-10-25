@@ -37,7 +37,7 @@ from . import WmsStates
 _LOG = logging.getLogger(__name__)
 
 
-def report(wms_service, run_id, user, hist_days, pass_thru):
+def report(wms_service, run_id, user, hist_days, pass_thru, is_global=False):
     """Print out summary of jobs submitted for execution.
 
     Parameters
@@ -52,6 +52,13 @@ def report(wms_service, run_id, user, hist_days, pass_thru):
         Number of days
     pass_thru : `str`
         A string to pass directly to the WMS service class.
+    is_global : `bool`, optional
+        If set, all available job queues will be queried for job information.
+        Defaults to False which means that only a local job queue will be
+        queried for information.
+
+        Only applicable in the context of a WMS using distributed job queues
+        (e.g., HTCondor).
     """
     wms_service_class = doImport(wms_service)
     wms_service = wms_service_class({})
@@ -61,22 +68,21 @@ def report(wms_service, run_id, user, hist_days, pass_thru):
     if run_id:
         hist_days = max(hist_days, 2)
 
-    runs, message = wms_service.report(run_id, user, hist_days, pass_thru)
+    runs, message = wms_service.report(run_id, user, hist_days, pass_thru, is_global=is_global)
 
     if run_id:
-        if not runs:
-            print(f"No information found for id='{run_id}'.")
-            print(f"Double check id and retry with a larger --hist value"
-                  f"(currently: {hist_days})")
         for run in runs:
-            print_single_run_summary(run)
+            print_single_run_summary(run, is_global=is_global)
+        if not runs and not message:
+            print(f"No records found for job id '{run_id}'. "
+                  f"Hints: Double check id, retry with a larger --hist value (currently: {hist_days}), "
+                  f"and/or use --global to search all job queues.")
     else:
         summary = init_summary()
-        for run in sorted(runs, key=lambda j: j.wms_id):
-            summary = add_single_run_summary(summary, run)
+        for run in sorted(runs, key=lambda j: j.wms_id if not is_global else j.global_wms_id):
+            summary = add_single_run_summary(summary, run, is_global=is_global)
         for line in summary.pformat_all():
             print(line)
-        print("\n\n")
     if message:
         print(message)
         print("\n\n")
@@ -104,7 +110,7 @@ def init_summary():
     return Table(dtype=columns)
 
 
-def add_single_run_summary(summary, run_report):
+def add_single_run_summary(summary, run_report, is_global=False):
     """Add a single run info to the summary.
 
     Parameters
@@ -113,6 +119,13 @@ def add_single_run_summary(summary, run_report):
         The table representing the run summary.
     run_report : `lsst.ctrl.bps.WmsRunReport`
         Information for single run.
+    is_global : `bool`, optional
+        If set, all available job queues will be queried for job information.
+        Defaults to False which means that only a local job queue will be
+        queried for information.
+
+        Only applicable in the context of a WMS using distributed job queues
+        (e.g., HTCondor).
     """
     # Flag any running workflow that might need human attention
     run_flag = " "
@@ -136,7 +149,7 @@ def add_single_run_summary(summary, run_report):
         run_flag,
         run_report.state.name,
         percent_succeeded,
-        run_report.wms_id,
+        run_report.global_wms_id if is_global else run_report.wms_id,
         run_report.operator,
         run_report.project,
         run_report.campaign,
@@ -187,23 +200,31 @@ def group_jobs_by_label(jobs):
     return by_label
 
 
-def print_single_run_summary(run_report):
+def print_single_run_summary(run_report, is_global=False):
     """Print runtime info for single run including job summary per task abbrev.
 
     Parameters
     ----------
     run_report : `lsst.ctrl.bps.WmsRunReport`
         Summary runtime info for a run + runtime info for jobs.
+    is_global : `bool`, optional
+        If set, all available job queues will be queried for job information.
+        Defaults to False which means that only a local job queue will be
+        queried for information.
+
+        Only applicable in the context of a WMS using distributed job queues
+        (e.g., HTCondor).
     """
     # Print normal run summary.
     summary = init_summary()
-    summary = add_single_run_summary(summary, run_report)
+    summary = add_single_run_summary(summary, run_report, is_global=is_global)
     for line in summary.pformat_all():
         print(line)
     print("\n\n")
 
     # Print more run information.
     print(f"Path: {run_report.path}")
+    print(f"Global job id: {run_report.global_wms_id}")
     print("\n\n")
 
     by_label = group_jobs_by_label(run_report.jobs)

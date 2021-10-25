@@ -98,7 +98,9 @@ def submit(*args, **kwargs):
               default=0.0,
               help="Search WMS history X days for completed info.")
 @click.option("--pass-thru",
-              help="Pass the given string to the WMS service class")
+              help="Pass the given string to the WMS service class.")
+@click.option("--global/--no-global", "is_global", default=False,
+              help="Query all available job queues for job information.")
 def report(*args, **kwargs):
     """Display execution status for submitted workflows.
     """
@@ -117,6 +119,8 @@ def report(*args, **kwargs):
               help="Only cancel jobs submitted via bps.")
 @click.option("--pass-thru", "pass_thru", default=str(),
               help="Pass the given string to the WMS service.")
+@click.option("--global/--no-global", "is_global", default=False,
+              help="Cancel jobs matching the search criteria from all job queues.")
 def cancel(*args, **kwargs):
     """Cancel submitted workflow(s).
     """

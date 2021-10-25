@@ -66,6 +66,7 @@ class WmsRunReport:
     """WMS run information to be included in detailed report output
     """
     wms_id: str
+    global_wms_id: str
     path: str
     label: str
     run: str
@@ -79,8 +80,8 @@ class WmsRunReport:
     total_number_jobs: int
     job_state_counts: dict
 
-    __slots__ = ('wms_id', 'path', 'label', 'run', 'project', 'campaign', 'payload', 'operator',
-                 'run_summary', 'state', 'total_number_jobs', 'jobs', 'job_state_counts')
+    __slots__ = ('wms_id', 'global_wms_id', 'path', 'label', 'run', 'project', 'campaign', 'payload',
+                 'operator', 'run_summary', 'state', 'total_number_jobs', 'jobs', 'job_state_counts')
 
 
 class BaseWmsService:
@@ -123,7 +124,7 @@ class BaseWmsService:
         """
         raise NotImplementedError
 
-    def list_submitted_jobs(self, wms_id=None, user=None, require_bps=True, pass_thru=None):
+    def list_submitted_jobs(self, wms_id=None, user=None, require_bps=True, pass_thru=None, is_global=False):
         """Query WMS for list of submitted WMS workflows/jobs.
 
         This should be a quick lookup function to create list of jobs for
@@ -139,6 +140,14 @@ class BaseWmsService:
             Whether to require jobs returned in list to be bps-submitted jobs.
         pass_thru : `str`, optional
             Information to pass through to WMS.
+        is_global : `bool`, optional
+            If set, all available job queues will be queried for job
+            information.  Defaults to False which means that only a local job
+            queue will be queried for information.
+
+            Only applicable in the context of a WMS using distributed job
+            queues (e.g., HTCondor). A WMS with a centralized job queue
+            (e.g. PanDA) can safely ignore it.
 
         Returns
         -------
@@ -148,7 +157,7 @@ class BaseWmsService:
         """
         raise NotImplementedError
 
-    def report(self, wms_workflow_id=None, user=None, hist=0, pass_thru=None):
+    def report(self, wms_workflow_id=None, user=None, hist=0, pass_thru=None, is_global=False):
         """Query WMS for status of submitted WMS workflows.
 
         Parameters
@@ -161,6 +170,14 @@ class BaseWmsService:
             Number of days to expand report to include finished WMS workflows.
         pass_thru : `str`, optional
             Additional arguments to pass through to the specific WMS service.
+        is_global : `bool`, optional
+            If set, all available job queues will be queried for job
+            information.  Defaults to False which means that only a local job
+            queue will be queried for information.
+
+            Only applicable in the context of a WMS using distributed job
+            queues (e.g., HTCondor). A WMS with a centralized job queue
+            (e.g. PanDA) can safely ignore it.
 
         Returns
         -------
