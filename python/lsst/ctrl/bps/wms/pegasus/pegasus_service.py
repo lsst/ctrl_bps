@@ -96,7 +96,7 @@ class PegasusService(BaseWmsService):
         # No need to save run id as the same as the run id generated when
         # running pegasus-plan earlier.
 
-    def list_submitted_jobs(self, wms_id=None, user=None, require_bps=True, pass_thru=None):
+    def list_submitted_jobs(self, wms_id=None, user=None, require_bps=True, pass_thru=None, is_global=True):
         """Query WMS for list of submitted WMS workflows/jobs.
 
         This should be a quick lookup function to create list of jobs for
@@ -112,6 +112,10 @@ class PegasusService(BaseWmsService):
             Whether to require jobs returned in list to be bps-submitted jobs.
         pass_thru : `str`, optional
             Information to pass through to WMS.
+        is_global : `bool`, optional
+            If set, all job queues (and their histories) will be queried for
+            job information. Defaults to False which means that only the local
+            job queue will be queried.
 
         Returns
         -------
@@ -120,9 +124,9 @@ class PegasusService(BaseWmsService):
             this means top-level jobs (i.e., not children jobs).
         """
         htc_service = HTCondorService(self.config)
-        return htc_service.list_submitted_jobs(wms_id, user, require_bps, pass_thru)
+        return htc_service.list_submitted_jobs(wms_id, user, require_bps, pass_thru, is_global)
 
-    def report(self, wms_workflow_id=None, user=None, hist=0, pass_thru=None):
+    def report(self, wms_workflow_id=None, user=None, hist=0, pass_thru=None, is_global=True):
         """Query WMS for status of submitted WMS workflows
          Parameters
          ----------
@@ -134,17 +138,21 @@ class PegasusService(BaseWmsService):
              Number of days to expand report to include finished WMS workflows.
          pass_thru : `str`, optional
              Additional arguments to pass through to the specific WMS service.
+        is_global : `bool`, optional
+            If set, all job queues (and their histories) will be queried for
+            job information. Defaults to False which means that only the local
+            job queue will be queried.
 
-         Returns
-         -------
-         run_reports : `list` [`lsst.ctrl.bps.BaseWmsReport`]
-             Status information for submitted WMS workflows
-         message : `str`
-             Message to user on how to find more status information specific to
-             WMS.
-         """
+        Returns
+        -------
+        run_reports : `list` [`lsst.ctrl.bps.BaseWmsReport`]
+            Status information for submitted WMS workflows
+        message : `str`
+            Message to user on how to find more status information specific to
+            WMS.
+        """
         htc_service = HTCondorService(self.config)
-        return htc_service.report(wms_workflow_id, user, hist, pass_thru)
+        return htc_service.report(wms_workflow_id, user, hist, pass_thru, is_global)
 
     def cancel(self, wms_id, pass_thru=None):
         """Cancel submitted workflows/jobs.

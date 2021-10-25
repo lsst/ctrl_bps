@@ -819,7 +819,7 @@ def _report_from_id(wms_workflow_id, hist, schedds=None):
     message : `str`
         Message to be printed with the summary report.
     """
-    dag_constraint = 'regexp("condor_dagman$", Cmd)'
+    dag_constraint = 'regexp("dagman$", Cmd)'
     try:
         cluster_id = int(float(wms_workflow_id))
     except ValueError:
@@ -880,6 +880,7 @@ def _get_info_from_path(wms_path):
     message : `str`
         Message to be printed with the summary report.
     """
+    messages = []
     try:
         wms_workflow_id, jobs = read_dag_log(wms_path)
         _LOG.debug("_get_info_from_path: from dag log %s = %s", wms_workflow_id, jobs)
@@ -890,26 +891,42 @@ def _get_info_from_path(wms_path):
         job = jobs[wms_workflow_id]
         job.update(read_dag_status(wms_path))
 
-        # Add extra pieces of information which cannot be found in HTCondor
-        # generated files like 'GlobalJobId'.
-        job_info = read_dag_info(wms_path)
-        schedd_name = next(iter(job_info))
-        job_ad = next(iter(job_info[schedd_name].values()))
-        job.update(job_ad)
-
         job["total_jobs"], job["state_counts"] = _get_state_counts_from_jobs(wms_workflow_id, jobs)
         if "bps_run" not in job:
             _add_run_info(wms_path, job)
 
         message = htc_check_dagman_output(wms_path)
+        if message:
+            messages.append(message)
         _LOG.debug("_get_info: id = %s, total_jobs = %s", wms_workflow_id,
                    jobs[wms_workflow_id]["total_jobs"])
+
+        # Add extra pieces of information which cannot be found in HTCondor
+        # generated files like 'GlobalJobId'.
+        #
+        # Do not treat absence of this file as a serious error. Neither runs
+        # submitted with earlier versions of the plugin nor the runs submitted
+        # with Pegasus plugin will have it at the moment. However, once enough
+        # time passes and Pegasus plugin will have its own report() method
+        # (instead of sneakily using HTCondor's one), the lack of that file
+        # should be treated as seriously as lack of any other file.
+        try:
+            job_info = read_dag_info(wms_path)
+        except FileNotFoundError as exc:
+            message = f"Warn: Some information may not be available: {exc}"
+            messages.append(message)
+        else:
+            schedd_name = next(iter(job_info))
+            job_ad = next(iter(job_info[schedd_name].values()))
+            job.update(job_ad)
     except FileNotFoundError:
         message = f"Could not find HTCondor files in '{wms_path}'"
         _LOG.warning(message)
+        messages.append(message)
         wms_workflow_id = MISSING_ID
         jobs = {}
 
+    message = '\n'.join([msg for msg in messages if msg])
     return wms_workflow_id, jobs, message
 
 
@@ -932,7 +949,7 @@ def _create_detailed_report_from_jobs(wms_workflow_id, jobs):
     _LOG.debug("_create_detailed_report: id = %s, job = %s", wms_workflow_id, jobs[wms_workflow_id])
     dag_job = jobs[wms_workflow_id]
     report = WmsRunReport(wms_id=f"{dag_job['ClusterId']}.{dag_job['ProcId']}",
-                          global_wms_id=dag_job["GlobalJobId"],
+                          global_wms_id=dag_job.get("GlobalJobId", "MISS"),
                           path=dag_job["Iwd"],
                           label=dag_job.get("bps_job_label", "MISS"),
                           run=dag_job.get("bps_run", "MISS"),
