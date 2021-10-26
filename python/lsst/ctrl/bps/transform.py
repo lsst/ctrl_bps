@@ -54,6 +54,7 @@ _ATTRS_MAX = frozenset({
     "number_of_retries",
     "request_cpus",
     "request_memory",
+    "request_memory_max",
 })
 
 # Job attributes that need to be set to sum of their values in the cluster.

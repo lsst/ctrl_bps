@@ -540,17 +540,29 @@ def _translate_job_cmds(config, generic_workflow, gwjob):
             raise RuntimeError("Memory autoscaling enabled, but automatic detection of the memory limit "
                                "failed; setting it explicitly with 'memoryLimit' or changing worker node "
                                "search pattern 'executeMachinesPattern' might help.")
-        jobcmds["request_memory"] = _create_request_memory_expr(gwjob.request_memory, gwjob.memory_multiplier)
+
+        # Set maximal amount of memory job can ask for.
+        #
+        # The check below assumes that 'memory_limit' was set to a value which
+        # realistically reflects actual physical limitations of a given compute
+        # resource.
+        memory_max = memory_limit
+        if gwjob.request_memory_max and gwjob.request_memory_max < memory_limit:
+            memory_max = gwjob.request_memory_max
+
+        # Make job ask for more memory each time it failed due to insufficient
+        # memory requirements.
+        jobcmds["request_memory"] = \
+            _create_request_memory_expr(gwjob.request_memory, gwjob.memory_multiplier, memory_max)
 
         # Periodically release jobs which are being held due to exceeding
         # memory. Stop doing that (by removing the job from the HTCondor queue)
-        # after the maximal number of retries has been reached or the memory
-        # requirements cannot be satisfied.
+        # after the maximal number of retries has been reached or the job was
+        # already run at maximal allowed memory.
         jobcmds["periodic_release"] = \
-            "NumJobStarts <= JobMaxRetries && (HoldReasonCode == 34 || HoldReasonSubCode == 34)"
+            _create_periodic_release_expr(gwjob.request_memory, gwjob.memory_multiplier, memory_max)
         jobcmds["periodic_remove"] = \
-            f"JobStatus == 1 && RequestMemory > {memory_limit} || " \
-            f"JobStatus == 5 && NumJobStarts > JobMaxRetries"
+            _create_periodic_remove_expr(gwjob.request_memory, gwjob.memory_multiplier, memory_max)
 
     # Assume concurrency_limit implemented using HTCondor concurrency limits.
     # May need to move to special site-specific implementation if sites use
@@ -1436,7 +1448,74 @@ def _wms_id_to_cluster(wms_id):
     return schedd_ad, cluster_id, id_type
 
 
-def _create_request_memory_expr(memory, multiplier):
+def _create_periodic_release_expr(memory, multiplier, limit):
+    """Construct an HTCondorAd expression for releasing held jobs.
+
+    The expression instruct HTCondor to release any job from being held
+    providing it satisfies all conditions below:
+
+    * it was put on held due to exceeding memory requirements,
+    * number of run attempts did not reach allowable number of retries,
+    * the memory requirements in the failed run attempt did not reach
+      the specified memory limit.
+
+    Parameters
+    ----------
+    memory : `int`
+        Requested memory in MB.
+    multiplier : `float`
+        Memory growth rate between retires.
+    limit : `int`
+        Memory limit.
+
+    Returns
+    -------
+    expr : `str`
+        A string representing an HTCondor ClassAd expression for releasing jobs
+        which have been held due to exceeding the memory requirements.
+    """
+    is_retry_allowed = "NumJobStarts <= JobMaxRetries"
+    was_below_limit = f"min({{int({memory} * pow({multiplier}, NumJobStarts - 1)), {limit}}}) < {limit}"
+    was_mem_exceeded = "(HoldReasonCode == 34 || (HoldReasonCode == 3 && HoldReasonSubCode == 34))"
+    expr = f"JobStatus == 5 && {was_mem_exceeded} && {is_retry_allowed} && {was_below_limit}"
+    return expr
+
+
+def _create_periodic_remove_expr(memory, multiplier, limit):
+    """Construct an HTCondorAd expression for removing jobs from the queue.
+
+    The expression instruct HTCondor to remove any job from the job queue
+    providing it satisfies all conditions below:
+
+    * it was put on hold,
+    * allowable number of retries was reached,
+    * the memory requirements during the failed run attempt reached
+      the specified memory limit.
+
+    Parameters
+    ----------
+    memory : `int`
+        Requested memory in MB.
+    multiplier : `float`
+        Memory growth rate between retires.
+    limit : `int`
+        Memory limit.
+
+    Returns
+    -------
+    expr : `str`
+        A string representing an HTCondor ClassAd expression for removing jobs
+        which were run at the maximal allowable memory and still exceeded
+        the memory requirements.
+    """
+    is_retry_disallowed = "NumJobStarts > JobMaxRetries"
+    was_limit_reached = f"min({{int({memory} * pow({multiplier}, NumJobStarts - 1)), {limit}}}) == {limit}"
+    was_mem_exceeded = "(HoldReasonCode == 34 || (HoldReasonCode == 3 && HoldReasonSubCode == 34))"
+    expr = f"JobStatus == 5 && {was_mem_exceeded} && ({is_retry_disallowed} || {was_limit_reached})"
+    return expr
+
+
+def _create_request_memory_expr(memory, multiplier, limit):
     """Construct an HTCondor ClassAd expression for safe memory scaling.
 
     Parameters
@@ -1445,10 +1524,12 @@ def _create_request_memory_expr(memory, multiplier):
         Requested memory in MB.
     multiplier : `float`
         Memory growth rate between retires.
+    limit : `int`
+        Memory limit.
 
     Returns
     -------
-    ad : `str`
+    expr : `str`
         A string representing an HTCondor ClassAd expression enabling safe
         memory scaling between job retries.
     """
@@ -1463,10 +1544,10 @@ def _create_request_memory_expr(memory, multiplier):
     # the memory, set the required memory to the requested value or use
     # the memory value measured by HTCondor (MemoryUsage) depending on
     # whichever is greater.
-    ad = f"({was_mem_exceeded}) " \
-         f"? int({memory} * pow({multiplier}, NumJobStarts)) " \
-         f": max({{{memory}, MemoryUsage ?: 0}}))"
-    return ad
+    expr = f"({was_mem_exceeded}) " \
+           f"? min({{int({memory} * pow({multiplier}, NumJobStarts)), {limit}}}) " \
+           f": max({{{memory}, MemoryUsage ?: 0}})"
+    return expr
 
 
 def _locate_schedds(locate_all=False):
