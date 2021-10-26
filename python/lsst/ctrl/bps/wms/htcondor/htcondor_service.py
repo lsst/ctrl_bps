@@ -1510,7 +1510,8 @@ def _create_periodic_remove_expr(memory, multiplier, limit):
     """
     is_retry_disallowed = "NumJobStarts > JobMaxRetries"
     was_limit_reached = f"min({{int({memory} * pow({multiplier}, NumJobStarts - 1)), {limit}}}) == {limit}"
-    was_mem_exceeded = "(HoldReasonCode == 34 || (HoldReasonCode == 3 && HoldReasonSubCode == 34))"
+    was_mem_exceeded = "" \
+        "(HoldReasonCode == 34 || (HoldReasonCode == 3 && HoldReasonSubCode == 34))"
     expr = f"JobStatus == 5 && {was_mem_exceeded} && ({is_retry_disallowed} || {was_limit_reached})"
     return expr
 
