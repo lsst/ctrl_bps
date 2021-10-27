@@ -1451,12 +1451,12 @@ def _wms_id_to_cluster(wms_id):
 def _create_periodic_release_expr(memory, multiplier, limit):
     """Construct an HTCondorAd expression for releasing held jobs.
 
-    The expression instruct HTCondor to release any job from being held
-    providing it satisfies all conditions below:
+    The expression instruct HTCondor to release any job which was put on hold
+    due to exceeding memory requirements back to the job queue providing it
+    satisfies all of the conditions below:
 
-    * it was put on held due to exceeding memory requirements,
     * number of run attempts did not reach allowable number of retries,
-    * the memory requirements in the failed run attempt did not reach
+    * the memory requirements in the last failed run attempt did not reach
       the specified memory limit.
 
     Parameters
@@ -1476,20 +1476,34 @@ def _create_periodic_release_expr(memory, multiplier, limit):
     """
     is_retry_allowed = "NumJobStarts <= JobMaxRetries"
     was_below_limit = f"min({{int({memory} * pow({multiplier}, NumJobStarts - 1)), {limit}}}) < {limit}"
-    was_mem_exceeded = "(HoldReasonCode == 34 || (HoldReasonCode == 3 && HoldReasonSubCode == 34))"
-    expr = f"JobStatus == 5 && {was_mem_exceeded} && {is_retry_allowed} && {was_below_limit}"
+
+    # Job ClassAds attributes 'HoldReasonCode' and 'HoldReasonSubCode' are
+    # UNDEFINED if job is not HELD (i.e. when 'JobStatus' is not 5).
+    # The special comparison operators ensure that all comparisons below will
+    # evaluate to FALSE in this case.
+    #
+    # Note:
+    # May not be strictly necessary. Operators '&&' and '||' are not strict so
+    # the entire expression should evaluate to FALSE when the job is not HELD.
+    # According to ClassAd evaluation semantics FALSE && UNDEFINED is FALSE,
+    # but better safe than sorry.
+    was_mem_exceeded = "JobStatus == 5 " \
+                       "&& (HoldReasonCode =?= 34 && HoldReasonSubCode =?= 0 " \
+                       "|| HoldReasonCode =?= 3 && HoldReasonSubCode =?= 34)"
+
+    expr = f"{was_mem_exceeded} && {is_retry_allowed} && {was_below_limit}"
     return expr
 
 
 def _create_periodic_remove_expr(memory, multiplier, limit):
     """Construct an HTCondorAd expression for removing jobs from the queue.
 
-    The expression instruct HTCondor to remove any job from the job queue
-    providing it satisfies all conditions below:
+    The expression instruct HTCondor to remove any job which was put on hold
+    due to exceeding memory requirements from the job queue providing it
+    satisfies any of the conditions below:
 
-    * it was put on hold,
     * allowable number of retries was reached,
-    * the memory requirements during the failed run attempt reached
+    * the memory requirements during the last failed run attempt reached
       the specified memory limit.
 
     Parameters
@@ -1510,9 +1524,22 @@ def _create_periodic_remove_expr(memory, multiplier, limit):
     """
     is_retry_disallowed = "NumJobStarts > JobMaxRetries"
     was_limit_reached = f"min({{int({memory} * pow({multiplier}, NumJobStarts - 1)), {limit}}}) == {limit}"
-    was_mem_exceeded = "" \
-        "(HoldReasonCode == 34 || (HoldReasonCode == 3 && HoldReasonSubCode == 34))"
-    expr = f"JobStatus == 5 && {was_mem_exceeded} && ({is_retry_disallowed} || {was_limit_reached})"
+
+    # Job ClassAds attributes 'HoldReasonCode' and 'HoldReasonSubCode' are
+    # UNDEFINED if job is not HELD (i.e. when 'JobStatus' is not 5).
+    # The special comparison operators ensure that all comparisons below will
+    # evaluate to FALSE in this case.
+    #
+    # Note:
+    # May not be strictly necessary. Operators '&&' and '||' are not strict so
+    # the entire expression should evaluate to FALSE when the job is not HELD.
+    # According to ClassAd evaluation semantics FALSE && UNDEFINED is FALSE,
+    # but better safe than sorry.
+    was_mem_exceeded = "JobStatus == 5 " \
+                       "&& (HoldReasonCode =?= 34 && HoldReasonSubCode =?= 0 " \
+                       "|| HoldReasonCode =?= 3 && HoldReasonSubCode =?= 34)"
+
+    expr = f"{was_mem_exceeded} && ({is_retry_disallowed} || {was_limit_reached})"
     return expr
 
 
@@ -1534,9 +1561,14 @@ def _create_request_memory_expr(memory, multiplier, limit):
         A string representing an HTCondor ClassAd expression enabling safe
         memory scaling between job retries.
     """
-    # ClassAds 'Last*' are UNDEFINED when a job is put in the job queue.
-    # The special comparison operators ensure that all comparisons below will
-    # evaluate to FALSE in this case.
+    # The check if the job was held due to exceeding memory requirements
+    # will be made *after* job was released back to the job queue (is in
+    # the IDLE state), hence the need to use `Last*` job ClassAds instead of
+    # the ones describing job's current state.
+    #
+    # Also, 'Last*' job ClassAds attributes are UNDEFINED when a job is
+    # initially put in the job queue. The special comparison operators ensure
+    # that all comparisons below will evaluate to FALSE in this case.
     was_mem_exceeded = "LastJobStatus =?= 5 " \
                        "&& (LastHoldReasonCode =?= 34 && LastHoldReasonSubCode =?= 0 " \
                        "|| LastHoldReasonCode =?= 3 && LastHoldReasonSubCode =?= 34)"
