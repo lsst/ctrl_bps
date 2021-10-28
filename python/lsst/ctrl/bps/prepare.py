@@ -23,9 +23,10 @@
 """
 
 import logging
-import time
 
+from lsst.daf.butler.core.utils import time_this
 from lsst.utils import doImport
+
 from .bps_utils import (save_qg_subgraph, WhenToSaveQuantumGraphs, create_job_quantum_graph_filename,
                         _create_execution_butler)
 
@@ -54,10 +55,9 @@ def prepare(config, generic_workflow, out_prefix):
     _, when_create = config.search("whenCreate", opt=search_opt)
     if when_create.upper() == "PREPARE":
         _, execution_butler_dir = config.search(".bps_defined.executionButlerDir", opt=search_opt)
-        _LOG.info("Creating execution butler (%s)", execution_butler_dir)
-        stime = time.time()
-        _create_execution_butler(config, config["runQgraphFile"], execution_butler_dir, out_prefix)
-        _LOG.info("Creating execution butler took %.2f seconds", time.time() - stime)
+        _LOG.info("Creating execution butler in '%s'", execution_butler_dir)
+        with time_this(log=_LOG, level=logging.INFO, prefix=None, msg="Creating execution butler completed"):
+            _create_execution_butler(config, config["runQgraphFile"], execution_butler_dir, out_prefix)
 
     found, wms_class = config.search("wmsServiceClass")
     if not found:

@@ -29,9 +29,9 @@ import os
 import shlex
 import shutil
 import subprocess
-import time
 
 from lsst.daf.butler import DimensionUniverse
+from lsst.daf.butler.core.utils import time_this
 from lsst.pipe.base.graph import QuantumGraph
 from lsst.utils import doImport
 from lsst.ctrl.bps.bps_utils import _create_execution_butler
@@ -73,11 +73,10 @@ def acquire_quantum_graph(config, out_prefix=""):
     if found and input_qgraph_filename:
         if out_prefix is not None:
             # Save a copy of the QuantumGraph file in out_prefix.
-            _LOG.info("Copying quantum graph (%s)", input_qgraph_filename)
-            stime = time.time()
-            qgraph_filename = os.path.join(out_prefix, os.path.basename(input_qgraph_filename))
-            shutil.copy2(input_qgraph_filename, qgraph_filename)
-            _LOG.info("Copying quantum graph took %.2f seconds", time.time() - stime)
+            _LOG.info("Copying quantum graph from '%s'", input_qgraph_filename)
+            with time_this(log=_LOG, level=logging.INFO, prefix=None, msg="Completed copying quantum graph"):
+                qgraph_filename = os.path.join(out_prefix, os.path.basename(input_qgraph_filename))
+                shutil.copy2(input_qgraph_filename, qgraph_filename)
         else:
             # Use QuantumGraph file in original given location.
             qgraph_filename = input_qgraph_filename
@@ -90,25 +89,22 @@ def acquire_quantum_graph(config, out_prefix=""):
                 raise KeyError("Missing .executionButler.executionButlerDir for when_create == USER_PROVIDED")
 
             # Save a copy of the execution butler file in out_prefix.
-            _LOG.info("Copying execution butler (%s)", user_exec_butler_dir)
-            stime = time.time()
-            shutil.copytree(user_exec_butler_dir, execution_butler_dir)
-            _LOG.info("Copying execution butler took %.2f seconds", time.time() - stime)
+            _LOG.info("Copying execution butler to '%s'", user_exec_butler_dir)
+            with time_this(log=_LOG, level=logging.INFO, prefix=None,
+                           msg="Completed copying execution butler"):
+                shutil.copytree(user_exec_butler_dir, execution_butler_dir)
     else:
         if when_create.upper() == "USER_PROVIDED":
             raise KeyError("Missing qgraphFile to go with provided executionButlerDir")
 
         # Run command to create the QuantumGraph.
         _LOG.info("Creating quantum graph")
-        stime = time.time()
-        qgraph_filename = create_quantum_graph(config, out_prefix)
-        _LOG.info("Creating quantum graph took %.2f seconds", time.time() - stime)
+        with time_this(log=_LOG, level=logging.INFO, prefix=None, msg="Completed creating quantum graph"):
+            qgraph_filename = create_quantum_graph(config, out_prefix)
 
-    _LOG.info("Reading quantum graph (%s)", qgraph_filename)
-    stime = time.time()
-    qgraph = read_quantum_graph(qgraph_filename)
-    _LOG.info("Reading quantum graph with %d nodes took %.2f seconds", len(qgraph),
-              time.time() - stime)
+    _LOG.info("Reading quantum graph from '%s'", qgraph_filename)
+    with time_this(log=_LOG, level=logging.INFO, prefix=None, msg="Completed reading quantum graph"):
+        qgraph = read_quantum_graph(qgraph_filename)
 
     if when_create.upper() == "QGRAPH_CMDLINE":
         if not os.path.exists(execution_butler_dir):
