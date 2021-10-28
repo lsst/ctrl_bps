@@ -23,8 +23,8 @@
 """
 import logging
 
+from lsst.daf.butler.core.utils import time_this
 from lsst.utils import doImport
-from lsst.utils.timer import time_this
 from lsst.ctrl.bps.bps_utils import _create_execution_butler
 
 _LOG = logging.getLogger(__name__)

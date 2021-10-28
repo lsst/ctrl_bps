@@ -44,8 +44,8 @@ import re
 import shutil
 
 
+from lsst.daf.butler.core.utils import time_this
 from lsst.obs.base import Instrument
-from lsst.utils.timer import time_this
 
 from . import BPS_SEARCH_ORDER, BpsConfig
 from .pre_transform import acquire_quantum_graph, cluster_quanta

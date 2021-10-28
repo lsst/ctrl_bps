@@ -28,7 +28,7 @@ import os
 import re
 import dataclasses
 
-from lsst.utils.timer import time_this
+from lsst.daf.butler.core.utils import time_this
 
 from . import (
     DEFAULT_MEM_RETRIES,

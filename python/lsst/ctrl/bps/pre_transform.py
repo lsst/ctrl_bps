@@ -31,10 +31,10 @@ import shutil
 import subprocess
 
 from lsst.daf.butler import DimensionUniverse
+from lsst.daf.butler.core.utils import time_this
 from lsst.pipe.base.graph import QuantumGraph
 from lsst.utils import doImport
 from lsst.ctrl.bps.bps_utils import _create_execution_butler
-from lsst.utils.timer import time_this
 
 
 _LOG = logging.getLogger(__name__)
