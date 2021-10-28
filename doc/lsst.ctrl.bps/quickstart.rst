@@ -465,6 +465,15 @@ Supported settings
     Amount of memory, in MB, a single Quantum execution of a particular pipetask
     will need (e.g., 2048).
 
+**requestMemoryMax**, optional
+    Maximal amount of memory, in MB, a single Quantum execution should ever use.
+    By default, it is equal to the ``memoryLimit``.
+
+    If it is set, but its value exceeds the ``memoryLimit``, the value
+    provided by the ``memoryLimit`` will be used instead.
+
+    It has no effect if ``memoryMultiplier`` is not set.
+
 **memoryMultiplier**, optional
     A positive number greater than 1.0 controlling how fast memory increases
     between consecutive runs for jobs which failed due to insufficient memory.
@@ -478,24 +487,48 @@ Supported settings
 
     The process will continue until number of retries reaches its limit
     determined by ``numberOfRetries`` (5 by default) *or* the resultant memory
-    limit exceeds the memory available on a given computational resource (e.g.
-    a HTCondor pool).
+    request reaches the memory cap determined by ``requestMemoryMax``.
+    
+    Once the memory request reaches the cap the job will be run one time
+    allowing to use the amount of memory determined by the cap (providing a
+    retry is still permitted) and removed from the job queue afterwards if it
+    fails due to insufficient memory again (even if more retries are permitted).
+
+    For example, with ``requestMemory = 3072`` (3 GB), ``requestMemoryMax =
+    20480`` (20 GB), and ``memoryMultiplier = 2.0`` the job will be allowed to
+    use 6 GB of memory during the first retry and 12 GB during the second one,
+    and 20 GB during the third one if each earlier run attempt failed due to
+    insufficient memory.  If the third retry also fails due to the insufficient
+    memory, the job will be removed from the job queue.
+
+    With ``requestMemory = 32768`` (32 GB), ``requestMemoryMax = 65536`` (64
+    GB), and ``memoryMultiplier = 2.0`` the job will be allowed to use 64 GB
+    of memory during its first retry.  If it fails due to insufficient memory,
+    it will be removed from the job queue.
+    
+    In both examples if the job keeps failing for other reasons, the final
+    number of retries will be determined by ``numberOfRetries``.
 
     If the ``memoryMultiplier`` is negative or less than 1.0, it will be
-    ignored and memory requirements will not change between runs.
+    ignored and memory requirements will not change between retries.
 
     At the moment, this feature is only supported by the HTCondor plugin.
 
 **memoryLimit**, optional
-    The memory threshold, in MB, to control the memory scaling.
-
-    Jobs whose memory requirements exceed this threshold will be removed from
-    the job queue even if maximal number of retries (defined by
-    ``numberOfRetries``) has not been reached yet.
+    The compute resource's memory limit, in MB, to control the memory scaling.
 
     If not set, BPS will try to determine it automatically by querying
     available computational resources (e.g. execute machines in an HTCondor
     pool) which match the pattern defined by ``executeMachinesPattern``.
+
+    When set explicitly, its value should reflect actual limitations of the
+    compute resources on which the job will be run. For example, it should be
+    set to the largest value that the batch system would give to a single job.
+    If it is larger than the batch system permits, the job may stay in the job
+    queue indefinitely.
+
+    ``requestMemoryMax`` will be automatically set to this value if not defined
+    or exceeds it.
 
     It has no effect if ``memoryMultiplier`` is not set.
 

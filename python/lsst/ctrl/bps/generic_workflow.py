@@ -157,6 +157,10 @@ class GenericWorkflowJob:
     """Max memory (in MB) that the job is expected to need.
     """
 
+    request_memory_max: Optional[int]  # MB
+    """Max memory (in MB) that the job should ever use.
+    """
+
     request_cpus: Optional[int]      # cores
     """Max number of cpus that the job is expected to need.
     """
@@ -256,6 +260,7 @@ class GenericWorkflowJob:
         self.cmdvals = {}
         self.memory_multiplier = None
         self.request_memory = None
+        self.request_memory_max = None
         self.request_cpus = None
         self.request_disk = None
         self.request_walltime = None
@@ -279,10 +284,11 @@ class GenericWorkflowJob:
 
     __slots__ = ("name", "label", "quanta_counts", "tags", "mail_to", "when_to_mail",
                  "executable", "arguments", "cmdvals",
-                 "memory_multiplier", "request_memory", "request_cpus", "request_disk", "request_walltime",
-                 "number_of_retries", "retry_unless_exit", "abort_on_value", "abort_return_value",
-                 "compute_site", "environment", "priority", "category", "concurrency_limit",
-                 "queue", "pre_cmdline", "post_cmdline", "preemptible", "profile", "attrs")
+                 "memory_multiplier", "request_memory", "request_memory_max", "request_cpus", "request_disk",
+                 "request_walltime", "number_of_retries", "retry_unless_exit", "abort_on_value",
+                 "abort_return_value", "compute_site", "environment", "priority", "category",
+                 "concurrency_limit", "queue", "pre_cmdline", "post_cmdline", "preemptible", "profile",
+                 "attrs")
 
     def __hash__(self):
         return hash(self.name)
