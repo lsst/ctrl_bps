@@ -65,7 +65,7 @@ clusterAlgorithm: lsst.ctrl.bps.quantum_clustering_funcs.single_quantum_clusteri
 submitPath: ${PWD}/submit/{outputRun}
 qgraphFileTemplate: "{uniqProcName}.qgraph"
 executionButlerTemplate: "{submitPath}/EXEC_REPO-{uniqProcName}"
-subDirTemplate: "{label}/{tract}/{patch}/{visit.day_obs}/{exposure.day_obs}/{band}/{subfilter}/{physical_filter}/{visit}/{exposure}"
+subDirTemplate: "{label}/{tract}/{patch}/{band}/{subfilter}/{physical_filter}/{visit}/{exposure}"
 templateDataId: "{tract}_{patch}_{band}_{visit}_{exposure}_{detector}"
 
 # Whether to output bps-specific intermediate files

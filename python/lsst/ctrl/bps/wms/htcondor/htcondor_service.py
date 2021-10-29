@@ -25,15 +25,16 @@
 __all__ = ["HTCondorService", "HTCondorWorkflow"]
 
 
-import dataclasses
 import os
 import re
 import logging
 from enum import IntEnum, auto
 from pathlib import Path
+from collections import defaultdict
 
 import htcondor
 
+from lsst.utils.timer import time_this
 from ... import (
     BaseWmsWorkflow,
     BaseWmsService,
@@ -118,10 +119,14 @@ class HTCondorService(BaseWmsService):
             HTCondor workflow ready to be run.
         """
         _LOG.debug("out_prefix = '%s'", out_prefix)
-        workflow = HTCondorWorkflow.from_generic_workflow(config, generic_workflow, out_prefix,
-                                                          f"{self.__class__.__module__}."
-                                                          f"{self.__class__.__name__}")
-        workflow.write(out_prefix)
+        with time_this(log=_LOG, level=logging.INFO, prefix=None, msg="Completed HTCondor workflow creation"):
+            workflow = HTCondorWorkflow.from_generic_workflow(config, generic_workflow, out_prefix,
+                                                              f"{self.__class__.__module__}."
+                                                              f"{self.__class__.__name__}")
+
+        with time_this(log=_LOG, level=logging.INFO, prefix=None,
+                       msg="Completed writing out HTCondor workflow"):
+            workflow.write(out_prefix)
         return workflow
 
     def submit(self, workflow):
@@ -358,31 +363,20 @@ class HTCondorWorkflow(BaseWmsWorkflow):
                                       "bps_run_quanta": create_count_summary(generic_workflow.quanta_counts),
                                       "bps_job_summary": create_count_summary(generic_workflow.job_counts)})
 
-        # Determine the hard limit for the memory requirement.
-        found, limit = config.search('memoryLimit')
-        if not found:
-            search_opts = {"default": DEFAULT_HTC_EXEC_PATT}
-            _, site = config.search("computeSite")
-            if site:
-                search_opts["curvals"] = {"curr_site": site}
-            _, patt = config.search("executeMachinesPattern", opt=search_opts)
-
-            # To reduce the amount of data, ignore dynamic slots (if any) as,
-            # by definition, they cannot have more memory than
-            # the partitionable slot they are the part of.
-            constraint = f'SlotType != "Dynamic" && regexp("{patt}", Machine)'
-            pool_info = condor_status(constraint=constraint)
-            try:
-                limit = max(int(info["TotalSlotMemory"]) for info in pool_info.values())
-            except ValueError:
-                _LOG.debug("No execute machine in the pool matches %s", patt)
-        if limit:
-            config[".bps_defined.memory_limit"] = limit
+        _, tmp_template = config.search("subDirTemplate", opt={"replaceVars": False, "default": ""})
+        if isinstance(tmp_template, str):
+            subdir_template = defaultdict(lambda: tmp_template)
+        else:
+            subdir_template = tmp_template
 
         # Create all DAG jobs
+        site_values = {}  # cache compute site specific values to reduce config lookups
         for job_name in generic_workflow:
             gwjob = generic_workflow.get_job(job_name)
-            htc_job = HTCondorWorkflow._create_job(config, generic_workflow, gwjob, out_prefix)
+            if gwjob.compute_site not in site_values:
+                site_values[gwjob.compute_site] = _gather_site_values(config, gwjob.compute_site)
+            htc_job = _create_job(subdir_template[gwjob.label], site_values[gwjob.compute_site],
+                                  generic_workflow, gwjob, out_prefix)
             htc_workflow.dag.add_job(htc_job)
 
         # Add job dependencies to the DAG
@@ -392,7 +386,10 @@ class HTCondorWorkflow(BaseWmsWorkflow):
         # If final job exists in generic workflow, create DAG final job
         final = generic_workflow.get_final()
         if final and isinstance(final, GenericWorkflowJob):
-            final_htjob = HTCondorWorkflow._create_job(config, generic_workflow, final, out_prefix)
+            if final.compute_site and final.compute_site not in site_values:
+                site_values[final.compute_site] = _gather_site_values(config, final.compute_site)
+            final_htjob = _create_job(subdir_template[final.label], site_values[final.compute_site],
+                                      generic_workflow, final, out_prefix)
             if "post" not in final_htjob.dagcmds:
                 final_htjob.dagcmds["post"] = f"{os.path.dirname(__file__)}/final_post.sh" \
                                               f" {final.name} $DAG_STATUS $RETURN"
@@ -403,76 +400,6 @@ class HTCondorWorkflow(BaseWmsWorkflow):
             return TypeError(f"Invalid type for GenericWorkflow.get_final() results ({type(final)})")
 
         return htc_workflow
-
-    @staticmethod
-    def _create_job(config, generic_workflow, gwjob, out_prefix):
-        """Convert GenericWorkflow job nodes to DAG jobs.
-
-        Parameters
-        ----------
-        config : `lsst.ctrl.bps.BpsConfig`
-            BPS configuration that includes necessary submit/runtime
-            information.
-        generic_workflow : `lsst.ctrl.bps.GenericWorkflow`
-            Generic workflow that is being converted.
-        gwjob : `lsst.ctrl.bps.GenericWorkflowJob`
-            The generic job to convert to a HTCondor job.
-        out_prefix : `str`
-            Directory prefix for HTCondor files.
-
-        Returns
-        -------
-        htc_job : `lsst.ctrl.bps.wms.htcondor.HTCJob`
-            The HTCondor job equivalent to the given generic job.
-        """
-        htc_job = HTCJob(gwjob.name, label=gwjob.label)
-
-        curvals = dataclasses.asdict(gwjob)
-        if gwjob.tags:
-            curvals.update(gwjob.tags)
-        found, subdir = config.search("subDirTemplate", opt={'curvals': curvals})
-        if not found:
-            subdir = "jobs"
-        htc_job.subfile = Path("jobs") / subdir / f"{gwjob.name}.sub"
-
-        htc_job_cmds = {
-            "universe": "vanilla",
-            "should_transfer_files": "YES",
-            "when_to_transfer_output": "ON_EXIT_OR_EVICT",
-            "transfer_output_files": '""',  # Set to empty string to disable
-            "transfer_executable": "False",
-            "getenv": "True",
-
-            # Exceeding memory sometimes triggering SIGBUS error. Tell htcondor
-            # to put SIGBUS jobs on hold.
-            "on_exit_hold": "(ExitBySignal == true) && (ExitSignal == 7)",
-            "on_exit_hold_reason": '"Job raised a signal 7.  Usually means job has gone over memory limit."',
-            "on_exit_hold_subcode": "34"
-        }
-
-        htc_job_cmds.update(_translate_job_cmds(config, generic_workflow, gwjob))
-
-        # job stdout, stderr, htcondor user log.
-        for key in ("output", "error", "log"):
-            htc_job_cmds[key] = htc_job.subfile.with_suffix(f".$(Cluster).{key[:3]}")
-            _LOG.debug("HTCondor %s = %s", key, htc_job_cmds[key])
-
-        _, use_shared = config.search("bpsUseShared", opt={"default": False})
-        htc_job_cmds.update(_handle_job_inputs(generic_workflow, gwjob.name, use_shared, out_prefix))
-
-        # Add the job cmds dict to the job object.
-        htc_job.add_job_cmds(htc_job_cmds)
-
-        htc_job.add_dag_cmds(_translate_dag_cmds(gwjob))
-
-        # Add job attributes to job.
-        _LOG.debug("gwjob.attrs = %s", gwjob.attrs)
-        htc_job.add_job_attrs(gwjob.attrs)
-        htc_job.add_job_attrs({"bps_job_quanta": create_count_summary(gwjob.quanta_counts)})
-        htc_job.add_job_attrs({"bps_job_name": gwjob.name,
-                               "bps_job_label": gwjob.label})
-
-        return htc_job
 
     def write(self, out_prefix):
         """Output HTCondor DAGMan files needed for workflow submission.
@@ -489,14 +416,85 @@ class HTCondorWorkflow(BaseWmsWorkflow):
         self.dag.write(out_prefix, "jobs/{self.label}")
 
 
-def _translate_job_cmds(config, generic_workflow, gwjob):
+def _create_job(subdir_template, site_values, generic_workflow, gwjob, out_prefix):
+    """Convert GenericWorkflow job nodes to DAG jobs.
+
+    Parameters
+    ----------
+    subdir_template : `str`
+        Template for making subdirs.
+    site_values : `dict`
+        Site specific values
+    generic_workflow : `lsst.ctrl.bps.GenericWorkflow`
+        Generic workflow that is being converted.
+    gwjob : `lsst.ctrl.bps.GenericWorkflowJob`
+        The generic job to convert to a HTCondor job.
+    out_prefix : `str`
+        Directory prefix for HTCondor files.
+
+    Returns
+    -------
+    htc_job : `lsst.ctrl.bps.wms.htcondor.HTCJob`
+        The HTCondor job equivalent to the given generic job.
+    """
+    htc_job = HTCJob(gwjob.name, label=gwjob.label)
+
+    curvals = defaultdict(str)
+    curvals["label"] = gwjob.label
+    if gwjob.tags:
+        curvals.update(gwjob.tags)
+
+    subdir = subdir_template.format_map(curvals)
+    htc_job.subfile = Path("jobs") / subdir / f"{gwjob.name}.sub"
+
+    htc_job_cmds = {
+        "universe": "vanilla",
+        "should_transfer_files": "YES",
+        "when_to_transfer_output": "ON_EXIT_OR_EVICT",
+        "transfer_output_files": '""',  # Set to empty string to disable
+        "transfer_executable": "False",
+        "getenv": "True",
+
+        # Exceeding memory sometimes triggering SIGBUS error. Tell htcondor
+        # to put SIGBUS jobs on hold.
+        "on_exit_hold": "(ExitBySignal == true) && (ExitSignal == 7)",
+        "on_exit_hold_reason": '"Job raised a signal 7.  Usually means job has gone over memory limit."',
+        "on_exit_hold_subcode": "34"
+    }
+
+    htc_job_cmds.update(_translate_job_cmds(site_values, generic_workflow, gwjob))
+
+    # job stdout, stderr, htcondor user log.
+    for key in ("output", "error", "log"):
+        htc_job_cmds[key] = htc_job.subfile.with_suffix(f".$(Cluster).{key[:3]}")
+        _LOG.debug("HTCondor %s = %s", key, htc_job_cmds[key])
+
+    htc_job_cmds.update(_handle_job_inputs(generic_workflow, gwjob.name, site_values["bpsUseShared"],
+                                           out_prefix))
+
+    # Add the job cmds dict to the job object.
+    htc_job.add_job_cmds(htc_job_cmds)
+
+    htc_job.add_dag_cmds(_translate_dag_cmds(gwjob))
+
+    # Add job attributes to job.
+    _LOG.debug("gwjob.attrs = %s", gwjob.attrs)
+    htc_job.add_job_attrs(gwjob.attrs)
+    htc_job.add_job_attrs(site_values["attrs"])
+    htc_job.add_job_attrs({"bps_job_quanta": create_count_summary(gwjob.quanta_counts)})
+    htc_job.add_job_attrs({"bps_job_name": gwjob.name,
+                           "bps_job_label": gwjob.label})
+
+    return htc_job
+
+
+def _translate_job_cmds(cached_vals, generic_workflow, gwjob):
     """Translate the job data that are one to one mapping
 
     Parameters
     ----------
-    config : `lsst.ctrl.bps.BpsConfig`
-        BPS configuration that includes necessary submit/runtime
-        information.
+    cached_vals : `dict` [`str`, `Any`]
+        Config values common to jobs with same label.
     generic_workflow : `lsst.ctrl.bps.GenericWorkflow`
        Generic workflow that contains job to being converted.
     gwjob : `lsst.ctrl.bps.GenericWorkflowJob`
@@ -535,7 +533,7 @@ def _translate_job_cmds(config, generic_workflow, gwjob):
     if gwjob.memory_multiplier:
         # Do not use try-except! At the moment, BpsConfig returns an empty
         # string if it does not contain the key.
-        memory_limit = config[".bps_defined.memory_limit"]
+        memory_limit = cached_vals["memoryLimit"]
         if not memory_limit:
             raise RuntimeError("Memory autoscaling enabled, but automatic detection of the memory limit "
                                "failed; setting it explicitly with 'memoryLimit' or changing worker node "
@@ -580,7 +578,7 @@ def _translate_job_cmds(config, generic_workflow, gwjob):
     if gwjob.arguments:
         arguments = gwjob.arguments
         arguments = _replace_cmd_vars(arguments, gwjob)
-        arguments = _replace_file_vars(config, arguments, generic_workflow, gwjob)
+        arguments = _replace_file_vars(cached_vals["bpsUseShared"], arguments, generic_workflow, gwjob)
         arguments = _fix_env_var_syntax(arguments)
         jobcmds["arguments"] = arguments
 
@@ -588,6 +586,8 @@ def _translate_job_cmds(config, generic_workflow, gwjob):
     if gwjob.profile:
         for key, val in gwjob.profile.items():
             jobcmds[key] = htc_escape(val)
+    for key, val in cached_vals["profile"]:
+        jobcmds[key] = htc_escape(val)
 
     return jobcmds
 
@@ -636,15 +636,14 @@ def _fix_env_var_syntax(oldstr):
     return newstr
 
 
-def _replace_file_vars(config, arguments, workflow, gwjob):
+def _replace_file_vars(use_shared, arguments, workflow, gwjob):
     """Replace file placeholders in command line arguments with correct
     physical file names.
 
     Parameters
     ----------
-    config : `lsst.ctrl.bps.BpsConfig`
-        BPS configuration that includes necessary submit/runtime
-        information.
+    use_shared : `bool`
+        Whether HTCondor can assume shared filesystem.
     arguments : `str`
         Arguments string in which to replace file placeholders.
     workflow : `lsst.ctrl.bps.GenericWorkflow`
@@ -657,8 +656,6 @@ def _replace_file_vars(config, arguments, workflow, gwjob):
     arguments : `str`
         Given arguments string with file placeholders replaced.
     """
-    _, use_shared = config.search("bpsUseShared", opt={"default": False})
-
     # Replace input file placeholders with paths.
     for gwfile in workflow.get_job_inputs(gwjob.name, data=True, transfer_only=False):
         if not gwfile.wms_transfer:
@@ -775,8 +772,8 @@ def _handle_job_inputs(generic_workflow: GenericWorkflow, job_name: str, use_sha
                     inputs.append(f"file://{uri / 'butler.yaml'}")
                     inputs.append(f"file://{uri / 'gen3.sqlite3'}")
             elif uri.is_dir():
-                raise RuntimeError("HTCondor plugin cannot transfer directories locally within job (%s)",
-                                   gwf_file.src_uri)
+                raise RuntimeError("HTCondor plugin cannot transfer directories locally within job "
+                                   f"{gwf_file.src_uri}")
             else:
                 inputs.append(f"file://{uri}")
 
@@ -870,7 +867,6 @@ def _report_from_id(wms_workflow_id, hist, schedds=None):
         _update_jobs(job_info, path_jobs)
 
         run_reports = _create_detailed_report_from_jobs(dag_id, job_info)
-        message = ""
     else:
         ids = [ad["GlobalJobId"] for dag_info in schedd_dag_info.values() for ad in dag_info.values()]
         run_reports = {}
@@ -1095,7 +1091,7 @@ def _add_run_info(wms_path, job):
     else:
         _LOG.debug("_add_run_info: subfile = %s", subfile)
         try:
-            with open(subfile, "r") as fh:
+            with open(subfile, "r", encoding='utf-8') as fh:
                 for line in fh:
                     if line.startswith("+bps_"):
                         m = re.match(r"\+(bps_[^\s]+)\s*=\s*(.+)$", line)
@@ -1607,3 +1603,57 @@ def _locate_schedds(locate_all=False):
     else:
         schedd_ads.append(coll.locate(htcondor.DaemonTypes.Schedd))
     return {ad["Name"]: htcondor.Schedd(ad) for ad in schedd_ads}
+
+
+def _gather_site_values(config, compute_site):
+    """Gather values specific to given site.
+
+    Parameters
+    ----------
+    config : `lsst.ctrl.bps.BpsConfig`
+        BPS configuration that includes necessary submit/runtime
+        information.
+    compute_site : `str`
+        Compute site name.
+
+    Returns
+    -------
+    site_values : `dict` [`str`, `Any`]
+        Values specific to the given site.
+    """
+    site_values = {"attrs": {}, "profile": {}}
+    search_opts = {}
+    if compute_site:
+        search_opts["curvals"] = {"curr_site": compute_site}
+
+    # Determine the hard limit for the memory requirement.
+    found, limit = config.search('memoryLimit', opt=search_opts)
+    if not found:
+        search_opts["default"] = DEFAULT_HTC_EXEC_PATT
+        _, patt = config.search("executeMachinesPattern", opt=search_opts)
+        del search_opts["default"]
+
+        # To reduce the amount of data, ignore dynamic slots (if any) as,
+        # by definition, they cannot have more memory than
+        # the partitionable slot they are the part of.
+        constraint = f'SlotType != "Dynamic" && regexp("{patt}", Machine)'
+        pool_info = condor_status(constraint=constraint)
+        try:
+            limit = max(int(info["TotalSlotMemory"]) for info in pool_info.values())
+        except ValueError:
+            _LOG.debug("No execute machine in the pool matches %s", patt)
+    if limit:
+        config[".bps_defined.memory_limit"] = limit
+
+    _, site_values["bpsUseShared"] = config.search("bpsUseShared", opt={"default": False})
+    site_values["memoryLimit"] = limit
+
+    key = f".site.{compute_site}.profile.condor"
+    if key in config:
+        for key, val in config[key].items():
+            if key.startswith("+"):
+                site_values["attrs"][key[1:]] = val
+            else:
+                site_values["profile"][key] = val
+
+    return site_values
