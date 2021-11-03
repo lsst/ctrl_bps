@@ -57,17 +57,22 @@ def single_quantum_clustering(config, qgraph, name):
     # multiple times.
     number_to_name = {}
 
+    # Cache template per label for speed.
+    cached_template = {}
+
     # Create cluster of single quantum.
     for qnode in qgraph:
-        found, template = config.search("templateDataId",
-                                        opt={"curvals": {"curr_pipetask": qnode.taskDef.label},
-                                             "replaceVars": False})
-        if found:
-            template = "{node_number}_{label}_" + template
-        else:
-            template = "{node_number:08d}"
+        if qnode.taskDef.label not in cached_template:
+            found, template_data_id = config.search("templateDataId",
+                                                    opt={"curvals": {"curr_pipetask": qnode.taskDef.label},
+                                                         "replaceVars": False})
+            if found:
+                template = "{node_number}_{label}_" + template_data_id
+            else:
+                template = "{node_number:08d}"
+            cached_template[qnode.taskDef.label] = template
 
-        cluster = QuantaCluster.from_quantum_node(qnode, template)
+        cluster = QuantaCluster.from_quantum_node(qnode, cached_template[qnode.taskDef.label])
 
         # Save mapping for use when creating dependencies.
         number_to_name[qnode.nodeId] = cluster.name
@@ -139,6 +144,8 @@ def dimension_clustering(config, qgraph, name):
             task_def = qgraph.findTaskDefByLabel(task_label)
             quantum_nodes = qgraph.getNodesForTask(task_def)
 
+            equal_dims = cluster_config[cluster_label].get("equalDimensions", None)
+
             # Determine cluster for each node
             for qnode in quantum_nodes:
                 # Gather info for cluster name template into a dictionary.
@@ -149,8 +156,7 @@ def dimension_clustering(config, qgraph, name):
                     _LOG.debug("dim_name = %s", dim_name)
                     if dim_name in data_id_info:
                         info[dim_name] = data_id_info[dim_name]
-                if "equalDimensions" in cluster_config[cluster_label]:
-                    equal_dims = cluster_config[cluster_label]["equalDimensions"]
+                if equal_dims:
                     for pair in [pt.strip() for pt in equal_dims.split(",")]:
                         dim1, dim2 = pair.strip().split(":")
                         if dim1 in cluster_dims and dim2 in data_id_info:
@@ -178,7 +184,6 @@ def dimension_clustering(config, qgraph, name):
                 # requires it for creating per-job QuantumGraphs.
                 if cluster_name in cqgraph:
                     cluster = cqgraph.get_cluster(cluster_name)
-                    assert isinstance(cluster, QuantaCluster)
                 else:
                     cluster = QuantaCluster(cluster_name, cluster_label, info)
                     cqgraph.add_cluster(cluster)
@@ -188,11 +193,11 @@ def dimension_clustering(config, qgraph, name):
     for task_def in qgraph.iterTaskGraph():
         if task_def.label not in task_labels_seen:
             _LOG.info("Creating 1-quantum clusters for task %s", task_def.label)
-            found, template = config.search("templateDataId",
-                                            opt={"curvals": {"curr_pipetask": task_def.label},
-                                                 "replaceVars": False})
+            found, template_data_id = config.search("templateDataId",
+                                                    opt={"curvals": {"curr_pipetask": task_def.label},
+                                                         "replaceVars": False})
             if found:
-                template = "{node_number}_{label}_" + template
+                template = "{node_number}_{label}_" + template_data_id
             else:
                 template = "{node_number:08d}"
 
