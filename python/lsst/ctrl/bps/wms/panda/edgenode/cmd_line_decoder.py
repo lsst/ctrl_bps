@@ -128,4 +128,11 @@ for key_value_pair in data_params[1:]:
     cmd_line = cmd_line.replace("{" + key + "}", value)
 
 print(cmd_line)
-sys.exit(os.WEXITSTATUS(os.system(cmd_line)))
+
+exit_status = os.system(cmd_line)
+exit_code = 1
+if os.WIFSIGNALED(exit_status):
+    exit_code = os.WTERMSIG(exit_status) + 128
+elif os.WIFEXITED(exit_status):
+    exit_code = os.WEXITSTATUS(exit_status)
+sys.exit(exit_code)
