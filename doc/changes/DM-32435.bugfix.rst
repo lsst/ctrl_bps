@@ -1,0 +1,1 @@
+* Fixed bug when a pipetask process killed by a signal on the edge node did not expose the failing status.
