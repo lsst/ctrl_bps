@@ -209,6 +209,14 @@ class BaseWmsService:
         """
         raise NotImplementedError
 
+    def run_submission_checks(self):
+        """Checks to run at start if running WMS specific submission steps.
+
+        Any exception other than NotImplementedError will halt submission.
+        Submit directory may not yet exist when this is called.
+        """
+        raise NotImplementedError
+
 
 class BaseWmsWorkflow(metaclass=ABCMeta):
     """Interface for single workflow specific to a WMS.

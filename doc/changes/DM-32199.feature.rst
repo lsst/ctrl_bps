@@ -1,0 +1,2 @@
+Check early in submission process that can import WMS service class and run
+any pre-submission checks provided by the WMS plugin.
