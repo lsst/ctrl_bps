@@ -42,9 +42,11 @@ import logging
 import os
 import re
 import shutil
+from collections import Iterable
 
 
 from lsst.obs.base import Instrument
+from lsst.utils import doImport
 from lsst.utils.timer import time_this
 
 from . import BPS_SEARCH_ORDER, BpsConfig
@@ -54,7 +56,6 @@ from .prepare import prepare
 from .submit import submit
 from .cancel import cancel
 from .report import report
-
 
 _LOG = logging.getLogger(__name__)
 
@@ -85,7 +86,7 @@ def _init_submission_driver(config_file, **kwargs):
         if value:
             # pipetask argument parser converts some values to list,
             # but bps will want string.
-            if not isinstance(value, str):
+            if not isinstance(value, str) and isinstance(value, Iterable):
                 value = ",".join(value)
             new_key = translation.get(key, re.sub(r"_(\S)", lambda match: match.group(1).upper(), key))
             config[f".bps_cmdline.{new_key}"] = value
@@ -106,6 +107,27 @@ def _init_submission_driver(config_file, **kwargs):
 
     if "submitPath" not in config:
         raise KeyError("Must specify the submit-side run directory using submitPath")
+
+    # If requested, run WMS plugin checks early in submission process to
+    # ensure WMS has what it will need for prepare() or submit().
+
+    if kwargs.get("runWmsSubmissionChecks", False):
+        found, wms_class = config.search("wmsServiceClass")
+        if not found:
+            raise KeyError("Missing wmsServiceClass in bps config.  Aborting.")
+
+        # Check that can import wms service class.
+        wms_service_class = doImport(wms_class)
+        wms_service = wms_service_class(config)
+
+        try:
+            wms_service.run_submission_checks()
+        except NotImplementedError:
+            # Allow various plugins to implement only when needed to do extra
+            # checks.
+            _LOG.debug("run_submission_checks is not implemented in %s.", wms_class)
+    else:
+        _LOG.debug("Skipping submission checks.")
 
     # make submit directory to contain all outputs
     submit_path = config["submitPath"]
@@ -229,6 +251,7 @@ def prepare_driver(config_file, **kwargs):
         Representation of the abstract/scientific workflow specific to a given
         workflow management system.
     """
+    kwargs.setdefault("runWmsSubmissionChecks", True)
     generic_workflow_config, generic_workflow = transform_driver(config_file, **kwargs)
     submit_path = generic_workflow_config[".bps_defined.submitPath"]
 
@@ -249,6 +272,8 @@ def submit_driver(config_file, **kwargs):
     config_file : `str`
         Name of the configuration file.
     """
+    kwargs.setdefault("runWmsSubmissionChecks", True)
+
     _LOG.info("Starting submission process")
     with time_this(log=_LOG, level=logging.INFO, prefix=None, msg="Completed entire submission process"):
         wms_workflow_config, wms_workflow = prepare_driver(config_file, **kwargs)
