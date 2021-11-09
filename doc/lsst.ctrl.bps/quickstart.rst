@@ -702,7 +702,7 @@ New Yaml Section
        whenMerge: "ALWAYS"
        implementation: JOB  # JOB, WORKFLOW
        concurrencyLimit: db_limit
-       command1: "${DAF_BUTLER_DIR}/bin/butler --log-level=VERBOSE transfer-datasets  {executionButlerDir} {butlerConfig} --collections {outputRun}"
+       command1: "${DAF_BUTLER_DIR}/bin/butler --log-level=VERBOSE transfer-datasets  {executionButlerDir} {butlerConfig} --collections {outputRun} --register-dataset-types"
        command2: "${DAF_BUTLER_DIR}/bin/butler collection-chain {butlerConfig} {output} {outputRun} --mode=prepend"
 
 For ``--replace-run`` behavior, replace the one collection-chain command with these two:
