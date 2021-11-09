@@ -77,7 +77,7 @@ def _init_submission_driver(config_file, **kwargs):
     # Override config with command-line values
     # Handle diffs between pipetask argument names vs bps yaml
     translation = {"input": "inCollection",
-                   "output_run": "outCollection",
+                   "output_run": "outputRun",
                    "qgraph": "qgraphFile",
                    "pipeline": "pipelineYaml"}
     for key, value in kwargs.items():
@@ -95,8 +95,17 @@ def _init_submission_driver(config_file, **kwargs):
     if "operator" not in config:
         config[".bps_defined.operator"] = getpass.getuser()
 
+    if "outCollection" in config:
+        raise KeyError("outCollection is deprecated.  Replace all outCollection references with outputRun.")
+
+    if "outputRun" not in config:
+        raise KeyError("Must specify the output run collection using outputRun")
+
     if "uniqProcName" not in config:
-        config[".bps_defined.uniqProcName"] = config["outCollection"].replace("/", "_")
+        config[".bps_defined.uniqProcName"] = config["outputRun"].replace("/", "_")
+
+    if "submitPath" not in config:
+        raise KeyError("Must specify the submit-side run directory using submitPath")
 
     # make submit directory to contain all outputs
     submit_path = config["submitPath"]
