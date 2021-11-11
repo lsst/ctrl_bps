@@ -197,7 +197,7 @@ class ClusteredQuantumGraph:
             raise ValueError(f"name cannot have a / ({name})")
         self._name = name
         self._quantum_graph = qgraph
-        self._quantum_graph_filename = qgraph_filename
+        self._quantum_graph_filename = Path(qgraph_filename).resolve()
         self._cluster_graph = DiGraph()
 
     def __str__(self):
@@ -260,11 +260,10 @@ class ClusteredQuantumGraph:
             Raised if the ClusteredQuantumGraph does not contain
             a cluster with given name.
         """
-        if name not in self._cluster_graph:
-            raise KeyError(f"{self.name} does not have a cluster named {name}")
-
-        _LOG.debug("get_cluster nodes = %s", list(self._cluster_graph.nodes))
-        attr = self._cluster_graph.nodes[name]
+        try:
+            attr = self._cluster_graph.nodes[name]
+        except KeyError as ex:
+            raise KeyError(f"{self.name} does not have a cluster named {name}") from ex
         return attr['cluster']
 
     def get_quantum_node(self, id_):
@@ -490,5 +489,10 @@ class ClusteredQuantumGraph:
                 cgraph = pickle.load(fh)
 
             # The QuantumGraph was saved separately
-            cgraph._quantum_graph = QuantumGraph.loadUri(cgraph._quantum_graph_filename, dim_univ)
+            try:
+                cgraph._quantum_graph = QuantumGraph.loadUri(cgraph._quantum_graph_filename, dim_univ)
+            except FileNotFoundError:  # Try same path as ClusteredQuantumGraph
+                new_filename = path.parent / Path(cgraph._quantum_graph_filename).name
+                cgraph._quantum_graph = QuantumGraph.loadUri(new_filename, dim_univ)
+
         return cgraph
