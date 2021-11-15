@@ -186,7 +186,7 @@ def create_init_workflow(config, qgraph, qgraph_gwfile):
         node = next(iter(qgraph.getNodesForTask(task_def)))
         node_ids.append(node.nodeId)
     gwjob.cmdvals["qgraphId"] = qgraph.graphID
-    gwjob.cmdvals["qgraphNodeId"] = ",".join(sorted([f"{node_id.number}" for node_id in node_ids]))
+    gwjob.cmdvals["qgraphNodeId"] = ",".join(sorted([f"{node_id}" for node_id in node_ids]))
 
     init_workflow.add_job(gwjob)
 
@@ -694,7 +694,7 @@ def create_generic_workflow(config, cqgraph, name, prefix):
         generic_workflow.add_job_inputs(gwjob.name, [qgraph_gwfile, butler_gwfile])
 
         gwjob.cmdvals["qgraphId"] = cqgraph.qgraph.graphID
-        gwjob.cmdvals["qgraphNodeId"] = ",".join(sorted([f"{node_id.number}" for node_id in
+        gwjob.cmdvals["qgraphNodeId"] = ",".join(sorted([f"{node_id}" for node_id in
                                                          cluster.qgraph_node_ids]))
         _enhance_command(config, generic_workflow, gwjob, cached_job_values)
 

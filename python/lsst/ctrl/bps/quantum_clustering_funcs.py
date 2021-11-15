@@ -142,6 +142,8 @@ def dimension_clustering(config, qgraph, name):
             # Currently getQuantaForTask is currently a mapping taskDef to
             # Quanta, so quick enough to call repeatedly.
             task_def = qgraph.findTaskDefByLabel(task_label)
+            if task_def is None:
+                continue
             quantum_nodes = qgraph.getNodesForTask(task_def)
 
             equal_dims = cluster_config[cluster_label].get("equalDimensions", None)
