@@ -19,6 +19,38 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-__all__ = ["acquire", "cluster", "transform", "prepare", "submit", "restart", "report", "cancel"]
+"""Driver for submitting a prepared WMS-specific workflow
+"""
+import logging
 
-from .commands import acquire, cluster, transform, prepare, submit, restart, report, cancel
+from lsst.utils import doImport
+
+
+_LOG = logging.getLogger(__name__)
+
+
+def restart(wms_service, run_id):
+    """Restart a failed workflow.
+
+    Parameters
+    ----------
+    wms_service : `str` or `lsst.ctrl.bps.BaseWmsService`
+        Name of the Workload Management System service class.
+    run_id : `str`, optional
+        Id or path of workflow that need to be restarted.
+
+    Returns
+    -------
+    run_id : `str`
+        Id of the restarted workflow if restart was successfull and None
+        otherwise.
+    message : `str`
+        Error message if the restart failed.
+    """
+    if isinstance(wms_service, str):
+        wms_service_class = doImport(wms_service)
+        service = wms_service_class({})
+    else:
+        service = wms_service
+    run_id, message = service.restart(run_id)
+    return run_id, message

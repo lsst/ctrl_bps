@@ -30,6 +30,7 @@ from ...drivers import (
     prepare_driver,
     submit_driver,
     report_driver,
+    restart_driver,
     cancel_driver
 )
 from .. import opt
@@ -87,9 +88,16 @@ def submit(*args, **kwargs):
 
 
 @click.command(cls=BpsCommand)
-@click.option("--wms", "wms_service",
-              default="lsst.ctrl.bps.wms.htcondor.htcondor_service.HTCondorService",
-              help="Workload Management System service class")
+@click.option("--id", "run_id",
+              help="Run id of workflow to restart.")
+def restart(*args, **kwargs):
+    """Restart a failed workflow.
+    """
+    restart_driver(*args, **kwargs)
+
+
+@click.command(cls=BpsCommand)
+@opt.wms_service_option()
 @click.option("--id", "run_id",
               help="Restrict report to specific WMS run id.")
 @click.option("--user",

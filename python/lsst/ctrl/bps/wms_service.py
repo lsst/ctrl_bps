@@ -124,6 +124,24 @@ class BaseWmsService:
         """
         raise NotImplementedError
 
+    def restart(self, wms_workflow_id):
+        """Restart a workflow from the point of failure.
+
+        Parameters
+        ----------
+        wms_workflow_id : `str`
+            Id that can be used by WMS service to identify workflow that
+            need to be restarted.
+
+        Returns
+        -------
+        wms_id : `str`
+            The new id of the restarted workflow.
+        message : `str`
+            Any message from WMS (e.g., error details).
+        """
+        raise NotImplementedError
+
     def list_submitted_jobs(self, wms_id=None, user=None, require_bps=True, pass_thru=None, is_global=False):
         """Query WMS for list of submitted WMS workflows/jobs.
 

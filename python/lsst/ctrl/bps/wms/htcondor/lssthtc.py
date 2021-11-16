@@ -34,7 +34,11 @@ __all__ = [
     "RestrictedDict",
     "HTCJob",
     "HTCDag",
+    "htc_backup_files",
     "htc_check_dagman_output",
+    "htc_create_submit_from_cmd",
+    "htc_create_submit_from_dag",
+    "htc_create_submit_from_file",
     "htc_escape",
     "htc_write_attribs",
     "htc_write_condor_file",
@@ -52,6 +56,7 @@ __all__ = [
     "read_dag_nodes_log",
     "read_dag_status",
     "read_node_status",
+    "write_dag_info",
     "pegasus_name_to_label",
 ]
 
@@ -255,6 +260,64 @@ class RestrictedDict(MutableMapping):
         return str(self.data)
 
 
+def htc_backup_files(wms_path, root=None, limit=100):
+    """Make backup copies of select HTCondor files in a given submit directory.
+
+    Files will be saved in separate subdirectories which will be created in
+    the submit directory where the files are located. These subdirectories
+    will be consecutive, zero-padded integers.
+
+    Parameters
+    ----------
+    wms_path : `str`
+        Path to the submission directory either absolute or relative.
+    root : `str`, optional
+        A top-level directory where all subdirectories with backup files will
+        be kept. Defaults to None which means that the backup subdirectories
+        will be placed directly in the submit directory.
+    limit : `int`, optional
+        Maximal number of backups. If the number of backups reaches the limit,
+        the last backup files will be overwritten. The default value is 100.
+
+    Raises
+    -------
+    FileNotFoundError
+        If the submit directory of the file that needs to be backed up does not
+        exist.
+    RuntimeError
+        If backing up a file failed due to filesystem-related issues.
+    """
+    width = len(str(limit))
+
+    path = Path(wms_path).resolve()
+    if not path.is_dir():
+        FileNotFoundError(f"Directory {path} not found")
+
+    # Initialize the backup counter.
+    runs = list(Path(wms_path).glob("*.rescue*"))
+    counter = max(0, min(len(runs) - 1,  limit))
+
+    # Create the backup directory.
+    dest = Path(wms_path)
+    if root:
+        dest /= root
+    dest /= f"{counter:0{width}}"
+    dest.mkdir(parents=True, exist_ok=True)
+
+    # Move select files to the backup directory.
+    for patt in ["*.info.*", "*.dag.metrics", "*.dag.nodes.log", "*.node_status"]:
+        sources = [file for file in path.glob(patt)]
+        for source in sources:
+            if source.is_file():
+                target = dest / source.relative_to(path)
+                try:
+                    source.rename(target)
+                except (PermissionError, IOError) as exc:
+                    raise RuntimeError(f"Backing up file '{path}' failed") from exc
+            else:
+                raise FileNotFoundError(f"File '{source}' not found")
+
+
 def htc_escape(value):
     """Escape characters in given value based upon HTCondor syntax.
 
@@ -349,23 +412,19 @@ def htc_version():
     return f"{int(version_info.group(1))}.{int(version_info.group(2))}.{int(version_info.group(3))}"
 
 
-def htc_submit_dag(htc_dag, submit_options=None):
-    """Create DAG submission and submit
+def htc_submit_dag(sub):
+    """Submit job for execution.
 
     Parameters
     ----------
-    htc_dag : `HTCDag`
-        DAG to submit to HTCondor
-    submit_options : `dict`
-        Extra options for condor_submit_dag
-    """
-    ver = version.parse(htc_version())
-    if ver >= version.parse("8.9.3"):
-        sub = htcondor.Submit.from_dag(htc_dag.graph["dag_filename"], submit_options)
-    else:
-        sub = _htc_submit_dag_old(htc_dag.graph["dag_filename"], submit_options)
+    sub : `htcondor.Submit`
+        An object representing a job submit description.
 
-    # Submit DAG to HTCondor's schedd.
+    Returns
+    -------
+    schedd_job_info : `dict` [`str`, `dict` [`str`, `dict` [`str` Any]]]
+        Information about the submitted job.
+    """
     coll = htcondor.Collector()
     schedd_ad = coll.locate(htcondor.DaemonTypes.Schedd)
     schedd = htcondor.Schedd(schedd_ad)
@@ -375,27 +434,45 @@ def htc_submit_dag(htc_dag, submit_options=None):
         sub.queue(txn, ad_results=jobs_ads)
 
     # Submit.queue() above will raise RuntimeError if submission fails, so
-    # 'job_ad' should contain the ad at this point.
+    # 'jobs_ads' should contain the ad at this point.
     dag_ad = jobs_ads[0]
 
-    htc_dag.run_id = f"{dag_ad['ClusterId']}.{dag_ad['ProcId']}"
-
-    # Store additional pieces of information (e.g. 'GlobalJobId') which cannot
-    # be retrieved later from the files produced by HTCondor. Sadly,
-    # the ClassAd from Submit.queue() (see above) does not have 'GlobalJobId'.
-    # So we need to run a fully fledged query to get it anyway.
+    # Sadly, the ClassAd from Submit.queue() (see above) does not have
+    # 'GlobalJobId' so we need to run a regular query to get it anyway.
     schedd_name = schedd_ad["Name"]
-    dag_info = condor_q(constraint=f"ClusterId == {int(float(htc_dag.run_id))}",
-                        schedds={schedd_name: schedd})
-    if dag_info:
-        write_dag_info(f"{htc_dag.name}.info.json", dag_info)
-    else:
-        _LOG.debug("DAGMan job with id '%s' not found", htc_dag.run_id)
+    schedd_dag_info = condor_q(constraint=f"ClusterId == {dag_ad['ClusterId']}",
+                               schedds={schedd_name: schedd})
+    return schedd_dag_info
 
 
-def _htc_submit_dag_old(dag_filename, submit_options=None):
-    """Call condor_submit_dag on given dag description file.
-    (Use until using condor version with htcondor.Submit.from_dag)
+def htc_create_submit_from_dag(dag_filename, submit_options=None):
+    """Create a DAGMan job submit description.
+
+    Parameters
+    ----------
+    dag_filename : `str`
+        Name of file containing HTCondor DAG commands.
+    submit_options : `dict` [`str`, Any], optional
+        Contains extra options for command line (Value of None means flag).
+
+    Returns
+    -------
+    sub : `htcondor.Submit`
+        An object representing a job submit description.
+
+    Notes
+    -----
+    Use with HTCondor versions which does support htcondor.Submit.from_dag,
+    i.e., 8.9.3 or newer.
+    """
+    return htcondor.Submit.from_dag(dag_filename, submit_options)
+
+
+def htc_create_submit_from_cmd(dag_filename, submit_options=None):
+    """Create a DAGMan job submit description.
+
+    Create a DAGMan job submit description by calling ``condor_submit_dag``
+    on given DAG description file.
 
     Parameters
     ----------
@@ -407,11 +484,15 @@ def _htc_submit_dag_old(dag_filename, submit_options=None):
     Returns
     -------
     sub : `htcondor.Submit`
-        htcondor.Submit object created for submitting the DAG
-    """
+        An object representing a job submit description.
 
+    Notes
+    -----
+    Use with HTCondor versions which does not support htcondor.Submit.from_dag,
+    i.e., older than 8.9.3.
+    """
     # Run command line condor_submit_dag command.
-    cmd = "condor_submit_dag -f -no_submit -notification never -autorescue 0 -UseDagDir -no_recurse "
+    cmd = "condor_submit_dag -f -no_submit -notification never -autorescue 1 -UseDagDir -no_recurse "
 
     if submit_options is not None:
         for opt, val in submit_options.items():
@@ -428,20 +509,38 @@ def _htc_submit_dag_old(dag_filename, submit_options=None):
         print(process.communicate()[0])
         raise RuntimeError("Problems running condor_submit_dag")
 
-    # Read in the created submit file in order to create submit object.
-    sublines = {}
-    with open(dag_filename + ".condor.sub", "r") as fh:
+    return htc_create_submit_from_file(f"{dag_filename}.condor.sub")
+
+
+def htc_create_submit_from_file(submit_file):
+    """Parse a submission file.
+
+    Parameters
+    ----------
+    submit_file : `str`
+        Name of the HTCondor submit file.
+
+    Returns
+    -------
+    sub : `htcondor.Submit`
+        An object representing a job submit description.
+    """
+    descriptors = {}
+    with open(submit_file, "r") as fh:
         for line in fh:
             line = line.strip()
             if not line.startswith("#") and not line == "queue":
                 (key, val) = re.split(r"\s*=\s*", line, 1)
-                # Avoid UserWarning: the line 'copy_to_spool = False' was
-                #       unused by Submit object. Is it a typo?
-                if key != "copy_to_spool":
-                    sublines[key] = val
+                descriptors[key] = val
 
-    sub = htcondor.Submit(sublines)
-    return sub
+    # Avoid UserWarning: the line 'copy_to_spool = False' was
+    #       unused by Submit object. Is it a typo?
+    try:
+        del descriptors["copy_to_spool"]
+    except KeyError:
+        pass
+
+    return htcondor.Submit(descriptors)
 
 
 def _htc_write_job_commands(stream, name, jobs):

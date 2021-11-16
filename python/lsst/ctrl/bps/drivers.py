@@ -33,6 +33,7 @@ __all__ = [
     "prepare_driver",
     "submit_driver",
     "report_driver",
+    "restart_driver",
     "cancel_driver",
 ]
 
@@ -58,6 +59,8 @@ from .prepare import prepare
 from .submit import submit
 from .cancel import cancel
 from .report import report
+from .restart import restart
+
 
 _LOG = logging.getLogger(__name__)
 
@@ -293,6 +296,26 @@ def submit_driver(config_file, **kwargs):
             _LOG.info("Run '%s' submitted for execution with id '%s'", wms_workflow.name, wms_workflow.run_id)
 
     print(f"Run Id: {wms_workflow.run_id}")
+
+
+def restart_driver(wms_service, run_id):
+    """Restart a failed workflow.
+
+    Parameters
+    ----------
+    wms_service : `str`
+        Name of the class.
+    run_id : `str`
+        A run id the report will be restricted to.
+    """
+    run_id, error = restart(wms_service, run_id)
+    if run_id is not None:
+        print(f"Run Id: {run_id}")
+    else:
+        if error:
+            print(f"Restart failed: {error}")
+        else:
+            print("Restart failed: Unknown error")
 
 
 def report_driver(wms_service, run_id, user, hist_days, pass_thru, is_global=False):
