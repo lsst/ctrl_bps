@@ -1,0 +1,3 @@
+Rolled back changes in BpsConfig that were added for flexibility when looking up config values
+(e.g., snake case keys will no longer match camel case keys nor will either match lower case keys).
+This also removed dependence on third-party inflection package.

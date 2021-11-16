@@ -425,7 +425,9 @@ def _get_job_values(config, search_opt, cmd_line_key):
     """
     job_values = {}
     for attr in _ATTRS_ALL:
-        found, value = config.search(attr, opt=search_opt)
+        # Variable names in yaml are camel case instead of snake case.
+        yaml_name = re.sub(r"_(\S)", lambda match: match.group(1).upper(), attr)
+        found, value = config.search(yaml_name, opt=search_opt)
         if found:
             job_values[attr] = value
         else:
