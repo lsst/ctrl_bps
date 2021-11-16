@@ -21,7 +21,12 @@
 """bps-specific command-line options.
 """
 
-__all__ = ["extra_qgraph_option", "extra_init_option", "extra_run_quantum_option"]
+__all__ = [
+    "extra_qgraph_option",
+    "extra_init_option",
+    "extra_run_quantum_option",
+    "wms_service_option",
+]
 
 from lsst.daf.butler.cli.utils import MWOptionDecorator
 
@@ -31,3 +36,5 @@ extra_init_option = MWOptionDecorator("--extra-init-options",
                                       help="String to pass through to pipetaskInit execution.")
 extra_run_quantum_option = MWOptionDecorator("--extra-run-quantum-options",
                                              help="String to pass through to Quantum execution.")
+wms_service_option = MWOptionDecorator("--wms", "wms_service",
+                                       help="Qualified name of the WMS service class to use.")

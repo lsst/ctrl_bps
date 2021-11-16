@@ -71,6 +71,7 @@ def transform(*args, **kwargs):
 
 @click.command(cls=BpsCommand)
 @opt.config_file_argument(required=True)
+@opt.wms_service_option()
 @opt.SubmissionOptions()
 def prepare(*args, **kwargs):
     """Prepare a workflow for submission.
@@ -80,6 +81,7 @@ def prepare(*args, **kwargs):
 
 @click.command(cls=BpsCommand)
 @opt.config_file_argument(required=True)
+@opt.wms_service_option()
 @opt.SubmissionOptions()
 def submit(*args, **kwargs):
     """Submit a workflow for execution.
@@ -88,6 +90,7 @@ def submit(*args, **kwargs):
 
 
 @click.command(cls=BpsCommand)
+@opt.wms_service_option()
 @click.option("--id", "run_id",
               help="Run id of workflow to restart.")
 def restart(*args, **kwargs):
@@ -116,9 +119,7 @@ def report(*args, **kwargs):
 
 
 @click.command(cls=BpsCommand)
-@click.option("--wms", "wms_service",
-              default="lsst.ctrl.bps.wms.htcondor.htcondor_service.HTCondorService",
-              help="Workload Management System service class.")
+@opt.wms_service_option()
 @click.option("--id", "run_id",
               help="Run id of workflow to cancel.")
 @click.option("--user",

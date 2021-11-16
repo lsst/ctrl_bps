@@ -40,6 +40,7 @@ __all__ = [
 
 import errno
 import getpass
+import importlib.resources
 import logging
 import os
 import re
@@ -48,11 +49,12 @@ from collections import Iterable
 from pathlib import Path
 
 
+from lsst.daf.butler import Config
 from lsst.obs.base import Instrument
 from lsst.utils import doImport
 from lsst.utils.timer import time_this
 
-from . import BPS_SEARCH_ORDER, BpsConfig
+from . import BPS_SEARCH_ORDER, BpsConfig, WmsStates, etc
 from .pre_transform import acquire_quantum_graph, cluster_quanta
 from .transform import transform
 from .prepare import prepare
@@ -60,9 +62,12 @@ from .submit import submit
 from .cancel import cancel
 from .report import report
 from .restart import restart
+from .bps_utils import dump_env_info, dump_pkg_info
 
 
 _LOG = logging.getLogger(__name__)
+with importlib.resources.path(etc, "bps_defaults.yaml") as defaults:
+    _CONFIG_DEFAULT = Config(defaults)
 
 
 def _init_submission_driver(config_file, **kwargs):
@@ -80,12 +85,15 @@ def _init_submission_driver(config_file, **kwargs):
     """
     config = BpsConfig(config_file, BPS_SEARCH_ORDER)
 
-    # Override config with command-line values
+    # Override config with command-line values.
     # Handle diffs between pipetask argument names vs bps yaml
-    translation = {"input": "inCollection",
-                   "output_run": "outputRun",
-                   "qgraph": "qgraphFile",
-                   "pipeline": "pipelineYaml"}
+    translation = {
+        "input": "inCollection",
+        "output_run": "outputRun",
+        "qgraph": "qgraphFile",
+        "pipeline": "pipelineYaml",
+        "wms_service": "wmsServiceClass",
+    }
     for key, value in kwargs.items():
         # Don't want to override config with None or empty string values.
         if value:
@@ -95,6 +103,15 @@ def _init_submission_driver(config_file, **kwargs):
                 value = ",".join(value)
             new_key = translation.get(key, re.sub(r"_(\S)", lambda match: match.group(1).upper(), key))
             config[f".bps_cmdline.{new_key}"] = value
+
+    # If the WMS service class was not defined neither at the command line nor
+    # explicitly in config file, use the value provided by the environmental
+    # variable BPS_WMS_SERVICE.  If the variable is not set, stick to
+    # the package default.
+    wms_service = os.environ.get("BPS_WMS_SERVICE", None)
+    if wms_service is not None and "wmsServiceClass" not in config[".bps_cmdline"]:
+        if config["wmsServiceClass"] == _CONFIG_DEFAULT["wmsServiceClass"]:
+            config["wmsServiceClass"] = wms_service
 
     # Set some initial values
     config[".bps_defined.timestamp"] = Instrument.makeCollectionTimestamp()
@@ -115,7 +132,6 @@ def _init_submission_driver(config_file, **kwargs):
 
     # If requested, run WMS plugin checks early in submission process to
     # ensure WMS has what it will need for prepare() or submit().
-
     if kwargs.get("runWmsSubmissionChecks", False):
         found, wms_class = config.search("wmsServiceClass")
         if not found:
@@ -308,6 +324,9 @@ def restart_driver(wms_service, run_id):
     run_id : `str`
         A run id the report will be restricted to.
     """
+    if wms_service is None:
+        wms_service = os.environ.get("BPS_WMS_SERVICE", _CONFIG_DEFAULT["wmsServiceClass"])
+
     run_id, error = restart(wms_service, run_id)
     if run_id is not None:
         print(f"Run Id: {run_id}")
@@ -341,6 +360,8 @@ def report_driver(wms_service, run_id, user, hist_days, pass_thru, is_global=Fal
         Only applicable in the context of a WMS using distributed job queues
         (e.g., HTCondor).
     """
+    if wms_service is None:
+        wms_service = os.environ.get("BPS_WMS_SERVICE", _CONFIG_DEFAULT["wmsServiceClass"])
     report(wms_service, run_id, user, hist_days, pass_thru, is_global=is_global)
 
 
@@ -367,4 +388,6 @@ def cancel_driver(wms_service, run_id, user, require_bps, pass_thru, is_global=F
         Only applicable in the context of a WMS using distributed job queues
         (e.g., HTCondor).
     """
+    if wms_service is None:
+        wms_service = os.environ.get("BPS_WMS_SERVICE", _CONFIG_DEFAULT["wmsServiceClass"])
     cancel(wms_service, run_id, user, require_bps, pass_thru, is_global=is_global)
