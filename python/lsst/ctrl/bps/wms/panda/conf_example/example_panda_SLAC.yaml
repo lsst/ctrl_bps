@@ -3,14 +3,14 @@ pipelineYaml: "/sdf/home/j/jchiang/PanDA_testing/pipelines/cpBias.yaml"
 #USER qgraphFile: "/path/to/existing/file.qgraph"
 
 #PANDA plugin specific settings:
-idds_server: "https://aipanda015.cern.ch:443/idds"
+iddsServer: "https://aipanda015.cern.ch:443/idds"
 placeholderParams: ['qgraphNodeId', 'qgraphId']
 
 #IDF PanDA specific settings:
-#computing_cloud: LSST
+#computingCloud: LSST
 
 #SLAC PanDA specific settings:
-computing_cloud: US
+computingCloud: US
 computeSite: DOMA_LSST_SLAC_TEST
 
 
@@ -41,9 +41,9 @@ payload:
   #USER inCollection: HSC/calib,HSC/raw/all,refcats
   #USER dataQuery: exposure=903342 AND detector=10
 
-  payload_folder: payload
-  fileDistributionEndPoint: "/sdf/group/lsst/software/IandT/tmp/{payload_folder}/{uniqProcName}/"
-  runner_command: 'unset PYTHONPATH;export LSST_DB_AUTH=/sdf/home/l/lsstsvc1/.lsst/db-auth.yaml;source /sdf/group/lsst/software/IandT/stack-lsst_distrib-d_2021_08_03/loadLSST.bash;cd ${PILOT_HOME};pwd;ls -a;setup lsst_distrib;env;python3 ${CTRL_BPS_DIR}/python/lsst/ctrl/bps/wms/panda/edgenode/cmd_line_decoder.py _cmd_line_ '
+  payloadFolder: payload
+  fileDistributionEndPoint: "/sdf/group/lsst/software/IandT/tmp/{payloadFolder}/{uniqProcName}/"
+  runnerCommand: 'unset PYTHONPATH;export LSST_DB_AUTH=/sdf/home/l/lsstsvc1/.lsst/db-auth.yaml;source /sdf/group/lsst/software/IandT/stack-lsst_distrib-d_2021_08_03/loadLSST.bash;cd ${PILOT_HOME};pwd;ls -a;setup lsst_distrib;env;python3 ${CTRL_BPS_DIR}/python/lsst/ctrl/bps/wms/panda/edgenode/cmd_line_decoder.py _cmd_line_ '
 
 
 pipetask:
@@ -66,7 +66,7 @@ executionButler:
 
   whenMerge: "ALWAYS"
   implementation: JOB  # JOB, WORKFLOW
-  concurrency_limit: db_limit
+  concurrencyLimit: db_limit
   command1: "${DAF_BUTLER_DIR}/bin/butler --log-level=VERBOSE transfer-datasets  {executionButlerDir} {butlerConfig} --collections {outputRun} --register-dataset-types"
   command2: "${DAF_BUTLER_DIR}/bin/butler collection-chain {butlerConfig} {output} {outputRun} --mode=prepend"
 
@@ -81,7 +81,7 @@ createQuantumGraph: '${CTRL_MPEXEC_DIR}/bin/pipetask qgraph -d "{dataQuery}" -b 
 runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask --long-log run -b {butlerConfig} --output-run {outputRun} --qgraph {fileDistributionEndPoint}/{qgraphFile} --qgraph-id {qgraphId} --qgraph-node-id {qgraphNodeId} --skip-init-writes --extend-run --clobber-outputs --skip-existing"
 
 #createQuantumGraph: '<ENV:CTRL_MPEXEC_DIR>/bin/pipetask qgraph -d "{dataQuery}" -b {butlerConfig} -i {inCollection} --instrument {instrument} -p {pipelineYaml} -q {qgraphFile} --qgraph-dot {qgraphFile}.dot'
-#runQuantumCommand: 'export LSST_DB_AUTH=/sdf/home/l/lsstsvc1/.lsst/db-auth.yaml;<ENV:CTRL_MPEXEC_DIR>/bin/pipetask --long-log  run -b {butlerConfig} -i {inCollection} --output-run {outputRun} --extend-run --skip-init-writes --qgraph {fileDistributionEndPoint}/{payload_folder}/{uniqProcName}/<FILE:runQgraphFile> --qgraph-id {qgraphId} --qgraph-node-id {qgraphNodeId} --clobber-outputs --skip-existing --no-versions'
+#runQuantumCommand: 'export LSST_DB_AUTH=/sdf/home/l/lsstsvc1/.lsst/db-auth.yaml;<ENV:CTRL_MPEXEC_DIR>/bin/pipetask --long-log  run -b {butlerConfig} -i {inCollection} --output-run {outputRun} --extend-run --skip-init-writes --qgraph {fileDistributionEndPoint}/{payloadFolder}/{uniqProcName}/<FILE:runQgraphFile> --qgraph-id {qgraphId} --qgraph-node-id {qgraphNodeId} --clobber-outputs --skip-existing --no-versions'
 
 
 requestMemory: 2048
