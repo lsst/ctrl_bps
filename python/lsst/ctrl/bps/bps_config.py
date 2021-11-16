@@ -32,7 +32,6 @@ import copy
 import string
 import re
 from importlib.resources import path as resources_path
-import inflection
 
 from lsst.daf.butler.core.config import Config
 
@@ -161,38 +160,6 @@ class BpsConfig(Config):
         found, _ = self.search(name, {})
         return found
 
-    @staticmethod
-    def _search_casing(sect, key):
-        # Until have more robust handling of key casing at config creation
-        # time, try checking here for different key casing.
-        found = False
-        value = ""
-
-        _LOG.debug("_search_casing: sect=%s key=%s", sect, key)
-        if Config.__contains__(sect, key):
-            found = True
-            value = Config.__getitem__(sect, key)
-        elif '_' in key:
-            newkey = inflection.camelize(key, False)
-            _LOG.debug("_search_casing: newkey=%s", newkey)
-            if Config.__contains__(sect, newkey):
-                found = True
-                value = Config.__getitem__(sect, newkey)
-        else:  # try converting camel to snake
-            newkey = inflection.underscore(key)
-            _LOG.debug("_search_casing: newkey=%s", newkey)
-            if Config.__contains__(sect, newkey):
-                found = True
-                value = Config.__getitem__(sect, newkey)
-            else:  # Try all lower case
-                newkey = key.lower()
-                _LOG.debug("_search_casing: newkey=%s", newkey)
-                if Config.__contains__(sect, newkey):
-                    found = True
-                    value = Config.__getitem__(sect, newkey)
-
-        return found, value
-
     def search(self, key, opt=None):
         """Search for key using given opt following hierarchy rules.
 
@@ -281,15 +248,21 @@ class BpsConfig(Config):
                         if Config.__contains__(search_sect, currkey):
                             search_sect = Config.__getitem__(search_sect, currkey)
 
-                    found, value = self._search_casing(search_sect, key)
-                    if found:
+                    _LOG.debug("%s %s", key, search_sect)
+                    if Config.__contains__(search_sect, key):
+                        found = True
+                        value = Config.__getitem__(search_sect, key)
                         break
+                else:
+                    _LOG.debug("Missing search section '%s' while searching for '%s'", sect, key)
 
             # lastly check root values
             if not found:
                 _LOG.debug("Searching root section for key '%s'", key)
-                found, value = self._search_casing(self, key)
-                _LOG.debug("    root found=%s, value='%s'", found, value)
+                if Config.__contains__(self, key):
+                    found = True
+                    value = Config.__getitem__(self, key)
+                    _LOG.debug("root value='%s'", value)
 
         if not found and "default" in opt:
             value = opt["default"]
