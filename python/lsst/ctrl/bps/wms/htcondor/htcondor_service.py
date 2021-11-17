@@ -180,7 +180,7 @@ class HTCondorService(BaseWmsService):
 
         Returns
         -------
-        runs_id : `str`
+        wms_id : `str`
             HTCondor id of the restarted DAGMan job. If restart failed, it is
             set to None.
         run_name : `str`

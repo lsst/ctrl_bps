@@ -77,7 +77,6 @@ from datetime import datetime, timedelta
 import networkx
 import classad
 import htcondor
-from packaging import version
 
 
 _LOG = logging.getLogger(__name__)
@@ -295,7 +294,7 @@ def htc_backup_files(wms_path, root=None, limit=100):
 
     # Initialize the backup counter.
     runs = list(Path(wms_path).glob("*.rescue*"))
-    counter = max(0, min(len(runs) - 1,  limit))
+    counter = max(0, min(len(runs) - 1, limit))
 
     # Create the backup directory.
     dest = Path(wms_path)
