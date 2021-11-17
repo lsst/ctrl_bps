@@ -22,15 +22,18 @@
 """Misc supporting classes and functions for BPS.
 """
 
+import contextlib
 import dataclasses
+import logging
 import os
 import shlex
 import subprocess
-import contextlib
-import logging
-from pathlib import Path
-from enum import Enum
+import yaml
 from collections import Counter
+from enum import Enum
+from pathlib import Path
+
+from lsst.base import Packages
 
 
 _LOG = logging.getLogger(__name__)
@@ -201,3 +204,35 @@ def parse_count_summary(summary):
         label, count = part.split(":")
         counts[label] = count
     return counts
+
+
+def dump_pkg_info(filename):
+    """Save information about versions of packages in use for future reference.
+
+    Parameters
+    ----------
+    filename : `str`
+        The name of the file where to save the information about the versions
+        of the packages.
+    """
+    file = Path(filename)
+    if file.suffix.lower() not in {".yaml", ".yml"}:
+        file = file.with_suffix(f"{file.suffix}.yaml")
+    packages = Packages.fromSystem()
+    packages.write(str(file))
+
+
+def dump_env_info(filename):
+    """Save information about runtime environment for future reference.
+
+    Parameters
+    ----------
+    filename : `str`
+        The name of the file where to save the information about the runtime
+        environment.
+    """
+    file = Path(filename)
+    if file.suffix.lower() not in {".yaml", ".yml"}:
+        file = file.with_suffix(f"{file.suffix}.yaml")
+    with open(file, "w") as fh:
+        yaml.dump(dict(os.environ), fh)

@@ -167,6 +167,10 @@ def _init_submission_driver(config_file, **kwargs):
     with open(f"{submit_path}/{config['uniqProcName']}_config.yaml", "w") as fh:
         config.dump(fh)
 
+    # Dump information about runtime environment and software versions in use.
+    dump_env_info(f"{submit_path}/{config['uniqProcName']}.env.info.yaml")
+    dump_pkg_info(f"{submit_path}/{config['uniqProcName']}.pkg.info.yaml")
+
     return config
 
 
@@ -329,7 +333,9 @@ def restart_driver(wms_service, run_id):
 
     run_id, error = restart(wms_service, run_id)
     if run_id is not None:
-        print(f"Run Id: {run_id}")
+        dump_env_info(f"{submit_report.path}/{submit_report.name}.env.info.yaml")
+        dump_pkg_info(f"{submit_report.path}/{submit_report.name}.pkg.info.yaml")
+        print(f"Run Id: {submit_report.wms_id}")
     else:
         if error:
             print(f"Restart failed: {error}")
