@@ -41,16 +41,17 @@ def restart(wms_service, run_id):
 
     Returns
     -------
-    run_id : `str`
-        Id of the restarted workflow if restart was successfull and None
-        otherwise.
+    wms_id : `str`
+        Id of the restarted workflow. If restart failed, it is set to None.
+    run_name : `str`
+        Name of the restarted workflow.
     message : `str`
-        Error message if the restart failed.
+        A message describing any issues encountered during the restart.
+        If there were no issue, an empty string is returned.
     """
     if isinstance(wms_service, str):
         wms_service_class = doImport(wms_service)
         service = wms_service_class({})
     else:
         service = wms_service
-    run_id, message = service.restart(run_id)
-    return run_id, message
+    return service.restart(run_id)

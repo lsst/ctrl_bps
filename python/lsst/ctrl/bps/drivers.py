@@ -54,7 +54,7 @@ from lsst.obs.base import Instrument
 from lsst.utils import doImport
 from lsst.utils.timer import time_this
 
-from . import BPS_SEARCH_ORDER, BpsConfig, WmsStates, etc
+from . import BPS_SEARCH_ORDER, BpsConfig, etc
 from .pre_transform import acquire_quantum_graph, cluster_quanta
 from .transform import transform
 from .prepare import prepare
@@ -316,6 +316,7 @@ def submit_driver(config_file, **kwargs):
             _LOG.info("Run '%s' submitted for execution with id '%s'", wms_workflow.name, wms_workflow.run_id)
 
     print(f"Run Id: {wms_workflow.run_id}")
+    print(f"Run Name: {wms_workflow.name}")
 
 
 def restart_driver(wms_service, run_id):
@@ -326,19 +327,22 @@ def restart_driver(wms_service, run_id):
     wms_service : `str`
         Name of the class.
     run_id : `str`
-        A run id the report will be restricted to.
+        Id or path of workflow that need to be restarted.
     """
     if wms_service is None:
         wms_service = os.environ.get("BPS_WMS_SERVICE", _CONFIG_DEFAULT["wmsServiceClass"])
 
-    run_id, error = restart(wms_service, run_id)
-    if run_id is not None:
-        dump_env_info(f"{submit_report.path}/{submit_report.name}.env.info.yaml")
-        dump_pkg_info(f"{submit_report.path}/{submit_report.name}.pkg.info.yaml")
-        print(f"Run Id: {submit_report.wms_id}")
+    new_run_id, run_name, message = restart(wms_service, run_id)
+    if new_run_id is not None:
+        path = Path(run_id)
+        if path.exists():
+            dump_env_info(f"{run_id}/{run_name}.env.info.yaml")
+            dump_pkg_info(f"{run_id}/{run_name}.pkg.info.yaml")
+        print(f"Run Id: {new_run_id}")
+        print(f"Run Name: {run_name}")
     else:
-        if error:
-            print(f"Restart failed: {error}")
+        if message:
+            print(f"Restart failed: {message}")
         else:
             print("Restart failed: Unknown error")
 

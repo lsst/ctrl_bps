@@ -22,7 +22,13 @@
 """Base classes for working with a specific WMS"""
 
 
-__all__ = ["BaseWmsService", "BaseWmsWorkflow", "WmsJobReport", "WmsRunReport", "WmsStates"]
+__all__ = [
+    "BaseWmsService",
+    "BaseWmsWorkflow",
+    "WmsJobReport",
+    "WmsRunReport",
+    "WmsStates",
+]
 
 
 import logging
@@ -136,9 +142,12 @@ class BaseWmsService:
         Returns
         -------
         wms_id : `str`
-            The new id of the restarted workflow.
+            Id of the restarted workflow. If restart failed, it is set to None.
+        run_name : `str`
+            Name of the restarted workflow.
         message : `str`
-            Any message from WMS (e.g., error details).
+            A message describing any issues encountered during the restart.
+            If there were no issue, an empty string is returned.
         """
         raise NotImplementedError
 
