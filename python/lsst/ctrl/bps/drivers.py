@@ -45,7 +45,7 @@ import logging
 import os
 import re
 import shutil
-from collections import Iterable
+from collections.abc import Iterable
 from pathlib import Path
 
 
