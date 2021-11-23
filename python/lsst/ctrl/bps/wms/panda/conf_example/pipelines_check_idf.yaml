@@ -8,11 +8,11 @@ pipelineYaml: "${OBS_LSST_DIR}/pipelines/imsim/DRP.yaml#step1"
 payload:
   payloadName: pipelines_check
   output: "u/{operator}/{payloadName}"
-  butlerConfig: s3://butler-us-central1-panda-dev/dc2/butler.yaml
+  butlerConfig: s3://butler-us-central1-panda-dev/dc2/butler-external.yaml
   inCollection: "2.2i/defaults/test-med-1"
   dataQuery: "instrument='LSSTCam-imSim' and skymap='DC2' and exposure in (214433) and detector<3"
 
-  # Strongly recommend changing the following weekly to match
+  # Strongly recommend changing the following stack version to match
   # the version used for submission.  Different versions may
   # or may not work.
-  sw_image: "lsstsqre/centos:7-stack-lsst_distrib-w_2021_41"
+  sw_image: "lsstsqre/centos:7-stack-lsst_distrib-d_latest"
