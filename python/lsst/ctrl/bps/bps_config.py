@@ -31,11 +31,10 @@ import logging
 import copy
 import string
 import re
-from importlib.resources import path as resources_path
 
 from lsst.daf.butler.core.config import Config
 
-from . import etc
+from .etc import BPS_DEFAULTS
 
 _LOG = logging.getLogger(__name__)
 
@@ -89,8 +88,7 @@ class BpsConfig(Config):
         if isinstance(other, str):
             # First load default config from ctrl_bps, then override with
             # user config.
-            with resources_path(etc, "bps_defaults.yaml") as bps_defaults:
-                tmp_config = Config(str(bps_defaults))
+            tmp_config = Config(BPS_DEFAULTS)
             user_config = Config(other)
             tmp_config.update(user_config)
             other = tmp_config

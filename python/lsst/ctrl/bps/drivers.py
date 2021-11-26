@@ -55,6 +55,7 @@ from lsst.utils import doImport
 from lsst.utils.timer import time_this
 
 from . import BPS_SEARCH_ORDER, BpsConfig, etc
+from .etc import BPS_DEFAULTS
 from .pre_transform import acquire_quantum_graph, cluster_quanta
 from .transform import transform
 from .prepare import prepare
@@ -110,7 +111,8 @@ def _init_submission_driver(config_file, **kwargs):
     # the package default.
     wms_service = os.environ.get("BPS_WMS_SERVICE", None)
     if wms_service is not None and "wmsServiceClass" not in config[".bps_cmdline"]:
-        if config["wmsServiceClass"] == _CONFIG_DEFAULT["wmsServiceClass"]:
+        default_config = BpsConfig(BPS_DEFAULTS)
+        if config["wmsServiceClass"] == default_config["wmsServiceClass"]:
             config["wmsServiceClass"] = wms_service
 
     # Set some initial values
@@ -330,7 +332,8 @@ def restart_driver(wms_service, run_id):
         Id or path of workflow that need to be restarted.
     """
     if wms_service is None:
-        wms_service = os.environ.get("BPS_WMS_SERVICE", _CONFIG_DEFAULT["wmsServiceClass"])
+        default_config = BpsConfig(BPS_DEFAULTS)
+        wms_service = os.environ.get("BPS_WMS_SERVICE", default_config["wmsServiceClass"])
 
     new_run_id, run_name, message = restart(wms_service, run_id)
     if new_run_id is not None:
@@ -371,7 +374,8 @@ def report_driver(wms_service, run_id, user, hist_days, pass_thru, is_global=Fal
         (e.g., HTCondor).
     """
     if wms_service is None:
-        wms_service = os.environ.get("BPS_WMS_SERVICE", _CONFIG_DEFAULT["wmsServiceClass"])
+        default_config = BpsConfig(BPS_DEFAULTS)
+        wms_service = os.environ.get("BPS_WMS_SERVICE", default_config["wmsServiceClass"])
     report(wms_service, run_id, user, hist_days, pass_thru, is_global=is_global)
 
 
@@ -399,5 +403,6 @@ def cancel_driver(wms_service, run_id, user, require_bps, pass_thru, is_global=F
         (e.g., HTCondor).
     """
     if wms_service is None:
-        wms_service = os.environ.get("BPS_WMS_SERVICE", _CONFIG_DEFAULT["wmsServiceClass"])
+        default_config = BpsConfig(BPS_DEFAULTS)
+        wms_service = os.environ.get("BPS_WMS_SERVICE", default_config["wmsServiceClass"])
     cancel(wms_service, run_id, user, require_bps, pass_thru, is_global=is_global)
