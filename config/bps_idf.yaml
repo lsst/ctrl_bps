@@ -1,17 +1,17 @@
 #PANDA plugin specific settings:
-idds_server: "https://aipanda015.cern.ch:443/idds"
+iddsServer: "https://aipanda015.cern.ch:443/idds"
 placeholderParams: ['qgraphNodeId', 'qgraphId']
 defaultPreCmdOpts: "--long-log --log-level=VERBOSE --log-file payload-log.json"
 
 #IDF PanDA specific settings:
 computeSite: LSST
 payload:
-  s3_endpoint_url: "https://storage.googleapis.com"
-  payload_folder: payload
-  fileDistributionEndPoint: "s3://butler-us-central1-panda-dev/dc2/{payload_folder}/{uniqProcName}/"
+  s3EndpointUrl: "https://storage.googleapis.com"
+  payloadFolder: payload
+  fileDistributionEndPoint: "s3://butler-us-central1-panda-dev/dc2/{payloadFolder}/{uniqProcName}/"
 
 #SLAC PanDA specific settings:
-#computing_cloud: US
+#computingCloud: US
 #computeSite: DOMA_LSST_SLAC_TEST
 
 
@@ -30,5 +30,5 @@ runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask {runPreCmdOpts} run -b {butl
 
 
 #this is a series of setup commands preceding the actual core SW execution
-runner_command: 'logDir=/tmp/panda/${PANDAID}; mkdir ${logDir}; logFile=${logDir}/${REALTIME_LOGFILES}; touch ${logFile}; chmod ugo+w ${logFile}; ln -s ${logFile} ${PWD}/; ls -l ${PWD}/; docker run -v ${logFile}:/tmp/${REALTIME_LOGFILES} --network host --privileged --env AWS_ACCESS_KEY_ID=$(</credentials/AWS_ACCESS_KEY_ID) --env AWS_SECRET_ACCESS_KEY=$(</credentials/AWS_SECRET_ACCESS_KEY) --env PGPASSWORD=$(</credentials/PGPASSWORD) --env S3_ENDPOINT_URL=${S3_ENDPOINT_URL} {sw_image} /bin/bash -c "source /opt/lsst/software/stack/loadLSST.bash;cd /tmp;ls -al;setup lsst_distrib;pwd;python3 \${CTRL_BPS_DIR}/python/lsst/ctrl/bps/wms/panda/edgenode/cmd_line_decoder.py _cmd_line_ " >&2;'
+runnerCommand: 'logDir=/tmp/panda/${PANDAID}; mkdir ${logDir}; logFile=${logDir}/${REALTIME_LOGFILES}; touch ${logFile}; chmod ugo+w ${logFile}; ln -s ${logFile} ${PWD}/; ls -l ${PWD}/; docker run -v ${logFile}:/tmp/${REALTIME_LOGFILES} --network host --privileged --env AWS_ACCESS_KEY_ID=$(</credentials/AWS_ACCESS_KEY_ID) --env AWS_SECRET_ACCESS_KEY=$(</credentials/AWS_SECRET_ACCESS_KEY) --env PGPASSWORD=$(</credentials/PGPASSWORD) --env S3_ENDPOINT_URL=${S3_ENDPOINT_URL} {sw_image} /bin/bash -c "source /opt/lsst/software/stack/loadLSST.bash;cd /tmp;ls -al;setup lsst_distrib;pwd;python3 \${CTRL_BPS_DIR}/python/lsst/ctrl/bps/wms/panda/edgenode/cmd_line_decoder.py _cmd_line_ " >&2;'
 wmsServiceClass: lsst.ctrl.bps.wms.panda.panda_service.PanDAService

@@ -104,8 +104,8 @@ class PanDAService(BaseWmsService):
         """
 
         cmdline_hex = self.convert_exec_string_to_hex(cmd_line)
-        _, decoder_prefix = self.config.search("runner_command", opt={"replaceEnvVars": False,
-                                                                      "expandEnvVars": False})
+        _, decoder_prefix = self.config.search("runnerCommand", opt={"replaceEnvVars": False,
+                                                                     "expandEnvVars": False})
         decoder_prefix = decoder_prefix.replace("_cmd_line_", str(cmdline_hex) + " ${IN/L} "
                                                 + distribution_path + "  "
                                                 + "+".join(f'{k}:{v}' for k, v in files[0].items())
@@ -170,7 +170,7 @@ class PanDAService(BaseWmsService):
                                  'workflow': idds_client_workflow}
         }
         c = pandaclient.idds_api.get_api(idds_utils.json_dumps,
-                                         idds_host=self.config.get('idds_server'), compress=True)
+                                         idds_host=self.config.get('iddsServer'), compress=True)
         request_id = c.add_request(**idds_request)
         _LOG.info("Submitted into iDDs with request id=%i", request_id)
         workflow.run_id = request_id
