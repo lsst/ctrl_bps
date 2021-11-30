@@ -944,8 +944,9 @@ def _report_from_id(wms_workflow_id, hist, schedds=None):
         # Find jobs (nodes) belonging to that DAGMan job.
         job_constraint = f"DAGManJobId == {int(float(dag_id))}"
         schedd_job_info = condor_search(constraint=job_constraint, hist=hist, schedds=schedds)
-        _, node_info = schedd_job_info.popitem()
-        job_info.update(node_info)
+        if schedd_job_info:
+            _, node_info = schedd_job_info.popitem()
+            job_info.update(node_info)
 
         # Collect additional pieces of information about jobs using HTCondor
         # files in the submission directory.
