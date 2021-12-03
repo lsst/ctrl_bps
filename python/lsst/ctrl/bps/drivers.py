@@ -37,12 +37,14 @@ __all__ = [
 ]
 
 
+import errno
 import getpass
 import logging
 import os
 import re
 import shutil
 from collections import Iterable
+from pathlib import Path
 
 
 from lsst.obs.base import Instrument
@@ -129,10 +131,17 @@ def _init_submission_driver(config_file, **kwargs):
     else:
         _LOG.debug("Skipping submission checks.")
 
-    # make submit directory to contain all outputs
-    submit_path = config["submitPath"]
-    os.makedirs(submit_path, exist_ok=True)
-    config[".bps_defined.submitPath"] = submit_path
+    # Make submit directory to contain all outputs.
+    submit_path = Path(config["submitPath"])
+    try:
+        submit_path.mkdir(parents=True, exist_ok=False)
+    except OSError as exc:
+        if exc.errno == errno.EEXIST:
+            reason = "Directory already exists"
+        else:
+            reason = f"{exc.strerror}"
+        raise type(exc)(f"cannot create submit directory '{submit_path}': {reason}") from None
+    config[".bps_defined.submitPath"] = str(submit_path)
 
     # save copy of configs (orig and expanded config)
     shutil.copy2(config_file, submit_path)
