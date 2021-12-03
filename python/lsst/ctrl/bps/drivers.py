@@ -139,7 +139,7 @@ def _init_submission_driver(config_file, **kwargs):
         if exc.errno == errno.EEXIST:
             reason = "Directory already exists"
         else:
-            reason = f"{exc.strerror}"
+            reason = exc.strerror
         raise type(exc)(f"cannot create submit directory '{submit_path}': {reason}") from None
     config[".bps_defined.submitPath"] = str(submit_path)
 
