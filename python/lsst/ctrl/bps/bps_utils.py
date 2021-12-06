@@ -145,10 +145,20 @@ def _create_execution_butler(config, qgraph_filename, execution_butler_dir, out_
     out_filename = "execution_butler_creation.out"
     if out_prefix is not None:
         out_filename = os.path.join(out_prefix, out_filename)
-    with open(out_filename, "w") as fh:
-        print(command, file=fh)
-        print("\n", file=fh)  # Note: want a blank line
-        subprocess.run(shlex.split(command), shell=False, check=True, stdout=fh, stderr=subprocess.STDOUT)
+
+    # When creating the execution Butler, handle separately errors related
+    # to creating the log file and errors directly related to creating
+    # the execution Butler itself.
+    opening = "cannot create the execution Butler"
+    try:
+        with open(out_filename, "w", encoding="utf-8") as fh:
+            print(command, file=fh)
+            print("\n", file=fh)  # Note: want a blank line
+            subprocess.run(shlex.split(command), shell=False, check=True, stdout=fh, stderr=subprocess.STDOUT)
+    except OSError as exc:
+        raise type(exc)(f"{opening}: {exc.strerror}") from None
+    except subprocess.SubprocessError as exc:
+        raise RuntimeError(f"{opening}, see '{out_filename}' for details") from exc
 
 
 def create_count_summary(counts):
