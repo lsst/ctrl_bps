@@ -180,14 +180,15 @@ class HTCondorService(BaseWmsService):
 
         Returns
         -------
-        wms_id : `str`
-            HTCondor id of the restarted DAGMan job. If restart failed, it is
-            set to None.
+        run_id : `str`
+            HTCondor id of the restarted DAGMan job. If restart failed, it will
+            be set to None.
         run_name : `str`
-            Name of the restarted workflow.
+            Name of the restarted workflow. If restart failed, it will be set
+            to None.
         message : `str`
             A message describing any issues encountered during the restart.
-            If there were no issue, an empty string is returned.
+            If there were no issues, an empty string is returned.
         """
         wms_path = Path(wms_workflow_id)
         if not wms_path.is_dir():

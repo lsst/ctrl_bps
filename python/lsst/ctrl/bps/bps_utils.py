@@ -55,8 +55,8 @@ def chdir(path):
 
     Parameters
     ----------
-    path : `str`
-        Path to be made current working directory
+    path : `str` or `pathlib.Path`
+        Path to be made current working directory.
     """
     cur_dir = os.getcwd()
     os.chdir(path)
@@ -169,7 +169,7 @@ def create_count_summary(counts):
 
     Parameters
     ----------
-    count : `collections.Counter` or `dict` [`str`, `int`]
+    counts : `collections.Counter` or `dict` [`str`, `int`]
         Mapping of counts to keys.
 
     Returns

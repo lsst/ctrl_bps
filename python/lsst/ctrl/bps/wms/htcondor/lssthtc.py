@@ -276,7 +276,9 @@ def htc_backup_files(wms_path, root=None, limit=100):
         will be placed directly in the submit directory.
     limit : `int`, optional
         Maximal number of backups. If the number of backups reaches the limit,
-        the last backup files will be overwritten. The default value is 100.
+        the last backup files will be overwritten. The default value is 100
+        to match the default value of HTCondor's DAGMAN_MAX_RESCUE_NUM in
+        version 8.8+.
 
     Raises
     -------
@@ -422,7 +424,9 @@ def htc_submit_dag(sub):
     Returns
     -------
     schedd_job_info : `dict` [`str`, `dict` [`str`, `dict` [`str` Any]]]
-        Information about the submitted job.
+        Information about jobs satisfying the search criteria where for each
+        Scheduler, local HTCondor job ids are mapped to their respective
+        classads.
     """
     coll = htcondor.Collector()
     schedd_ad = coll.locate(htcondor.DaemonTypes.Schedd)
@@ -461,7 +465,7 @@ def htc_create_submit_from_dag(dag_filename, submit_options=None):
 
     Notes
     -----
-    Use with HTCondor versions which does support htcondor.Submit.from_dag,
+    Use with HTCondor versions which support htcondor.Submit.from_dag(),
     i.e., 8.9.3 or newer.
     """
     return htcondor.Submit.from_dag(dag_filename, submit_options)
@@ -477,7 +481,7 @@ def htc_create_submit_from_cmd(dag_filename, submit_options=None):
     ----------
     dag_filename : `str`
         Name of file containing HTCondor DAG commands.
-    submit_options : `dict`, optional
+    submit_options : `dict` [`str`, Any], optional
         Contains extra options for command line (Value of None means flag).
 
     Returns
@@ -487,7 +491,7 @@ def htc_create_submit_from_cmd(dag_filename, submit_options=None):
 
     Notes
     -----
-    Use with HTCondor versions which does not support htcondor.Submit.from_dag,
+    Use with HTCondor versions which do not support htcondor.Submit.from_dag(),
     i.e., older than 8.9.3.
     """
     # Run command line condor_submit_dag command.

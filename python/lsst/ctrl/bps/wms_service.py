@@ -142,9 +142,11 @@ class BaseWmsService:
         Returns
         -------
         wms_id : `str`
-            Id of the restarted workflow. If restart failed, it is set to None.
+            Id of the restarted workflow. If restart failed, it will be set
+            to None.
         run_name : `str`
-            Name of the restarted workflow.
+            Name of the restarted workflow. If restart failed, it will be set
+            to None.
         message : `str`
             A message describing any issues encountered during the restart.
             If there were no issue, an empty string is returned.
