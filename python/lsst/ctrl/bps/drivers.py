@@ -40,7 +40,6 @@ __all__ = [
 
 import errno
 import getpass
-import importlib.resources
 import logging
 import os
 import re
@@ -48,14 +47,11 @@ import shutil
 from collections.abc import Iterable
 from pathlib import Path
 
-
-from lsst.daf.butler import Config
 from lsst.obs.base import Instrument
 from lsst.utils import doImport
 from lsst.utils.timer import time_this
 
-from . import BPS_SEARCH_ORDER, BpsConfig, etc
-from .etc import BPS_DEFAULTS
+from . import BPS_DEFAULTS, BPS_SEARCH_ORDER, BpsConfig
 from .pre_transform import acquire_quantum_graph, cluster_quanta
 from .transform import transform
 from .prepare import prepare
@@ -67,8 +63,6 @@ from .bps_utils import dump_env_info, dump_pkg_info
 
 
 _LOG = logging.getLogger(__name__)
-with importlib.resources.path(etc, "bps_defaults.yaml") as defaults:
-    _CONFIG_DEFAULT = Config(defaults)
 
 
 def _init_submission_driver(config_file, **kwargs):
