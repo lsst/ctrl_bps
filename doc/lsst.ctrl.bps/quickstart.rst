@@ -148,8 +148,9 @@ If submission was successfully, it will output something like this:
 Additional Submit Options
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
-See ``bps submit --help`` for more detailed information.
-Command-line values override values in the yaml file.
+See ``bps submit --help`` for more detailed information.  Command-line values
+override values in the yaml file. (You can find more about BPS precedence order
+in :ref:`this <bps-precedence-order>` section)
 
 **Pass-thru Arguments**
 
@@ -333,6 +334,19 @@ are possible.
    will ask for 2 GB of memory during the first execution after the workflow is
    restarted.
 
+.. _bps-precedence-order:
+
+BPS precedence order
+--------------------
+
+Some settings can be specified simultaneously in multiple places (e.g. with
+command-line option and in the config file).  The value of a setting is
+determined by following order:
+
+#. command-line option,
+#. config file (if used by a subcommand), 
+#. environment variable,
+#. package default.
 
 .. _bps-configuration-file:
 
