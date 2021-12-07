@@ -59,7 +59,7 @@ from .submit import submit
 from .cancel import cancel
 from .report import report
 from .restart import restart
-from .bps_utils import dump_env_info, dump_pkg_info
+from .bps_utils import _dump_env_info, _dump_pkg_info
 
 
 _LOG = logging.getLogger(__name__)
@@ -164,8 +164,8 @@ def _init_submission_driver(config_file, **kwargs):
         config.dump(fh)
 
     # Dump information about runtime environment and software versions in use.
-    dump_env_info(f"{submit_path}/{config['uniqProcName']}.env.info.yaml")
-    dump_pkg_info(f"{submit_path}/{config['uniqProcName']}.pkg.info.yaml")
+    _dump_env_info(f"{submit_path}/{config['uniqProcName']}.env.info.yaml")
+    _dump_pkg_info(f"{submit_path}/{config['uniqProcName']}.pkg.info.yaml")
 
     return config
 
@@ -333,8 +333,8 @@ def restart_driver(wms_service, run_id):
     if new_run_id is not None:
         path = Path(run_id)
         if path.exists():
-            dump_env_info(f"{run_id}/{run_name}.env.info.yaml")
-            dump_pkg_info(f"{run_id}/{run_name}.pkg.info.yaml")
+            _dump_env_info(f"{run_id}/{run_name}.env.info.yaml")
+            _dump_pkg_info(f"{run_id}/{run_name}.pkg.info.yaml")
         print(f"Run Id: {new_run_id}")
         print(f"Run Name: {run_name}")
     else:

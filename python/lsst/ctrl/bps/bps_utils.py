@@ -22,6 +22,17 @@
 """Misc supporting classes and functions for BPS.
 """
 
+__all__ = [
+    "chdir",
+    "create_job_quantum_graph_filename",
+    "save_qg_subgraph",
+    "_create_execution_butler",
+    "create_count_summary",
+    "parse_count_summary",
+    "_dump_pkg_info",
+    "_dump_env_info",
+]
+
 import contextlib
 import dataclasses
 import logging
@@ -206,7 +217,7 @@ def parse_count_summary(summary):
     return counts
 
 
-def dump_pkg_info(filename):
+def _dump_pkg_info(filename):
     """Save information about versions of packages in use for future reference.
 
     Parameters
@@ -222,7 +233,7 @@ def dump_pkg_info(filename):
     packages.write(str(file))
 
 
-def dump_env_info(filename):
+def _dump_env_info(filename):
     """Save information about runtime environment for future reference.
 
     Parameters
