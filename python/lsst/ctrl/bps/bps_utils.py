@@ -39,10 +39,11 @@ import logging
 import os
 import shlex
 import subprocess
-import yaml
 from collections import Counter
 from enum import Enum
 from pathlib import Path
+
+import yaml
 
 from lsst.base import Packages
 
@@ -245,5 +246,5 @@ def _dump_env_info(filename):
     file = Path(filename)
     if file.suffix.lower() not in {".yaml", ".yml"}:
         file = file.with_suffix(f"{file.suffix}.yaml")
-    with open(file, "w") as fh:
+    with open(file, "w", encoding="utf-8") as fh:
         yaml.dump(dict(os.environ), fh)
