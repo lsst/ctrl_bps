@@ -101,9 +101,9 @@ def _init_submission_driver(config_file, **kwargs):
 
     # If the WMS service class was not defined neither at the command line nor
     # explicitly in config file, use the value provided by the environmental
-    # variable BPS_WMS_SERVICE.  If the variable is not set, stick to
+    # variable BPS_WMS_SERVICE_CLASS.  If the variable is not set, stick to
     # the package default.
-    wms_service = os.environ.get("BPS_WMS_SERVICE", None)
+    wms_service = os.environ.get("BPS_WMS_SERVICE_CLASS", None)
     if wms_service is not None and "wmsServiceClass" not in config[".bps_cmdline"]:
         default_config = BpsConfig(BPS_DEFAULTS)
         if config["wmsServiceClass"] == default_config["wmsServiceClass"]:
@@ -327,7 +327,7 @@ def restart_driver(wms_service, run_id):
     """
     if wms_service is None:
         default_config = BpsConfig(BPS_DEFAULTS)
-        wms_service = os.environ.get("BPS_WMS_SERVICE", default_config["wmsServiceClass"])
+        wms_service = os.environ.get("BPS_WMS_SERVICE_CLASS", default_config["wmsServiceClass"])
 
     new_run_id, run_name, message = restart(wms_service, run_id)
     if new_run_id is not None:
@@ -369,7 +369,7 @@ def report_driver(wms_service, run_id, user, hist_days, pass_thru, is_global=Fal
     """
     if wms_service is None:
         default_config = BpsConfig(BPS_DEFAULTS)
-        wms_service = os.environ.get("BPS_WMS_SERVICE", default_config["wmsServiceClass"])
+        wms_service = os.environ.get("BPS_WMS_SERVICE_CLASS", default_config["wmsServiceClass"])
     report(wms_service, run_id, user, hist_days, pass_thru, is_global=is_global)
 
 
@@ -398,5 +398,5 @@ def cancel_driver(wms_service, run_id, user, require_bps, pass_thru, is_global=F
     """
     if wms_service is None:
         default_config = BpsConfig(BPS_DEFAULTS)
-        wms_service = os.environ.get("BPS_WMS_SERVICE", default_config["wmsServiceClass"])
+        wms_service = os.environ.get("BPS_WMS_SERVICE_CLASS", default_config["wmsServiceClass"])
     cancel(wms_service, run_id, user, require_bps, pass_thru, is_global=is_global)
