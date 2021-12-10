@@ -8,6 +8,16 @@ lsst.ctrl.bps
 
 .. Paragraph that describes what this Python module does and links to related modules and frameworks.
 
+.. _lsst.ctrl.bps-changes:
+
+Changes
+=======
+
+.. toctree::
+   :maxdepth: 1
+
+   CHANGES.rst
+
 .. _lsst.ctrl.bps-using:
 
 Using lsst.ctrl.bps
