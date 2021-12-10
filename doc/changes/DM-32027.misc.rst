@@ -1,1 +1,0 @@
-Change ``outCollection`` in submit YAML to ``outputRun``.

@@ -1,1 +1,0 @@
-Fix the bug in the formula governing memory scaling.

@@ -1,2 +1,0 @@
-* Fixed bug when not using lazy commands but using execution butler.
-* Fixed bug in htcondor_service.py that overwrote message in bps report.
