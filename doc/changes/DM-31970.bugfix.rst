@@ -1,2 +1,0 @@
-* Fix AttributeError during submission if explicitly not using execution butler.
-* Fix bps report summary PermissionsError caused by certain runs with previous version in queue.

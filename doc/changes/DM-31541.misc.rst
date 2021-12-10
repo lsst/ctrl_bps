@@ -1,1 +1,0 @@
-Complain about missing memory limit only if memory autoscaling is enabled.

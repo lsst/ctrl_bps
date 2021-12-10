@@ -1,1 +1,0 @@
-Change HTCondor bps plugin to use HTCondor curl plugin for local job transfers.
