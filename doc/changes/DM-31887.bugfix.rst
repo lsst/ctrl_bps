@@ -1,3 +1,0 @@
-* Fix variable substitution in merge job commands.
-* Fix bug where final job doesn't appear in report.
-* Fix bug in HTCondor plugin for reporting final job status when --id <path>.
