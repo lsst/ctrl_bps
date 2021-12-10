@@ -1,1 +1,0 @@
-Switch default logging level from WARN to INFO.

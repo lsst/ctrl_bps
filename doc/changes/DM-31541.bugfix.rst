@@ -1,2 +1,0 @@
-* Fix issue with accessing non-existing attributes when creating the final job.
-* Fix issue preventing ``bps report`` from getting the run name correctly.

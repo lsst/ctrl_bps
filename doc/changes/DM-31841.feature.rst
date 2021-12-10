@@ -1,1 +1,0 @@
-Add a new configuration option, ``preemptible``, which indicates whether a job can be safely preempted.
