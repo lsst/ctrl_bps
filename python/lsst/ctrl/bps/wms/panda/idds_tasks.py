@@ -100,10 +100,9 @@ class IDDSWorkflowGenerator:
         self.tasks_steps = {}
         self.tasks_cmd_lines = {}
         self.dag_end_tasks = set()
-        _, v = config.search("maxwalltime", opt={"default": 90000})
-        self.maxwalltime = v
-        _, v = config.search("maxattempt", opt={"default": 5})
-        self.maxattempt = v
+        _, self.max_walltime = config.search("maxwalltime", opt={"default": 90000})
+        _, self.max_attempt = config.search("maxattempt", opt={"default": 5})
+        _, self.max_jobs_per_task = config.search("maxJobsPerTask", opt={"default": 30000})
 
     def define_task_name(self, step):
         """Return task name as a combination of the workflow name (unique
@@ -150,7 +149,8 @@ class IDDSWorkflowGenerator:
         tasks = []
         raw_dependency_map = self.create_raw_jobs_dependency_map()
         tasks_dependency_map = self.split_map_over_tasks(raw_dependency_map)
-        for task_name, jobs in tasks_dependency_map.items():
+        tasks_dependency_map_chunked = self.split_tasks_into_chunks(tasks_dependency_map)
+        for task_name, jobs in tasks_dependency_map_chunked.items():
             task = RubinTask()
             task.step = task_name
             task.name = task.step
@@ -162,18 +162,68 @@ class IDDSWorkflowGenerator:
             task.queue = bps_node.queue
             task.cloud = bps_node.compute_site
             task.jobs_pseudo_inputs = list(jobs)
-            task.maxattempt = self.maxattempt
-            task.maxwalltime = self.maxwalltime
+            task.maxattempt = self.max_attempt
+            task.maxwalltime = self.max_walltime
             task.maxrss = bps_node.request_memory
             task.executable = self.tasks_cmd_lines[task_name]
             task.files_used_by_task = self.fill_input_files(task_name)
             task.is_final = False
             task.is_dag_end = self.tasks_steps[task_name] in self.dag_end_tasks
             tasks.append(task)
-        self.add_dependencies(tasks, tasks_dependency_map)
+        self.add_dependencies(tasks, tasks_dependency_map_chunked)
         final_task = self.get_final_task()
         tasks.append(final_task)
         return tasks
+
+    def split_tasks_into_chunks(self, tasks_dependency_map):
+        """If a task is going to contain jobs those number is above a
+        threshold this function splits such a large tasks into chunks.
+
+        Parameters
+        ----------
+        tasks_dependency_map : `dict` of dependencies dictionary
+
+        Returns
+        -------
+        tasks_dependency_map with chunked dependencies where its
+        needed.
+        """
+        tasks_dependency_map_chunked = {}
+        tasks_chunked = {}
+
+        for task_name, dependencies in tasks_dependency_map.items():
+            n_jobs_in_task = len(dependencies)
+            if n_jobs_in_task > self.max_jobs_per_task:
+                n_chunks = -(-n_jobs_in_task//self.max_jobs_per_task)
+                for pseudo_input, dependency in dependencies.items():
+                    chunk_id = hash(pseudo_input) % n_chunks
+                    tasks_dependency_map_chunked.setdefault(task_name + "_chunk_"
+                                                            + str(chunk_id),
+                                                            {})[pseudo_input] \
+                        = dependency
+                    self.tasks_steps[task_name + "_chunk_" + str(chunk_id)] = \
+                        self.tasks_steps[task_name]
+                    self.tasks_cmd_lines[task_name + "_chunk_" + str(chunk_id)] = \
+                        self.tasks_cmd_lines[task_name]
+                tasks_chunked[task_name] = n_chunks
+            else:
+                tasks_dependency_map_chunked[task_name] = dependencies
+        tasks_dependency_map_chunked_updated_dep = {}
+        for task, dependencies in tasks_dependency_map_chunked.items():
+            for pseudo_input, dependency in dependencies.items():
+                updated_dependencies = {}
+                for upstream_task_name, pseudo_inputs in dependency.items():
+                    if upstream_task_name in tasks_chunked:
+                        for upstream_pseudo_input in pseudo_inputs:
+                            chunk_id = hash(upstream_pseudo_input) % tasks_chunked[upstream_task_name]
+                            chunked_task_name = upstream_task_name + "_chunk_" + str(chunk_id)
+                            updated_dependencies.setdefault(chunked_task_name, []).\
+                                append(upstream_pseudo_input)
+                    else:
+                        updated_dependencies.setdefault(upstream_task_name, []).extend(pseudo_inputs)
+                tasks_dependency_map_chunked_updated_dep.setdefault(task, {}).setdefault(pseudo_input, {})\
+                    .update(updated_dependencies)
+        return tasks_dependency_map_chunked_updated_dep
 
     def get_final_task(self):
         """If final job exists in generic workflow, create DAG final task
@@ -204,8 +254,8 @@ class IDDSWorkflowGenerator:
             task.dependencies = [{"name": "pure_pseudoinput+qgraphNodeId:+qgraphId:",
                                   "submitted": False, "dependencies": []}]
 
-            task.maxattempt = self.maxattempt
-            task.maxwalltime = self.maxwalltime
+            task.maxattempt = self.max_attempt
+            task.maxwalltime = self.max_walltime
             task.maxrss = final_job.request_memory
             task.files_used_by_task = [bash_file]
             task.is_final = True

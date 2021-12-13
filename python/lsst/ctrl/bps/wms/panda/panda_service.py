@@ -27,9 +27,8 @@ import concurrent.futures
 from lsst.ctrl.bps.wms_service import BaseWmsWorkflow, BaseWmsService
 from lsst.ctrl.bps.wms.panda.idds_tasks import IDDSWorkflowGenerator
 from lsst.daf.butler import ButlerURI
-from idds.workflow.workflow import Workflow as IDDS_client_workflow, AndCondition
-from idds.doma.workflow.domapandawork import DomaPanDAWork
-import idds.common.constants as idds_constants
+from idds.workflowv2.workflow import Workflow as IDDS_client_workflow, AndCondition
+from idds.doma.workflowv2.domapandawork import DomaPanDAWork
 import idds.common.utils as idds_utils
 import pandaclient.idds_api
 
@@ -104,8 +103,8 @@ class PanDAService(BaseWmsService):
         """
 
         cmdline_hex = self.convert_exec_string_to_hex(cmd_line)
-        _, decoder_prefix = self.config.search("runnerCommand", opt={"replaceEnvVars": False,
-                                                                     "expandEnvVars": False})
+        _, decoder_prefix = self.config.search("runner_command", opt={"replaceEnvVars": False,
+                                                                      "expandEnvVars": False})
         decoder_prefix = decoder_prefix.replace("_cmd_line_", str(cmdline_hex) + " ${IN/L} "
                                                 + distribution_path + "  "
                                                 + "+".join(f'{k}:{v}' for k, v in files[0].items())
@@ -120,7 +119,7 @@ class PanDAService(BaseWmsService):
         workflow : `lsst.ctrl.bps.BaseWorkflow`
             A single PanDA iDDS workflow to submit
         """
-        idds_client_workflow = IDDS_client_workflow()
+        idds_client_workflow = IDDS_client_workflow(name=workflow.name)
         files = self.copy_files_for_distribution(workflow.generated_tasks,
                                                  self.config['fileDistributionEndPoint'])
         DAG_end_work = []
@@ -155,24 +154,11 @@ class PanDAService(BaseWmsService):
                 conditions.append(work.is_terminated)
             and_cond = AndCondition(conditions=conditions, true_works=[DAG_final_work])
             idds_client_workflow.add_condition(and_cond)
-
-        idds_request = {
-            'scope': 'workflow',
-            'name': workflow.name,
-            'requester': 'panda',
-            'request_type': idds_constants.RequestType.Workflow,
-            'transform_tag': 'workflow',
-            'status': idds_constants.RequestStatus.New,
-            'priority': 0,
-            'lifetime': 30,
-            'workload_id': idds_client_workflow.get_workload_id(),
-            'request_metadata': {'workload_id': idds_client_workflow.get_workload_id(),
-                                 'workflow': idds_client_workflow}
-        }
         c = pandaclient.idds_api.get_api(idds_utils.json_dumps,
-                                         idds_host=self.config.get('iddsServer'), compress=True)
-        request_id = c.add_request(**idds_request)
-        _LOG.info("Submitted into iDDs with request id=%i", request_id)
+                                         idds_host=self.config.get('idds_server'),
+                                         compress=True, manager=True)
+        request_id = c.submit(idds_client_workflow, username=None, use_dataset_name=False)
+        _LOG.info("Submitted into iDDs with request id=%s", str(request_id))
         workflow.run_id = request_id
 
     @staticmethod
@@ -226,7 +212,6 @@ class PanDAService(BaseWmsService):
         copy_executor = concurrent.futures.ThreadPoolExecutor(max_workers=10)
         future_file_copy = []
         for src, trgt in files_to_copy.items():
-
             # S3 clients explicitly instantiate here to overpass this
             # https://stackoverflow.com/questions/52820971/is-boto3-client-thread-safe
             trgt.exists()
@@ -248,7 +233,7 @@ class PanDAService(BaseWmsService):
 
         return files_plc_hldr, direct_IO_files
 
-    def report(self, wms_workflow_id=None, user=None, hist=0, pass_thru=None, is_global=False):
+    def report(self, wms_workflow_id=None, user=None, hist=0, pass_thru=None):
         """Stub for future implementation of the report method
         Expected to return run information based upon given constraints.
 
@@ -262,10 +247,6 @@ class PanDAService(BaseWmsService):
             Limit history search to this many days.
         pass_thru : `str`
             Constraints to pass through to HTCondor.
-        is_global : `bool`, optional
-            If set, all available job queues will be queried for job
-            information. Defaults to False which means that only a local job
-            queue will be queried for information.
 
         Returns
         -------
