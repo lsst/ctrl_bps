@@ -259,21 +259,27 @@ class RestrictedDict(MutableMapping):
         return str(self.data)
 
 
-def htc_backup_files(wms_path, root=None, limit=100):
-    """Make backup copies of select HTCondor files in a given submit directory.
+def htc_backup_files(wms_path, subdir=None, limit=100):
+    """Backup select HTCondor files in the submit directory.
 
     Files will be saved in separate subdirectories which will be created in
     the submit directory where the files are located. These subdirectories
-    will be consecutive, zero-padded integers.
+    will be consecutive, zero-padded integers. Their values will correspond to
+    the number of HTCondor rescue DAGs in the submit directory.
+
+    Hence, with the default settings, copies after the initial failed run will
+    be placed in '001' subdirectory, '002' after the first restart, and so on
+    until the limit of backups is reached. If there's no rescue DAG yet, files
+    will be copied to '000' subdirectory.
 
     Parameters
     ----------
-    wms_path : `str`
-        Path to the submission directory either absolute or relative.
-    root : `str`, optional
-        A top-level directory where all subdirectories with backup files will
-        be kept. Defaults to None which means that the backup subdirectories
-        will be placed directly in the submit directory.
+    wms_path : `str` or `pathlib.Path`
+        Path to the submit directory either absolute or relative.
+    subdir : `str` or `pathlib.Path`, optional
+        A path, relative to the submit directory, where all subdirectories with
+        backup files will be kept. Defaults to None which means that the backup
+        subdirectories will be placed directly in the submit directory.
     limit : `int`, optional
         Maximal number of backups. If the number of backups reaches the limit,
         the last backup files will be overwritten. The default value is 100
@@ -283,40 +289,59 @@ def htc_backup_files(wms_path, root=None, limit=100):
     Raises
     -------
     FileNotFoundError
-        If the submit directory of the file that needs to be backed up does not
+        If the submit directory or the file that needs to be backed up does not
         exist.
-    RuntimeError
-        If backing up a file failed due to filesystem-related issues.
+    OSError
+        If the submit directory cannot be accessed or backing up a file failed
+        either due to permission or filesystem related issues.
+
+    Notes
+    -----
+    This is not a generic function for making backups. It is intended to be
+    used once, just before a restart, to make snapshots of files which will be
+    overwritten by HTCondor after during the next run.
     """
     width = len(str(limit))
 
     path = Path(wms_path).resolve()
     if not path.is_dir():
-        FileNotFoundError(f"Directory {path} not found")
+        raise FileNotFoundError(f"Directory {path} not found")
 
     # Initialize the backup counter.
-    runs = list(Path(wms_path).glob("*.rescue*"))
-    counter = max(0, min(len(runs) - 1, limit))
+    rescue_dags = list(Path(wms_path).glob("*.rescue*"))
+    counter = min(len(rescue_dags), limit)
 
-    # Create the backup directory.
+    # Create the backup directory and move select files there.
     dest = Path(wms_path)
-    if root:
-        dest /= root
-    dest /= f"{counter:0{width}}"
-    dest.mkdir(parents=True, exist_ok=True)
-
-    # Move select files to the backup directory.
-    for patt in ["*.info.*", "*.dag.metrics", "*.dag.nodes.log", "*.node_status"]:
-        sources = [file for file in path.glob(patt)]
-        for source in sources:
-            if source.is_file():
-                target = dest / source.relative_to(path)
-                try:
-                    source.rename(target)
-                except (PermissionError, IOError) as exc:
-                    raise RuntimeError(f"Backing up file '{path}' failed") from exc
+    if subdir:
+        # PurePath.is_relative_to() is not available before Python 3.9. Hence
+        # we need to check is 'subdir' is in the submit directory in some other
+        # way if it is an absolute path.
+        subdir = Path(subdir)
+        if subdir.is_absolute():
+            if dest not in subdir.parents:
+                _LOG.warning("Invalid backup location: '%s' not in the submit directory, "
+                             "will use '%s' instead.", subdir, wms_path)
             else:
-                raise FileNotFoundError(f"File '{source}' not found")
+                dest /= subdir
+        else:
+            dest /= subdir
+    dest /= f"{counter:0{width}}"
+    try:
+        dest.mkdir(parents=True, exist_ok=False if counter < limit else True)
+    except FileExistsError:
+        _LOG.warning("Refusing to do backups: target directory '%s' already exists", dest)
+    else:
+        for patt in ["*.info.*", "*.dag.metrics", "*.dag.nodes.log", "*.node_status"]:
+            for source in path.glob(patt):
+                if source.is_file():
+                    target = dest / source.relative_to(path)
+                    try:
+                        source.rename(target)
+                    except OSError as exc:
+                        raise type(exc)(f"Backing up '{source}' failed: {exc.strerror}") from None
+                else:
+                    raise FileNotFoundError(f"Backing up '{source}' failed: not a file")
 
 
 def htc_escape(value):

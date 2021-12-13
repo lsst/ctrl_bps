@@ -208,7 +208,7 @@ class HTCondorService(BaseWmsService):
             return None, None, f"Workflow already in the job queue (global job id: '{id_}')"
 
         _LOG.info("Backing up select HTCondor files from previous run attempt")
-        htc_backup_files(str(wms_path), root='backups')
+        htc_backup_files(wms_path, subdir='backups')
 
         # For workflow portability, internal paths are all relative. Hence
         # the DAG needs to be resubmitted to HTCondor from inside the submit
