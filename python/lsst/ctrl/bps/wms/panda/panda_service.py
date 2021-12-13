@@ -27,9 +27,8 @@ import concurrent.futures
 from lsst.ctrl.bps.wms_service import BaseWmsWorkflow, BaseWmsService
 from lsst.ctrl.bps.wms.panda.idds_tasks import IDDSWorkflowGenerator
 from lsst.daf.butler import ButlerURI
-from idds.workflow.workflow import Workflow as IDDS_client_workflow, AndCondition
-from idds.doma.workflow.domapandawork import DomaPanDAWork
-import idds.common.constants as idds_constants
+from idds.workflowv2.workflow import Workflow as IDDS_client_workflow, AndCondition
+from idds.doma.workflowv2.domapandawork import DomaPanDAWork
 import idds.common.utils as idds_utils
 import pandaclient.idds_api
 
@@ -120,7 +119,7 @@ class PanDAService(BaseWmsService):
         workflow : `lsst.ctrl.bps.BaseWorkflow`
             A single PanDA iDDS workflow to submit
         """
-        idds_client_workflow = IDDS_client_workflow()
+        idds_client_workflow = IDDS_client_workflow(name=workflow.name)
         files = self.copy_files_for_distribution(workflow.generated_tasks,
                                                  self.config['fileDistributionEndPoint'])
         DAG_end_work = []
@@ -140,7 +139,7 @@ class PanDAService(BaseWmsService):
                 task_log={"destination": "local", "value": "log.tgz", "dataset": "PandaJob_#{pandaid}/",
                           "token": "local", "param_type": "log", "type": "template"},
                 encode_command_line=True,
-                task_rss=task.maxrss,
+                task_rss=task.max_rss,
                 task_cloud=task.cloud,
             )
             idds_client_workflow.add_work(work)
@@ -155,24 +154,11 @@ class PanDAService(BaseWmsService):
                 conditions.append(work.is_terminated)
             and_cond = AndCondition(conditions=conditions, true_works=[DAG_final_work])
             idds_client_workflow.add_condition(and_cond)
-
-        idds_request = {
-            'scope': 'workflow',
-            'name': workflow.name,
-            'requester': 'panda',
-            'request_type': idds_constants.RequestType.Workflow,
-            'transform_tag': 'workflow',
-            'status': idds_constants.RequestStatus.New,
-            'priority': 0,
-            'lifetime': 30,
-            'workload_id': idds_client_workflow.get_workload_id(),
-            'request_metadata': {'workload_id': idds_client_workflow.get_workload_id(),
-                                 'workflow': idds_client_workflow}
-        }
         c = pandaclient.idds_api.get_api(idds_utils.json_dumps,
-                                         idds_host=self.config.get('iddsServer'), compress=True)
-        request_id = c.add_request(**idds_request)
-        _LOG.info("Submitted into iDDs with request id=%i", request_id)
+                                         idds_host=self.config.get('idds_server'),
+                                         compress=True, manager=True)
+        request_id = c.submit(idds_client_workflow, username=None, use_dataset_name=False)
+        _LOG.info("Submitted into iDDs with request id=%s", str(request_id))
         workflow.run_id = request_id
 
     @staticmethod
