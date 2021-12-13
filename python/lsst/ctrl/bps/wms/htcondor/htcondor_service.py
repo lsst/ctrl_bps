@@ -197,9 +197,9 @@ class HTCondorService(BaseWmsService):
         _LOG.info("Restarting workflow from directory '%s'", wms_path)
         rescue_dags = list(wms_path.glob("*.dag.rescue*"))
         if not rescue_dags:
-            return None, None, "HTCondor rescue DAG(s) not found"
+            return None, None, f"HTCondor rescue DAG(s) not found in '{wms_path}'"
 
-        _LOG.info("Verifying that the workflow in not running already")
+        _LOG.info("Verifying that the workflow is not running already")
         schedd_dag_info = condor_q(constraint=f'regexp("dagman$", Cmd) && Iwd == "{wms_workflow_id}"')
         if schedd_dag_info:
             _, dag_info = schedd_dag_info.popitem()
@@ -215,7 +215,7 @@ class HTCondorService(BaseWmsService):
         # directory.
         _LOG.info("Adding workflow to the job queue")
         run_id, run_name, message = None, None, ""
-        with chdir(str(wms_path)):
+        with chdir(wms_path):
             try:
                 dag_path = next(wms_path.glob('*.dag.condor.sub'))
             except StopIteration:
@@ -223,6 +223,9 @@ class HTCondorService(BaseWmsService):
             else:
                 sub = htc_create_submit_from_file(dag_path.name)
                 schedd_dag_info = htc_submit_dag(sub)
+
+                # Save select information about the DAGMan job to a file. Use
+                # the run name (available in the ClassAd) as the filename.
                 if schedd_dag_info:
                     dag_info = next(iter(schedd_dag_info.values()))
                     dag_ad = next(iter(dag_info.values()))
@@ -231,6 +234,7 @@ class HTCondorService(BaseWmsService):
                     run_name = dag_ad["bps_run"]
                 else:
                     message = "DAGMan job information unavailable"
+
         return run_id, run_name, message
 
     def list_submitted_jobs(self, wms_id=None, user=None, require_bps=True, pass_thru=None, is_global=False):
