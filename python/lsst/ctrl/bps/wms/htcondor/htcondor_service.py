@@ -199,13 +199,30 @@ class HTCondorService(BaseWmsService):
         if not rescue_dags:
             return None, None, f"HTCondor rescue DAG(s) not found in '{wms_path}'"
 
-        _LOG.info("Verifying that the workflow is not running already")
+        _LOG.info("Verifying that the workflow is not already in the job queue")
         schedd_dag_info = condor_q(constraint=f'regexp("dagman$", Cmd) && Iwd == "{wms_workflow_id}"')
         if schedd_dag_info:
             _, dag_info = schedd_dag_info.popitem()
             _, dag_ad = dag_info.popitem()
             id_ = dag_ad["GlobalJobId"]
             return None, None, f"Workflow already in the job queue (global job id: '{id_}')"
+
+        _LOG.info("Checking execution status of the workflow")
+        warn = False
+        dag_ad = read_dag_status(str(wms_path))
+        if dag_ad:
+            nodes_total = dag_ad.get("NodesTotal", 0)
+            if nodes_total != 0:
+                nodes_done = dag_ad.get("NodesDone", 0)
+                if nodes_total == nodes_done:
+                    return None, None, "All jobs in the workflow finished successfully"
+            else:
+                warn = True
+        else:
+            warn = True
+        if warn:
+            _LOG.warning("Cannot determine the execution status of the workflow, "
+                         "continuing with restart regardless")
 
         _LOG.info("Backing up select HTCondor files from previous run attempt")
         htc_backup_files(wms_path, subdir='backups')
