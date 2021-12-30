@@ -10,7 +10,7 @@ import os
 import re
 import sys
 import binascii
-from lsst.daf.butler import ButlerURI
+from lsst.resources import ResourcePath
 
 
 def replace_placeholders(cmd_line, tag, replancements):
@@ -91,18 +91,18 @@ def deliver_input_files(src_path, files, skip_copy):
     """
 
     files = files.split('+')
-    src_uri = ButlerURI(src_path, forceDirectory=True)
+    src_uri = ResourcePath(src_path, forceDirectory=True)
     for file in files:
         file_name_placeholder, file_pfn = file.split(':')
         if file_name_placeholder not in skip_copy.split("+"):
             src = src_uri.join(file_pfn)
             base_dir = None
             if src.isdir():
-                files_to_copy = ButlerURI.findFileResources([src])
+                files_to_copy = ResourcePath.findFileResources([src])
                 base_dir = file_pfn
             else:
                 files_to_copy = [src]
-            dest_base = ButlerURI("", forceAbsolute=True, forceDirectory=True)
+            dest_base = ResourcePath("", forceAbsolute=True, forceDirectory=True)
             if base_dir:
                 dest_base = dest_base.join(base_dir)
             for file_to_copy in files_to_copy:
