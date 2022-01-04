@@ -50,7 +50,7 @@ class GenericWorkflowFile:
     within run.
     """
 
-    src_uri: str or None  # don't know that need ButlerURI
+    src_uri: str or None  # don't know that need ResourcePath
     """Original location of file/directory.
     """
 
@@ -93,7 +93,7 @@ class GenericWorkflowExec:
     within run.
     """
 
-    src_uri: str or None  # don't know that need ButlerURI
+    src_uri: str or None  # don't know that need ResourcePath
     """Original location of executable.
     """
 

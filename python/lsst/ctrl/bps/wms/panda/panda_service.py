@@ -26,7 +26,7 @@ import concurrent.futures
 
 from lsst.ctrl.bps.wms_service import BaseWmsWorkflow, BaseWmsService
 from lsst.ctrl.bps.wms.panda.idds_tasks import IDDSWorkflowGenerator
-from lsst.daf.butler import ButlerURI
+from lsst.resources import ResourcePath
 from idds.workflowv2.workflow import Workflow as IDDS_client_workflow, AndCondition
 from idds.doma.workflowv2.domapandawork import DomaPanDAWork
 import idds.common.utils as idds_utils
@@ -198,16 +198,16 @@ class PanDAService(BaseWmsService):
 
         # In case there are folders we iterate over its content
         for local_pfn in local_pfns.values():
+            folder_name = os.path.basename(local_pfn)
             if os.path.isdir(local_pfn):
-                files_in_folder = ButlerURI.findFileResources([local_pfn])
-                folder_name = os.path.basename(local_pfn)
+                files_in_folder = ResourcePath.findFileResources([local_pfn])
                 for file in files_in_folder:
                     file_name = file.basename()
-                    files_to_copy[file] = ButlerURI(os.path.join(file_distribution_uri,
-                                                                 folder_name, file_name))
+                    files_to_copy[file] = ResourcePath(os.path.join(file_distribution_uri,
+                                                                    folder_name, file_name))
             else:
-                files_to_copy[ButlerURI(local_pfn)] = ButlerURI(os.path.join(file_distribution_uri,
-                                                                             os.path.basename(local_pfn)))
+                files_to_copy[ResourcePath(local_pfn)] = ResourcePath(os.path.join(file_distribution_uri,
+                                                                                   folder_name))
 
         copy_executor = concurrent.futures.ThreadPoolExecutor(max_workers=10)
         future_file_copy = []
