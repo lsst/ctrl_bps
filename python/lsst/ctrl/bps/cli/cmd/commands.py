@@ -30,6 +30,7 @@ from ...drivers import (
     prepare_driver,
     submit_driver,
     report_driver,
+    restart_driver,
     cancel_driver
 )
 from .. import opt
@@ -43,7 +44,7 @@ class BpsCommand(MWCommand):
 
 @click.command(cls=BpsCommand)
 @opt.config_file_argument(required=True)
-@opt.SubmissionOptions()
+@opt.submission_options()
 def acquire(*args, **kwargs):
     """Create a new quantum graph or read existing one from a file.
     """
@@ -52,7 +53,7 @@ def acquire(*args, **kwargs):
 
 @click.command(cls=BpsCommand)
 @opt.config_file_argument(required=True)
-@opt.SubmissionOptions()
+@opt.submission_options()
 def cluster(*args, **kwargs):
     """Create a clustered quantum graph.
     """
@@ -61,7 +62,7 @@ def cluster(*args, **kwargs):
 
 @click.command(cls=BpsCommand)
 @opt.config_file_argument(required=True)
-@opt.SubmissionOptions()
+@opt.submission_options()
 def transform(*args, **kwargs):
     """Transform a quantum graph to a generic workflow.
     """
@@ -70,7 +71,8 @@ def transform(*args, **kwargs):
 
 @click.command(cls=BpsCommand)
 @opt.config_file_argument(required=True)
-@opt.SubmissionOptions()
+@opt.wms_service_option()
+@opt.submission_options()
 def prepare(*args, **kwargs):
     """Prepare a workflow for submission.
     """
@@ -79,7 +81,8 @@ def prepare(*args, **kwargs):
 
 @click.command(cls=BpsCommand)
 @opt.config_file_argument(required=True)
-@opt.SubmissionOptions()
+@opt.wms_service_option()
+@opt.submission_options()
 def submit(*args, **kwargs):
     """Submit a workflow for execution.
     """
@@ -87,9 +90,17 @@ def submit(*args, **kwargs):
 
 
 @click.command(cls=BpsCommand)
-@click.option("--wms", "wms_service",
-              default="lsst.ctrl.bps.wms.htcondor.htcondor_service.HTCondorService",
-              help="Workload Management System service class")
+@opt.wms_service_option()
+@click.option("--id", "run_id",
+              help="Run id of workflow to restart.")
+def restart(*args, **kwargs):
+    """Restart a failed workflow.
+    """
+    restart_driver(*args, **kwargs)
+
+
+@click.command(cls=BpsCommand)
+@opt.wms_service_option()
 @click.option("--id", "run_id",
               help="Restrict report to specific WMS run id.")
 @click.option("--user",
@@ -108,9 +119,7 @@ def report(*args, **kwargs):
 
 
 @click.command(cls=BpsCommand)
-@click.option("--wms", "wms_service",
-              default="lsst.ctrl.bps.wms.htcondor.htcondor_service.HTCondorService",
-              help="Workload Management System service class.")
+@opt.wms_service_option()
 @click.option("--id", "run_id",
               help="Run id of workflow to cancel.")
 @click.option("--user",

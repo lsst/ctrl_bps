@@ -141,14 +141,16 @@ If submission was successfully, it will output something like this:
 
 .. code-block:: bash
 
-   Submit dir: /home/jdoe/tmp/bps/submit/shared/pipecheck/20201111T13h34m08s
+   Submit dir: /home/jdoe/tmp/bps/submit/shared/pipecheck/20211117T155008Z
    Run Id: 176261
+   Run Name: u_jdoe_pipelines_check_20211117T155008Z
 
 Additional Submit Options
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
-See ``bps submit --help`` for more detailed information.
-Command-line values override values in the yaml file.
+See ``bps submit --help`` for more detailed information.  Command-line values
+override values in the yaml file. (You can find more about BPS precedence order
+in :ref:`this <bps-precedence-order>` section)
 
 **Pass-thru Arguments**
 
@@ -291,6 +293,60 @@ you can just do the following no matter if using HTCondor or Pegasus WMS plugin:
 
 .. __: https://htcondor.readthedocs.io/en/latest/man-pages/condor_rm.html
 .. __: https://pegasus.isi.edu/documentation/cli-pegasus-remove.php
+
+.. _bps-restart:
+
+Restarting a failed run
+-----------------------
+
+Restart a failed run with
+
+.. code-block:: bash
+
+   bps restart --id <id>
+
+where ``<id>`` is the id of the run that need to be restarted.  What the id is
+depends on the workflow management system the BPS is configured to use.  For
+example, if the BPS was configured to use the HTCondor, the only valid id is
+the submit directory. 
+
+If the restart completed successfully, the command will output something
+similar to:
+
+.. code-block::
+
+   Run Id: 21054.0
+   Run Name: u_jdoe_pipelines_check_20211117T155008Z
+
+At the moment a workflow will be restarted as it is, no configuration changes
+are possible.
+
+.. note::
+
+   When execution of a workflow is managed by HTCondor, the BPS is able to
+   instruct it to automatically retry jobs which failed due to exceeding their
+   memory allocation with increased memory requirements (see the documentation
+   of ``memoryMultiplier`` option for more details).  However, these increased
+   memory requirements are not preserved between restarts.  For example, if a
+   job initially run with 2 GB of memory and failed because of exceeding the
+   limit,  HTCondor will retry it with 4 GB of memory.  However, if the job and
+   as a result the entire workflow fails again due to other reasons, the job
+   will ask for 2 GB of memory during the first execution after the workflow is
+   restarted.
+
+.. _bps-precedence-order:
+
+BPS precedence order
+--------------------
+
+Some settings can be specified simultaneously in multiple places (e.g. with
+command-line option and in the config file).  The value of a setting is
+determined by following order:
+
+#. command-line option,
+#. config file (if used by a subcommand), 
+#. environment variable,
+#. package default.
 
 .. _bps-configuration-file:
 

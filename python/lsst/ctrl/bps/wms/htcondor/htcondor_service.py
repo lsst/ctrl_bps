@@ -33,6 +33,7 @@ from pathlib import Path
 from collections import defaultdict
 
 import htcondor
+from packaging import version
 
 from lsst.utils.timer import time_this
 from ... import (
@@ -54,13 +55,19 @@ from .lssthtc import (
     MISSING_ID,
     JobStatus,
     NodeStatus,
+    htc_backup_files,
     htc_check_dagman_output,
+    htc_create_submit_from_cmd,
+    htc_create_submit_from_dag,
+    htc_create_submit_from_file,
     htc_escape,
     htc_submit_dag,
+    htc_version,
     read_dag_info,
     read_dag_log,
     read_dag_status,
     read_node_status,
+    write_dag_info,
     condor_q,
     condor_search,
     condor_status,
@@ -138,13 +145,114 @@ class HTCondorService(BaseWmsService):
             A single HTCondor workflow to submit.  run_id is updated after
             successful submission to WMS.
         """
+        dag = workflow.dag
+
+        ver = version.parse(htc_version())
+        if ver >= version.parse("8.9.3"):
+            sub = htc_create_submit_from_dag(dag.graph["dag_filename"], {})
+        else:
+            sub = htc_create_submit_from_cmd(dag.graph["dag_filename"], {})
+
         # For workflow portability, internal paths are all relative. Hence
         # the DAG needs to be submitted to HTCondor from inside the submit
         # directory.
         with chdir(workflow.submit_path):
             _LOG.info("Submitting from directory: %s", os.getcwd())
-            htc_submit_dag(workflow.dag, {})
-            workflow.run_id = workflow.dag.run_id
+            schedd_dag_info = htc_submit_dag(sub)
+            if schedd_dag_info:
+                write_dag_info(f"{dag.name}.info.json", schedd_dag_info)
+
+                _, dag_info = schedd_dag_info.popitem()
+                _, dag_ad = dag_info.popitem()
+
+                dag.run_id = f"{dag_ad['ClusterId']}.{dag_ad['ProcId']}"
+                workflow.run_id = dag.run_id
+            else:
+                raise RuntimeError("Submission failed: unable to retrieve DAGMan job information")
+
+    def restart(self, wms_workflow_id):
+        """Restart a failed DAGMan workflow.
+
+        Parameters
+        ----------
+        wms_workflow_id : `str`
+            The directory with HTCondor files.
+
+        Returns
+        -------
+        run_id : `str`
+            HTCondor id of the restarted DAGMan job. If restart failed, it will
+            be set to None.
+        run_name : `str`
+            Name of the restarted workflow. If restart failed, it will be set
+            to None.
+        message : `str`
+            A message describing any issues encountered during the restart.
+            If there were no issues, an empty string is returned.
+        """
+        wms_path = Path(wms_workflow_id)
+        if not wms_path.is_dir():
+            return None, None, f"Directory '{wms_path}' not found"
+
+        _LOG.info("Restarting workflow from directory '%s'", wms_path)
+        rescue_dags = list(wms_path.glob("*.dag.rescue*"))
+        if not rescue_dags:
+            return None, None, f"HTCondor rescue DAG(s) not found in '{wms_path}'"
+
+        _LOG.info("Verifying that the workflow is not already in the job queue")
+        schedd_dag_info = condor_q(constraint=f'regexp("dagman$", Cmd) && Iwd == "{wms_workflow_id}"')
+        if schedd_dag_info:
+            _, dag_info = schedd_dag_info.popitem()
+            _, dag_ad = dag_info.popitem()
+            id_ = dag_ad["GlobalJobId"]
+            return None, None, f"Workflow already in the job queue (global job id: '{id_}')"
+
+        _LOG.info("Checking execution status of the workflow")
+        warn = False
+        dag_ad = read_dag_status(str(wms_path))
+        if dag_ad:
+            nodes_total = dag_ad.get("NodesTotal", 0)
+            if nodes_total != 0:
+                nodes_done = dag_ad.get("NodesDone", 0)
+                if nodes_total == nodes_done:
+                    return None, None, "All jobs in the workflow finished successfully"
+            else:
+                warn = True
+        else:
+            warn = True
+        if warn:
+            _LOG.warning("Cannot determine the execution status of the workflow, "
+                         "continuing with restart regardless")
+
+        _LOG.info("Backing up select HTCondor files from previous run attempt")
+        htc_backup_files(wms_path, subdir='backups')
+
+        # For workflow portability, internal paths are all relative. Hence
+        # the DAG needs to be resubmitted to HTCondor from inside the submit
+        # directory.
+        _LOG.info("Adding workflow to the job queue")
+        run_id, run_name, message = None, None, ""
+        with chdir(wms_path):
+            try:
+                dag_path = next(wms_path.glob('*.dag.condor.sub'))
+            except StopIteration:
+                message = f"DAGMan submit description file not found in '{wms_path}'"
+            else:
+                sub = htc_create_submit_from_file(dag_path.name)
+                schedd_dag_info = htc_submit_dag(sub)
+
+                # Save select information about the DAGMan job to a file. Use
+                # the run name (available in the ClassAd) as the filename.
+                if schedd_dag_info:
+                    dag_info = next(iter(schedd_dag_info.values()))
+                    dag_ad = next(iter(dag_info.values()))
+                    write_dag_info(f"{dag_ad['bps_run']}.info.json", schedd_dag_info)
+                    run_id = f"{dag_ad['ClusterId']}.{dag_ad['ProcId']}"
+                    run_name = dag_ad["bps_run"]
+                else:
+                    message = "DAGMan job information unavailable"
+
+        return run_id, run_name, message
 
     def list_submitted_jobs(self, wms_id=None, user=None, require_bps=True, pass_thru=None, is_global=False):
         """Query WMS for list of submitted WMS workflows/jobs.
@@ -858,8 +966,9 @@ def _report_from_id(wms_workflow_id, hist, schedds=None):
         # Find jobs (nodes) belonging to that DAGMan job.
         job_constraint = f"DAGManJobId == {int(float(dag_id))}"
         schedd_job_info = condor_search(constraint=job_constraint, hist=hist, schedds=schedds)
-        _, node_info = schedd_job_info.popitem()
-        job_info.update(node_info)
+        if schedd_job_info:
+            _, node_info = schedd_job_info.popitem()
+            job_info.update(node_info)
 
         # Collect additional pieces of information about jobs using HTCondor
         # files in the submission directory.

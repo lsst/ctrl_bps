@@ -21,7 +21,7 @@
 """Option groups for bps
 """
 
-__all__ = ["SubmissionOptions"]
+__all__ = ["submission_options"]
 
 from lsst.daf.butler.cli.utils import OptionGroup, option_section
 from lsst.ctrl.mpexec.cli.opt import (
@@ -33,16 +33,19 @@ from lsst.ctrl.mpexec.cli.opt import (
     pipeline_option,
     qgraph_option
 )
-from .options import (
+from . import (
     extra_qgraph_option,
     extra_init_option,
     extra_run_quantum_option
 )
 
 
-class SubmissionOptions(OptionGroup):
-    """Decorator to add options to a command function for any
-    stage during submission.
+# Using snake_case for a submission option group (a class) to keep the naming
+# convention consistent with other options or option groups in other Middleware
+# packages (e.g daf_butler, ctrl_mpexec).
+class submission_options(OptionGroup):  # noqa: N801
+    """Decorator to add options to a command function for any stage during
+    submission.
     """
 
     def __init__(self):

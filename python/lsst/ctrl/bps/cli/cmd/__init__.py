@@ -19,6 +19,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-__all__ = ["acquire", "cluster", "transform", "prepare", "submit", "report", "cancel"]
+__all__ = ["acquire", "cluster", "transform", "prepare", "submit", "restart", "report", "cancel"]
 
-from .commands import acquire, cluster, transform, prepare, submit, report, cancel
+from .commands import acquire, cluster, transform, prepare, submit, restart, report, cancel

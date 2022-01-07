@@ -22,15 +22,30 @@
 """Misc supporting classes and functions for BPS.
 """
 
+__all__ = [
+    "chdir",
+    "create_job_quantum_graph_filename",
+    "save_qg_subgraph",
+    "_create_execution_butler",
+    "create_count_summary",
+    "parse_count_summary",
+    "_dump_pkg_info",
+    "_dump_env_info",
+]
+
+import contextlib
 import dataclasses
+import logging
 import os
 import shlex
 import subprocess
-import contextlib
-import logging
-from pathlib import Path
-from enum import Enum
 from collections import Counter
+from enum import Enum
+from pathlib import Path
+
+import yaml
+
+from lsst.base import Packages
 
 
 _LOG = logging.getLogger(__name__)
@@ -52,8 +67,8 @@ def chdir(path):
 
     Parameters
     ----------
-    path : `str`
-        Path to be made current working directory
+    path : `str` or `pathlib.Path`
+        Path to be made current working directory.
     """
     cur_dir = os.getcwd()
     os.chdir(path)
@@ -166,7 +181,7 @@ def create_count_summary(counts):
 
     Parameters
     ----------
-    count : `collections.Counter` or `dict` [`str`, `int`]
+    counts : `collections.Counter` or `dict` [`str`, `int`]
         Mapping of counts to keys.
 
     Returns
@@ -201,3 +216,35 @@ def parse_count_summary(summary):
         label, count = part.split(":")
         counts[label] = count
     return counts
+
+
+def _dump_pkg_info(filename):
+    """Save information about versions of packages in use for future reference.
+
+    Parameters
+    ----------
+    filename : `str`
+        The name of the file where to save the information about the versions
+        of the packages.
+    """
+    file = Path(filename)
+    if file.suffix.lower() not in {".yaml", ".yml"}:
+        file = file.with_suffix(f"{file.suffix}.yaml")
+    packages = Packages.fromSystem()
+    packages.write(str(file))
+
+
+def _dump_env_info(filename):
+    """Save information about runtime environment for future reference.
+
+    Parameters
+    ----------
+    filename : `str`
+        The name of the file where to save the information about the runtime
+        environment.
+    """
+    file = Path(filename)
+    if file.suffix.lower() not in {".yaml", ".yml"}:
+        file = file.with_suffix(f"{file.suffix}.yaml")
+    with open(file, "w", encoding="utf-8") as fh:
+        yaml.dump(dict(os.environ), fh)

@@ -1,0 +1,1 @@
+Introduce a new command, ``restart``, that allows one to restart the failed workflow from the point of its failure. It restarts the workflow as it is just retrying failed jobs, no configuration changes are possible at the moment.

@@ -22,7 +22,13 @@
 """Base classes for working with a specific WMS"""
 
 
-__all__ = ["BaseWmsService", "BaseWmsWorkflow", "WmsJobReport", "WmsRunReport", "WmsStates"]
+__all__ = [
+    "BaseWmsService",
+    "BaseWmsWorkflow",
+    "WmsJobReport",
+    "WmsRunReport",
+    "WmsStates",
+]
 
 
 import logging
@@ -121,6 +127,29 @@ class BaseWmsService:
         ----------
         workflow : `lsst.ctrl.bps.BaseWmsWorkflow`
             Prepared WMS Workflow to submit for execution
+        """
+        raise NotImplementedError
+
+    def restart(self, wms_workflow_id):
+        """Restart a workflow from the point of failure.
+
+        Parameters
+        ----------
+        wms_workflow_id : `str`
+            Id that can be used by WMS service to identify workflow that
+            need to be restarted.
+
+        Returns
+        -------
+        wms_id : `str`
+            Id of the restarted workflow. If restart failed, it will be set
+            to None.
+        run_name : `str`
+            Name of the restarted workflow. If restart failed, it will be set
+            to None.
+        message : `str`
+            A message describing any issues encountered during the restart.
+            If there were no issue, an empty string is returned.
         """
         raise NotImplementedError
 

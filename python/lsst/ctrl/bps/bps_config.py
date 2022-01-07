@@ -23,21 +23,25 @@
 expands environment variables and other config variables.
 """
 
-__all__ = ["BPS_SEARCH_ORDER", "BpsConfig", "BpsFormatter"]
+__all__ = ["BPS_DEFAULTS", "BPS_SEARCH_ORDER", "BpsConfig", "BpsFormatter"]
 
 
-from os.path import expandvars
-import logging
 import copy
-import string
+import logging
 import re
-from importlib.resources import path as resources_path
+import string
+from importlib import resources
+from os.path import expandvars
 
 from lsst.daf.butler.core.config import Config
 
 from . import etc
 
 _LOG = logging.getLogger(__name__)
+
+# Using lsst.daf.butler.Config to resolve possible includes.
+with resources.path(etc, "bps_defaults.yaml") as path:
+    BPS_DEFAULTS = Config(str(path)).toDict()
 
 BPS_SEARCH_ORDER = ["bps_cmdline", "payload", "cluster", "pipetask", "site", "bps_defined"]
 
@@ -89,8 +93,7 @@ class BpsConfig(Config):
         if isinstance(other, str):
             # First load default config from ctrl_bps, then override with
             # user config.
-            with resources_path(etc, "bps_defaults.yaml") as bps_defaults:
-                tmp_config = Config(str(bps_defaults))
+            tmp_config = Config(BPS_DEFAULTS)
             user_config = Config(other)
             tmp_config.update(user_config)
             other = tmp_config
