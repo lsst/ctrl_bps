@@ -563,10 +563,11 @@ def _create_job(subdir_template, site_values, generic_workflow, gwjob, out_prefi
         "transfer_executable": "False",
         "getenv": "True",
 
-        # Exceeding memory sometimes triggering SIGBUS error. Tell htcondor
-        # to put SIGBUS jobs on hold.
-        "on_exit_hold": "(ExitBySignal == true) && (ExitSignal == 7)",
-        "on_exit_hold_reason": '"Job raised a signal 7.  Usually means job has gone over memory limit."',
+        # Exceeding memory sometimes triggering SIGBUS or SIGSEGV error. Tell
+        # htcondor to put on hold any jobs which exited by a signal.
+        "on_exit_hold": "ExitBySignal == true",
+        "on_exit_hold_reason": 'strcat("Job raised a signal ", string(ExitSignal), ". ", '
+                               '"Handling signal as if job has gone over memory limit.")',
         "on_exit_hold_subcode": "34"
     }
 
