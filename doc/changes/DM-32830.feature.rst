@@ -1,0 +1,3 @@
+* New panda_auth command for handling PanDA authentication token.
+  Includes status, reset, and clean capabilities.
+* Added early check of PanDA authentication token in submission process.

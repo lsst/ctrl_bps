@@ -26,6 +26,7 @@ import concurrent.futures
 
 from lsst.ctrl.bps.wms_service import BaseWmsWorkflow, BaseWmsService
 from lsst.ctrl.bps.wms.panda.idds_tasks import IDDSWorkflowGenerator
+from lsst.ctrl.bps.wms.panda.panda_auth_utils import panda_auth_update
 from lsst.resources import ResourcePath
 from idds.workflowv2.workflow import Workflow as IDDS_client_workflow, AndCondition
 from idds.doma.workflowv2.domapandawork import DomaPanDAWork
@@ -154,11 +155,21 @@ class PanDAService(BaseWmsService):
                 conditions.append(work.is_terminated)
             and_cond = AndCondition(conditions=conditions, true_works=[DAG_final_work])
             idds_client_workflow.add_condition(and_cond)
+        _, idds_server = self.config.search("iddsServer", opt={"default": None})
         c = pandaclient.idds_api.get_api(idds_utils.json_dumps,
-                                         idds_host=self.config.get('idds_server'),
+                                         idds_host=idds_server,
                                          compress=True, manager=True)
-        request_id = c.submit(idds_client_workflow, username=None, use_dataset_name=False)
-        _LOG.info("Submitted into iDDs with request id=%s", str(request_id))
+        ret = c.submit(idds_client_workflow, username=None, use_dataset_name=False)
+        _LOG.debug("iDDS client manager submit returned = %s", str(ret))
+
+        # Check submission success
+        # https://panda-wms.readthedocs.io/en/latest/client/rest_idds.html
+        if ret[0] == 0 and ret[1][0]:
+            request_id = int(ret[1][-1])
+        else:
+            raise RuntimeError(f"Error submitting to PanDA service: {str(ret)}")
+
+        _LOG.info("Submitted into iDDs with request id=%s", request_id)
         workflow.run_id = request_id
 
     @staticmethod
@@ -264,6 +275,19 @@ class PanDAService(BaseWmsService):
         message = ""
         run_reports = None
         return run_reports, message
+
+    def run_submission_checks(self):
+        """Checks to run at start if running WMS specific submission steps.
+
+        Any exception other than NotImplementedError will halt submission.
+        Submit directory may not yet exist when this is called.
+        """
+        for key in ["PANDA_URL", "IDDS_CONFIG"]:
+            if key not in os.environ:
+                raise OSError(f"Missing environment variable {key}")
+
+        _, idds_server = self.config.search("iddsServer", opt={"default": None})
+        panda_auth_update(idds_server, reset=False)
 
 
 class PandaBpsWmsWorkflow(BaseWmsWorkflow):
