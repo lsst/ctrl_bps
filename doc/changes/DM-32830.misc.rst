@@ -1,0 +1,2 @@
+* Changed printing of submit directory early.
+* Changed PanDA plugin to only print the numeric id when outputing the request/run id.
