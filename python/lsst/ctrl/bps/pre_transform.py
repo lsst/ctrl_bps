@@ -34,12 +34,14 @@ from lsst.daf.butler import DimensionUniverse
 from lsst.pipe.base.graph import QuantumGraph
 from lsst.utils import doImport
 from lsst.ctrl.bps.bps_utils import _create_execution_butler
-from lsst.utils.timer import time_this
+from lsst.utils.logging import VERBOSE
+from lsst.utils.timer import time_this, timeMethod
 
 
 _LOG = logging.getLogger(__name__)
 
 
+@timeMethod(logger=_LOG, logLevel=VERBOSE)
 def acquire_quantum_graph(config, out_prefix=""):
     """Read a quantum graph from a file or create one from scratch.
 

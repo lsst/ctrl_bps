@@ -24,6 +24,7 @@
 
 __all__ = [
     "chdir",
+    "get_mem_peaks",
     "create_job_quantum_graph_filename",
     "save_qg_subgraph",
     "_create_execution_butler",
@@ -37,6 +38,8 @@ import contextlib
 import dataclasses
 import logging
 import os
+import platform
+import resource
 import shlex
 import subprocess
 from collections import Counter
@@ -76,6 +79,34 @@ def chdir(path):
         yield
     finally:
         os.chdir(cur_dir)
+
+
+def get_mem_peaks():
+    """Report peak memory usage.
+
+    Returns
+    -------
+    peak_proc: `float`
+        Peak memory usage (maximum resident set size) of the calling process,
+        in gigabytes.
+    peak_child: `float`
+        Peak memory usage (resident set size) of the largest child process,
+        in gigabytes.
+
+    Notes
+    -----
+    Function reports peak memory usage using the maximum resident set size as
+    a proxy. As such the value it reports is capped at available physical RAM
+    and may not reflect the actual maximal value.
+    """
+    # Units getrusage(2) uses to report the maximum resident set size are
+    # platform dependent (kilobytes on Linux, bytes on OSX).
+    multiplier = 1024 if platform.system() == "Linux" else 1
+
+    gb = float(2**30)
+    peak_main = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    peak_child = resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss
+    return peak_main * multiplier / gb, peak_child * multiplier / gb
 
 
 def create_job_quantum_graph_filename(config, job, out_prefix=None):

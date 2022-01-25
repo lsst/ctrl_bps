@@ -1,0 +1,1 @@
+Select BPS commands now report apporximate memory usage during their execution.

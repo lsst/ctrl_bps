@@ -29,7 +29,8 @@ import re
 import dataclasses
 import copy
 
-from lsst.utils.timer import time_this
+from lsst.utils.logging import VERBOSE
+from lsst.utils.timer import time_this, timeMethod
 
 from . import (
     DEFAULT_MEM_RETRIES,
@@ -81,6 +82,7 @@ _ATTRS_UNIVERSAL = frozenset(_ATTRS_ALL - (_ATTRS_MAX | _ATTRS_MISC | _ATTRS_SUM
 _LOG = logging.getLogger(__name__)
 
 
+@timeMethod(logger=_LOG, logLevel=VERBOSE)
 def transform(config, cqgraph, prefix):
     """Transform a ClusteredQuantumGraph to a GenericWorkflow.
 
@@ -104,7 +106,8 @@ def transform(config, cqgraph, prefix):
     if when_create.upper() == "TRANSFORM":
         _, execution_butler_dir = config.search(".bps_defined.executionButlerDir")
         _LOG.info("Creating execution butler in '%s'", execution_butler_dir)
-        with time_this(log=_LOG, level=logging.INFO, prefix=None, msg="Creating execution butler completed"):
+        with time_this(log=_LOG, level=logging.INFO, prefix=None, msg="Creating execution butler completed",
+                       mem=True, unit="GB"):
             _create_execution_butler(config, config["runQgraphFile"], execution_butler_dir, prefix)
 
     if cqgraph.name is not None:
