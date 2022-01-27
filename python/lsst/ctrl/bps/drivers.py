@@ -157,6 +157,7 @@ def _init_submission_driver(config_file, **kwargs):
             reason = exc.strerror
         raise type(exc)(f"cannot create submit directory '{submit_path}': {reason}") from None
     config[".bps_defined.submitPath"] = str(submit_path)
+    print(f"Submit dir: {submit_path}")
 
     # save copy of configs (orig and expanded config)
     shutil.copy2(config_file, submit_path)
@@ -288,7 +289,6 @@ def prepare_driver(config_file, **kwargs):
         wms_workflow = prepare(generic_workflow_config, generic_workflow, submit_path)
 
     wms_workflow_config = generic_workflow_config
-    print(f"Submit dir: {wms_workflow.submit_path}")
     return wms_workflow_config, wms_workflow
 
 

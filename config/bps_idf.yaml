@@ -3,6 +3,9 @@ iddsServer: "https://aipanda015.cern.ch:443/idds"
 placeholderParams: ['qgraphNodeId', 'qgraphId']
 defaultPreCmdOpts: "--long-log --log-level=VERBOSE --log-file payload-log.json"
 
+# Limit the number of jobs in a single PanDA task
+maxJobsPerTask: 70000
+
 #IDF PanDA specific settings:
 computeSite: LSST
 payload:
