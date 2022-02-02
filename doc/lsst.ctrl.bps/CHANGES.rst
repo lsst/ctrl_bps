@@ -1,3 +1,28 @@
+ctrl_bps v23.0.1 2022-02-02
+===========================
+
+New Features
+------------
+
+- Check early in submission process that can import WMS service class and run
+  any pre-submission checks provided by the WMS plugin. (`DM-32199 <https://jira.lsstcorp.org/browse/DM-32199>`_)
+- * Large tasks (> 30k jobs) splitted into chunks
+  * Updated iDDS API usage for the most recent version
+  * Updated iDDS API initialization to force PanDA proxy using the IAM user name for submitted workflow
+  * Added limit on number of characters in the task pseudo inputs (`DM-32675 <https://jira.lsstcorp.org/browse/DM-32675>`_)
+- * New ``panda_auth`` command for handling PanDA authentication token.
+    Includes status, reset, and clean capabilities.
+  * Added early check of PanDA authentication token in submission process. (`DM-32830 <https://jira.lsstcorp.org/browse/DM-32830>`_)
+
+
+Other Changes and Additions
+---------------------------
+
+- * Changed printing of submit directory early.
+  * Changed PanDA plugin to only print the numeric id when outputing the request/run id.
+  * Set maximum number of jobs in a PanDA task (maxJobsPerTask) to 70000 in config/bps_idf.yaml. (`DM-32830 <https://jira.lsstcorp.org/browse/DM-32830>`_)
+
+
 ctrl_bps v23.0.0 2021-12-10
 ===========================
 

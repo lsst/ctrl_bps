@@ -1,4 +1,0 @@
-* Large tasks (> 30k jobs) splitted into chunks
-* Updated iDDS API usage for the most recent version
-* Updated iDDS API initialization to force PanDA proxy using the IAM user name for submitted workflow
-* Added limit on number of characters in the task pseudo inputs
