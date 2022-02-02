@@ -1,3 +1,0 @@
-* Changed printing of submit directory early.
-* Changed PanDA plugin to only print the numeric id when outputing the request/run id.
-* Set maximum number of jobs in a PanDA task (maxJobsPerTask) to 70000 in config/bps_idf.yaml.
