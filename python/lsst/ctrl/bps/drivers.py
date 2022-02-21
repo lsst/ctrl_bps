@@ -50,8 +50,9 @@ from pathlib import Path
 from lsst.obs.base import Instrument
 from lsst.utils import doImport
 from lsst.utils.timer import time_this
+from lsst.utils.usage import get_peak_mem_usage
 
-from . import BPS_DEFAULTS, BPS_SEARCH_ORDER, BpsConfig
+from . import BPS_DEFAULTS, BPS_SEARCH_ORDER, BpsConfig, DEFAULT_MEM_UNIT, DEFAULT_MEM_FMT
 from .pre_transform import acquire_quantum_graph, cluster_quanta
 from .transform import transform
 from .prepare import prepare
@@ -59,7 +60,7 @@ from .submit import submit
 from .cancel import cancel
 from .report import report
 from .restart import restart
-from .bps_utils import _dump_env_info, _dump_pkg_info, get_mem_peaks
+from .bps_utils import _dump_env_info, _dump_pkg_info
 
 
 _LOG = logging.getLogger(__name__)
@@ -188,18 +189,21 @@ def acquire_qgraph_driver(config_file, **kwargs):
     """
     _LOG.info("Initializing execution environment")
     with time_this(log=_LOG, level=logging.INFO, prefix=None,
-                   msg="Initializing execution environment completed", mem_usage=True, mem_units="GB"):
+                   msg="Initializing execution environment completed", mem_usage=True,
+                   mem_unit=DEFAULT_MEM_UNIT, mem_fmt=DEFAULT_MEM_FMT):
         config = _init_submission_driver(config_file, **kwargs)
         submit_path = config[".bps_defined.submitPath"]
-    _LOG.info("Peak memory usage for bps process %.3f GB (main), %.3f GB (largest child process)",
-              *get_mem_peaks())
+    if _LOG.isEnabledFor(logging.INFO):
+        _LOG.info("Peak memory usage for bps process %s (main), %s (largest child process)",
+                  *tuple(f"{val.to(DEFAULT_MEM_UNIT):{DEFAULT_MEM_FMT}}" for val in get_peak_mem_usage()))
 
     _LOG.info("Starting acquire stage (generating and/or reading quantum graph)")
     with time_this(log=_LOG, level=logging.INFO, prefix=None, msg="Acquire stage completed", mem_usage=True,
-                   mem_units="GB"):
+                   mem_unit=DEFAULT_MEM_UNIT, mem_fmt=DEFAULT_MEM_FMT):
         qgraph_file, qgraph, execution_butler_dir = acquire_quantum_graph(config, out_prefix=submit_path)
-    _LOG.info("Peak memory usage for bps process %.3f GB (main), %.3f GB (largest child process)",
-              *get_mem_peaks())
+    if _LOG.isEnabledFor(logging.INFO):
+        _LOG.info("Peak memory usage for bps process %s (main), %s (largest child process)",
+                  *tuple(f"{val.to(DEFAULT_MEM_UNIT):{DEFAULT_MEM_FMT}}" for val in get_peak_mem_usage()))
 
     config[".bps_defined.executionButlerDir"] = execution_butler_dir
     config[".bps_defined.runQgraphFile"] = qgraph_file
@@ -225,10 +229,11 @@ def cluster_qgraph_driver(config_file, **kwargs):
 
     _LOG.info("Starting cluster stage (grouping quanta into jobs)")
     with time_this(log=_LOG, level=logging.INFO, prefix=None, msg="Cluster stage completed", mem_usage=True,
-                   mem_units="GB"):
+                   mem_unit=DEFAULT_MEM_UNIT, mem_fmt=DEFAULT_MEM_FMT):
         clustered_qgraph = cluster_quanta(config, qgraph, config["uniqProcName"])
-    _LOG.info("Peak memory usage for bps process %.3f GB (main), %.3f GB (largest child process)",
-              *get_mem_peaks())
+    if _LOG.isEnabledFor(logging.INFO):
+        _LOG.info("Peak memory usage for bps process %s (main), %s (largest child process)",
+                  *tuple(f"{val.to(DEFAULT_MEM_UNIT):{DEFAULT_MEM_FMT}}" for val in get_peak_mem_usage()))
 
     submit_path = config[".bps_defined.submitPath"]
     _, save_clustered_qgraph = config.search("saveClusteredQgraph", opt={"default": False})
@@ -261,11 +266,12 @@ def transform_driver(config_file, **kwargs):
 
     _LOG.info("Starting transform stage (creating generic workflow)")
     with time_this(log=_LOG, level=logging.INFO, prefix=None, msg="Transform stage completed", mem_usage=True,
-                   mem_units="GB"):
+                   mem_unit=DEFAULT_MEM_UNIT, mem_fmt=DEFAULT_MEM_FMT):
         generic_workflow, generic_workflow_config = transform(config, clustered_qgraph, submit_path)
         _LOG.info("Generic workflow name '%s'", generic_workflow.name)
-    _LOG.info("Peak memory usage for bps process %.3f GB (main), %.3f GB (largest child process)",
-              *get_mem_peaks())
+    if _LOG.isEnabledFor(logging.INFO):
+        _LOG.info("Peak memory usage for bps process %s (main), %s (largest child process)",
+                  *tuple(f"{val.to(DEFAULT_MEM_UNIT):{DEFAULT_MEM_FMT}}" for val in get_peak_mem_usage()))
 
     _, save_workflow = config.search("saveGenericWorkflow", opt={"default": False})
     if save_workflow:
@@ -300,10 +306,11 @@ def prepare_driver(config_file, **kwargs):
 
     _LOG.info("Starting prepare stage (creating specific implementation of workflow)")
     with time_this(log=_LOG, level=logging.INFO, prefix=None, msg="Prepare stage completed", mem_usage=True,
-                   mem_units="GB"):
+                   mem_unit=DEFAULT_MEM_UNIT, mem_fmt=DEFAULT_MEM_FMT):
         wms_workflow = prepare(generic_workflow_config, generic_workflow, submit_path)
-    _LOG.info("Peak memory usage for bps process %.3f GB (main), %.3f GB (largest child process)",
-              *get_mem_peaks())
+    if _LOG.isEnabledFor(logging.INFO):
+        _LOG.info("Peak memory usage for bps process %s (main), %s (largest child process)",
+                  *tuple(f"{val.to(DEFAULT_MEM_UNIT):{DEFAULT_MEM_FMT}}" for val in get_peak_mem_usage()))
 
     wms_workflow_config = generic_workflow_config
     return wms_workflow_config, wms_workflow
@@ -324,16 +331,17 @@ def submit_driver(config_file, **kwargs):
 
     _LOG.info("Starting submission process")
     with time_this(log=_LOG, level=logging.INFO, prefix=None, msg="Completed entire submission process",
-                   mem_usage=True, mem_units="GB"):
+                   mem_usage=True, mem_unit=DEFAULT_MEM_UNIT, mem_fmt=DEFAULT_MEM_FMT):
         wms_workflow_config, wms_workflow = prepare_driver(config_file, **kwargs)
 
         _LOG.info("Starting submit stage")
         with time_this(log=_LOG, level=logging.INFO, prefix=None, msg="Completed submit stage",
-                       mem_usage=True, mem_units="GB"):
+                       mem_usage=True, mem_unit=DEFAULT_MEM_UNIT, mem_fmt=DEFAULT_MEM_FMT):
             submit(wms_workflow_config, wms_workflow)
             _LOG.info("Run '%s' submitted for execution with id '%s'", wms_workflow.name, wms_workflow.run_id)
-    _LOG.info("Peak memory usage for bps process %.3f GB (main), %.3f GB (largest child process)",
-              *get_mem_peaks())
+    if _LOG.isEnabledFor(logging.INFO):
+        _LOG.info("Peak memory usage for bps process %s (main), %s (largest child process)",
+                  *tuple(f"{val.to(DEFAULT_MEM_UNIT):{DEFAULT_MEM_FMT}}" for val in get_peak_mem_usage()))
 
     print(f"Run Id: {wms_workflow.run_id}")
     print(f"Run Name: {wms_workflow.name}")

@@ -126,14 +126,13 @@ class HTCondorService(BaseWmsService):
             HTCondor workflow ready to be run.
         """
         _LOG.debug("out_prefix = '%s'", out_prefix)
-        with time_this(log=_LOG, level=logging.INFO, prefix=None, msg="Completed HTCondor workflow creation",
-                       mem_usage=True, mem_units="GB"):
+        with time_this(log=_LOG, level=logging.INFO, prefix=None, msg="Completed HTCondor workflow creation"):
             workflow = HTCondorWorkflow.from_generic_workflow(config, generic_workflow, out_prefix,
                                                               f"{self.__class__.__module__}."
                                                               f"{self.__class__.__name__}")
 
         with time_this(log=_LOG, level=logging.INFO, prefix=None,
-                       msg="Completed writing out HTCondor workflow", mem_usage=True, mem_units="GB"):
+                       msg="Completed writing out HTCondor workflow"):
             workflow.write(out_prefix)
         return workflow
 

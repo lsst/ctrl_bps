@@ -106,8 +106,7 @@ def transform(config, cqgraph, prefix):
     if when_create.upper() == "TRANSFORM":
         _, execution_butler_dir = config.search(".bps_defined.executionButlerDir")
         _LOG.info("Creating execution butler in '%s'", execution_butler_dir)
-        with time_this(log=_LOG, level=logging.INFO, prefix=None, msg="Creating execution butler completed",
-                       mem=True, unit="GB"):
+        with time_this(log=_LOG, level=logging.INFO, prefix=None, msg="Creating execution butler completed"):
             _create_execution_butler(config, config["runQgraphFile"], execution_butler_dir, prefix)
 
     if cqgraph.name is not None:

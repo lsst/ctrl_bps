@@ -22,11 +22,23 @@
 """Symbolic constants
 """
 
+from astropy import units as u
+
 __all__ = [
     "DEFAULT_MEM_RETRIES",
+    "DEFAULT_MEM_UNIT",
+    "DEFAULT_MEM_FMT",
 ]
 
 
 DEFAULT_MEM_RETRIES = 5
 """Default number of retries when memory autoscaling is enabled.
+"""
+
+DEFAULT_MEM_UNIT = u.gibibyte
+"""Default unit to use when reporting memory consumption.
+"""
+
+DEFAULT_MEM_FMT = ".3f"
+"""Default format specifier to use when reporting memory consumption.
 """
