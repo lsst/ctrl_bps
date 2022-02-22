@@ -24,12 +24,14 @@
 import logging
 
 from lsst.utils import doImport
-from lsst.utils.timer import time_this
+from lsst.utils.logging import VERBOSE
+from lsst.utils.timer import time_this, timeMethod
 from lsst.ctrl.bps.bps_utils import _create_execution_butler
 
 _LOG = logging.getLogger(__name__)
 
 
+@timeMethod(logger=_LOG, logLevel=VERBOSE)
 def submit(config, wms_workflow, wms_service=None):
     """Convert generic workflow to a workflow for a particular WMS.
 

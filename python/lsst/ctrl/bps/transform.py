@@ -29,7 +29,8 @@ import re
 import dataclasses
 import copy
 
-from lsst.utils.timer import time_this
+from lsst.utils.logging import VERBOSE
+from lsst.utils.timer import time_this, timeMethod
 
 from . import (
     DEFAULT_MEM_RETRIES,
@@ -81,6 +82,7 @@ _ATTRS_UNIVERSAL = frozenset(_ATTRS_ALL - (_ATTRS_MAX | _ATTRS_MISC | _ATTRS_SUM
 _LOG = logging.getLogger(__name__)
 
 
+@timeMethod(logger=_LOG, logLevel=VERBOSE)
 def transform(config, cqgraph, prefix):
     """Transform a ClusteredQuantumGraph to a GenericWorkflow.
 
