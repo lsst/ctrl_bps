@@ -24,6 +24,5 @@ __all__ = ["config_file_argument"]
 
 
 config_file_argument = MWArgumentDecorator(
-    "config_file",
-    help="CONFIG_FILE is the file with Batch Processing Service configuration."
+    "config_file", help="CONFIG_FILE is the file with Batch Processing Service configuration."
 )

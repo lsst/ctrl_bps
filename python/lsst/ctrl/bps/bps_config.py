@@ -52,8 +52,8 @@ _NO_SEARCH_DEFAULT_VALUE = "__NO_SEARCH_DEFAULT_VALUE__"
 
 
 class BpsFormatter(string.Formatter):
-    """String formatter class that allows BPS config search options.
-    """
+    """String formatter class that allows BPS config search options."""
+
     def get_field(self, field_name, args, kwargs):
         _, val = args[0].search(field_name, opt=args[1])
         return val, field_name
@@ -74,6 +74,7 @@ class BpsConfig(Config):
     search_order : `list` [`str`], optional
         Root section names in the order in which they should be searched.
     """
+
     def __init__(self, other, search_order=None):
         # In BPS config, the same setting can be defined multiple times in
         # different sections.  The sections are search in a pre-defined

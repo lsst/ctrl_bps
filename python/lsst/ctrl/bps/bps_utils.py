@@ -44,21 +44,19 @@ from enum import Enum
 from pathlib import Path
 
 import yaml
-
 from lsst.utils.packages import Packages
-
 
 _LOG = logging.getLogger(__name__)
 
 
 class WhenToSaveQuantumGraphs(Enum):
-    """Values for when to save the job quantum graphs.
-    """
-    QGRAPH = 1   # Must be using single_quantum_clustering algorithm.
+    """Values for when to save the job quantum graphs."""
+
+    QGRAPH = 1  # Must be using single_quantum_clustering algorithm.
     TRANSFORM = 2
     PREPARE = 3
     SUBMIT = 4
-    NEVER = 5    # Always use full QuantumGraph.
+    NEVER = 5  # Always use full QuantumGraph.
 
 
 @contextlib.contextmanager
@@ -100,7 +98,7 @@ def create_job_quantum_graph_filename(config, job, out_prefix=None):
     curvals = dataclasses.asdict(job)
     if job.tags:
         curvals.update(job.tags)
-    found, subdir = config.search("subDirTemplate", opt={'curvals': curvals})
+    found, subdir = config.search("subDirTemplate", opt={"curvals": curvals})
     if not found:
         subdir = "{job.label}"
     full_filename = Path("inputs") / subdir / f"quantum_{job.name}.qgraph"
@@ -153,10 +151,13 @@ def _create_execution_butler(config, qgraph_filename, execution_butler_dir, out_
         Raised if command to create execution butler exits with non-zero
         exit code.
     """
-    _, command = config.search(".executionButler.createCommand",
-                               opt={"curvals": {"executionButlerDir": execution_butler_dir,
-                                                "qgraphFile": qgraph_filename},
-                                    "replaceVars": True})
+    _, command = config.search(
+        ".executionButler.createCommand",
+        opt={
+            "curvals": {"executionButlerDir": execution_butler_dir, "qgraphFile": qgraph_filename},
+            "replaceVars": True,
+        },
+    )
     out_filename = "execution_butler_creation.out"
     if out_prefix is not None:
         out_filename = os.path.join(out_prefix, out_filename)

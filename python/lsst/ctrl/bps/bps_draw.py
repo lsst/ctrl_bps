@@ -22,8 +22,8 @@
 """Functions used to draw BPS graphs.
 """
 import logging
-import networkx
 
+import networkx
 
 _LOG = logging.getLogger(__name__)
 

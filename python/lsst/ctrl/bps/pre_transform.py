@@ -30,13 +30,12 @@ import shlex
 import shutil
 import subprocess
 
+from lsst.ctrl.bps.bps_utils import _create_execution_butler
 from lsst.daf.butler import DimensionUniverse
 from lsst.pipe.base.graph import QuantumGraph
 from lsst.utils import doImport
-from lsst.ctrl.bps.bps_utils import _create_execution_butler
 from lsst.utils.logging import VERBOSE
 from lsst.utils.timer import time_this, timeMethod
-
 
 _LOG = logging.getLogger(__name__)
 
@@ -66,7 +65,7 @@ def acquire_quantum_graph(config, out_prefix=""):
     """
     # consistently name execution butler directory
     _, execution_butler_dir = config.search("executionButlerTemplate")
-    if not execution_butler_dir.startswith('/'):
+    if not execution_butler_dir.startswith("/"):
         execution_butler_dir = os.path.join(config["submitPath"], execution_butler_dir)
     _, when_create = config.search(".executionButler.whenCreate")
 
@@ -92,8 +91,9 @@ def acquire_quantum_graph(config, out_prefix=""):
 
             # Save a copy of the execution butler file in out_prefix.
             _LOG.info("Copying execution butler to '%s'", user_exec_butler_dir)
-            with time_this(log=_LOG, level=logging.INFO, prefix=None,
-                           msg="Completed copying execution butler"):
+            with time_this(
+                log=_LOG, level=logging.INFO, prefix=None, msg="Completed copying execution butler"
+            ):
                 shutil.copytree(user_exec_butler_dir, execution_butler_dir)
     else:
         if when_create.upper() == "USER_PROVIDED":
@@ -110,8 +110,10 @@ def acquire_quantum_graph(config, out_prefix=""):
 
     if when_create.upper() == "QGRAPH_CMDLINE":
         if not os.path.exists(execution_butler_dir):
-            raise OSError(f"Missing execution butler dir ({execution_butler_dir}) after "
-                          f"creating QuantumGraph (whenMakeExecutionButler == QGRAPH_CMDLINE")
+            raise OSError(
+                f"Missing execution butler dir ({execution_butler_dir}) after "
+                f"creating QuantumGraph (whenMakeExecutionButler == QGRAPH_CMDLINE"
+            )
     elif when_create.upper() == "ACQUIRE":
         _create_execution_butler(config, qgraph_filename, execution_butler_dir, config["submitPath"])
 
@@ -138,8 +140,7 @@ def execute(command, filename):
         print(command, file=fh)
         print("\n", file=fh)  # Note: want a blank line
         process = subprocess.Popen(
-            shlex.split(command), shell=False, stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT
+            shlex.split(command), shell=False, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
         )
         buffer = os.read(process.stdout.fileno(), buffer_size).decode()
         while process.poll is None or buffer:
@@ -170,7 +171,7 @@ def create_quantum_graph(config, out_prefix=""):
         Name of file containing generated QuantumGraph.
     """
     # Create name of file to store QuantumGraph.
-    qgraph_filename = os.path.join(out_prefix, config['qgraphFileTemplate'])
+    qgraph_filename = os.path.join(out_prefix, config["qgraphFileTemplate"])
 
     # Get QuantumGraph generation command.
     search_opt = {"curvals": {"qgraphFile": qgraph_filename}}
@@ -183,8 +184,10 @@ def create_quantum_graph(config, out_prefix=""):
     out = os.path.join(out_prefix, "quantumGraphGeneration.out")
     status = execute(cmd, out)
     if status != 0:
-        raise RuntimeError(f"QuantumGraph generation exited with non-zero exit code ({status})\n"
-                           f"Check {out} for more details.")
+        raise RuntimeError(
+            f"QuantumGraph generation exited with non-zero exit code ({status})\n"
+            f"Check {out} for more details."
+        )
     return qgraph_filename
 
 

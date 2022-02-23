@@ -31,46 +31,45 @@ __all__ = [
 ]
 
 
-import logging
 import dataclasses
+import logging
 from abc import ABCMeta
 from enum import Enum
-
 
 _LOG = logging.getLogger(__name__)
 
 
 class WmsStates(Enum):
-    """Run and job states
-    """
-    UNKNOWN = 0         # Can't determine state
-    MISFIT = 1          # Determined state, but doesn't fit other states
-    UNREADY = 2         # Still waiting for parents to finish
-    READY = 3           # All of its parents have finished successfully
-    PENDING = 4         # Ready to run, visible in batch queue
-    RUNNING = 5         # Currently running
-    DELETED = 6         # In the process of being deleted or already deleted
-    HELD = 7            # In a hold state
-    SUCCEEDED = 8       # Have completed with success status
-    FAILED = 9          # Have completed with non-success status
+    """Run and job states"""
+
+    UNKNOWN = 0  # Can't determine state
+    MISFIT = 1  # Determined state, but doesn't fit other states
+    UNREADY = 2  # Still waiting for parents to finish
+    READY = 3  # All of its parents have finished successfully
+    PENDING = 4  # Ready to run, visible in batch queue
+    RUNNING = 5  # Currently running
+    DELETED = 6  # In the process of being deleted or already deleted
+    HELD = 7  # In a hold state
+    SUCCEEDED = 8  # Have completed with success status
+    FAILED = 9  # Have completed with non-success status
 
 
 @dataclasses.dataclass
 class WmsJobReport:
-    """WMS job information to be included in detailed report output
-    """
+    """WMS job information to be included in detailed report output"""
+
     wms_id: str
     name: str
     label: str
     state: WmsStates
 
-    __slots__ = ('wms_id', 'name', 'label', 'state')
+    __slots__ = ("wms_id", "name", "label", "state")
 
 
 @dataclasses.dataclass
 class WmsRunReport:
-    """WMS run information to be included in detailed report output
-    """
+    """WMS run information to be included in detailed report output"""
+
     wms_id: str
     global_wms_id: str
     path: str
@@ -86,8 +85,22 @@ class WmsRunReport:
     total_number_jobs: int
     job_state_counts: dict
 
-    __slots__ = ('wms_id', 'global_wms_id', 'path', 'label', 'run', 'project', 'campaign', 'payload',
-                 'operator', 'run_summary', 'state', 'total_number_jobs', 'jobs', 'job_state_counts')
+    __slots__ = (
+        "wms_id",
+        "global_wms_id",
+        "path",
+        "label",
+        "run",
+        "project",
+        "campaign",
+        "payload",
+        "operator",
+        "run_summary",
+        "state",
+        "total_number_jobs",
+        "jobs",
+        "job_state_counts",
+    )
 
 
 class BaseWmsService:
@@ -98,6 +111,7 @@ class BaseWmsService:
     config : `lsst.ctrl.bps.BpsConfig`
         Configuration needed by the WMS service.
     """
+
     def __init__(self, config):
         self.config = config
 
@@ -257,6 +271,7 @@ class BaseWmsWorkflow(metaclass=ABCMeta):
     config : `lsst.ctrl.bps.BpsConfig`
         Generic workflow config.
     """
+
     def __init__(self, name, config):
         self.name = name
         self.config = config
@@ -265,8 +280,7 @@ class BaseWmsWorkflow(metaclass=ABCMeta):
         self.submit_path = None
 
     @classmethod
-    def from_generic_workflow(cls, config, generic_workflow, out_prefix,
-                              service_class):
+    def from_generic_workflow(cls, config, generic_workflow, out_prefix, service_class):
         """Create a WMS-specific workflow from a GenericWorkflow
 
         Parameters

@@ -62,22 +62,21 @@ __all__ = [
 
 
 import itertools
-import os
-import re
 import json
 import logging
+import os
+import pprint
+import re
+import subprocess
 from collections import defaultdict
 from collections.abc import MutableMapping
+from datetime import datetime, timedelta
 from enum import IntEnum
 from pathlib import Path
-import pprint
-import subprocess
-from datetime import datetime, timedelta
 
-import networkx
 import classad
 import htcondor
-
+import networkx
 
 _LOG = logging.getLogger(__name__)
 
@@ -85,33 +84,33 @@ MISSING_ID = -99999
 
 
 class DagStatus(IntEnum):
-    """HTCondor DAGMan's statuses for a DAG.
-    """
+    """HTCondor DAGMan's statuses for a DAG."""
+
     OK = 0
-    ERROR = 1       # an error condition different than those listed here
-    FAILED = 2      # one or more nodes in the DAG have failed
-    ABORTED = 3     # the DAG has been aborted by an ABORT-DAG-ON specification
-    REMOVED = 4     # the DAG has been removed by condor_rm
-    CYCLE = 5       # a cycle was found in the DAG
-    SUSPENDED = 6   # the DAG has been suspended (see section 2.10.8)
+    ERROR = 1  # an error condition different than those listed here
+    FAILED = 2  # one or more nodes in the DAG have failed
+    ABORTED = 3  # the DAG has been aborted by an ABORT-DAG-ON specification
+    REMOVED = 4  # the DAG has been removed by condor_rm
+    CYCLE = 5  # a cycle was found in the DAG
+    SUSPENDED = 6  # the DAG has been suspended (see section 2.10.8)
 
 
 class JobStatus(IntEnum):
-    """HTCondor's statuses for jobs.
-    """
-    UNEXPANDED = 0	            # Unexpanded
-    IDLE = 1	                # Idle
-    RUNNING = 2	                # Running
-    REMOVED = 3	                # Removed
-    COMPLETED = 4	            # Completed
-    HELD = 5	                # Held
-    TRANSFERRING_OUTPUT = 6     # Transferring_Output
-    SUSPENDED = 7	            # Suspended
+    """HTCondor's statuses for jobs."""
+
+    UNEXPANDED = 0  # Unexpanded
+    IDLE = 1  # Idle
+    RUNNING = 2  # Running
+    REMOVED = 3  # Removed
+    COMPLETED = 4  # Completed
+    HELD = 5  # Held
+    TRANSFERRING_OUTPUT = 6  # Transferring_Output
+    SUSPENDED = 7  # Suspended
 
 
 class NodeStatus(IntEnum):
-    """HTCondor's statuses for DAGman nodes.
-    """
+    """HTCondor's statuses for DAGman nodes."""
+
     # (STATUS_NOT_READY): At least one parent has not yet finished or the node
     # is a FINAL node.
     NOT_READY = 0
@@ -171,8 +170,7 @@ HTC_VALID_JOB_KEYS = {
     "periodic_release",
     "periodic_remove",
 }
-HTC_VALID_JOB_DAG_KEYS = {"vars", "pre", "post", "retry", "retry_unless_exit",
-                          "abort_dag_on", "abort_exit"}
+HTC_VALID_JOB_DAG_KEYS = {"vars", "pre", "post", "retry", "retry_unless_exit", "abort_dag_on", "abort_exit"}
 
 
 class RestrictedDict(MutableMapping):
@@ -190,6 +188,7 @@ class RestrictedDict(MutableMapping):
     KeyError
         If invalid key(s) in init_data.
     """
+
     def __init__(self, valid_keys, init_data=()):
         self.valid_keys = valid_keys
         self.data = {}
@@ -320,8 +319,11 @@ def htc_backup_files(wms_path, subdir=None, limit=100):
         subdir = Path(subdir)
         if subdir.is_absolute():
             if dest not in subdir.parents:
-                _LOG.warning("Invalid backup location: '%s' not in the submit directory, "
-                             "will use '%s' instead.", subdir, wms_path)
+                _LOG.warning(
+                    "Invalid backup location: '%s' not in the submit directory, will use '%s' instead.",
+                    subdir,
+                    wms_path,
+                )
             else:
                 dest /= subdir
         else:
@@ -468,8 +470,9 @@ def htc_submit_dag(sub):
     # Sadly, the ClassAd from Submit.queue() (see above) does not have
     # 'GlobalJobId' so we need to run a regular query to get it anyway.
     schedd_name = schedd_ad["Name"]
-    schedd_dag_info = condor_q(constraint=f"ClusterId == {dag_ad['ClusterId']}",
-                               schedds={schedd_name: schedd})
+    schedd_dag_info = condor_q(
+        constraint=f"ClusterId == {dag_ad['ClusterId']}", schedds={schedd_name: schedd}
+    )
     return schedd_dag_info
 
 
@@ -584,12 +587,18 @@ def _htc_write_job_commands(stream, name, jobs):
         DAG job keys and values.
     """
     if "pre" in jobs:
-        print(f"SCRIPT {jobs['pre'].get('defer', '')} PRE {name}"
-              f"{jobs['pre']['executable']} {jobs['pre'].get('arguments', '')}", file=stream)
+        print(
+            f"SCRIPT {jobs['pre'].get('defer', '')} PRE {name}"
+            f"{jobs['pre']['executable']} {jobs['pre'].get('arguments', '')}",
+            file=stream,
+        )
 
     if "post" in jobs:
-        print(f"SCRIPT {jobs['post'].get('defer', '')} PRE {name}"
-              f"{jobs['post']['executable']} {jobs['post'].get('arguments', '')}", file=stream)
+        print(
+            f"SCRIPT {jobs['post'].get('defer', '')} PRE {name}"
+            f"{jobs['post']['executable']} {jobs['post'].get('arguments', '')}",
+            file=stream,
+        )
 
     if "vars" in jobs:
         for key, value in jobs["vars"]:
@@ -599,14 +608,17 @@ def _htc_write_job_commands(stream, name, jobs):
         print(f"PRE_SKIP {name} {jobs['pre_skip']}", file=stream)
 
     if "retry" in jobs and jobs["retry"]:
-        print(f"RETRY {name} {jobs['retry']} ", end='', file=stream)
+        print(f"RETRY {name} {jobs['retry']} ", end="", file=stream)
         if "retry_unless_exit" in jobs:
-            print(f"UNLESS-EXIT {jobs['retry_unless_exit']}", end='', file=stream)
+            print(f"UNLESS-EXIT {jobs['retry_unless_exit']}", end="", file=stream)
         print("\n", file=stream)
 
     if "abort_dag_on" in jobs and jobs["abort_dag_on"]:
-        print(f"ABORT-DAG-ON {name} {jobs['abort_dag_on']['node_exit']}"
-              f" RETURN {jobs['abort_dag_on']['abort_exit']}", file=stream)
+        print(
+            f"ABORT-DAG-ON {name} {jobs['abort_dag_on']['node_exit']}"
+            f" RETURN {jobs['abort_dag_on']['abort_exit']}",
+            file=stream,
+        )
 
 
 class HTCJob:
@@ -625,6 +637,7 @@ class HTCJob:
     initattrs : `dict`
         Initial dictionary of job attributes.
     """
+
     def __init__(self, name, label=None, initcmds=(), initdagcmds=(), initattrs=None):
         self.name = name
         self.label = label
@@ -721,6 +734,7 @@ class HTCDag(networkx.DiGraph):
     name : `str`
         Name for DAG.
     """
+
     def __init__(self, data=None, name=""):
         super().__init__(data=data, name=name)
 
@@ -798,7 +812,7 @@ class HTCDag(networkx.DiGraph):
         # Add dag level attributes to each job
         job.add_job_attrs(self.graph["attr"])
 
-        self.graph['final_job'] = job
+        self.graph["final_job"] = job
 
     def del_job(self, job_name):
         """Delete the job from the DAG.
@@ -1085,7 +1099,7 @@ def summary_from_dag(dir_name):
                             label = "pipetaskInit"
                         job_name_to_pipetask[m.group(1)] = label
                         counts[label] += 1
-                    else:   # Check if Pegasus submission
+                    else:  # Check if Pegasus submission
                         m = re.match(r"JOB ([^\s]+) ([^\s]+)", line)
                         if m:
                             label = pegasus_name_to_label(m.group(1))
@@ -1218,7 +1232,7 @@ def read_node_status(wms_path):
         return loginfo
 
     jobs = {}
-    fake_id = -1.0   # For nodes that do not yet have a job id, give fake one
+    fake_id = -1.0  # For nodes that do not yet have a job id, give fake one
     try:
         with open(node_status, "r") as fh:
             ads = classad.parseAds(fh)
@@ -1301,7 +1315,7 @@ def read_dag_log(wms_path):
             id_ = f"{event['Cluster']}.{event['Proc']}"
             if id_ not in info:
                 info[id_] = {}
-                wms_workflow_id = id_   # taking last job id in case of restarts
+                wms_workflow_id = id_  # taking last job id in case of restarts
             info[id_].update(event)
             info[id_][f"{event.type.name.lower()}_time"] = event["EventTime"]
 
@@ -1403,10 +1417,7 @@ def write_dag_info(filename, dag_info):
         with open(filename, "w") as fh:
             info = {
                 schedd_name: {
-                    dag_id: {
-                        "ClusterId": dag_ad["ClusterId"],
-                        "GlobalJobId": dag_ad["GlobalJobId"]
-                    }
+                    dag_id: {"ClusterId": dag_ad["ClusterId"], "GlobalJobId": dag_ad["GlobalJobId"]}
                 }
             }
             json.dump(info, fh)

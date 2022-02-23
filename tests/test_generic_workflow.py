@@ -18,12 +18,12 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-import unittest
-import networkx
-import networkx.algorithms.isomorphism as iso
 import io
+import unittest
 
 import lsst.ctrl.bps.generic_workflow as gw
+import networkx
+import networkx.algorithms.isomorphism as iso
 
 
 class TestGenericWorkflowJob(unittest.TestCase):
@@ -34,7 +34,6 @@ class TestGenericWorkflowJob(unittest.TestCase):
 
 
 class TestGenericWorkflow(unittest.TestCase):
-
     def testAddJobDuplicate(self):
         job1 = gw.GenericWorkflowJob("job1")
         gwf = gw.GenericWorkflow("mytest")
@@ -122,8 +121,9 @@ class TestGenericWorkflow(unittest.TestCase):
         gwf.save(stream, "pickle")
         stream.seek(0)
         gwf2 = gw.GenericWorkflow.load(stream, "pickle")
-        self.assertTrue(networkx.is_isomorphic(gwf, gwf2, node_match=iso.categorical_node_match("data",
-                                                                                                None)))
+        self.assertTrue(
+            networkx.is_isomorphic(gwf, gwf2, node_match=iso.categorical_node_match("data", None))
+        )
 
 
 if __name__ == "__main__":

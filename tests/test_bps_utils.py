@@ -25,12 +25,10 @@ import unittest
 
 from lsst.ctrl.bps.bps_utils import chdir
 
-
 TESTDIR = os.path.abspath(os.path.dirname(__file__))
 
 
 class TestChdir(unittest.TestCase):
-
     def setUp(self):
         self.cwd = os.getcwd()
         self.tmpdir = tempfile.mkdtemp(dir=TESTDIR)
@@ -48,7 +46,7 @@ class TestChdir(unittest.TestCase):
         dir_not_there = os.path.join(self.tmpdir, "notthere")
         with self.assertRaises(FileNotFoundError):
             with chdir(dir_not_there):
-                pass   # should not get here
+                pass  # should not get here
 
 
 if __name__ == "__main__":
