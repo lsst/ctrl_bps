@@ -37,8 +37,7 @@ _LOG = logging.getLogger(__name__)
 
 
 class PanDAService(BaseWmsService):
-    """PanDA version of WMS service
-    """
+    """PanDA version of WMS service"""
 
     def prepare(self, config, generic_workflow, out_prefix=None):
         """Convert generic workflow to an PanDA iDDS ready for submission
@@ -58,9 +57,9 @@ class PanDAService(BaseWmsService):
             PanDA workflow ready to be run.
         """
         _LOG.debug("out_prefix = '%s'", out_prefix)
-        workflow = PandaBpsWmsWorkflow.from_generic_workflow(config, generic_workflow, out_prefix,
-                                                             f"{self.__class__.__module__}."
-                                                             f"{self.__class__.__name__}")
+        workflow = PandaBpsWmsWorkflow.from_generic_workflow(
+            config, generic_workflow, out_prefix, f"{self.__class__.__module__}." f"{self.__class__.__name__}"
+        )
         workflow.write(out_prefix)
         return workflow
 
@@ -104,12 +103,19 @@ class PanDAService(BaseWmsService):
         """
 
         cmdline_hex = self.convert_exec_string_to_hex(cmd_line)
-        _, decoder_prefix = self.config.search("runnerCommand", opt={"replaceEnvVars": False,
-                                                                     "expandEnvVars": False})
-        decoder_prefix = decoder_prefix.replace("_cmd_line_", str(cmdline_hex) + " ${IN/L} "
-                                                + distribution_path + "  "
-                                                + "+".join(f'{k}:{v}' for k, v in files[0].items())
-                                                + " " + "+".join(files[1]))
+        _, decoder_prefix = self.config.search(
+            "runnerCommand", opt={"replaceEnvVars": False, "expandEnvVars": False}
+        )
+        decoder_prefix = decoder_prefix.replace(
+            "_cmd_line_",
+            str(cmdline_hex)
+            + " ${IN/L} "
+            + distribution_path
+            + "  "
+            + "+".join(f"{k}:{v}" for k, v in files[0].items())
+            + " "
+            + "+".join(files[1]),
+        )
         return decoder_prefix
 
     def submit(self, workflow):
@@ -121,24 +127,36 @@ class PanDAService(BaseWmsService):
             A single PanDA iDDS workflow to submit
         """
         idds_client_workflow = IDDS_client_workflow(name=workflow.name)
-        files = self.copy_files_for_distribution(workflow.generated_tasks,
-                                                 self.config['fileDistributionEndPoint'])
+        files = self.copy_files_for_distribution(
+            workflow.generated_tasks, self.config["fileDistributionEndPoint"]
+        )
         DAG_end_work = []
         DAG_final_work = None
 
         for idx, task in enumerate(workflow.generated_tasks):
             work = DomaPanDAWork(
-                executable=self.add_decoder_prefix(task.executable, self.config['fileDistributionEndPoint'],
-                                                   files),
-                primary_input_collection={'scope': 'pseudo_dataset',
-                                          'name': 'pseudo_input_collection#' + str(idx)},
-                output_collections=[{'scope': 'pseudo_dataset',
-                                     'name': 'pseudo_output_collection#' + str(idx)}],
-                log_collections=[], dependency_map=task.dependencies,
+                executable=self.add_decoder_prefix(
+                    task.executable, self.config["fileDistributionEndPoint"], files
+                ),
+                primary_input_collection={
+                    "scope": "pseudo_dataset",
+                    "name": "pseudo_input_collection#" + str(idx),
+                },
+                output_collections=[
+                    {"scope": "pseudo_dataset", "name": "pseudo_output_collection#" + str(idx)}
+                ],
+                log_collections=[],
+                dependency_map=task.dependencies,
                 task_name=task.name,
                 task_queue=task.queue,
-                task_log={"destination": "local", "value": "log.tgz", "dataset": "PandaJob_#{pandaid}/",
-                          "token": "local", "param_type": "log", "type": "template"},
+                task_log={
+                    "destination": "local",
+                    "value": "log.tgz",
+                    "dataset": "PandaJob_#{pandaid}/",
+                    "token": "local",
+                    "param_type": "log",
+                    "type": "template",
+                },
                 encode_command_line=True,
                 task_rss=task.max_rss,
                 task_cloud=task.cloud,
@@ -156,9 +174,9 @@ class PanDAService(BaseWmsService):
             and_cond = AndCondition(conditions=conditions, true_works=[DAG_final_work])
             idds_client_workflow.add_condition(and_cond)
         _, idds_server = self.config.search("iddsServer", opt={"default": None})
-        c = pandaclient.idds_api.get_api(idds_utils.json_dumps,
-                                         idds_host=idds_server,
-                                         compress=True, manager=True)
+        c = pandaclient.idds_api.get_api(
+            idds_utils.json_dumps, idds_host=idds_server, compress=True, manager=True
+        )
         ret = c.submit(idds_client_workflow, username=None, use_dataset_name=False)
         _LOG.debug("iDDS client manager submit returned = %s", str(ret))
 
@@ -214,11 +232,13 @@ class PanDAService(BaseWmsService):
                 files_in_folder = ResourcePath.findFileResources([local_pfn])
                 for file in files_in_folder:
                     file_name = file.basename()
-                    files_to_copy[file] = ResourcePath(os.path.join(file_distribution_uri,
-                                                                    folder_name, file_name))
+                    files_to_copy[file] = ResourcePath(
+                        os.path.join(file_distribution_uri, folder_name, file_name)
+                    )
             else:
-                files_to_copy[ResourcePath(local_pfn)] = ResourcePath(os.path.join(file_distribution_uri,
-                                                                                   folder_name))
+                files_to_copy[ResourcePath(local_pfn)] = ResourcePath(
+                    os.path.join(file_distribution_uri, folder_name)
+                )
 
         copy_executor = concurrent.futures.ThreadPoolExecutor(max_workers=10)
         future_file_copy = []
@@ -233,7 +253,7 @@ class PanDAService(BaseWmsService):
                 raise RuntimeError("Error of placing files to the distribution point")
 
         if len(direct_IO_files) == 0:
-            direct_IO_files.add('cmdlineplaceholder')
+            direct_IO_files.add("cmdlineplaceholder")
 
         files_plc_hldr = {}
         for file_placeholder, src_path in local_pfns.items():
@@ -305,8 +325,7 @@ class PandaBpsWmsWorkflow(BaseWmsWorkflow):
         self.generated_tasks = None
 
     @classmethod
-    def from_generic_workflow(cls, config, generic_workflow,
-                              out_prefix, service_class):
+    def from_generic_workflow(cls, config, generic_workflow, out_prefix, service_class):
         # Docstring inherited from parent class
         idds_workflow = cls(generic_workflow.name, config)
         workflow_generator = IDDSWorkflowGenerator(generic_workflow, config)
@@ -315,5 +334,4 @@ class PandaBpsWmsWorkflow(BaseWmsWorkflow):
         return idds_workflow
 
     def write(self, out_prefix):
-        """Not yet implemented
-        """
+        """Not yet implemented"""

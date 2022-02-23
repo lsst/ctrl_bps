@@ -31,7 +31,6 @@ TESTDIR = os.path.abspath(os.path.dirname(__file__))
 
 
 class TestExecute(unittest.TestCase):
-
     def setUp(self):
         self.file = tempfile.NamedTemporaryFile("w+")
 
@@ -40,19 +39,18 @@ class TestExecute(unittest.TestCase):
 
     def testSuccessfulExecution(self):
         """Test exit status if command succeeded."""
-        status = execute('true', self.file.name)
-        self.assertIn('true', self.file.read())
+        status = execute("true", self.file.name)
+        self.assertIn("true", self.file.read())
         self.assertEqual(status, 0)
 
     def testFailingExecution(self):
         """Test exit status if command failed."""
-        status = execute('false', self.file.name)
-        self.assertIn('false', self.file.read())
+        status = execute("false", self.file.name)
+        self.assertIn("false", self.file.read())
         self.assertNotEqual(status, 0)
 
 
 class TestCreatingQuantumGraph(unittest.TestCase):
-
     def setUp(self):
         self.tmpdir = tempfile.mkdtemp(dir=TESTDIR)
 
@@ -66,7 +64,7 @@ class TestCreatingQuantumGraph(unittest.TestCase):
             "submitPath": self.tmpdir,
             "whenSaveJobQgraph": "NEVER",
             "uniqProcName": "my_test",
-            "qgraphFileTemplate": "{uniqProcName}.qgraph"
+            "qgraphFileTemplate": "{uniqProcName}.qgraph",
         }
         config = BpsConfig(settings, search_order=[])
         create_quantum_graph(config, self.tmpdir)

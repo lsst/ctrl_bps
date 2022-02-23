@@ -30,7 +30,6 @@ TESTDIR = os.path.abspath(os.path.dirname(__file__))
 
 
 class TestBpsConfigConstructor(unittest.TestCase):
-
     def setUp(self):
         self.filename = os.path.join(TESTDIR, "data/config.yaml")
         with open(self.filename, "r") as f:
@@ -69,7 +68,6 @@ class TestBpsConfigConstructor(unittest.TestCase):
 
 
 class TestBpsConfigSearch(unittest.TestCase):
-
     def setUp(self):
         filename = os.path.join(TESTDIR, "data/config.yaml")
         self.config = BpsConfig(filename, search_order=["baz", "bar", "foo"])

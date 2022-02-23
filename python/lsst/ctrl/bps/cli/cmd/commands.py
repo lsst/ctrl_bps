@@ -31,7 +31,7 @@ from ...drivers import (
     submit_driver,
     report_driver,
     restart_driver,
-    cancel_driver
+    cancel_driver,
 )
 from .. import opt
 
@@ -46,8 +46,7 @@ class BpsCommand(MWCommand):
 @opt.config_file_argument(required=True)
 @opt.submission_options()
 def acquire(*args, **kwargs):
-    """Create a new quantum graph or read existing one from a file.
-    """
+    """Create a new quantum graph or read existing one from a file."""
     acquire_qgraph_driver(*args, **kwargs)
 
 
@@ -55,8 +54,7 @@ def acquire(*args, **kwargs):
 @opt.config_file_argument(required=True)
 @opt.submission_options()
 def cluster(*args, **kwargs):
-    """Create a clustered quantum graph.
-    """
+    """Create a clustered quantum graph."""
     cluster_qgraph_driver(*args, **kwargs)
 
 
@@ -64,8 +62,7 @@ def cluster(*args, **kwargs):
 @opt.config_file_argument(required=True)
 @opt.submission_options()
 def transform(*args, **kwargs):
-    """Transform a quantum graph to a generic workflow.
-    """
+    """Transform a quantum graph to a generic workflow."""
     transform_driver(*args, **kwargs)
 
 
@@ -74,8 +71,7 @@ def transform(*args, **kwargs):
 @opt.wms_service_option()
 @opt.submission_options()
 def prepare(*args, **kwargs):
-    """Prepare a workflow for submission.
-    """
+    """Prepare a workflow for submission."""
     prepare_driver(*args, **kwargs)
 
 
@@ -84,53 +80,53 @@ def prepare(*args, **kwargs):
 @opt.wms_service_option()
 @opt.submission_options()
 def submit(*args, **kwargs):
-    """Submit a workflow for execution.
-    """
+    """Submit a workflow for execution."""
     submit_driver(*args, **kwargs)
 
 
 @click.command(cls=BpsCommand)
 @opt.wms_service_option()
-@click.option("--id", "run_id",
-              help="Run id of workflow to restart.")
+@click.option("--id", "run_id", help="Run id of workflow to restart.")
 def restart(*args, **kwargs):
-    """Restart a failed workflow.
-    """
+    """Restart a failed workflow."""
     restart_driver(*args, **kwargs)
 
 
 @click.command(cls=BpsCommand)
 @opt.wms_service_option()
-@click.option("--id", "run_id",
-              help="Restrict report to specific WMS run id.")
-@click.option("--user",
-              help="Restrict report to specific user.")
-@click.option("--hist", "hist_days",
-              default=0.0,
-              help="Search WMS history X days for completed info.")
-@click.option("--pass-thru",
-              help="Pass the given string to the WMS service class.")
-@click.option("--global/--no-global", "is_global", default=False,
-              help="Query all available job queues for job information.")
+@click.option("--id", "run_id", help="Restrict report to specific WMS run id.")
+@click.option("--user", help="Restrict report to specific user.")
+@click.option("--hist", "hist_days", default=0.0, help="Search WMS history X days for completed info.")
+@click.option("--pass-thru", help="Pass the given string to the WMS service class.")
+@click.option(
+    "--global/--no-global",
+    "is_global",
+    default=False,
+    help="Query all available job queues for job information.",
+)
 def report(*args, **kwargs):
-    """Display execution status for submitted workflows.
-    """
+    """Display execution status for submitted workflows."""
     report_driver(*args, **kwargs)
 
 
 @click.command(cls=BpsCommand)
 @opt.wms_service_option()
-@click.option("--id", "run_id",
-              help="Run id of workflow to cancel.")
-@click.option("--user",
-              help="User for which to cancel all submitted workflows.")
-@click.option("--require-bps/--skip-require-bps", "require_bps", default=True, show_default=True,
-              help="Only cancel jobs submitted via bps.")
-@click.option("--pass-thru", "pass_thru", default=str(),
-              help="Pass the given string to the WMS service.")
-@click.option("--global/--no-global", "is_global", default=False,
-              help="Cancel jobs matching the search criteria from all job queues.")
+@click.option("--id", "run_id", help="Run id of workflow to cancel.")
+@click.option("--user", help="User for which to cancel all submitted workflows.")
+@click.option(
+    "--require-bps/--skip-require-bps",
+    "require_bps",
+    default=True,
+    show_default=True,
+    help="Only cancel jobs submitted via bps.",
+)
+@click.option("--pass-thru", "pass_thru", default=str(), help="Pass the given string to the WMS service.")
+@click.option(
+    "--global/--no-global",
+    "is_global",
+    default=False,
+    help="Cancel jobs matching the search criteria from all job queues.",
+)
 def cancel(*args, **kwargs):
-    """Cancel submitted workflow(s).
-    """
+    """Cancel submitted workflow(s)."""
     cancel_driver(*args, **kwargs)

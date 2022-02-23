@@ -29,6 +29,7 @@ class FileDescriptor:
     """
     Holds parameters needed to define a file used by a job of task
     """
+
     name: str = None
     """Name of the file"""
     distribution_url: str = None
@@ -47,6 +48,7 @@ class RubinTask:
     """
     Holds parameters needed to define a PanDA task
     """
+
     name: str = None
     """Name of the task"""
     step: str = None
@@ -92,6 +94,7 @@ class IDDSWorkflowGenerator:
         BPS configuration that includes necessary submit/runtime information,
         sufficiently defined in YAML file supplied in `submit` command
     """
+
     def __init__(self, bps_workflow, config):
         self.bps_workflow = bps_workflow
         self.bps_config = config
@@ -117,21 +120,23 @@ class IDDSWorkflowGenerator:
         Task name : `str`
             Computed task name
         """
-        return self.bps_config['workflowName'] + '_' + step
+        return self.bps_config["workflowName"] + "_" + step
 
     def fill_input_files(self, task_name):
         files = []
-        jobs = [job_name for job_name in self.bps_workflow if
-                self.bps_workflow.get_job(job_name).label == self.tasks_steps[task_name]]
+        jobs = [
+            job_name
+            for job_name in self.bps_workflow
+            if self.bps_workflow.get_job(job_name).label == self.tasks_steps[task_name]
+        ]
         for job in jobs:
-            for gwfile in self.bps_workflow.get_job_inputs(
-                    job, transfer_only=True):
+            for gwfile in self.bps_workflow.get_job_inputs(job, transfer_only=True):
                 file = FileDescriptor()
                 file.name = gwfile.name
                 file.submission_url = gwfile.src_uri
                 file.distribution_url = os.path.join(
-                    self.bps_config['fileDistributionEndPoint'],
-                    os.path.basename(gwfile.src_uri))
+                    self.bps_config["fileDistributionEndPoint"], os.path.basename(gwfile.src_uri)
+                )
                 file.direct_IO = gwfile.job_access_remote
                 files.append(file)
         return files
@@ -153,9 +158,12 @@ class IDDSWorkflowGenerator:
             task = RubinTask()
             task.step = task_name
             task.name = task.step
-            picked_job_name = next(filter(
-                lambda job_name: self.bps_workflow.get_job(job_name).label
-                == self.tasks_steps[task_name], self.bps_workflow))
+            picked_job_name = next(
+                filter(
+                    lambda job_name: self.bps_workflow.get_job(job_name).label == self.tasks_steps[task_name],
+                    self.bps_workflow,
+                )
+            )
             bps_node = self.bps_workflow.get_job(picked_job_name)
             task.queue = bps_node.queue
             task.cloud = bps_node.compute_site
@@ -200,17 +208,13 @@ class IDDSWorkflowGenerator:
         for task_name, dependencies in tasks_dependency_map.items():
             n_jobs_in_task = len(dependencies)
             if n_jobs_in_task > self.max_jobs_per_task:
-                n_chunks = -(-n_jobs_in_task//self.max_jobs_per_task)
+                n_chunks = -(-n_jobs_in_task // self.max_jobs_per_task)
                 for pseudo_input, dependency in dependencies.items():
                     chunk_id = hash(pseudo_input) % n_chunks
                     task_name_chunked = self.get_task_name_with_chunk(task_name, chunk_id)
-                    tasks_dependency_map_chunked.setdefault(task_name_chunked,
-                                                            {})[pseudo_input] \
-                        = dependency
-                    self.tasks_steps[task_name_chunked] = \
-                        self.tasks_steps[task_name]
-                    self.tasks_cmd_lines[task_name_chunked] = \
-                        self.tasks_cmd_lines[task_name]
+                    tasks_dependency_map_chunked.setdefault(task_name_chunked, {})[pseudo_input] = dependency
+                    self.tasks_steps[task_name_chunked] = self.tasks_steps[task_name]
+                    self.tasks_cmd_lines[task_name_chunked] = self.tasks_cmd_lines[task_name]
                 tasks_chunked[task_name] = n_chunks
             else:
                 tasks_dependency_map_chunked[task_name] = dependencies
@@ -228,12 +232,14 @@ class IDDSWorkflowGenerator:
                             chunk_id = hash(upstream_pseudo_input) % tasks_chunked[upstream_task_name]
                             task_name_chunked = self.get_task_name_with_chunk(upstream_task_name, chunk_id)
                             chunked_task_name = task_name_chunked
-                            updated_dependencies.setdefault(chunked_task_name, []).\
-                                append(upstream_pseudo_input)
+                            updated_dependencies.setdefault(chunked_task_name, []).append(
+                                upstream_pseudo_input
+                            )
                     else:
                         updated_dependencies.setdefault(upstream_task_name, []).extend(pseudo_inputs)
-                tasks_dependency_map_chunked_updated_dep.setdefault(task, {}).setdefault(pseudo_input, {})\
-                    .update(updated_dependencies)
+                tasks_dependency_map_chunked_updated_dep.setdefault(task, {}).setdefault(
+                    pseudo_input, {}
+                ).update(updated_dependencies)
         return tasks_dependency_map_chunked_updated_dep
 
     def get_task_name_with_chunk(self, task_name, chunk_id):
@@ -268,10 +274,9 @@ class IDDSWorkflowGenerator:
             bash_file = FileDescriptor()
             bash_file.submission_url = final_job.executable.src_uri
             bash_file.distribution_url = os.path.join(
-                self.bps_config["fileDistributionEndPoint"],
-                final_job.executable.name)
-            task.executable = \
-                f"bash ./{final_job.executable.name} {final_job.arguments}"
+                self.bps_config["fileDistributionEndPoint"], final_job.executable.name
+            )
+            task.executable = f"bash ./{final_job.executable.name} {final_job.arguments}"
 
             task.step = final_job.label
             task.name = self.define_task_name(final_job.label)
@@ -280,8 +285,9 @@ class IDDSWorkflowGenerator:
             task.jobs_pseudo_inputs = []
 
             # This string implements empty pattern for dependencies
-            task.dependencies = [{"name": "pure_pseudoinput+qgraphNodeId:+qgraphId:",
-                                  "submitted": False, "dependencies": []}]
+            task.dependencies = [
+                {"name": "pure_pseudoinput+qgraphNodeId:+qgraphId:", "submitted": False, "dependencies": []}
+            ]
 
             task.max_attempt = self.number_of_retries.get(task.name, 3)
             task.max_walltime = self.max_walltime
@@ -322,8 +328,9 @@ class IDDSWorkflowGenerator:
                 input_files_dependencies = []
                 for taskname, files in job_dependency.items():
                     for file in files:
-                        input_files_dependencies.append({"task": taskname,
-                                                         "inputname": file, "available": False})
+                        input_files_dependencies.append(
+                            {"task": taskname, "inputname": file, "available": False}
+                        )
                 job_dep["dependencies"] = input_files_dependencies
                 task.dependencies.append(job_dep)
 
@@ -343,12 +350,13 @@ class IDDSWorkflowGenerator:
 
         for job_name in self.bps_workflow:
             gwjob = self.bps_workflow.get_job(job_name)
-            cmd_line, pseudo_file_name = \
-                cmd_line_embedder.substitute_command_line(gwjob.executable.src_uri + ' ' + gwjob.arguments,
-                                                          gwjob.cmdvals, job_name)
+            cmd_line, pseudo_file_name = cmd_line_embedder.substitute_command_line(
+                gwjob.executable.src_uri + " " + gwjob.arguments, gwjob.cmdvals, job_name
+            )
             if len(pseudo_file_name) > 4000:
-                raise NameError('job pseudo input file name contains more than 4000 symbols. '
-                                'Can not proceed.')
+                raise NameError(
+                    "job pseudo input file name contains more than 4000 symbols. Can not proceed."
+                )
 
             self.tasks_cmd_lines[self.define_task_name(gwjob.label)] = cmd_line
             self.jobs_steps[pseudo_file_name] = gwjob.label
@@ -357,10 +365,11 @@ class IDDSWorkflowGenerator:
             predecessors = self.bps_workflow.predecessors(job_name)
             for parent_name in predecessors:
                 parent_job = self.bps_workflow.get_job(parent_name)
-                cmd_line_parent, pseudo_file_parent = \
-                    cmd_line_embedder.substitute_command_line(parent_job.executable.src_uri + ' '
-                                                              + parent_job.arguments,
-                                                              parent_job.cmdvals, parent_name)
+                cmd_line_parent, pseudo_file_parent = cmd_line_embedder.substitute_command_line(
+                    parent_job.executable.src_uri + " " + parent_job.arguments,
+                    parent_job.cmdvals,
+                    parent_name,
+                )
                 dependency_map.get(pseudo_file_name).append(pseudo_file_parent)
 
             successors = self.bps_workflow.successors(job_name)
@@ -425,8 +434,9 @@ class IDDSWorkflowGenerator:
         """
         dependencies_by_tasks = {}
         for dependency in dependencies:
-            dependencies_by_tasks.setdefault(self.define_task_name(
-                self.jobs_steps[dependency]), []).append(dependency)
+            dependencies_by_tasks.setdefault(self.define_task_name(self.jobs_steps[dependency]), []).append(
+                dependency
+            )
         return dependencies_by_tasks
 
     def get_input_file(self, job_name):

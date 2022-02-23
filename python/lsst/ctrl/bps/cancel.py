@@ -53,8 +53,14 @@ def cancel(wms_service, wms_id=None, user=None, require_bps=True, pass_thru=None
         Only applicable in the context of a WMS using distributed job queues
         (e.g., HTCondor).
     """
-    _LOG.debug("Cancel params: wms_id=%s, user=%s, require_bps=%s, pass_thru=%s, is_global=%s",
-               wms_id, user, require_bps, pass_thru, is_global)
+    _LOG.debug(
+        "Cancel params: wms_id=%s, user=%s, require_bps=%s, pass_thru=%s, is_global=%s",
+        wms_id,
+        user,
+        require_bps,
+        pass_thru,
+        is_global,
+    )
 
     if isinstance(wms_service, str):
         wms_service_class = doImport(wms_service)
@@ -64,8 +70,10 @@ def cancel(wms_service, wms_id=None, user=None, require_bps=True, pass_thru=None
 
     jobs = service.list_submitted_jobs(wms_id, user, require_bps, pass_thru, is_global)
     if len(jobs) == 0:
-        print("No job matches the search criteria. "
-              "Hints: Double check id, and/or use --global to search all job queues.")
+        print(
+            "No job matches the search criteria. "
+            "Hints: Double check id, and/or use --global to search all job queues."
+        )
     else:
         for job_id in sorted(jobs):
             results = service.cancel(job_id, pass_thru)

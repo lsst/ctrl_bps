@@ -42,20 +42,17 @@ _LOG = logging.getLogger(__name__)
 
 
 def panda_auth_clean_driver():
-    """Clean up token and token cache files.
-    """
+    """Clean up token and token cache files."""
     panda_auth_clean()
 
 
 def panda_auth_reset_driver():
-    """Get new auth token.
-    """
+    """Get new auth token."""
     panda_auth_update(None, True)
 
 
 def panda_auth_status_driver():
-    """Gather information about a token if it exists.
-    """
+    """Gather information about a token if it exists."""
     status = panda_auth_status()
     if status:
         print(f"{'Filename:':15} {status['filename']}")

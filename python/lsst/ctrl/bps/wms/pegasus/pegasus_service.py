@@ -45,8 +45,8 @@ _LOG = logging.getLogger(__name__)
 
 
 class PegasusService(BaseWmsService):
-    """Pegasus version of workflow engine.
-    """
+    """Pegasus version of workflow engine."""
+
     def prepare(self, config, generic_workflow, out_prefix=None):
         """Create submission for a generic workflow in a specific WMS.
 
@@ -66,8 +66,9 @@ class PegasusService(BaseWmsService):
             A workflow ready for Pegasus to run.
         """
         service_class = f"{self.__class__.__module__}.{self.__class__.__name__}"
-        peg_workflow = PegasusWorkflow.from_generic_workflow(config, generic_workflow, out_prefix,
-                                                             service_class)
+        peg_workflow = PegasusWorkflow.from_generic_workflow(
+            config, generic_workflow, out_prefix, service_class
+        )
         peg_workflow.write(out_prefix)
         peg_workflow.run_pegasus_plan(out_prefix, generic_workflow.run_attrs)
         return peg_workflow
@@ -84,8 +85,9 @@ class PegasusService(BaseWmsService):
             _LOG.info("Submitting from directory: %s", os.getcwd())
             command = f"pegasus-run {workflow.run_id}"
             with open(f"{workflow.name}_pegasus-run.out", "w") as outfh:
-                process = subprocess.Popen(shlex.split(command), shell=False, stdout=outfh,
-                                           stderr=subprocess.STDOUT)
+                process = subprocess.Popen(
+                    shlex.split(command), shell=False, stdout=outfh, stderr=subprocess.STDOUT
+                )
                 process.wait()
 
         if process.returncode != 0:
@@ -182,8 +184,13 @@ class PegasusService(BaseWmsService):
         except ValueError:
             command = f"pegasus-remove {wms_id}"
             _LOG.debug(command)
-            completed_process = subprocess.run(shlex.split(command), shell=False, check=False,
-                                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            completed_process = subprocess.run(
+                shlex.split(command),
+                shell=False,
+                check=False,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+            )
             _LOG.debug(completed_process.stdout)
             _LOG.debug("Return code = %s", completed_process.returncode)
 
@@ -274,8 +281,9 @@ class PegasusWorkflow(BaseWmsWorkflow):
         # Add job dependencies to the DAX.
         for job_name in generic_workflow:
             for child_name in generic_workflow.successors(job_name):
-                peg_workflow.dax.depends(parent=peg_workflow.dax.getJob(job_name),
-                                         child=peg_workflow.dax.getJob(child_name))
+                peg_workflow.dax.depends(
+                    parent=peg_workflow.dax.getJob(job_name), child=peg_workflow.dax.getJob(child_name)
+                )
 
         return peg_workflow
 
@@ -311,8 +319,7 @@ class PegasusWorkflow(BaseWmsWorkflow):
         _LOG.debug("GenericWorkflowJob=%s", gwf_job)
 
         # Save transformation.
-        executable = Executable(gwf_job.executable.name,
-                                installed=not gwf_job.executable.transfer_executable)
+        executable = Executable(gwf_job.executable.name, installed=not gwf_job.executable.transfer_executable)
         newexec = re.sub(r"<ENV:([^>]+)>", r"${\1}", gwf_job.executable.src_uri)
         _LOG.debug("Executable after replacing any environment variables = %s", newexec)
         executable.addPFN(PFN(f"file://{newexec}", gwf_job.compute_site))
@@ -374,8 +381,11 @@ class PegasusWorkflow(BaseWmsWorkflow):
         job.addProfile(Profile(Namespace.CONDOR, key="+bps_job_name", value=f'"{gwf_job.name}"'))
         job.addProfile(Profile(Namespace.CONDOR, key="+bps_job_label", value=f'"{gwf_job.label}"'))
         if "quanta_summary" in gwf_job.tags:
-            job.addProfile(Profile(Namespace.CONDOR, key="+bps_job_quanta",
-                                   value=f"\"{gwf_job.tags['quanta_summary']}\""))
+            job.addProfile(
+                Profile(
+                    Namespace.CONDOR, key="+bps_job_quanta", value=f"\"{gwf_job.tags['quanta_summary']}\""
+                )
+            )
 
         # Specify job's inputs.
         for gwf_file in generic_workflow.get_job_inputs(gwf_job.name, data=True, transfer_only=True):
@@ -425,8 +435,9 @@ class PegasusWorkflow(BaseWmsWorkflow):
                 for pname, pdata in site_data["profile"].items():
                     for key, val in pdata.items():
                         self.sites_catalog.add_site_profile(site, namespace=pname, key=key, value=val)
-            self.sites_catalog.add_site_profile(site, namespace=Namespace.DAGMAN, key="NODE_STATUS_FILE",
-                                                value=f"{self.name}.node_status")
+            self.sites_catalog.add_site_profile(
+                site, namespace=Namespace.DAGMAN, key="NODE_STATUS_FILE", value=f"{self.name}.node_status"
+            )
 
     def write(self, out_prefix):
         """Write Pegasus Catalogs and DAX to files.
@@ -492,9 +503,11 @@ class PegasusWorkflow(BaseWmsWorkflow):
         run_attr : `dict`
             Attributes to add to main DAG.
         """
-        cmd = f"pegasus-plan --verbose --conf {self.properties_filename} --dax {self.dax_filename} --dir " \
-              f"{out_prefix}/peg --cleanup none --sites {self.config['computeSite']} " \
-              f"--input-dir {out_prefix}/input --output-dir {out_prefix}/output"
+        cmd = (
+            f"pegasus-plan --verbose --conf {self.properties_filename} --dax {self.dax_filename} --dir "
+            f"{out_prefix}/peg --cleanup none --sites {self.config['computeSite']} "
+            f"--input-dir {out_prefix}/input --output-dir {out_prefix}/output"
+        )
         _LOG.debug("Plan command: %s", cmd)
         pegout = f"{self.submit_path}/{self.name}_pegasus-plan.out"
         with chdir(self.submit_path):
@@ -502,8 +515,9 @@ class PegasusWorkflow(BaseWmsWorkflow):
             _LOG.debug("pegasus-plan output in %s", pegout)
             with open(pegout, "w") as pegfh:
                 print(f"Command: {cmd}\n", file=pegfh)  # Note: want blank line
-                process = subprocess.run(shlex.split(cmd), shell=False, stdout=pegfh,
-                                         stderr=subprocess.STDOUT, check=False)
+                process = subprocess.run(
+                    shlex.split(cmd), shell=False, stdout=pegfh, stderr=subprocess.STDOUT, check=False
+                )
                 if process.returncode != 0:
                     print(f"Error trying to generate Pegasus files.  See {pegout}.")
                     raise RuntimeError(f"pegasus-plan exited with non-zero exit code ({process.returncode})")

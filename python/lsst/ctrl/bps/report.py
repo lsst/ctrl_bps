@@ -74,9 +74,11 @@ def report(wms_service, run_id, user, hist_days, pass_thru, is_global=False):
         for run in runs:
             print_single_run_summary(run, is_global=is_global)
         if not runs and not message:
-            print(f"No records found for job id '{run_id}'. "
-                  f"Hints: Double check id, retry with a larger --hist value (currently: {hist_days}), "
-                  f"and/or use --global to search all job queues.")
+            print(
+                f"No records found for job id '{run_id}'. "
+                f"Hints: Double check id, retry with a larger --hist value (currently: {hist_days}), "
+                f"and/or use --global to search all job queues."
+            )
     else:
         summary = init_summary()
         for run in sorted(runs, key=lambda j: j.wms_id if not is_global else j.global_wms_id):
@@ -105,7 +107,7 @@ def init_summary():
         ("PROJECT", "S"),
         ("CAMPAIGN", "S"),
         ("PAYLOAD", "S"),
-        ("RUN", "S")
+        ("RUN", "S"),
     ]
     return Table(dtype=columns)
 
@@ -154,7 +156,7 @@ def add_single_run_summary(summary, run_report, is_global=False):
         run_report.project,
         run_report.campaign,
         run_report.payload,
-        run_report.run
+        run_report.run,
     )
     summary.add_row(row)
     return summary

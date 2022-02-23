@@ -45,6 +45,7 @@ class GenericWorkflowFile:
     """Information about a file that may be needed by various workflow
     management services.
     """
+
     name: str
     """Lookup key (logical file name) of file/directory. Must be unique
     within run.
@@ -69,8 +70,14 @@ class GenericWorkflowFile:
 
     # As of python 3.7.8, can't use __slots__ + dataclass if give default
     # values, so writing own __init__.
-    def __init__(self, name: str, src_uri: str = None, wms_transfer: bool = False,
-                 job_access_remote: bool = False, job_shared: bool = False):
+    def __init__(
+        self,
+        name: str,
+        src_uri: str = None,
+        wms_transfer: bool = False,
+        job_access_remote: bool = False,
+        job_shared: bool = False,
+    ):
         self.name = name
         self.src_uri = src_uri
         self.wms_transfer = wms_transfer
@@ -88,6 +95,7 @@ class GenericWorkflowExec:
     """Information about an executable that may be needed by various workflow
     management services.
     """
+
     name: str
     """Lookup key (logical file name) of executable. Must be unique
     within run.
@@ -120,6 +128,7 @@ class GenericWorkflowJob:
     """Information about a job that may be needed by various workflow
     management services.
     """
+
     name: str
     """Name of job.  Must be unique within workflow.
     """
@@ -153,7 +162,7 @@ class GenericWorkflowJob:
     """Memory growth rate between retries.
     """
 
-    request_memory: Optional[int]    # MB
+    request_memory: Optional[int]  # MB
     """Max memory (in MB) that the job is expected to need.
     """
 
@@ -161,11 +170,11 @@ class GenericWorkflowJob:
     """Max memory (in MB) that the job should ever use.
     """
 
-    request_cpus: Optional[int]      # cores
+    request_cpus: Optional[int]  # cores
     """Max number of cpus that the job is expected to need.
     """
 
-    request_disk: Optional[int]      # MB
+    request_disk: Optional[int]  # MB
     """Max amount of job scratch disk (in MB) that the job is expected to need.
     """
 
@@ -282,13 +291,38 @@ class GenericWorkflowJob:
         self.attrs = {}
         self.environment = {}
 
-    __slots__ = ("name", "label", "quanta_counts", "tags", "mail_to", "when_to_mail",
-                 "executable", "arguments", "cmdvals",
-                 "memory_multiplier", "request_memory", "request_memory_max", "request_cpus", "request_disk",
-                 "request_walltime", "number_of_retries", "retry_unless_exit", "abort_on_value",
-                 "abort_return_value", "compute_site", "environment", "priority", "category",
-                 "concurrency_limit", "queue", "pre_cmdline", "post_cmdline", "preemptible", "profile",
-                 "attrs")
+    __slots__ = (
+        "name",
+        "label",
+        "quanta_counts",
+        "tags",
+        "mail_to",
+        "when_to_mail",
+        "executable",
+        "arguments",
+        "cmdvals",
+        "memory_multiplier",
+        "request_memory",
+        "request_memory_max",
+        "request_cpus",
+        "request_disk",
+        "request_walltime",
+        "number_of_retries",
+        "retry_unless_exit",
+        "abort_on_value",
+        "abort_return_value",
+        "compute_site",
+        "environment",
+        "priority",
+        "category",
+        "concurrency_limit",
+        "queue",
+        "pre_cmdline",
+        "post_cmdline",
+        "preemptible",
+        "profile",
+        "attrs",
+    )
 
     def __hash__(self):
         return hash(self.name)
@@ -308,13 +342,14 @@ class GenericWorkflow(DiGraph):
     attr : `dict`
         Keyword arguments passed through to DiGraph constructor.
     """
+
     def __init__(self, name, incoming_graph_data=None, **attr):
         super().__init__(incoming_graph_data, **attr)
         self._name = name
         self.run_attrs = {}
         self._files = {}
         self._executables = {}
-        self._inputs = {}   # mapping job.names to list of GenericWorkflowFile
+        self._inputs = {}  # mapping job.names to list of GenericWorkflowFile
         self._outputs = {}  # mapping job.names to list of GenericWorkflowFile
         self.run_id = None
         self._final = None
@@ -332,8 +367,7 @@ class GenericWorkflow(DiGraph):
 
     @property
     def quanta_counts(self):
-        """Counts of quanta per task label in workflow (`collections.Counter`).
-        """
+        """Counts of quanta per task label in workflow (`collections.Counter`)."""
         qcounts = Counter()
         for job_name in self:
             gwjob = self.get_job(job_name)
@@ -343,8 +377,7 @@ class GenericWorkflow(DiGraph):
 
     @property
     def job_counts(self):
-        """Counts of jobs per job label in workflow (`collections.Counter`).
-        """
+        """Counts of jobs per job label in workflow (`collections.Counter`)."""
         jcounts = Counter()
         for job_name in self:
             gwjob = self.get_job(job_name)
@@ -363,8 +396,7 @@ class GenericWorkflow(DiGraph):
         return jcounts
 
     def __iter__(self):
-        """Return iterator of job names in topologically sorted order.
-        """
+        """Return iterator of job names in topologically sorted order."""
         return topological_sort(self)
 
     def get_files(self, data=False, transfer_only=True):
@@ -694,8 +726,7 @@ class GenericWorkflow(DiGraph):
         raise RuntimeError(f"Unknown format ({format_})")
 
     def validate(self):
-        """Run checks to ensure this is still a valid generic workflow graph.
-        """
+        """Run checks to ensure this is still a valid generic workflow graph."""
         # Make sure a directed acyclic graph
         assert is_directed_acyclic_graph(self)
 
