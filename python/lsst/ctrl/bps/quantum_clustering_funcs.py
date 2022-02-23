@@ -21,13 +21,13 @@
 
 """Functions that convert QuantumGraph into ClusteredQuantumGraph.
 """
-import re
 import logging
+import re
 from collections import defaultdict
 
 from lsst.pipe.base import NodeId
-from . import QuantaCluster, ClusteredQuantumGraph
 
+from . import ClusteredQuantumGraph, QuantaCluster
 
 _LOG = logging.getLogger(__name__)
 

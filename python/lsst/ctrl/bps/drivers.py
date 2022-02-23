@@ -52,16 +52,15 @@ from lsst.utils import doImport
 from lsst.utils.timer import time_this
 from lsst.utils.usage import get_peak_mem_usage
 
-from . import BPS_DEFAULTS, BPS_SEARCH_ORDER, BpsConfig, DEFAULT_MEM_UNIT, DEFAULT_MEM_FMT
-from .pre_transform import acquire_quantum_graph, cluster_quanta
-from .transform import transform
-from .prepare import prepare
-from .submit import submit
+from . import BPS_DEFAULTS, BPS_SEARCH_ORDER, DEFAULT_MEM_FMT, DEFAULT_MEM_UNIT, BpsConfig
+from .bps_utils import _dump_env_info, _dump_pkg_info
 from .cancel import cancel
+from .pre_transform import acquire_quantum_graph, cluster_quanta
+from .prepare import prepare
 from .report import report
 from .restart import restart
-from .bps_utils import _dump_env_info, _dump_pkg_info
-
+from .submit import submit
+from .transform import transform
 
 _LOG = logging.getLogger(__name__)
 

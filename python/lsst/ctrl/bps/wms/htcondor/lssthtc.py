@@ -62,22 +62,21 @@ __all__ = [
 
 
 import itertools
-import os
-import re
 import json
 import logging
+import os
+import pprint
+import re
+import subprocess
 from collections import defaultdict
 from collections.abc import MutableMapping
+from datetime import datetime, timedelta
 from enum import IntEnum
 from pathlib import Path
-import pprint
-import subprocess
-from datetime import datetime, timedelta
 
-import networkx
 import classad
 import htcondor
-
+import networkx
 
 _LOG = logging.getLogger(__name__)
 

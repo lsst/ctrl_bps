@@ -23,7 +23,6 @@
 
 __all__ = ["submission_options"]
 
-from lsst.daf.butler.cli.utils import OptionGroup, option_section
 from lsst.ctrl.mpexec.cli.opt import (
     butler_config_option,
     data_query_option,
@@ -33,7 +32,9 @@ from lsst.ctrl.mpexec.cli.opt import (
     pipeline_option,
     qgraph_option,
 )
-from . import extra_qgraph_option, extra_init_option, extra_run_quantum_option
+from lsst.daf.butler.cli.utils import OptionGroup, option_section
+
+from . import extra_init_option, extra_qgraph_option, extra_run_quantum_option
 
 
 # Using snake_case for a submission option group (a class) to keep the naming

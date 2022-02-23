@@ -24,8 +24,7 @@ import tempfile
 import unittest
 
 from lsst.ctrl.bps import BpsConfig
-from lsst.ctrl.bps.pre_transform import execute, create_quantum_graph
-
+from lsst.ctrl.bps.pre_transform import create_quantum_graph, execute
 
 TESTDIR = os.path.abspath(os.path.dirname(__file__))
 

@@ -25,7 +25,6 @@ import unittest
 
 from lsst.ctrl.bps.bps_utils import chdir
 
-
 TESTDIR = os.path.abspath(os.path.dirname(__file__))
 
 

@@ -25,21 +25,20 @@
 __all__ = ["PegasusService", "PegasusWorkflow"]
 
 
-import os
 import copy
+import logging
+import os
 import re
-import subprocess
 import shlex
 import shutil
-import logging
+import subprocess
 
-from Pegasus.DAX3 import ADAG, File, Job, Link, PFN, Executable, Profile, Namespace
 from Pegasus.catalogs import replica_catalog, sites_catalog, transformation_catalog
+from Pegasus.DAX3 import ADAG, PFN, Executable, File, Job, Link, Namespace, Profile
 
 from ... import BaseWmsService, BaseWmsWorkflow
 from ...bps_utils import chdir
 from ..htcondor import HTCondorService, htc_write_attribs
-
 
 _LOG = logging.getLogger(__name__)
 

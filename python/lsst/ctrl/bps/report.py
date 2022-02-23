@@ -28,11 +28,9 @@ oriented database tables.
 import logging
 
 from astropy.table import Table
-
 from lsst.utils import doImport
 
 from . import WmsStates
-
 
 _LOG = logging.getLogger(__name__)
 

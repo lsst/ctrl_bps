@@ -30,13 +30,12 @@ import shlex
 import shutil
 import subprocess
 
+from lsst.ctrl.bps.bps_utils import _create_execution_butler
 from lsst.daf.butler import DimensionUniverse
 from lsst.pipe.base.graph import QuantumGraph
 from lsst.utils import doImport
-from lsst.ctrl.bps.bps_utils import _create_execution_butler
 from lsst.utils.logging import VERBOSE
 from lsst.utils.timer import time_this, timeMethod
-
 
 _LOG = logging.getLogger(__name__)
 

@@ -35,9 +35,9 @@ __all__ = [
 import logging
 import os
 
-from pandaclient.openidc_utils import OpenIdConnect_Utils
 import idds.common.utils as idds_utils
 import pandaclient.idds_api
+from pandaclient.openidc_utils import OpenIdConnect_Utils
 
 _LOG = logging.getLogger(__name__)
 

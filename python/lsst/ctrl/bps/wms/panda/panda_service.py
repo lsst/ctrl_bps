@@ -19,19 +19,20 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import os
-import logging
 import binascii
 import concurrent.futures
+import logging
+import os
 
-from lsst.ctrl.bps.wms_service import BaseWmsWorkflow, BaseWmsService
-from lsst.ctrl.bps.wms.panda.idds_tasks import IDDSWorkflowGenerator
-from lsst.ctrl.bps.wms.panda.panda_auth_utils import panda_auth_update
-from lsst.resources import ResourcePath
-from idds.workflowv2.workflow import Workflow as IDDS_client_workflow, AndCondition
-from idds.doma.workflowv2.domapandawork import DomaPanDAWork
 import idds.common.utils as idds_utils
 import pandaclient.idds_api
+from idds.doma.workflowv2.domapandawork import DomaPanDAWork
+from idds.workflowv2.workflow import AndCondition
+from idds.workflowv2.workflow import Workflow as IDDS_client_workflow
+from lsst.ctrl.bps.wms.panda.idds_tasks import IDDSWorkflowGenerator
+from lsst.ctrl.bps.wms.panda.panda_auth_utils import panda_auth_update
+from lsst.ctrl.bps.wms_service import BaseWmsService, BaseWmsWorkflow
+from lsst.resources import ResourcePath
 
 _LOG = logging.getLogger(__name__)
 

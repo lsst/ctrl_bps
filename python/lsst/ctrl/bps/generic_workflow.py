@@ -28,13 +28,13 @@ __all__ = ["GenericWorkflow", "GenericWorkflowFile", "GenericWorkflowJob", "Gene
 import dataclasses
 import itertools
 import logging
-from typing import Optional
 from collections import Counter
-
-from networkx import DiGraph, read_gpickle, write_gpickle, topological_sort
-from networkx.algorithms.dag import is_directed_acyclic_graph
+from typing import Optional
 
 from lsst.utils.iteration import ensure_iterable
+from networkx import DiGraph, read_gpickle, topological_sort, write_gpickle
+from networkx.algorithms.dag import is_directed_acyclic_graph
+
 from .bps_draw import draw_networkx_dot
 
 _LOG = logging.getLogger(__name__)

@@ -20,11 +20,10 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import os
 import unittest
+
 import yaml
-
-from lsst.daf.butler.core.config import Config
 from lsst.ctrl.bps import BpsConfig
-
+from lsst.daf.butler.core.config import Config
 
 TESTDIR = os.path.abspath(os.path.dirname(__file__))
 

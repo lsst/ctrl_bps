@@ -25,33 +25,36 @@
 __all__ = ["HTCondorService", "HTCondorWorkflow"]
 
 
+import logging
 import os
 import re
-import logging
+from collections import defaultdict
 from enum import IntEnum, auto
 from pathlib import Path
-from collections import defaultdict
 
 import htcondor
+from lsst.utils.timer import time_this
 from packaging import version
 
-from lsst.utils.timer import time_this
 from ... import (
-    BaseWmsWorkflow,
     BaseWmsService,
+    BaseWmsWorkflow,
     GenericWorkflow,
     GenericWorkflowJob,
-    WmsRunReport,
     WmsJobReport,
+    WmsRunReport,
     WmsStates,
 )
 from ...bps_utils import chdir, create_count_summary
 from .lssthtc import (
+    MISSING_ID,
     HTCDag,
     HTCJob,
-    MISSING_ID,
     JobStatus,
     NodeStatus,
+    condor_q,
+    condor_search,
+    condor_status,
     htc_backup_files,
     htc_check_dagman_output,
     htc_create_submit_from_cmd,
@@ -60,16 +63,13 @@ from .lssthtc import (
     htc_escape,
     htc_submit_dag,
     htc_version,
+    pegasus_name_to_label,
     read_dag_info,
     read_dag_log,
     read_dag_status,
     read_node_status,
-    write_dag_info,
-    condor_q,
-    condor_search,
-    condor_status,
-    pegasus_name_to_label,
     summary_from_dag,
+    write_dag_info,
 )
 
 

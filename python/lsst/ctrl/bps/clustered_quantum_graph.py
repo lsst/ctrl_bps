@@ -27,17 +27,17 @@ __all__ = ["QuantaCluster", "ClusteredQuantumGraph"]
 
 
 import logging
-import re
 import pickle
+import re
 from collections import Counter, defaultdict
 from pathlib import Path
-from networkx import DiGraph
 
 from lsst.daf.butler import DimensionUniverse
+from lsst.pipe.base import NodeId, QuantumGraph
 from lsst.utils.iteration import ensure_iterable
-from lsst.pipe.base import QuantumGraph, NodeId
-from .bps_draw import draw_networkx_dot
+from networkx import DiGraph
 
+from .bps_draw import draw_networkx_dot
 
 _LOG = logging.getLogger(__name__)
 

@@ -29,9 +29,9 @@ __all__ = [
 
 
 import click
-
 from lsst.daf.butler.cli.utils import MWCommand
-from ...panda_auth_drivers import panda_auth_status_driver, panda_auth_reset_driver, panda_auth_clean_driver
+
+from ...panda_auth_drivers import panda_auth_clean_driver, panda_auth_reset_driver, panda_auth_status_driver
 
 
 class PandaAuthCommand(MWCommand):

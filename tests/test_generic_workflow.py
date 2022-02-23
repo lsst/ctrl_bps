@@ -18,12 +18,12 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-import unittest
-import networkx
-import networkx.algorithms.isomorphism as iso
 import io
+import unittest
 
 import lsst.ctrl.bps.generic_workflow as gw
+import networkx
+import networkx.algorithms.isomorphism as iso
 
 
 class TestGenericWorkflowJob(unittest.TestCase):

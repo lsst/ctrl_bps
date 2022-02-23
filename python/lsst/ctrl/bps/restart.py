@@ -25,7 +25,6 @@ import logging
 
 from lsst.utils import doImport
 
-
 _LOG = logging.getLogger(__name__)
 
 

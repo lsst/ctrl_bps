@@ -6,10 +6,11 @@ plugin -> PanDA -> Edge node cluster management
 of the BPS but a part of the payload wrapper.
 It decodes the hexified command line.
 """
+import binascii
 import os
 import re
 import sys
-import binascii
+
 from lsst.resources import ResourcePath
 
 

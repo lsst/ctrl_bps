@@ -22,12 +22,12 @@
 """Driver for the transformation of a QuantumGraph into a generic workflow.
 """
 
+import copy
+import dataclasses
 import logging
 import math
 import os
 import re
-import dataclasses
-import copy
 
 from lsst.utils.logging import VERBOSE
 from lsst.utils.timer import time_this, timeMethod
@@ -36,15 +36,15 @@ from . import (
     DEFAULT_MEM_RETRIES,
     BpsConfig,
     GenericWorkflow,
-    GenericWorkflowJob,
-    GenericWorkflowFile,
     GenericWorkflowExec,
+    GenericWorkflowFile,
+    GenericWorkflowJob,
 )
 from .bps_utils import (
-    save_qg_subgraph,
     WhenToSaveQuantumGraphs,
-    create_job_quantum_graph_filename,
     _create_execution_butler,
+    create_job_quantum_graph_filename,
+    save_qg_subgraph,
 )
 
 # All available job attributes.

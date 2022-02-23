@@ -31,11 +31,10 @@ __all__ = [
 ]
 
 
-import logging
 import dataclasses
+import logging
 from abc import ABCMeta
 from enum import Enum
-
 
 _LOG = logging.getLogger(__name__)
 
