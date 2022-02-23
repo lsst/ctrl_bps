@@ -25,12 +25,18 @@ import sys
 
 from lsst.utils import doImport
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # Check for env vars before importing code because the LSST click
     # code hides that the problem is missing environment variables required
     # during imports of third-party modules.
-    for key in ["PANDA_AUTH", "PANDA_VERIFY_HOST", "PANDA_AUTH_VO", "PANDA_URL_SSL", "PANDA_URL",
-                "IDDS_CONFIG"]:
+    for key in [
+        "PANDA_AUTH",
+        "PANDA_VERIFY_HOST",
+        "PANDA_AUTH_VO",
+        "PANDA_URL_SSL",
+        "PANDA_URL",
+        "IDDS_CONFIG",
+    ]:
         if key not in os.environ:
             raise OSError(f"Missing environment variable {key}")
 
