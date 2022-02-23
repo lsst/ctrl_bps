@@ -367,7 +367,7 @@ class GenericWorkflow(DiGraph):
 
     @property
     def quanta_counts(self):
-        """Counts of quanta per task label in workflow (`collections.Counter`)."""
+        """Count of quanta per task label (`collections.Counter`)."""
         qcounts = Counter()
         for job_name in self:
             gwjob = self.get_job(job_name)
@@ -377,7 +377,7 @@ class GenericWorkflow(DiGraph):
 
     @property
     def job_counts(self):
-        """Counts of jobs per job label in workflow (`collections.Counter`)."""
+        """Count of jobs per job label (`collections.Counter`)."""
         jcounts = Counter()
         for job_name in self:
             gwjob = self.get_job(job_name)
@@ -726,7 +726,7 @@ class GenericWorkflow(DiGraph):
         raise RuntimeError(f"Unknown format ({format_})")
 
     def validate(self):
-        """Run checks to ensure this is still a valid generic workflow graph."""
+        """Run checks to ensure that the generic workflow graph is valid."""
         # Make sure a directed acyclic graph
         assert is_directed_acyclic_graph(self)
 
