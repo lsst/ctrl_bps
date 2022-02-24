@@ -6,29 +6,31 @@ plugin -> PanDA -> Edge node cluster management
 of the BPS but a part of the payload wrapper.
 It decodes the hexified command line.
 """
+import binascii
 import os
 import re
 import sys
-import binascii
+
 from lsst.resources import ResourcePath
 
 
 def replace_placeholders(cmd_line, tag, replancements):
-    occurences_to_replace = re.findall(f'<{tag}:(.*?)>', cmd_line)
+    occurences_to_replace = re.findall(f"<{tag}:(.*?)>", cmd_line)
     for placeholder in occurences_to_replace:
         if placeholder in replancements:
-            cmd_line = cmd_line.replace(
-                f'<{tag}:{placeholder}>', replancements[placeholder])
+            cmd_line = cmd_line.replace(f"<{tag}:{placeholder}>", replancements[placeholder])
         else:
-            raise ValueError(f"ValueError exception thrown, because "
-                             f"{placeholder} is not found in the "
-                             f"replacement values and could "
-                             f"not be passed to the command line")
+            raise ValueError(
+                f"ValueError exception thrown, because "
+                f"{placeholder} is not found in the "
+                f"replacement values and could "
+                f"not be passed to the command line"
+            )
     return cmd_line
 
 
 def replace_environment_vars(cmd_line):
-    """ Replaces placeholders to the actual environment variables.
+    """Replaces placeholders to the actual environment variables.
 
     Parameters
     ----------
@@ -41,7 +43,7 @@ def replace_environment_vars(cmd_line):
         Processed command line
     """
     environment_vars = os.environ
-    cmd_line = replace_placeholders(cmd_line, 'ENV', environment_vars)
+    cmd_line = replace_placeholders(cmd_line, "ENV", environment_vars)
     return cmd_line
 
 
@@ -64,12 +66,12 @@ def replace_files_placeholders(cmd_line, files):
         Processed command line
     """
 
-    files_key_vals = files.split('+')
+    files_key_vals = files.split("+")
     files = {}
     for file in files_key_vals:
         file_name_placeholder, file_name = file.split(":")
         files[file_name_placeholder] = file_name
-    cmd_line = replace_placeholders(cmd_line, 'FILE', files)
+    cmd_line = replace_placeholders(cmd_line, "FILE", files)
     return cmd_line
 
 
@@ -90,10 +92,10 @@ def deliver_input_files(src_path, files, skip_copy):
         :param skip_copy:
     """
 
-    files = files.split('+')
+    files = files.split("+")
     src_uri = ResourcePath(src_path, forceDirectory=True)
     for file in files:
-        file_name_placeholder, file_pfn = file.split(':')
+        file_name_placeholder, file_pfn = file.split(":")
         if file_name_placeholder not in skip_copy.split("+"):
             src = src_uri.join(file_pfn)
             base_dir = None
@@ -108,8 +110,7 @@ def deliver_input_files(src_path, files, skip_copy):
             for file_to_copy in files_to_copy:
                 dest = dest_base.join(file_to_copy.basename())
                 dest.transfer_from(file_to_copy, transfer="copy")
-                print(f"copied {file_to_copy.path} "
-                      f"to {dest.path}", file=sys.stderr)
+                print(f"copied {file_to_copy.path} " f"to {dest.path}", file=sys.stderr)
 
 
 deliver_input_files(sys.argv[3], sys.argv[4], sys.argv[5])

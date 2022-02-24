@@ -28,23 +28,22 @@ __all__ = [
     "panda_auth_expiration",
     "panda_auth_setup",
     "panda_auth_status",
-    "panda_auth_update"
+    "panda_auth_update",
 ]
 
 
 import logging
 import os
 
-from pandaclient.openidc_utils import OpenIdConnect_Utils
 import idds.common.utils as idds_utils
 import pandaclient.idds_api
+from pandaclient.openidc_utils import OpenIdConnect_Utils
 
 _LOG = logging.getLogger(__name__)
 
 
 def panda_auth_clean():
-    """Clean up token and token cache files.
-    """
+    """Clean up token and token cache files."""
     open_id = panda_auth_setup()
     open_id.cleanup()
 
@@ -72,8 +71,14 @@ def panda_auth_setup():
     open_id : `pandaclient.openidc_utils.OpenIdConnect_Utils`
         Auth object which can interact with auth token.
     """
-    for key in ["PANDA_AUTH", "PANDA_VERIFY_HOST", "PANDA_AUTH_VO", "PANDA_URL_SSL", "PANDA_URL",
-                "IDDS_CONFIG"]:
+    for key in [
+        "PANDA_AUTH",
+        "PANDA_VERIFY_HOST",
+        "PANDA_AUTH_VO",
+        "PANDA_URL_SSL",
+        "PANDA_URL",
+        "IDDS_CONFIG",
+    ]:
         if key not in os.environ:
             raise OSError(f"Missing environment variable {key}")
 
@@ -127,8 +132,9 @@ def panda_auth_update(idds_server=None, reset=False):
     # (There is a function in OpenIdConnect_Utils, but it takes several
     #  parameters.  Letting the client manager do it is currently easiest
     #  way to match what happens when the workflow is actually submitted.)
-    cm = pandaclient.idds_api.get_api(idds_utils.json_dumps, idds_host=idds_server, compress=True,
-                                      manager=True, verbose=False)
+    cm = pandaclient.idds_api.get_api(
+        idds_utils.json_dumps, idds_host=idds_server, compress=True, manager=True, verbose=False
+    )
 
     # Must call some function to actually check auth
     # https://panda-wms.readthedocs.io/en/latest/client/notebooks/jupyter_setup.html#Get-an-OIDC-ID-token

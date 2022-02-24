@@ -19,14 +19,13 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import click
-
 from lsst.daf.butler.cli.butler import LoaderCLI
 from lsst.daf.butler.cli.opt import (
-    log_level_option,
-    long_log_option,
     log_file_option,
-    log_tty_option,
     log_label_option,
+    log_level_option,
+    log_tty_option,
+    long_log_option,
 )
 
 
@@ -35,9 +34,7 @@ class PandaAuthCli(LoaderCLI):
     localCmdPkg = "lsst.ctrl.bps.wms.panda.cli.cmd"
 
 
-@click.command(cls=PandaAuthCli,
-               context_settings=dict(help_option_names=["-h", "--help"]),
-               epilog=None)
+@click.command(cls=PandaAuthCli, context_settings=dict(help_option_names=["-h", "--help"]), epilog=None)
 @log_level_option(default=["INFO"])
 @long_log_option()
 @log_file_option()

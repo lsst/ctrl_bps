@@ -19,9 +19,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import os
 import logging
-
+import os
 
 _LOG = logging.getLogger(__name__)
 
@@ -39,12 +38,13 @@ class CommandLineEmbedder:
             (uniques per job) and submission side resolved variables
 
     """
+
     def __init__(self, config):
-        self.leave_placeholder_params = config.get("placeholderParams", ['qgraphNodeId', 'qgraphId'])
-        self.submit_side_resolved = config.get("submitSideResolvedParams", ['USER'])
+        self.leave_placeholder_params = config.get("placeholderParams", ["qgraphNodeId", "qgraphId"])
+        self.submit_side_resolved = config.get("submitSideResolvedParams", ["USER"])
 
     def replace_static_parameters(self, cmd_line, lazy_vars):
-        """ Substitutes the lazy parameters in the command line which
+        """Substitutes the lazy parameters in the command line which
         are static, the same for every job in the workflow and could be
         defined once. This function offloads the edge node processing
         and number of parameters transferred together with job
@@ -61,11 +61,11 @@ class CommandLineEmbedder:
         """
         for param_name, param_val in lazy_vars.items():
             if param_name not in self.leave_placeholder_params:
-                cmd_line = cmd_line.replace('{'+param_name+'}', param_val)
+                cmd_line = cmd_line.replace("{" + param_name + "}", param_val)
         return cmd_line
 
     def resolve_submission_side_env_vars(self, cmd_line):
-        """ Substitutes the lazy parameters in the command line
+        """Substitutes the lazy parameters in the command line
         which are defined and resolved on the submission side
 
         Parameters
@@ -79,13 +79,13 @@ class CommandLineEmbedder:
 
         for param in self.submit_side_resolved:
             if os.getenv(param):
-                cmd_line = cmd_line.replace('<ENV:'+param+'>', os.getenv(param))
+                cmd_line = cmd_line.replace("<ENV:" + param + ">", os.getenv(param))
             else:
                 _LOG.info("Expected parameter {0} is not found in the environment variables".format(param))
         return cmd_line
 
     def attach_pseudo_file_params(self, lazy_vars):
-        """ Adds the parameters needed to finalize creation of a pseudo file
+        """Adds the parameters needed to finalize creation of a pseudo file
 
         Parameters
         ----------
@@ -98,11 +98,11 @@ class CommandLineEmbedder:
 
         file_suffix = ""
         for item in self.leave_placeholder_params:
-            file_suffix += '+' + item + ':' + lazy_vars.get(item, '')
+            file_suffix += "+" + item + ":" + lazy_vars.get(item, "")
         return file_suffix
 
     def substitute_command_line(self, cmd_line, lazy_vars, job_name):
-        """ Preprocesses the command line leaving for the egde node evaluation
+        """Preprocesses the command line leaving for the egde node evaluation
         only parameters which are job / environment dependent
 
         Parameters

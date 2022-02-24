@@ -27,17 +27,17 @@ __all__ = ["QuantaCluster", "ClusteredQuantumGraph"]
 
 
 import logging
-import re
 import pickle
+import re
 from collections import Counter, defaultdict
 from pathlib import Path
-from networkx import DiGraph
 
 from lsst.daf.butler import DimensionUniverse
+from lsst.pipe.base import NodeId, QuantumGraph
 from lsst.utils.iteration import ensure_iterable
-from lsst.pipe.base import QuantumGraph, NodeId
-from .bps_draw import draw_networkx_dot
+from networkx import DiGraph
 
+from .bps_draw import draw_networkx_dot
 
 _LOG = logging.getLogger(__name__)
 
@@ -60,8 +60,9 @@ class QuantaCluster:
     ValueError
         Raised if invalid name (e.g., name contains /)
     """
+
     def __init__(self, name, label, tags=None):
-        if '/' in name:
+        if "/" in name:
             raise ValueError(f"Cluster's name cannot have a / ({name})")
         self.name = name
         self.label = label
@@ -111,15 +112,13 @@ class QuantaCluster:
 
     @property
     def qgraph_node_ids(self):
-        """QuantumGraph NodeIds corresponding to this cluster.
-        """
+        """QuantumGraph NodeIds corresponding to this cluster."""
         _LOG.debug("_qgraph_node_ids = %s", self._qgraph_node_ids)
         return frozenset(self._qgraph_node_ids)
 
     @property
     def quanta_counts(self):
-        """Counts of Quanta per taskDef.label in this cluster.
-        """
+        """Counts of Quanta per taskDef.label in this cluster."""
         return Counter(self._task_label_counts)
 
     def add_quantum_node(self, quantum_node):
@@ -147,8 +146,10 @@ class QuantaCluster:
         self._task_label_counts[task_label] += 1
 
     def __str__(self):
-        return f"QuantaCluster(name={self.name},label={self.label},tags={self.tags}," \
-               f"counts={self.quanta_counts},ids={self.qgraph_node_ids})"
+        return (
+            f"QuantaCluster(name={self.name},label={self.label},tags={self.tags},"
+            f"counts={self.quanta_counts},ids={self.qgraph_node_ids})"
+        )
 
     def __eq__(self, other: object) -> bool:
         # Doesn't check data equality, but only
@@ -193,7 +194,7 @@ class ClusteredQuantumGraph:
     """
 
     def __init__(self, name, qgraph, qgraph_filename=None):
-        if '/' in name:
+        if "/" in name:
             raise ValueError(f"name cannot have a / ({name})")
         self._name = name
         self._quantum_graph = qgraph
@@ -201,20 +202,20 @@ class ClusteredQuantumGraph:
         self._cluster_graph = DiGraph()
 
     def __str__(self):
-        return f"ClusteredQuantumGraph(name={self.name}," \
-               f"quantum_graph_filename={self._quantum_graph_filename}," \
-               f"len(qgraph)={len(self._quantum_graph) if self._quantum_graph else None}," \
-               f"len(cqgraph)={len(self._cluster_graph) if self._cluster_graph else None})"
+        return (
+            f"ClusteredQuantumGraph(name={self.name},"
+            f"quantum_graph_filename={self._quantum_graph_filename},"
+            f"len(qgraph)={len(self._quantum_graph) if self._quantum_graph else None},"
+            f"len(cqgraph)={len(self._cluster_graph) if self._cluster_graph else None})"
+        )
 
     def __len__(self):
-        """Return the number of clusters.
-        """
+        """Return the number of clusters."""
         return len(self._cluster_graph)
 
     @property
     def name(self):
-        """The name of the ClusteredQuantumGraph.
-        """
+        """The name of the ClusteredQuantumGraph."""
         return self._name
 
     @property
@@ -264,7 +265,7 @@ class ClusteredQuantumGraph:
             attr = self._cluster_graph.nodes[name]
         except KeyError as ex:
             raise KeyError(f"{self.name} does not have a cluster named {name}") from ex
-        return attr['cluster']
+        return attr["cluster"]
 
     def get_quantum_node(self, id_):
         """Retrieve a QuantumNode from the ClusteredQuantumGraph by ID.
@@ -416,7 +417,7 @@ class ClusteredQuantumGraph:
 
         if not self._quantum_graph_filename:
             # Create filename based on given ClusteredQuantumGraph filename
-            self._quantum_graph_filename = path.with_suffix('.qgraph')
+            self._quantum_graph_filename = path.with_suffix(".qgraph")
 
         # If QuantumGraph file doesn't already exist, save it:
         if not Path(self._quantum_graph_filename).exists():

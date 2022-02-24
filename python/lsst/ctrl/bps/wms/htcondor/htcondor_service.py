@@ -25,36 +25,36 @@
 __all__ = ["HTCondorService", "HTCondorWorkflow"]
 
 
+import logging
 import os
 import re
-import logging
+from collections import defaultdict
 from enum import IntEnum, auto
 from pathlib import Path
-from collections import defaultdict
 
 import htcondor
+from lsst.utils.timer import time_this
 from packaging import version
 
-from lsst.utils.timer import time_this
 from ... import (
-    BaseWmsWorkflow,
     BaseWmsService,
+    BaseWmsWorkflow,
     GenericWorkflow,
     GenericWorkflowJob,
-    WmsRunReport,
     WmsJobReport,
-    WmsStates
+    WmsRunReport,
+    WmsStates,
 )
-from ...bps_utils import (
-    chdir,
-    create_count_summary
-)
+from ...bps_utils import chdir, create_count_summary
 from .lssthtc import (
+    MISSING_ID,
     HTCDag,
     HTCJob,
-    MISSING_ID,
     JobStatus,
     NodeStatus,
+    condor_q,
+    condor_search,
+    condor_status,
     htc_backup_files,
     htc_check_dagman_output,
     htc_create_submit_from_cmd,
@@ -63,22 +63,18 @@ from .lssthtc import (
     htc_escape,
     htc_submit_dag,
     htc_version,
+    pegasus_name_to_label,
     read_dag_info,
     read_dag_log,
     read_dag_status,
     read_node_status,
-    write_dag_info,
-    condor_q,
-    condor_search,
-    condor_status,
-    pegasus_name_to_label,
     summary_from_dag,
+    write_dag_info,
 )
 
 
 class WmsIdType(IntEnum):
-    """Type of valid WMS ids.
-    """
+    """Type of valid WMS ids."""
 
     UNKNOWN = auto()
     """The type of id cannot be determined.
@@ -105,8 +101,8 @@ _LOG = logging.getLogger(__name__)
 
 
 class HTCondorService(BaseWmsService):
-    """HTCondor version of WMS service.
-    """
+    """HTCondor version of WMS service."""
+
     def prepare(self, config, generic_workflow, out_prefix=None):
         """Convert generic workflow to an HTCondor DAG ready for submission.
 
@@ -127,12 +123,16 @@ class HTCondorService(BaseWmsService):
         """
         _LOG.debug("out_prefix = '%s'", out_prefix)
         with time_this(log=_LOG, level=logging.INFO, prefix=None, msg="Completed HTCondor workflow creation"):
-            workflow = HTCondorWorkflow.from_generic_workflow(config, generic_workflow, out_prefix,
-                                                              f"{self.__class__.__module__}."
-                                                              f"{self.__class__.__name__}")
+            workflow = HTCondorWorkflow.from_generic_workflow(
+                config,
+                generic_workflow,
+                out_prefix,
+                f"{self.__class__.__module__}." f"{self.__class__.__name__}",
+            )
 
-        with time_this(log=_LOG, level=logging.INFO, prefix=None,
-                       msg="Completed writing out HTCondor workflow"):
+        with time_this(
+            log=_LOG, level=logging.INFO, prefix=None, msg="Completed writing out HTCondor workflow"
+        ):
             workflow.write(out_prefix)
         return workflow
 
@@ -221,11 +221,12 @@ class HTCondorService(BaseWmsService):
         else:
             warn = True
         if warn:
-            _LOG.warning("Cannot determine the execution status of the workflow, "
-                         "continuing with restart regardless")
+            _LOG.warning(
+                "Cannot determine the execution status of the workflow, " "continuing with restart regardless"
+            )
 
         _LOG.info("Backing up select HTCondor files from previous run attempt")
-        htc_backup_files(wms_path, subdir='backups')
+        htc_backup_files(wms_path, subdir="backups")
 
         # For workflow portability, internal paths are all relative. Hence
         # the DAG needs to be resubmitted to HTCondor from inside the submit
@@ -234,7 +235,7 @@ class HTCondorService(BaseWmsService):
         run_id, run_name, message = None, None, ""
         with chdir(wms_path):
             try:
-                dag_path = next(wms_path.glob('*.dag.condor.sub'))
+                dag_path = next(wms_path.glob("*.dag.condor.sub"))
             except StopIteration:
                 message = f"DAGMan submit description file not found in '{wms_path}'"
             else:
@@ -281,9 +282,14 @@ class HTCondorService(BaseWmsService):
             Only job ids to be used by cancel and other functions.  Typically
             this means top-level jobs (i.e., not children jobs).
         """
-        _LOG.debug("list_submitted_jobs params: "
-                   "wms_id=%s, user=%s, require_bps=%s, pass_thru=%s, is_global=%s",
-                   wms_id, user, require_bps, pass_thru, is_global)
+        _LOG.debug(
+            "list_submitted_jobs params: " "wms_id=%s, user=%s, require_bps=%s, pass_thru=%s, is_global=%s",
+            wms_id,
+            user,
+            require_bps,
+            pass_thru,
+            is_global,
+        )
 
         # Determine which Schedds will be queried for job information.
         coll = htcondor.Collector()
@@ -378,7 +384,7 @@ class HTCondorService(BaseWmsService):
             elif id_type == WmsIdType.PATH:
                 run_reports, message = _report_from_path(wms_workflow_id)
             else:
-                run_reports, message = {}, 'Invalid job id'
+                run_reports, message = {}, "Invalid job id"
         else:
             schedulers = _locate_schedds(locate_all=is_global)
             run_reports, message = _summary_report(user, hist, pass_thru, schedds=schedulers)
@@ -412,8 +418,11 @@ class HTCondorService(BaseWmsService):
             deleted = False
             message = "invalid id"
         else:
-            _LOG.debug("Canceling job managed by schedd_name = %s with cluster_id = %s",
-                       cluster_id, schedd_ad["Name"])
+            _LOG.debug(
+                "Canceling job managed by schedd_name = %s with cluster_id = %s",
+                cluster_id,
+                schedd_ad["Name"],
+            )
             schedd = htcondor.Schedd(schedd_ad)
 
             constraint = f"ClusterId == {cluster_id}"
@@ -454,6 +463,7 @@ class HTCondorWorkflow(BaseWmsWorkflow):
     config : `lsst.ctrl.bps.BpsConfig`
         BPS configuration that includes necessary submit/runtime information.
     """
+
     def __init__(self, name, config=None):
         super().__init__(name, config)
         self.dag = None
@@ -466,10 +476,14 @@ class HTCondorWorkflow(BaseWmsWorkflow):
 
         _LOG.debug("htcondor dag attribs %s", generic_workflow.run_attrs)
         htc_workflow.dag.add_attribs(generic_workflow.run_attrs)
-        htc_workflow.dag.add_attribs({"bps_wms_service": service_class,
-                                      "bps_wms_workflow": f"{cls.__module__}.{cls.__name__}",
-                                      "bps_run_quanta": create_count_summary(generic_workflow.quanta_counts),
-                                      "bps_job_summary": create_count_summary(generic_workflow.job_counts)})
+        htc_workflow.dag.add_attribs(
+            {
+                "bps_wms_service": service_class,
+                "bps_wms_workflow": f"{cls.__module__}.{cls.__name__}",
+                "bps_run_quanta": create_count_summary(generic_workflow.quanta_counts),
+                "bps_job_summary": create_count_summary(generic_workflow.job_counts),
+            }
+        )
 
         _, tmp_template = config.search("subDirTemplate", opt={"replaceVars": False, "default": ""})
         if isinstance(tmp_template, str):
@@ -483,8 +497,13 @@ class HTCondorWorkflow(BaseWmsWorkflow):
             gwjob = generic_workflow.get_job(job_name)
             if gwjob.compute_site not in site_values:
                 site_values[gwjob.compute_site] = _gather_site_values(config, gwjob.compute_site)
-            htc_job = _create_job(subdir_template[gwjob.label], site_values[gwjob.compute_site],
-                                  generic_workflow, gwjob, out_prefix)
+            htc_job = _create_job(
+                subdir_template[gwjob.label],
+                site_values[gwjob.compute_site],
+                generic_workflow,
+                gwjob,
+                out_prefix,
+            )
             htc_workflow.dag.add_job(htc_job)
 
         # Add job dependencies to the DAG
@@ -496,11 +515,17 @@ class HTCondorWorkflow(BaseWmsWorkflow):
         if final and isinstance(final, GenericWorkflowJob):
             if final.compute_site and final.compute_site not in site_values:
                 site_values[final.compute_site] = _gather_site_values(config, final.compute_site)
-            final_htjob = _create_job(subdir_template[final.label], site_values[final.compute_site],
-                                      generic_workflow, final, out_prefix)
+            final_htjob = _create_job(
+                subdir_template[final.label],
+                site_values[final.compute_site],
+                generic_workflow,
+                final,
+                out_prefix,
+            )
             if "post" not in final_htjob.dagcmds:
-                final_htjob.dagcmds["post"] = f"{os.path.dirname(__file__)}/final_post.sh" \
-                                              f" {final.name} $DAG_STATUS $RETURN"
+                final_htjob.dagcmds["post"] = (
+                    f"{os.path.dirname(__file__)}/final_post.sh" f" {final.name} $DAG_STATUS $RETURN"
+                )
             htc_workflow.dag.add_final_job(final_htjob)
         elif final and isinstance(final, GenericWorkflow):
             raise NotImplementedError("HTCondor plugin does not support a workflow as the final job")
@@ -562,13 +587,12 @@ def _create_job(subdir_template, site_values, generic_workflow, gwjob, out_prefi
         "transfer_output_files": '""',  # Set to empty string to disable
         "transfer_executable": "False",
         "getenv": "True",
-
         # Exceeding memory sometimes triggering SIGBUS or SIGSEGV error. Tell
         # htcondor to put on hold any jobs which exited by a signal.
         "on_exit_hold": "ExitBySignal == true",
         "on_exit_hold_reason": 'strcat("Job raised a signal ", string(ExitSignal), ". ", '
-                               '"Handling signal as if job has gone over memory limit.")',
-        "on_exit_hold_subcode": "34"
+        '"Handling signal as if job has gone over memory limit.")',
+        "on_exit_hold_subcode": "34",
     }
 
     htc_job_cmds.update(_translate_job_cmds(site_values, generic_workflow, gwjob))
@@ -578,8 +602,9 @@ def _create_job(subdir_template, site_values, generic_workflow, gwjob, out_prefi
         htc_job_cmds[key] = htc_job.subfile.with_suffix(f".$(Cluster).{key[:3]}")
         _LOG.debug("HTCondor %s = %s", key, htc_job_cmds[key])
 
-    htc_job_cmds.update(_handle_job_inputs(generic_workflow, gwjob.name, site_values["bpsUseShared"],
-                                           out_prefix))
+    htc_job_cmds.update(
+        _handle_job_inputs(generic_workflow, gwjob.name, site_values["bpsUseShared"], out_prefix)
+    )
 
     # Add the job cmds dict to the job object.
     htc_job.add_job_cmds(htc_job_cmds)
@@ -591,8 +616,7 @@ def _create_job(subdir_template, site_values, generic_workflow, gwjob, out_prefi
     htc_job.add_job_attrs(gwjob.attrs)
     htc_job.add_job_attrs(site_values["attrs"])
     htc_job.add_job_attrs({"bps_job_quanta": create_count_summary(gwjob.quanta_counts)})
-    htc_job.add_job_attrs({"bps_job_name": gwjob.name,
-                           "bps_job_label": gwjob.label})
+    htc_job.add_job_attrs({"bps_job_name": gwjob.name, "bps_job_label": gwjob.label})
 
     return htc_job
 
@@ -616,11 +640,13 @@ def _translate_job_cmds(cached_vals, generic_workflow, gwjob):
         file.
     """
     # Values in the job script that just are name mappings.
-    job_translation = {"mail_to": "notify_user",
-                       "when_to_mail": "notification",
-                       "request_cpus": "request_cpus",
-                       "priority": "priority",
-                       "category": "category"}
+    job_translation = {
+        "mail_to": "notify_user",
+        "when_to_mail": "notification",
+        "request_cpus": "request_cpus",
+        "priority": "priority",
+        "category": "category",
+    }
 
     jobcmds = {}
     for gwkey, htckey in job_translation.items():
@@ -644,9 +670,11 @@ def _translate_job_cmds(cached_vals, generic_workflow, gwjob):
         # string if it does not contain the key.
         memory_limit = cached_vals["memoryLimit"]
         if not memory_limit:
-            raise RuntimeError("Memory autoscaling enabled, but automatic detection of the memory limit "
-                               "failed; setting it explicitly with 'memoryLimit' or changing worker node "
-                               "search pattern 'executeMachinesPattern' might help.")
+            raise RuntimeError(
+                "Memory autoscaling enabled, but automatic detection of the memory limit "
+                "failed; setting it explicitly with 'memoryLimit' or changing worker node "
+                "search pattern 'executeMachinesPattern' might help."
+            )
 
         # Set maximal amount of memory job can ask for.
         #
@@ -659,17 +687,20 @@ def _translate_job_cmds(cached_vals, generic_workflow, gwjob):
 
         # Make job ask for more memory each time it failed due to insufficient
         # memory requirements.
-        jobcmds["request_memory"] = \
-            _create_request_memory_expr(gwjob.request_memory, gwjob.memory_multiplier, memory_max)
+        jobcmds["request_memory"] = _create_request_memory_expr(
+            gwjob.request_memory, gwjob.memory_multiplier, memory_max
+        )
 
         # Periodically release jobs which are being held due to exceeding
         # memory. Stop doing that (by removing the job from the HTCondor queue)
         # after the maximal number of retries has been reached or the job was
         # already run at maximal allowed memory.
-        jobcmds["periodic_release"] = \
-            _create_periodic_release_expr(gwjob.request_memory, gwjob.memory_multiplier, memory_max)
-        jobcmds["periodic_remove"] = \
-            _create_periodic_remove_expr(gwjob.request_memory, gwjob.memory_multiplier, memory_max)
+        jobcmds["periodic_release"] = _create_periodic_release_expr(
+            gwjob.request_memory, gwjob.memory_multiplier, memory_max
+        )
+        jobcmds["periodic_remove"] = _create_periodic_remove_expr(
+            gwjob.request_memory, gwjob.memory_multiplier, memory_max
+        )
 
     # Assume concurrency_limit implemented using HTCondor concurrency limits.
     # May need to move to special site-specific implementation if sites use
@@ -715,8 +746,7 @@ def _translate_dag_cmds(gwjob):
         DAGMan commands for the job.
     """
     # Values in the dag script that just are name mappings.
-    dag_translation = {"abort_on_value": "abort_dag_on",
-                       "abort_return_value": "abort_exit"}
+    dag_translation = {"abort_on_value": "abort_dag_on", "abort_return_value": "abort_exit"}
 
     dagcmds = {}
     for gwkey, htckey in dag_translation.items():
@@ -823,10 +853,10 @@ def _replace_cmd_vars(arguments, gwjob):
     """
     try:
         arguments = arguments.format(**gwjob.cmdvals)
-    except (KeyError, TypeError):   # TypeError in case None instead of {}
-        _LOG.error("Could not replace command variables:\n"
-                   "arguments: %s\n"
-                   "cmdvals: %s", arguments, gwjob.cmdvals)
+    except (KeyError, TypeError):  # TypeError in case None instead of {}
+        _LOG.error(
+            "Could not replace command variables:\n" "arguments: %s\n" "cmdvals: %s", arguments, gwjob.cmdvals
+        )
         raise
     return arguments
 
@@ -881,8 +911,9 @@ def _handle_job_inputs(generic_workflow: GenericWorkflow, job_name: str, use_sha
                     inputs.append(f"file://{uri / 'butler.yaml'}")
                     inputs.append(f"file://{uri / 'gen3.sqlite3'}")
             elif uri.is_dir():
-                raise RuntimeError("HTCondor plugin cannot transfer directories locally within job "
-                                   f"{gwf_file.src_uri}")
+                raise RuntimeError(
+                    "HTCondor plugin cannot transfer directories locally within job " f"{gwf_file.src_uri}"
+                )
             else:
                 inputs.append(f"file://{uri}")
 
@@ -980,8 +1011,10 @@ def _report_from_id(wms_workflow_id, hist, schedds=None):
     else:
         ids = [ad["GlobalJobId"] for dag_info in schedd_dag_info.values() for ad in dag_info.values()]
         run_reports = {}
-        message = f"More than one job matches id '{wms_workflow_id}', " \
-                  f"their global ids are: {', '.join(ids)}. Rerun with one of the global ids"
+        message = (
+            f"More than one job matches id '{wms_workflow_id}', "
+            f"their global ids are: {', '.join(ids)}. Rerun with one of the global ids"
+        )
     return run_reports, message
 
 
@@ -1022,8 +1055,9 @@ def _get_info_from_path(wms_path):
         message = htc_check_dagman_output(wms_path)
         if message:
             messages.append(message)
-        _LOG.debug("_get_info: id = %s, total_jobs = %s", wms_workflow_id,
-                   jobs[wms_workflow_id]["total_jobs"])
+        _LOG.debug(
+            "_get_info: id = %s, total_jobs = %s", wms_workflow_id, jobs[wms_workflow_id]["total_jobs"]
+        )
 
         # Add extra pieces of information which cannot be found in HTCondor
         # generated files like 'GlobalJobId'.
@@ -1050,7 +1084,7 @@ def _get_info_from_path(wms_path):
         wms_workflow_id = MISSING_ID
         jobs = {}
 
-    message = '\n'.join([msg for msg in messages if msg])
+    message = "\n".join([msg for msg in messages if msg])
     return wms_workflow_id, jobs, message
 
 
@@ -1072,29 +1106,32 @@ def _create_detailed_report_from_jobs(wms_workflow_id, jobs):
     """
     _LOG.debug("_create_detailed_report: id = %s, job = %s", wms_workflow_id, jobs[wms_workflow_id])
     dag_job = jobs[wms_workflow_id]
-    report = WmsRunReport(wms_id=f"{dag_job['ClusterId']}.{dag_job['ProcId']}",
-                          global_wms_id=dag_job.get("GlobalJobId", "MISS"),
-                          path=dag_job["Iwd"],
-                          label=dag_job.get("bps_job_label", "MISS"),
-                          run=dag_job.get("bps_run", "MISS"),
-                          project=dag_job.get("bps_project", "MISS"),
-                          campaign=dag_job.get("bps_campaign", "MISS"),
-                          payload=dag_job.get("bps_payload", "MISS"),
-                          operator=_get_owner(dag_job),
-                          run_summary=_get_run_summary(dag_job),
-                          state=_htc_status_to_wms_state(dag_job),
-                          jobs=[],
-                          total_number_jobs=dag_job["total_jobs"],
-                          job_state_counts=dag_job["state_counts"])
+    report = WmsRunReport(
+        wms_id=f"{dag_job['ClusterId']}.{dag_job['ProcId']}",
+        global_wms_id=dag_job.get("GlobalJobId", "MISS"),
+        path=dag_job["Iwd"],
+        label=dag_job.get("bps_job_label", "MISS"),
+        run=dag_job.get("bps_run", "MISS"),
+        project=dag_job.get("bps_project", "MISS"),
+        campaign=dag_job.get("bps_campaign", "MISS"),
+        payload=dag_job.get("bps_payload", "MISS"),
+        operator=_get_owner(dag_job),
+        run_summary=_get_run_summary(dag_job),
+        state=_htc_status_to_wms_state(dag_job),
+        jobs=[],
+        total_number_jobs=dag_job["total_jobs"],
+        job_state_counts=dag_job["state_counts"],
+    )
 
     for job_id, job_info in jobs.items():
         try:
             if job_info["ClusterId"] != int(float(wms_workflow_id)):
-                job_report = WmsJobReport(wms_id=job_id,
-                                          name=job_info.get("DAGNodeName", job_id),
-                                          label=job_info.get("bps_job_label",
-                                                             pegasus_name_to_label(job_info["DAGNodeName"])),
-                                          state=_htc_status_to_wms_state(job_info))
+                job_report = WmsJobReport(
+                    wms_id=job_id,
+                    name=job_info.get("DAGNodeName", job_id),
+                    label=job_info.get("bps_job_label", pegasus_name_to_label(job_info["DAGNodeName"])),
+                    state=_htc_status_to_wms_state(job_info),
+                )
                 if job_report.label == "init":
                     job_report.label = "pipetaskInit"
                 report.jobs.append(job_report)
@@ -1154,24 +1191,26 @@ def _summary_report(user, hist, pass_thru, schedds=None):
                     job.update(read_dag_status(job["Iwd"]))
                     total_jobs, state_counts = _get_state_counts_from_dag_job(job)
                 except StopIteration:
-                    pass   # don't kill report can't find htcondor files
+                    pass  # don't kill report can't find htcondor files
 
             if "bps_run" not in job:
                 _add_run_info(job["Iwd"], job)
-            report = WmsRunReport(wms_id=job_id,
-                                  global_wms_id=job["GlobalJobId"],
-                                  path=job["Iwd"],
-                                  label=job.get("bps_job_label", "MISS"),
-                                  run=job.get("bps_run", "MISS"),
-                                  project=job.get("bps_project", "MISS"),
-                                  campaign=job.get("bps_campaign", "MISS"),
-                                  payload=job.get("bps_payload", "MISS"),
-                                  operator=_get_owner(job),
-                                  run_summary=_get_run_summary(job),
-                                  state=_htc_status_to_wms_state(job),
-                                  jobs=[],
-                                  total_number_jobs=total_jobs,
-                                  job_state_counts=state_counts)
+            report = WmsRunReport(
+                wms_id=job_id,
+                global_wms_id=job["GlobalJobId"],
+                path=job["Iwd"],
+                label=job.get("bps_job_label", "MISS"),
+                run=job.get("bps_run", "MISS"),
+                project=job.get("bps_project", "MISS"),
+                campaign=job.get("bps_campaign", "MISS"),
+                payload=job.get("bps_payload", "MISS"),
+                operator=_get_owner(job),
+                run_summary=_get_run_summary(job),
+                state=_htc_status_to_wms_state(job),
+                jobs=[],
+                total_number_jobs=total_jobs,
+                job_state_counts=state_counts,
+            )
             run_reports[report.global_wms_id] = report
 
     return run_reports, ""
@@ -1201,7 +1240,7 @@ def _add_run_info(wms_path, job):
     else:
         _LOG.debug("_add_run_info: subfile = %s", subfile)
         try:
-            with open(subfile, "r", encoding='utf-8') as fh:
+            with open(subfile, "r", encoding="utf-8") as fh:
                 for line in fh:
                     if line.startswith("+bps_"):
                         m = re.match(r"\+(bps_[^\s]+)\s*=\s*(.+)$", line)
@@ -1327,7 +1366,8 @@ def _get_state_counts_from_dag_job(job):
             WmsStates.HELD: job.get("JobProcsHeld", 0),
             WmsStates.SUCCEEDED: job.get("DAG_NodesDone", 0),
             WmsStates.FAILED: job.get("DAG_NodesFailed", 0),
-            WmsStates.MISFIT: job.get("DAG_NodesPre", 0) + job.get("DAG_NodesPost", 0)}
+            WmsStates.MISFIT: job.get("DAG_NodesPre", 0) + job.get("DAG_NodesPost", 0),
+        }
         total_jobs = job.get("DAG_NodesTotal")
         _LOG.debug("_get_state_counts_from_dag_job: from DAG_* keys, total_jobs = %s", total_jobs)
     elif "NodesFailed" in job:
@@ -1337,7 +1377,8 @@ def _get_state_counts_from_dag_job(job):
             WmsStates.HELD: job.get("JobProcsHeld", 0),
             WmsStates.SUCCEEDED: job.get("NodesDone", 0),
             WmsStates.FAILED: job.get("NodesFailed", 0),
-            WmsStates.MISFIT: job.get("NodesPre", 0) + job.get("NodesPost", 0)}
+            WmsStates.MISFIT: job.get("NodesPre", 0) + job.get("NodesPost", 0),
+        }
         try:
             total_jobs = job.get("NodesTotal")
         except KeyError as ex:
@@ -1388,8 +1429,9 @@ def _htc_job_status_to_wms_state(job):
     wms_state : `lsst.ctrl.bps.WmsStates`
         The equivalent WmsState to given job's status.
     """
-    _LOG.debug("htc_job_status_to_wms_state: %s=%s, %s", job["ClusterId"], job["JobStatus"],
-               type(job["JobStatus"]))
+    _LOG.debug(
+        "htc_job_status_to_wms_state: %s=%s, %s", job["ClusterId"], job["JobStatus"], type(job["JobStatus"])
+    )
     job_status = int(job["JobStatus"])
     wms_state = WmsStates.MISFIT
 
@@ -1401,9 +1443,13 @@ def _htc_job_status_to_wms_state(job):
     elif job_status == JobStatus.REMOVED:
         wms_state = WmsStates.DELETED
     elif job_status == JobStatus.COMPLETED:
-        if job.get("ExitBySignal", False) or job.get("ExitCode", 0) or \
-                job.get("ExitSignal", 0) or job.get("DAG_Status", 0) or \
-                job.get("ReturnValue", 0):
+        if (
+            job.get("ExitBySignal", False)
+            or job.get("ExitCode", 0)
+            or job.get("ExitSignal", 0)
+            or job.get("DAG_Status", 0)
+            or job.get("ReturnValue", 0)
+        ):
             wms_state = WmsStates.FAILED
         else:
             wms_state = WmsStates.SUCCEEDED
@@ -1533,8 +1579,11 @@ def _wms_id_to_cluster(wms_id):
         schedd_ads = {ad["Name"]: ad for ad in coll.locateAll(htcondor.DaemonTypes.Schedd)}
         schedds = [htcondor.Schedd(ad) for ad in schedd_ads.values()]
         queries = [schedd.xquery(requirements=constraint, projection=["ClusterId"]) for schedd in schedds]
-        results = {query.tag(): dict(ads[0]) for query in htcondor.poll(queries)
-                   if (ads := query.nextAdsNonBlocking())}
+        results = {
+            query.tag(): dict(ads[0])
+            for query in htcondor.poll(queries)
+            if (ads := query.nextAdsNonBlocking())
+        }
         if results:
             schedd_name = next(iter(results))
             schedd_ad = schedd_ads[schedd_name]
@@ -1593,9 +1642,11 @@ def _create_periodic_release_expr(memory, multiplier, limit):
     # the entire expression should evaluate to FALSE when the job is not HELD.
     # According to ClassAd evaluation semantics FALSE && UNDEFINED is FALSE,
     # but better safe than sorry.
-    was_mem_exceeded = "JobStatus == 5 " \
-                       "&& (HoldReasonCode =?= 34 && HoldReasonSubCode =?= 0 " \
-                       "|| HoldReasonCode =?= 3 && HoldReasonSubCode =?= 34)"
+    was_mem_exceeded = (
+        "JobStatus == 5 "
+        "&& (HoldReasonCode =?= 34 && HoldReasonSubCode =?= 0 "
+        "|| HoldReasonCode =?= 3 && HoldReasonSubCode =?= 34)"
+    )
 
     expr = f"{was_mem_exceeded} && {is_retry_allowed} && {was_below_limit}"
     return expr
@@ -1641,9 +1692,11 @@ def _create_periodic_remove_expr(memory, multiplier, limit):
     # the entire expression should evaluate to FALSE when the job is not HELD.
     # According to ClassAd evaluation semantics FALSE && UNDEFINED is FALSE,
     # but better safe than sorry.
-    was_mem_exceeded = "JobStatus == 5 " \
-                       "&& (HoldReasonCode =?= 34 && HoldReasonSubCode =?= 0 " \
-                       "|| HoldReasonCode =?= 3 && HoldReasonSubCode =?= 34)"
+    was_mem_exceeded = (
+        "JobStatus == 5 "
+        "&& (HoldReasonCode =?= 34 && HoldReasonSubCode =?= 0 "
+        "|| HoldReasonCode =?= 3 && HoldReasonSubCode =?= 34)"
+    )
 
     expr = f"{was_mem_exceeded} && ({is_retry_disallowed} || {was_limit_reached})"
     return expr
@@ -1675,17 +1728,21 @@ def _create_request_memory_expr(memory, multiplier, limit):
     # Also, 'Last*' job ClassAds attributes are UNDEFINED when a job is
     # initially put in the job queue. The special comparison operators ensure
     # that all comparisons below will evaluate to FALSE in this case.
-    was_mem_exceeded = "LastJobStatus =?= 5 " \
-                       "&& (LastHoldReasonCode =?= 34 && LastHoldReasonSubCode =?= 0 " \
-                       "|| LastHoldReasonCode =?= 3 && LastHoldReasonSubCode =?= 34)"
+    was_mem_exceeded = (
+        "LastJobStatus =?= 5 "
+        "&& (LastHoldReasonCode =?= 34 && LastHoldReasonSubCode =?= 0 "
+        "|| LastHoldReasonCode =?= 3 && LastHoldReasonSubCode =?= 34)"
+    )
 
     # If job runs the first time or was held for reasons other than exceeding
     # the memory, set the required memory to the requested value or use
     # the memory value measured by HTCondor (MemoryUsage) depending on
     # whichever is greater.
-    expr = f"({was_mem_exceeded}) " \
-           f"? min({{int({memory} * pow({multiplier}, NumJobStarts)), {limit}}}) " \
-           f": max({{{memory}, MemoryUsage ?: 0}})"
+    expr = (
+        f"({was_mem_exceeded}) "
+        f"? min({{int({memory} * pow({multiplier}, NumJobStarts)), {limit}}}) "
+        f": max({{{memory}, MemoryUsage ?: 0}})"
+    )
     return expr
 
 
@@ -1737,7 +1794,7 @@ def _gather_site_values(config, compute_site):
         search_opts["curvals"] = {"curr_site": compute_site}
 
     # Determine the hard limit for the memory requirement.
-    found, limit = config.search('memoryLimit', opt=search_opts)
+    found, limit = config.search("memoryLimit", opt=search_opts)
     if not found:
         search_opts["default"] = DEFAULT_HTC_EXEC_PATT
         _, patt = config.search("executeMachinesPattern", opt=search_opts)

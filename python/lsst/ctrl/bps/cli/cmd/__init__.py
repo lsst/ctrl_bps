@@ -21,4 +21,4 @@
 
 __all__ = ["acquire", "cluster", "transform", "prepare", "submit", "restart", "report", "cancel"]
 
-from .commands import acquire, cluster, transform, prepare, submit, restart, report, cancel
+from .commands import acquire, cancel, cluster, prepare, report, restart, submit, transform

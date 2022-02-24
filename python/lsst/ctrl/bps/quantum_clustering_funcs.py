@@ -21,13 +21,13 @@
 
 """Functions that convert QuantumGraph into ClusteredQuantumGraph.
 """
-import re
 import logging
+import re
 from collections import defaultdict
 
 from lsst.pipe.base import NodeId
-from . import QuantaCluster, ClusteredQuantumGraph
 
+from . import ClusteredQuantumGraph, QuantaCluster
 
 _LOG = logging.getLogger(__name__)
 
@@ -50,8 +50,9 @@ def single_quantum_clustering(config, qgraph, name):
         ClusteredQuantumGraph with single quantum per cluster created from
         given QuantumGraph.
     """
-    cqgraph = ClusteredQuantumGraph(name=name, qgraph=qgraph,
-                                    qgraph_filename=config[".bps_defined.runQgraphFile"])
+    cqgraph = ClusteredQuantumGraph(
+        name=name, qgraph=qgraph, qgraph_filename=config[".bps_defined.runQgraphFile"]
+    )
 
     # Save mapping of quantum nodeNumber to name so don't have to create it
     # multiple times.
@@ -63,9 +64,10 @@ def single_quantum_clustering(config, qgraph, name):
     # Create cluster of single quantum.
     for qnode in qgraph:
         if qnode.taskDef.label not in cached_template:
-            found, template_data_id = config.search("templateDataId",
-                                                    opt={"curvals": {"curr_pipetask": qnode.taskDef.label},
-                                                         "replaceVars": False})
+            found, template_data_id = config.search(
+                "templateDataId",
+                opt={"curvals": {"curr_pipetask": qnode.taskDef.label}, "replaceVars": False},
+            )
             if found:
                 template = "{node_number}_{label}_" + template_data_id
             else:
@@ -84,8 +86,7 @@ def single_quantum_clustering(config, qgraph, name):
         # Get child nodes.
         children = qgraph.determineOutputsOfQuantumNode(qnode)
         for child in children:
-            cqgraph.add_dependency(number_to_name[qnode.nodeId],
-                                   number_to_name[child.nodeId])
+            cqgraph.add_dependency(number_to_name[qnode.nodeId], number_to_name[child.nodeId])
 
     return cqgraph
 
@@ -107,8 +108,9 @@ def dimension_clustering(config, qgraph, name):
     cqgraph : `lsst.ctrl.bps.ClusteredQuantumGraph`
         ClusteredQuantumGraph with clustering as defined in config.
     """
-    cqgraph = ClusteredQuantumGraph(name=name, qgraph=qgraph,
-                                    qgraph_filename=config[".bps_defined.runQgraphFile"])
+    cqgraph = ClusteredQuantumGraph(
+        name=name, qgraph=qgraph, qgraph_filename=config[".bps_defined.runQgraphFile"]
+    )
 
     # save mapping in order to create dependencies later
     quantum_to_cluster = {}
@@ -135,8 +137,10 @@ def dimension_clustering(config, qgraph, name):
         cluster_tasks = [pt.strip() for pt in cluster_config[cluster_label]["pipetasks"].split(",")]
         for task_label in cluster_tasks:
             if task_label in task_labels_seen:
-                raise ValueError(f"Task label {task_label} appears in more than one cluster definition.  "
-                                 "Aborting submission.")
+                raise ValueError(
+                    f"Task label {task_label} appears in more than one cluster definition.  "
+                    "Aborting submission."
+                )
             task_labels_seen.add(task_label)
 
             # Currently getQuantaForTask is currently a mapping taskDef to
@@ -195,9 +199,9 @@ def dimension_clustering(config, qgraph, name):
     for task_def in qgraph.iterTaskGraph():
         if task_def.label not in task_labels_seen:
             _LOG.info("Creating 1-quantum clusters for task %s", task_def.label)
-            found, template_data_id = config.search("templateDataId",
-                                                    opt={"curvals": {"curr_pipetask": task_def.label},
-                                                         "replaceVars": False})
+            found, template_data_id = config.search(
+                "templateDataId", opt={"curvals": {"curr_pipetask": task_def.label}, "replaceVars": False}
+            )
             if found:
                 template = "{node_number}_{label}_" + template_data_id
             else:
@@ -214,16 +218,18 @@ def dimension_clustering(config, qgraph, name):
         children = qgraph.determineOutputsOfQuantumNode(parent)
         for child in children:
             try:
-                if quantum_to_cluster[parent.nodeId] != \
-                   quantum_to_cluster[child.nodeId]:
-                    cqgraph.add_dependency(quantum_to_cluster[parent.nodeId],
-                                           quantum_to_cluster[child.nodeId])
+                if quantum_to_cluster[parent.nodeId] != quantum_to_cluster[child.nodeId]:
+                    cqgraph.add_dependency(
+                        quantum_to_cluster[parent.nodeId], quantum_to_cluster[child.nodeId]
+                    )
             except KeyError as e:
                 nid = NodeId(e.args[0], qgraph.graphID)
                 qnode = qgraph.getQuantumNodeByNodeId(nid)
 
-                print(f"Quanta missing when clustering: {qnode.taskDef.label}, "
-                      f"{qnode.quantum.dataId.byName()}")
+                print(
+                    f"Quanta missing when clustering: {qnode.taskDef.label}, "
+                    f"{qnode.quantum.dataId.byName()}"
+                )
                 raise
 
     return cqgraph

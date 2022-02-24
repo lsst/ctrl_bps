@@ -23,10 +23,10 @@
 """
 import logging
 
+from lsst.ctrl.bps.bps_utils import _create_execution_butler
 from lsst.utils import doImport
 from lsst.utils.logging import VERBOSE
 from lsst.utils.timer import time_this, timeMethod
-from lsst.ctrl.bps.bps_utils import _create_execution_butler
 
 _LOG = logging.getLogger(__name__)
 
@@ -59,11 +59,13 @@ def submit(config, wms_workflow, wms_service=None):
         _, execution_butler_dir = config.search(".bps_defined.executionButlerDir")
         _LOG.info("Creating execution butler in '%s'", execution_butler_dir)
         with time_this(log=_LOG, level=logging.INFO, prefix=None, msg="Completed creating execution butler"):
-            _create_execution_butler(config, config["runQgraphFile"], execution_butler_dir,
-                                     config["submitPath"])
+            _create_execution_butler(
+                config, config["runQgraphFile"], execution_butler_dir, config["submitPath"]
+            )
 
     _LOG.info("Submitting run to a workflow management system for execution")
-    with time_this(log=_LOG, level=logging.INFO, prefix=None,
-                   msg="Completed submitting to a workflow management system"):
+    with time_this(
+        log=_LOG, level=logging.INFO, prefix=None, msg="Completed submitting to a workflow management system"
+    ):
         workflow = wms_service.submit(wms_workflow)
     return workflow

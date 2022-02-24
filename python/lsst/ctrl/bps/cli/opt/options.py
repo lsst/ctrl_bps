@@ -30,15 +30,21 @@ __all__ = [
 
 from lsst.daf.butler.cli.utils import MWOptionDecorator
 
-extra_qgraph_option = MWOptionDecorator("--extra-qgraph-options",
-                                        help="String to pass through to QuantumGraph builder.")
-extra_init_option = MWOptionDecorator("--extra-init-options",
-                                      help="String to pass through to pipetaskInit execution.")
-extra_run_quantum_option = MWOptionDecorator("--extra-run-quantum-options",
-                                             help="String to pass through to Quantum execution.")
-wms_service_option = MWOptionDecorator("--wms-service-class", "wms_service",
-                                       help="Qualified name of the WMS service class to use. "
-                                            "Value determined by following order: command-line argument, "
-                                            "'wmsServiceClass' in config file (if used by subcommand), "
-                                            "environment variable BPS_WMS_SERVICE_CLASS, default "
-                                            "('lsst.ctrl.bps.wms.htcondor.HTCondorService')")
+extra_qgraph_option = MWOptionDecorator(
+    "--extra-qgraph-options", help="String to pass through to QuantumGraph builder."
+)
+extra_init_option = MWOptionDecorator(
+    "--extra-init-options", help="String to pass through to pipetaskInit execution."
+)
+extra_run_quantum_option = MWOptionDecorator(
+    "--extra-run-quantum-options", help="String to pass through to Quantum execution."
+)
+wms_service_option = MWOptionDecorator(
+    "--wms-service-class",
+    "wms_service",
+    help="Qualified name of the WMS service class to use. "
+    "Value determined by following order: command-line argument, "
+    "'wmsServiceClass' in config file (if used by subcommand), "
+    "environment variable BPS_WMS_SERVICE_CLASS, default "
+    "('lsst.ctrl.bps.wms.htcondor.HTCondorService')",
+)

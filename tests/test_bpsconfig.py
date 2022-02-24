@@ -20,17 +20,15 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import os
 import unittest
+
 import yaml
-
-from lsst.daf.butler.core.config import Config
 from lsst.ctrl.bps import BpsConfig
-
+from lsst.daf.butler.core.config import Config
 
 TESTDIR = os.path.abspath(os.path.dirname(__file__))
 
 
 class TestBpsConfigConstructor(unittest.TestCase):
-
     def setUp(self):
         self.filename = os.path.join(TESTDIR, "data/config.yaml")
         with open(self.filename, "r") as f:
@@ -69,7 +67,6 @@ class TestBpsConfigConstructor(unittest.TestCase):
 
 
 class TestBpsConfigSearch(unittest.TestCase):
-
     def setUp(self):
         filename = os.path.join(TESTDIR, "data/config.yaml")
         self.config = BpsConfig(filename, search_order=["baz", "bar", "foo"])

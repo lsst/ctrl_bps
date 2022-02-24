@@ -29,13 +29,9 @@ __all__ = [
 
 
 import click
-
 from lsst.daf.butler.cli.utils import MWCommand
-from ...panda_auth_drivers import (
-    panda_auth_status_driver,
-    panda_auth_reset_driver,
-    panda_auth_clean_driver
-)
+
+from ...panda_auth_drivers import panda_auth_clean_driver, panda_auth_reset_driver, panda_auth_status_driver
 
 
 class PandaAuthCommand(MWCommand):
@@ -46,20 +42,17 @@ class PandaAuthCommand(MWCommand):
 
 @click.command(cls=PandaAuthCommand)
 def status(*args, **kwargs):
-    """Print informatino about auth token.
-    """
+    """Print informatino about auth token."""
     panda_auth_status_driver(*args, **kwargs)
 
 
 @click.command(cls=PandaAuthCommand)
 def reset(*args, **kwargs):
-    """Get new auth token.
-    """
+    """Get new auth token."""
     panda_auth_reset_driver(*args, **kwargs)
 
 
 @click.command(cls=PandaAuthCommand)
 def clean(*args, **kwargs):
-    """Clean up token and token cache files.
-    """
+    """Clean up token and token cache files."""
     panda_auth_clean_driver(*args, **kwargs)
