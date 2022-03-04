@@ -646,11 +646,19 @@ def _translate_job_cmds(cached_vals, generic_workflow, gwjob):
         "request_cpus": "request_cpus",
         "priority": "priority",
         "category": "category",
+        "accounting_group": "accounting_group",
+        "accounting_user": "accounting_group_user",
     }
 
     jobcmds = {}
     for gwkey, htckey in job_translation.items():
         jobcmds[htckey] = getattr(gwjob, gwkey, None)
+
+    # If accounting info was not set explicitly, use site settings if any.
+    if not gwjob.accounting_group:
+        jobcmds["accounting_group"] = cached_vals.get("accountingGroup")
+    if not gwjob.accounting_user:
+        jobcmds["accounting_group_user"] = cached_vals.get("accountingUser")
 
     # job commands that need modification
     if gwjob.number_of_retries:
@@ -726,7 +734,7 @@ def _translate_job_cmds(cached_vals, generic_workflow, gwjob):
     if gwjob.profile:
         for key, val in gwjob.profile.items():
             jobcmds[key] = htc_escape(val)
-    for key, val in cached_vals["profile"]:
+    for key, val in cached_vals["profile"].items():
         jobcmds[key] = htc_escape(val)
 
     return jobcmds
@@ -1814,6 +1822,13 @@ def _gather_site_values(config, compute_site):
 
     _, site_values["bpsUseShared"] = config.search("bpsUseShared", opt={"default": False})
     site_values["memoryLimit"] = limit
+
+    found, value = config.search("accountingGroup", opt=search_opts)
+    if found:
+        site_values["accountingGroup"] = value
+    found, value = config.search("accountingUser", opt=search_opts)
+    if found:
+        site_values["accountingUser"] = value
 
     key = f".site.{compute_site}.profile.condor"
     if key in config:
