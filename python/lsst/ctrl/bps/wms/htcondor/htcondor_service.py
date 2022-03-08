@@ -222,7 +222,7 @@ class HTCondorService(BaseWmsService):
             warn = True
         if warn:
             _LOG.warning(
-                "Cannot determine the execution status of the workflow, " "continuing with restart regardless"
+                "Cannot determine the execution status of the workflow, continuing with restart regardless"
             )
 
         _LOG.info("Backing up select HTCondor files from previous run attempt")
@@ -283,7 +283,7 @@ class HTCondorService(BaseWmsService):
             this means top-level jobs (i.e., not children jobs).
         """
         _LOG.debug(
-            "list_submitted_jobs params: " "wms_id=%s, user=%s, require_bps=%s, pass_thru=%s, is_global=%s",
+            "list_submitted_jobs params: wms_id=%s, user=%s, require_bps=%s, pass_thru=%s, is_global=%s",
             wms_id,
             user,
             require_bps,
@@ -863,7 +863,7 @@ def _replace_cmd_vars(arguments, gwjob):
         arguments = arguments.format(**gwjob.cmdvals)
     except (KeyError, TypeError):  # TypeError in case None instead of {}
         _LOG.error(
-            "Could not replace command variables:\n" "arguments: %s\n" "cmdvals: %s", arguments, gwjob.cmdvals
+            "Could not replace command variables:\narguments: %s\ncmdvals: %s", arguments, gwjob.cmdvals
         )
         raise
     return arguments
