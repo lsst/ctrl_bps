@@ -1,0 +1,2 @@
+Changed the parameter *"runnerCommand"* in the PanDA IDF example yaml file, to start **prmon** to monitor the memory usage of the payload job.
+This executable **prmon** is only available in releases after *7-stack-lsst_distrib-w_2022_05*.
