@@ -478,6 +478,15 @@ order from most specific to general is: ``payload``, ``pipetask``, and ``site``.
 Supported settings
 ^^^^^^^^^^^^^^^^^^
 
+**accountingGroup**
+    The name of the group to use by the batch system for accounting purposes
+    (if applicable).
+
+**accountingUser**
+    The username the batch system should use for accounting purposes (if
+    applicable). Usually, this is the operating system username. However, this
+    setting allows one to use a custom value instead.
+
 **butlerConfig**
     Location of the Butler configuration file needed by BPS to create run
     collection entry in Butler dataset repository
