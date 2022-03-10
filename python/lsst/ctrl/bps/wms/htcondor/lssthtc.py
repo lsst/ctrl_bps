@@ -169,6 +169,8 @@ HTC_VALID_JOB_KEYS = {
     "max_retries",
     "periodic_release",
     "periodic_remove",
+    "accounting_group",
+    "accounting_group_user",
 }
 HTC_VALID_JOB_DAG_KEYS = {"vars", "pre", "post", "retry", "retry_unless_exit", "abort_dag_on", "abort_exit"}
 

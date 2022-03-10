@@ -186,6 +186,14 @@ class GenericWorkflowJob:
     """Key to look up site-specific information for running the job.
     """
 
+    accounting_group: Optional[str]
+    """Name of the accounting group to use.
+    """
+
+    accounting_user: Optional[str]
+    """Name of the user to use for accounting purposes.
+    """
+
     mail_to: Optional[str]
     """Comma separated list of email addresses for emailing job status.
     """
@@ -274,6 +282,8 @@ class GenericWorkflowJob:
         self.request_disk = None
         self.request_walltime = None
         self.compute_site = None
+        self.accounting_group = None
+        self.accounting_user = None
         self.mail_to = None
         self.when_to_mail = None
         self.number_of_retries = None
@@ -312,6 +322,8 @@ class GenericWorkflowJob:
         "abort_on_value",
         "abort_return_value",
         "compute_site",
+        "accounting_group",
+        "accounting_user",
         "environment",
         "priority",
         "category",
