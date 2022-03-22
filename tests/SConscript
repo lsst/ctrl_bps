@@ -3,8 +3,3 @@ import os
 
 from lsst.sconsUtils import env, scripts
 scripts.BasicSConscript.tests(pyList=[])
-
-if "IDDS_CONFIG" in os.environ:
-    env["ENV"]["IDDS_CONFIG"] = os.environ["IDDS_CONFIG"]
-else:
-    env["ENV"]["IDDS_CONFIG"] = f"{os.environ['CTRL_BPS_DIR']}/tests/idds_test.cfg"
