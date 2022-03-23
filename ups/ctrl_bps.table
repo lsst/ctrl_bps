@@ -2,7 +2,6 @@ setupRequired(sconsUtils)
 setupRequired(utils)
 setupRequired(daf_butler)
 setupRequired(pipe_base)
-setupRequired(obs_base)
 setupRequired(resources)
 setupOptional(ctrl_mpexec)
 

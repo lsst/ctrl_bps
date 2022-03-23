@@ -47,7 +47,7 @@ import shutil
 from collections.abc import Iterable
 from pathlib import Path
 
-from lsst.obs.base import Instrument
+from lsst.pipe.base import Instrument
 from lsst.utils import doImport
 from lsst.utils.timer import time_this
 from lsst.utils.usage import get_peak_mem_usage
