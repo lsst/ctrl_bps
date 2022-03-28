@@ -175,6 +175,7 @@ class PanDAService(BaseWmsService):
             and_cond = AndCondition(conditions=conditions, true_works=[DAG_final_work])
             idds_client_workflow.add_condition(and_cond)
         _, idds_server = self.config.search("iddsServer", opt={"default": None})
+        _LOG.debug("iDDS server: %s", str(idds_server))
         c = pandaclient.idds_api.get_api(
             idds_utils.json_dumps, idds_host=idds_server, compress=True, manager=True
         )
@@ -303,7 +304,7 @@ class PanDAService(BaseWmsService):
         Any exception other than NotImplementedError will halt submission.
         Submit directory may not yet exist when this is called.
         """
-        for key in ["PANDA_URL", "IDDS_CONFIG"]:
+        for key in ["PANDA_URL"]:
             if key not in os.environ:
                 raise OSError(f"Missing environment variable {key}")
 
