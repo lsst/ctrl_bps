@@ -1,0 +1,2 @@
+Remove iddsServer from bps_idf.yml, to use the idds server defined in panda relay service.
+Remove IDDS_CONFIG requirements (requiring idds version 0.10.6 and later).
