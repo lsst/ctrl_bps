@@ -35,7 +35,6 @@ if __name__ == "__main__":
         "PANDA_AUTH_VO",
         "PANDA_URL_SSL",
         "PANDA_URL",
-        "IDDS_CONFIG",
     ]:
         if key not in os.environ:
             raise OSError(f"Missing environment variable {key}")

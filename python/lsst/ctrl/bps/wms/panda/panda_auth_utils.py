@@ -77,7 +77,6 @@ def panda_auth_setup():
         "PANDA_AUTH_VO",
         "PANDA_URL_SSL",
         "PANDA_URL",
-        "IDDS_CONFIG",
     ]:
         if key not in os.environ:
             raise OSError(f"Missing environment variable {key}")
@@ -121,7 +120,7 @@ def panda_auth_update(idds_server=None, reset=False):
     ----------
     idds_server : `str`, optional
         URL for the iDDS server.  Defaults to None which means that the
-        underlying functions use any value in the IDDS_CONFIG.
+        underlying functions use any value in the panda relay service.
     reset : `bool`, optional
         Whether to first clean up any previous token.  Defaults to False.
     """
