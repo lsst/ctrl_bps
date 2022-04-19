@@ -175,7 +175,6 @@ class PanDAService(BaseWmsService):
             and_cond = AndCondition(conditions=conditions, true_works=[DAG_final_work])
             idds_client_workflow.add_condition(and_cond)
         _, idds_server = self.config.search("iddsServer", opt={"default": None})
-        # _LOG.debug("iDDS server: %s", str(idds_server))
         c = pandaclient.idds_api.get_api(
             idds_utils.json_dumps, idds_host=idds_server, compress=True, manager=True
         )
