@@ -1,75 +1,33 @@
-.. _bps-preqs:
+Overview
+--------
 
-Prerequisites
--------------
+The package provides LSST Batch Processing Service (BPS). BPS allow large-scale
+workflows to execute in well-managed fashion, potentially in multiple
+environments.
 
-#. LSST software stack.
+.. _bps-wmsclass:
 
-#. Shared filesystem for data.
+Specifying WMS plugin
+---------------------
 
-#. Shared database.
+Many `ctrl_bps`_ subcommands described in this document delegate responsibility
+to perform actual operations to the specific WMS plugin and thus need to know
+how to find it.
 
-   `SQLite3`_ is fine for small runs like **ci_hsc_gen3** if have POSIX
-   filesystem.  For larger runs, use `PostgreSQL`_.
+The location of the plugin can be specified as listed below (in the increasing
+order of priority):
 
-#. A workflow management service and its dependencies if any.
+#. by setting ``WMS_SERVICE_CLASS`` environment variable,
+#. in the config file *via* ``wmsServiceClass`` setting,
+#. using command-line option ``--wms-service-class``.
 
-   For currently supported WMS plugins see `lsst_bps_plugins`_.
+If plugin location is not specified explicitly using one of the methods above,
+a default value, ``lsst.ctrl.bps.htcondor.HTCondorService``, will be used.
 
-.. _SQLite3: https://www.sqlite.org/index.html
-.. _PostgreSQL: https://www.postgresql.org
-.. _lsst_bps_plugins: https://github.com/lsst/lsst_bps_plugins
+.. .. _bps-authenticating:
 
-.. _bps-installation:
-
-Installing Batch Processing Service
------------------------------------
-
-Starting from LSST Stack version ``w_2020_45``, the package providing Batch
-Processing Service, `ctrl_bps`_, comes with ``lsst_distrib``.  However, if
-you'd like to  try out its latest features, you may install a bleeding edge
-version similarly to any other LSST package:
-
-.. code-block:: bash
-
-   git clone https://github.com/lsst-dm/ctrl_bps
-   cd ctrl_bps
-   setup -k -r .
-   scons
-
-.. _bps-data-repository:
-
-.. _ctrl_bps: https://github.com/lsst/ctrl_bps
-
-Creating Butler repository
---------------------------
-
-You’ll need a pre-existing Butler dataset repository containing all the input
-files needed for your run.  This repository needs to be on the filesystem
-shared among all compute resources (e.g. submit and compute nodes) you use
-during your run.
-
-.. note::
-
-   Keep in mind though, that you don't need to bootstrap a dataset repository
-   for every BPS run.  You only need to do it when Gen3 data definition
-   language (DDL) changes, you want to to start a repository from scratch, and
-   possibly if want to add/change inputs in repo (depending on the inputs and
-   flexibility of the bootstrap scripts).
-
-For testing purposes, you can use `pipelines_check`_ package to set up your own
-Butler dataset repository.  To make that repository, follow the usual steps
-when installing an LSST package:
-
-.. code-block:: bash
-
-   git clone https://github.com/lsst/pipelines_check
-   cd pipelines_check
-   git checkout w_2020_45  # checkout the branch matching the software branch you are using
-   setup -k -r .
-   scons
-
-.. _pipelines_check: https://github.com/lsst/pipelines_check
+.. Authenticating
+.. --------------
 
 .. _bps-submission:
 
@@ -203,10 +161,10 @@ example ::
 
 Use ``bps report --help`` to see all currently supported options.
 
-.. _bps-terminate:
+.. _bps-cancel:
 
 Canceling submitted jobs
---------------------------
+------------------------
 
 The bps command to cancel bps-submitted jobs is
 
@@ -394,8 +352,8 @@ Supported settings
 
 .. warning::
 
-   A plugin may *not* supported all options listed below. See plugin's
-   documentaion which ones are supported.
+   A plugin may *not* support all options listed below. See plugin's
+   documentation for which ones are supported.
 
 **accountingGroup**
     The name of the group to use by the batch system for accounting purposes
@@ -544,7 +502,7 @@ Supported settings
     The command line specification for running a Quantum. Must start with
     executable name (a full path if using HTCondor plugin) followed by options
     and arguments.  May contain other variables defined in the configuration
-    fil.
+    file.
 
 **runInit**
     Whether to add a ``pipetask --init-only`` to the workflow or not. If true,
@@ -575,11 +533,7 @@ Supported settings
     Template used when creating QuantumGraph filename.
 
 **wmsServiceClass**
-    Workload Management Service plugin to use. For example
-
-    .. code-block:: YAML
-
-       wmsServiceClass: lsst.ctrl.bps.htcondor.HTCondorService
+    Workload Management Service plugin to use.
 
 **bpsUseShared**
     Whether to put full submit-time path to QuantumGraph file in command line
@@ -894,3 +848,75 @@ If ``bps submit`` is taking a long time, probably it is spending the time
 during QuantumGraph generation.  The QuantumGraph generation command line and
 output will be in ``quantumGraphGeneration.out`` in the submit run directory,
 e.g.  ``submit/shared/pipecheck/20220407T184331Z/quantumGraphGeneration.out``.
+
+.. _bps-appendix-a:
+
+Appendix A 
+----------
+
+Prerequisites
+^^^^^^^^^^^^^
+
+#. LSST software stack.
+
+#. Shared filesystem for data.
+
+#. Shared database.
+
+   `SQLite3`_ is fine for small runs like **ci_hsc_gen3** if have POSIX
+   filesystem.  For larger runs, use `PostgreSQL`_.
+
+#. A workflow management service and its dependencies if any.
+
+   For currently supported WMS plugins see `lsst_bps_plugins`_.
+
+
+Installing Batch Processing Service
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Starting from LSST Stack version ``w_2020_45``, the package providing Batch
+Processing Service, `ctrl_bps`_, comes with ``lsst_distrib``.  However, if
+you'd like to  try out its latest features, you may install a bleeding edge
+version similarly to any other LSST package:
+
+.. code-block:: bash
+
+   git clone https://github.com/lsst-dm/ctrl_bps
+   cd ctrl_bps
+   setup -k -r .
+   scons
+
+Creating Butler repository
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+You’ll need a pre-existing Butler dataset repository containing all the input
+files needed for your run.  This repository needs to be on the filesystem
+shared among all compute resources (e.g. submit and compute nodes) you use
+during your run.
+
+.. note::
+
+   Keep in mind though, that you don't need to bootstrap a dataset repository
+   for every BPS run.  You only need to do it when Gen3 data definition
+   language (DDL) changes, you want to to start a repository from scratch, and
+   possibly if want to add/change inputs in repo (depending on the inputs and
+   flexibility of the bootstrap scripts).
+
+For testing purposes, you can use `pipelines_check`_ package to set up your own
+Butler dataset repository.  To make that repository, follow the usual steps
+when installing an LSST package:
+
+.. code-block:: bash
+
+   git clone https://github.com/lsst/pipelines_check
+   cd pipelines_check
+   git checkout w_2020_45  # checkout the branch matching the software branch you are using
+   setup -k -r .
+   scons
+
+.. _SQLite3: https://www.sqlite.org/index.html
+.. _PostgreSQL: https://www.postgresql.org
+.. _ctrl_bps: https://github.com/lsst/ctrl_bps
+.. _pipelines_check: https://github.com/lsst/pipelines_check
+.. _lsst_bps_plugins: https://github.com/lsst/lsst_bps_plugins
+
