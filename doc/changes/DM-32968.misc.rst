@@ -1,1 +1,0 @@
-Make HTCondor treat all jobs exiting with a signal as if they ran out of memory.

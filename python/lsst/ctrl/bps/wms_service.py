@@ -243,7 +243,7 @@ class BaseWmsService:
             Information to pass through to WMS.
 
         Returns
-        --------
+        -------
         deleted : `bool`
             Whether successful deletion or not.  Currently, if any doubt or any
             individual jobs not deleted, return False.

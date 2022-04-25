@@ -1,1 +1,0 @@
-HTCondor plugin now correctly passes attributes defined in site's 'profile' section to the HTCondor submission files.

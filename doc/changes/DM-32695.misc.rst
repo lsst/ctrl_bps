@@ -1,1 +1,0 @@
-Make the PanDA example config more easily runnable from data-int RSP

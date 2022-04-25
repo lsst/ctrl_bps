@@ -1,83 +1,33 @@
-.. _bps-preqs:
+Overview
+--------
 
-Prerequisites
--------------
+The package provides LSST Batch Processing Service (BPS). BPS allow large-scale
+workflows to execute in well-managed fashion, potentially in multiple
+environments.
 
-#. LSST software stack.
+.. _bps-wmsclass:
 
-#. Shared filesystem for data.
+Specifying WMS plugin
+---------------------
 
-#. Shared database.
+Many `ctrl_bps`_ subcommands described in this document delegate responsibility
+to perform actual operations to the specific WMS plugin and thus need to know
+how to find it.
 
-   `SQLite3`_ is fine for small runs like **ci_hsc_gen3** if have POSIX
-   filesystem.  For larger runs, use `PostgreSQL`_.
+The location of the plugin can be specified as listed below (in the increasing
+order of priority):
 
-#. A workflow management service.
+#. by setting ``WMS_SERVICE_CLASS`` environment variable,
+#. in the config file *via* ``wmsServiceClass`` setting,
+#. using command-line option ``--wms-service-class``.
 
-   Currently, two workflow management services are supported HTCondor's
-   `DAGMan`_ and `Pegasus WMS`_.  Both of them requires an HTCondor cluster.
-   NCSA hosts a few of such clusters, see `this`_ page for details.
+If plugin location is not specified explicitly using one of the methods above,
+a default value, ``lsst.ctrl.bps.htcondor.HTCondorService``, will be used.
 
-#. HTCondor's Python `bindings`_ (if using `HTCondor`_) or `Pegasus WMS`_.
+.. .. _bps-authenticating:
 
-.. _SQLite3: https://www.sqlite.org/index.html
-.. _PostgreSQL: https://www.postgresql.org
-.. _DAGMan: https://htcondor.readthedocs.io/en/latest/users-manual/dagman-workflows.html#dagman-workflows
-.. _Pegasus WMS: https://pegasus.isi.edu
-.. _bindings: https://htcondor.readthedocs.io/en/latest/apis/python-bindings/index.html
-.. _this: https://developer.lsst.io/services/batch.html
-
-.. _bps-installation:
-
-Installing Batch Processing Service
------------------------------------
-
-Starting from LSST Stack version ``w_2020_45``, the package providing Batch
-Processing Service, `ctrl_bps`_, comes with ``lsst_distrib``.  However, if
-you'd like to  try out its latest features, you may install a bleeding edge
-version similarly to any other LSST package:
-
-.. code-block:: bash
-
-   git clone https://github.com/lsst-dm/ctrl_bps
-   cd ctrl_bps
-   setup -k -r .
-   scons
-
-.. _bps-data-repository:
-
-
-.. _ctrl_bps: https://github.com/lsst/ctrl_bps
-
-Creating Butler repository
---------------------------
-
-You’ll need a pre-existing Butler dataset repository containing all the input
-files needed for your run.  This repository needs to be on the filesystem
-shared among all compute resources (e.g. submit and compute nodes) you use
-during your run.
-
-.. note::
-
-   Keep in mind though, that you don't need to bootstrap a dataset repository
-   for every BPS run.  You only need to do it when Gen3 data definition
-   language (DDL) changes, you want to to start a repository from scratch, and
-   possibly if want to add/change inputs in repo (depending on the inputs and
-   flexibility of the bootstrap scripts).
-
-For testing purposes, you can use `pipelines_check`_ package to set up your own
-Butler dataset repository.  To make that repository, follow the usual steps
-when installing an LSST package:
-
-.. code-block:: bash
-
-   git clone https://github.com/lsst/pipelines_check
-   cd pipelines_check
-   git checkout w_2020_45  # checkout the branch matching the software branch you are using
-   setup -k -r .
-   scons
-
-.. _pipelines_check: https://github.com/lsst/pipelines_check
+.. Authenticating
+.. --------------
 
 .. _bps-submission:
 
@@ -149,7 +99,7 @@ Additional Submit Options
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
 See ``bps submit --help`` for more detailed information.  Command-line values
-override values in the yaml file. (You can find more about BPS precedence order
+override values in the YAML file. (You can find more about BPS precedence order
 in :ref:`this <bps-precedence-order>` section)
 
 **Pass-thru Arguments**
@@ -186,9 +136,7 @@ The following subset of ``pipetask`` options are also usable on ``bps submit`` c
 Checking status
 ---------------
 
-To check the status of the submitted run, you can use tools provided by
-HTCondor or Pegasus, for example, ``condor_status`` or ``pegasus-status``. To
-get a more pipeline oriented information use
+To check the status of the submitted run, use
 
 .. code-block:: bash
 
@@ -213,10 +161,10 @@ example ::
 
 Use ``bps report --help`` to see all currently supported options.
 
-.. _bps-terminate:
+.. _bps-cancel:
 
 Canceling submitted jobs
---------------------------
+------------------------
 
 The bps command to cancel bps-submitted jobs is
 
@@ -262,37 +210,13 @@ If ``bps cancel`` says "0 jobs found matching arguments", first double check the
 id for typos.  If you believe there is a problem with the "is it a bps job"
 check, add ``--skip-require-bps``.
 
-If jobs are hanging around in the queue with an X status in condor_q, you can
-add the following to force delete those jobs from the queue ::
-
-        --pass-thru "-forcex"
-
-If ``bps cancel`` fails to delete the jobs, you can use direct WMS executables
-like `condor_rm`__ or `pegasus-remove`__. 
+If ``bps cancel`` fails to delete the jobs, you can use WMS specific
+executables.
 
 .. note::
 
    Using the WMS commands directly under normal circumstances is not
    advised as bps may someday include additional code.
-
-Both take the ``runId`` printed by ``bps submit``.  For example
-
-.. code-block:: bash
-
-   condor_rm 176270       # HTCondor
-   pegasus-remove 176270  # Pegasus WMS
-
-``bps report`` also prints the ``runId`` usable by ``condor_rm``.  
-
-If you want to just clobber all of the runs that you have currently submitted,
-you can just do the following no matter if using HTCondor or Pegasus WMS plugin:
-
-.. code-block:: bash
-
-   condor_rm <username>
-
-.. __: https://htcondor.readthedocs.io/en/latest/man-pages/condor_rm.html
-.. __: https://pegasus.isi.edu/documentation/cli-pegasus-remove.php
 
 .. _bps-restart:
 
@@ -321,19 +245,6 @@ similar to:
 At the moment a workflow will be restarted as it is, no configuration changes
 are possible.
 
-.. note::
-
-   When execution of a workflow is managed by HTCondor, the BPS is able to
-   instruct it to automatically retry jobs which failed due to exceeding their
-   memory allocation with increased memory requirements (see the documentation
-   of ``memoryMultiplier`` option for more details).  However, these increased
-   memory requirements are not preserved between restarts.  For example, if a
-   job initially run with 2 GB of memory and failed because of exceeding the
-   limit,  HTCondor will retry it with 4 GB of memory.  However, if the job and
-   as a result the entire workflow fails again due to other reasons, the job
-   will ask for 2 GB of memory during the first execution after the workflow is
-   restarted.
-
 .. _bps-precedence-order:
 
 BPS precedence order
@@ -357,7 +268,7 @@ The configuration file is in YAML format.  One particular YAML
 syntax to be mindful about is that boolean values must be all
 lowercase.
 
-${CTRL_BPS_DIR}/python/lsst/ctrl/bps/etc/bps_defaults.yaml
+``${CTRL_BPS_DIR}/python/lsst/ctrl/bps/etc/bps_defaults.yaml``
 contains default values used by every bps submission and is
 automatically included.
 
@@ -433,50 +344,16 @@ order from most specific to general is: ``payload``, ``pipetask``, and ``site``.
 
 **site**
     settings for specific sites can be set here.  Subsections are site names
-    which are matched to ``computeSite``.  The following are examples for
-    specifying values needed to match jobs to glideins.
-
-    HTCondor plugin example:
-
-    .. code-block:: YAML
-
-       site:
-         acsws02:
-           profile:
-             condor:
-               requirements: "(GLIDEIN_NAME == &quot;test_gname&quot;)"
-               +GLIDEIN_NAME: "test_gname"
-
-    Pegasus plugin example:
-
-    .. code-block:: YAML
-
-       site:
-         acsws02:
-           arch: x86_64
-           os: LINUX
-           directory:
-             shared-scratch:
-               path: /work/shared-scratch/${USER}
-               file-server:
-                 operation: all
-                 url: file:///work/shared-scratch/${USER}
-           profile:
-             pegasus:
-               style: condor
-               auxillary.local: true
-             condor:
-               universe: vanilla
-               getenv: true
-               requirements: '(ALLOCATED_NODE_SET == &quot;${NODESET}&quot;)'
-               +JOB_NODE_SET: '&quot;${NODESET}&quot;'
-             dagman:
-               retry: 0
-             env:
-               PEGASUS_HOME: /usr/local/pegasus/current
+    which are matched to ``computeSite``.  See the documentation of the WMS
+    plugin in use for examples of site specifications.
 
 Supported settings
 ^^^^^^^^^^^^^^^^^^
+
+.. warning::
+
+   A plugin may *not* support all options listed below. See plugin's
+   documentation for which ones are supported.
 
 **accountingGroup**
     The name of the group to use by the batch system for accounting purposes
@@ -656,11 +533,7 @@ Supported settings
     Template used when creating QuantumGraph filename.
 
 **wmsServiceClass**
-    Workload Management Service plugin to use. For example
-
-    .. code-block:: YAML
-
-       wmsServiceClass: lsst.ctrl.bps.wms.htcondor.htcondor_service.HTCondorService  # HTCondor
+    Workload Management Service plugin to use.
 
 **bpsUseShared**
     Whether to put full submit-time path to QuantumGraph file in command line
@@ -759,8 +632,8 @@ To use full QuantumGraph file, the submit YAML must set `whenSaveJobQgraph` to
 
 .. note::
 
-   If running on a system with a shared filesystem, you'll more than likely want to also set bpsUseShared
-   to true.
+   If running on a system with a shared filesystem, you'll more than likely
+   want to also set ``bpsUseShared`` to ``true``.
 
 .. _execution-butler:
 
@@ -787,7 +660,7 @@ Command-line Changes
        pipetaskInit:
            runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask --long-log run -b {butlerConfig} -i {inCollection} --output-run {outputRun} --init-only --register-dataset-types --qgraph {qgraphFile} --extend-run {extraInitOptions}"
 
-New Yaml Section
+New YAML Section
 ^^^^^^^^^^^^^^^^
 
 .. code-block:: YAML
@@ -867,7 +740,6 @@ For ``--replace-run`` behavior, replace the one collection-chain command with th
 **executionButlerTemplate**
     Template for Execution Butler directory name.
 
-
 User-visible Changes
 ^^^^^^^^^^^^^^^^^^^^
 
@@ -881,7 +753,7 @@ The major differences visible to users are:
       cancellation is while the merge is running.  Its output will go where
       other jobs go (at NCSA in jobs/mergeExecutionButler directory).
     - Extra files in submit directory:
-        - EXEC_REPO-<run>:  Execution Butler (yaml + initial sqlite file)
+        - EXEC_REPO-<run>:  Execution Butler (YAML + initial SQLite file)
         - execution_butler_creation.out: Output of command to create execution
           butler.
         - final_job.bash:  Script that is executed to do the merging of
@@ -916,7 +788,6 @@ Config Entries (not currently needed as it is the default):
 
    clusterAlgorithm: lsst.ctrl.bps.quantum_clustering_funcs.single_quantum_clustering
 
-
 User-defined Dimension Clustering
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -939,7 +810,7 @@ putting Quanta in the same cluster.  That is handled in the config via
 `equalDimensions` (a comma-separated list of dimA:dimB pairs).
 
 Job dependencies are created based upon the Quanta dependencies.  This means
-that the naming and order of the clusters in the submission yaml does not
+that the naming and order of the clusters in the submission YAML does not
 matter. The algorithm will fail if a circular dependency is created.  It will
 also fail if a PipelineTask label is included in more than one cluster section.
 
@@ -950,15 +821,15 @@ Relevant Config Entries:
 
 .. code-block:: YAML
 
-    clusterAlgorithm: lsst.ctrl.bps.quantum_clustering_funcs.dimension_clustering
-    cluster:
-        # Repeat cluster subsection for however many clusters there are
-        clusterLabel1:
-            pipetasks: label1, label2     # comma-separated list of labels
-            dimensions: dim1, dim2        # comma-separated list of dimensions
-            equalDimensions: dim1:dim1a   # e.g., visit:exposure
-            # request_cpus: N        # Overrides for jobs in this cluster
-            # request_memory: NNNN   # MB, Overrides for jobs in this cluster
+   clusterAlgorithm: lsst.ctrl.bps.quantum_clustering_funcs.dimension_clustering
+   cluster:
+     # Repeat cluster subsection for however many clusters there are
+     clusterLabel1:
+       pipetasks: label1, label2     # comma-separated list of labels
+       dimensions: dim1, dim2        # comma-separated list of dimensions
+       equalDimensions: dim1:dim1a   # e.g., visit:exposure
+       # request_cpus: N             # Overrides for jobs in this cluster
+       # request_memory: NNNN        # MB, Overrides for jobs in this cluster
 
 .. _bps-troubleshooting:
 
@@ -968,56 +839,84 @@ Troubleshooting
 Where is stdout/stderr from pipeline tasks?
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-For now, stdout/stderr can be found in files in the submit run directory.
+See the documentation on the plugin in use to find out where stdout/stderr are.
 
-HTCondor
-""""""""
+Why is my submission taking so long?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The names are of the format:
+If ``bps submit`` is taking a long time, probably it is spending the time
+during QuantumGraph generation.  The QuantumGraph generation command line and
+output will be in ``quantumGraphGeneration.out`` in the submit run directory,
+e.g.  ``submit/shared/pipecheck/20220407T184331Z/quantumGraphGeneration.out``.
+
+.. _bps-appendix-a:
+
+Appendix A 
+----------
+
+Prerequisites
+^^^^^^^^^^^^^
+
+#. LSST software stack.
+
+#. Shared filesystem for data.
+
+#. Shared database.
+
+   `SQLite3`_ is fine for small runs like **ci_hsc_gen3** if have POSIX
+   filesystem.  For larger runs, use `PostgreSQL`_.
+
+#. A workflow management service and its dependencies if any.
+
+   For currently supported WMS plugins see `lsst_bps_plugins`_.
+
+
+Installing Batch Processing Service
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Starting from LSST Stack version ``w_2020_45``, the package providing Batch
+Processing Service, `ctrl_bps`_, comes with ``lsst_distrib``.  However, if
+you'd like to  try out its latest features, you may install a bleeding edge
+version similarly to any other LSST package:
 
 .. code-block:: bash
 
-   <run submit dir>/jobs/<task label>/<quantum graph nodeNumber>_<task label>_<templateDataId>[.<htcondor job id>.[sub|out|err|log]
+   git clone https://github.com/lsst-dm/ctrl_bps
+   cd ctrl_bps
+   setup -k -r .
+   scons
 
-Pegasus WMS
-"""""""""""
+Creating Butler repository
+^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Pegasus does its own directory structure and wrapping of ``pipetask`` output.
+You’ll need a pre-existing Butler dataset repository containing all the input
+files needed for your run.  This repository needs to be on the filesystem
+shared among all compute resources (e.g. submit and compute nodes) you use
+during your run.
 
-You can dig around in the submit run directory here too, but try
-`pegasus-analyzer`__ command first.
+.. note::
 
-.. __: https://pegasus.isi.edu/documentation/cli-pegasus-analyzer.php
+   Keep in mind though, that you don't need to bootstrap a dataset repository
+   for every BPS run.  You only need to do it when Gen3 data definition
+   language (DDL) changes, you want to to start a repository from scratch, and
+   possibly if want to add/change inputs in repo (depending on the inputs and
+   flexibility of the bootstrap scripts).
 
-Advanced debugging
-^^^^^^^^^^^^^^^^^^
+For testing purposes, you can use `pipelines_check`_ package to set up your own
+Butler dataset repository.  To make that repository, follow the usual steps
+when installing an LSST package:
 
-Here are some advanced debugging tips:
+.. code-block:: bash
 
-#. If ``bps submit`` is taking a long time, probably it is spending the time
-   during QuantumGraph generation.  The QuantumGraph generation command line
-   and output will be in ``quantumGraphGeneration.out`` in the submit run
-   directory, e.g.
-   ``submit/shared/pipecheck/20200806T00h22m26s/quantumGraphGeneration.out``.
+   git clone https://github.com/lsst/pipelines_check
+   cd pipelines_check
+   git checkout w_2020_45  # checkout the branch matching the software branch you are using
+   setup -k -r .
+   scons
 
-#. Check the ``*.dag.dagman.out`` for errors (in particular for ``ERROR: submit
-   attempt failed``).
+.. _SQLite3: https://www.sqlite.org/index.html
+.. _PostgreSQL: https://www.postgresql.org
+.. _ctrl_bps: https://github.com/lsst/ctrl_bps
+.. _pipelines_check: https://github.com/lsst/pipelines_check
+.. _lsst_bps_plugins: https://github.com/lsst/lsst_bps_plugins
 
-#. The Pegasus ``runId`` is the submit subdirectory where the underlying DAG
-   lives.  If you’ve forgotten the Pegasus ``runId`` needed to use in the
-   Pegasus commands try one of the following:
-
-   #. It’s the submit directory in which the ``braindump.txt`` file lives.  If
-      you know the submit root directory, use find to give you a list of
-      directories to try.  (Note that many of these directories could be for
-      old runs that are no longer running.)o
-
-      .. code-block:: bash
-
-         find submit  -name "braindump.txt"
-
-   #. Use HTCondor commands to find submit directories for running jobs
-
-      .. code-block:: bash
-
-         condor_q -constraint 'pegasus_wf_xformation == "pegasus::dagman"' -l | grep Iwd

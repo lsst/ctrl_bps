@@ -57,7 +57,7 @@ preemptible: True
 requestMemory: 2048
 requestCpus: 1
 
-wmsServiceClass: lsst.ctrl.bps.wms.htcondor.htcondor_service.HTCondorService
+wmsServiceClass: lsst.ctrl.bps.htcondor.HTCondorService
 bpsUseShared: True
 clusterAlgorithm: lsst.ctrl.bps.quantum_clustering_funcs.single_quantum_clustering
 
