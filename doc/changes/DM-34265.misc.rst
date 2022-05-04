@@ -1,0 +1,3 @@
+* Abort submission if a Quantum is missing a dimension required by the clustering definition.
+* Abort submission if clustering definition results in cycles in the ClusteredQuantumGraph.
+* Add unit tests for the quantum clustering functions.

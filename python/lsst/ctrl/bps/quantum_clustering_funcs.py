@@ -26,6 +26,7 @@ import re
 from collections import defaultdict
 
 from lsst.pipe.base import NodeId
+from networkx import DiGraph, is_directed_acyclic_graph
 
 from . import ClusteredQuantumGraph, QuantaCluster
 
@@ -71,7 +72,7 @@ def single_quantum_clustering(config, qgraph, name):
             if found:
                 template = "{node_number}_{label}_" + template_data_id
             else:
-                template = "{node_number:08d}"
+                template = "{node_number}"
             cached_template[qnode.taskDef.label] = template
 
         cluster = QuantaCluster.from_quantum_node(qnode, cached_template[qnode.taskDef.label])
@@ -89,6 +90,66 @@ def single_quantum_clustering(config, qgraph, name):
             cqgraph.add_dependency(number_to_name[qnode.nodeId], number_to_name[child.nodeId])
 
     return cqgraph
+
+
+def _check_clusters_tasks(cluster_config, taskGraph):
+    """Check cluster definitions in terms of pipetask lists.
+
+    Parameters
+    ----------
+    cluster_config : `lsst.ctrl.bps.BpsConfig`
+        The cluster section from the BPS configuration.
+    taskGraph : `lsst.pipe.base.taskGraph`
+        Directed graph of tasks.
+
+    Returns
+    -------
+    task_labels : `set` [`str`]
+        Set of task labels from the cluster definitions.
+
+    Raises
+    -------
+    RuntimeError
+        Raised if task label appears in more than one cluster def or
+        if there's a cycle in the cluster defs.
+    """
+
+    # Build a "clustered" task graph to check for cycle.
+    task_to_cluster = {}
+    task_labels = set()
+    clustered_task_graph = DiGraph()
+
+    # Create clusters based on given configuration.
+    for cluster_label in cluster_config:
+        _LOG.debug("cluster = %s", cluster_label)
+        cluster_tasks = [pt.strip() for pt in cluster_config[cluster_label]["pipetasks"].split(",")]
+        for task_label in cluster_tasks:
+            if task_label in task_labels:
+                raise RuntimeError(
+                    f"Task label {task_label} appears in more than one cluster definition.  "
+                    "Aborting submission."
+                )
+            task_labels.add(task_label)
+            task_to_cluster[task_label] = cluster_label
+            clustered_task_graph.add_node(cluster_label)
+
+    # Create clusters for tasks not covered by clusters.
+    for task in taskGraph:
+        if task.label not in task_labels:
+            task_to_cluster[task.label] = task.label
+            clustered_task_graph.add_node(task.label)
+
+    # Create dependencies between clusters.
+    for edge in taskGraph.edges:
+        if task_to_cluster[edge[0].label] != task_to_cluster[edge[1].label]:
+            clustered_task_graph.add_edge(task_to_cluster[edge[0].label], task_to_cluster[edge[1].label])
+
+    _LOG.debug("clustered_task_graph.edges = %s", [e for e in clustered_task_graph.edges])
+
+    if not is_directed_acyclic_graph(clustered_task_graph):
+        raise RuntimeError("Cluster pipetasks do not create a DAG")
+
+    return task_labels
 
 
 def dimension_clustering(config, qgraph, name):
@@ -115,10 +176,8 @@ def dimension_clustering(config, qgraph, name):
     # save mapping in order to create dependencies later
     quantum_to_cluster = {}
 
-    # save which task labels have been handled
-    task_labels_seen = set()
-
     cluster_config = config["cluster"]
+    task_labels = _check_clusters_tasks(cluster_config, qgraph.taskGraph)
     for cluster_label in cluster_config:
         _LOG.debug("cluster = %s", cluster_label)
         cluster_dims = []
@@ -126,22 +185,17 @@ def dimension_clustering(config, qgraph, name):
             cluster_dims = [d.strip() for d in cluster_config[cluster_label]["dimensions"].split(",")]
         _LOG.debug("cluster_dims = %s", cluster_dims)
 
-        if "clusterTemplate" in cluster_config[cluster_label]:
-            template = cluster_config[cluster_label]["clusterTemplate"]
-        elif cluster_dims:
-            template = f"{cluster_label}_" + "_".join(f"{{{dim}}}" for dim in cluster_dims)
-        else:
-            template = cluster_label
+        found, template = cluster_config[cluster_label].search("clusterTemplate", opt={"replaceVars": False})
+        if not found:
+            if cluster_dims:
+                template = f"{cluster_label}_" + "_".join(f"{{{dim}}}" for dim in cluster_dims)
+            else:
+                template = cluster_label
         _LOG.debug("template = %s", template)
 
         cluster_tasks = [pt.strip() for pt in cluster_config[cluster_label]["pipetasks"].split(",")]
         for task_label in cluster_tasks:
-            if task_label in task_labels_seen:
-                raise ValueError(
-                    f"Task label {task_label} appears in more than one cluster definition.  "
-                    "Aborting submission."
-                )
-            task_labels_seen.add(task_label)
+            task_labels.add(task_label)
 
             # Currently getQuantaForTask is currently a mapping taskDef to
             # Quanta, so quick enough to call repeatedly.
@@ -157,21 +211,32 @@ def dimension_clustering(config, qgraph, name):
                 # Gather info for cluster name template into a dictionary.
                 info = {}
 
+                missing_info = set()
                 data_id_info = qnode.quantum.dataId.byName()
                 for dim_name in cluster_dims:
                     _LOG.debug("dim_name = %s", dim_name)
                     if dim_name in data_id_info:
                         info[dim_name] = data_id_info[dim_name]
+                    else:
+                        missing_info.add(dim_name)
                 if equal_dims:
                     for pair in [pt.strip() for pt in equal_dims.split(",")]:
                         dim1, dim2 = pair.strip().split(":")
                         if dim1 in cluster_dims and dim2 in data_id_info:
                             info[dim1] = data_id_info[dim2]
+                            missing_info.remove(dim1)
                         elif dim2 in cluster_dims and dim1 in data_id_info:
                             info[dim2] = data_id_info[dim1]
+                            missing_info.remove(dim2)
 
                 info["label"] = cluster_label
                 _LOG.debug("info for template = %s", info)
+
+                if missing_info:
+                    raise RuntimeError(
+                        "Quantum %s (%s) missing dimensions %s required for cluster %s"
+                        % (qnode.nodeId, data_id_info, ",".join(missing_info), cluster_label)
+                    )
 
                 # Use dictionary plus template format string to create name.
                 # To avoid # key errors from generic patterns, use defaultdict.
@@ -197,7 +262,7 @@ def dimension_clustering(config, qgraph, name):
 
     # Assume any task not handled above is supposed to be 1 cluster = 1 quantum
     for task_def in qgraph.iterTaskGraph():
-        if task_def.label not in task_labels_seen:
+        if task_def.label not in task_labels:
             _LOG.info("Creating 1-quantum clusters for task %s", task_def.label)
             found, template_data_id = config.search(
                 "templateDataId", opt={"curvals": {"curr_pipetask": task_def.label}, "replaceVars": False}
@@ -205,7 +270,7 @@ def dimension_clustering(config, qgraph, name):
             if found:
                 template = "{node_number}_{label}_" + template_data_id
             else:
-                template = "{node_number:08d}"
+                template = "{node_number}"
 
             for qnode in qgraph.getNodesForTask(task_def):
                 cluster = QuantaCluster.from_quantum_node(qnode, template)
@@ -222,7 +287,8 @@ def dimension_clustering(config, qgraph, name):
                     cqgraph.add_dependency(
                         quantum_to_cluster[parent.nodeId], quantum_to_cluster[child.nodeId]
                     )
-            except KeyError as e:
+            except KeyError as e:  # pragma: no cover
+                # For debugging a problem internal to method
                 nid = NodeId(e.args[0], qgraph.graphID)
                 qnode = qgraph.getQuantumNodeByNodeId(nid)
 

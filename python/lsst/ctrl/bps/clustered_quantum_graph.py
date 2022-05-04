@@ -102,7 +102,11 @@ class QuantaCluster:
 
         # Use dictionary plus template format string to create name. To avoid
         # key errors from generic patterns, use defaultdict.
-        name = template.format_map(defaultdict(lambda: "", info))
+        try:
+            name = template.format_map(defaultdict(lambda: "", info))
+        except TypeError:
+            _LOG.error("Problems creating cluster name. template='%s', info=%s", template, info)
+            raise
         name = re.sub("_+", "_", name)
         _LOG.debug("template name = %s", name)
 
