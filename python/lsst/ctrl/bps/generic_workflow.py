@@ -265,6 +265,10 @@ class GenericWorkflowJob:
     """Environment variable names and values to be explicitly set inside job.
     """
 
+    compute_cloud: Optional[str]
+    """Key to look up cloud-specific information for running the job.
+    """
+
     # As of python 3.7.8, can't use __slots__ if give default values, so
     # writing own __init__.
     def __init__(self, name: str):
@@ -300,6 +304,7 @@ class GenericWorkflowJob:
         self.profile = {}
         self.attrs = {}
         self.environment = {}
+        self.compute_cloud = None
 
     __slots__ = (
         "name",
@@ -334,6 +339,7 @@ class GenericWorkflowJob:
         "preemptible",
         "profile",
         "attrs",
+        "compute_cloud",
     )
 
     def __hash__(self):

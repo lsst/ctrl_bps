@@ -23,7 +23,9 @@
 
 import uuid
 
+from lsst.ctrl.bps.quantum_clustering_funcs import dimension_clustering
 from networkx import is_directed_acyclic_graph
+from qg_test_utils import make_test_quantum_graph
 
 
 def check_cqg(cqg, truth=None):
@@ -159,3 +161,9 @@ def compare_cqg_dicts(truth, cqg):
     assert set(truth["edges"]) == set(
         cqg["edges"]
     ), f"Mismatch edges: truth={truth['edges']}, cqg={cqg['edges']}"
+
+
+def make_test_clustered_quantum_graph(config):
+    qgraph = make_test_quantum_graph()
+    cqg = dimension_clustering(config, qgraph, "test_cqg")
+    return cqg

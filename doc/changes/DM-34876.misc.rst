@@ -1,0 +1,9 @@
+Add concept of cloud, in particular to be used by PanDA plugin.
+
+* Submit yaml can specify cloud with computeCloud.
+* Common cloud values can be specified in cloud subsection.
+    cloud:
+      cloud_name_1:
+        key1: value
+        key2: value
+* GenericWorkflowJob has compute_cloud.

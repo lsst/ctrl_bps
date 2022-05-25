@@ -43,7 +43,7 @@ _LOG = logging.getLogger(__name__)
 with resources.path(etc, "bps_defaults.yaml") as path:
     BPS_DEFAULTS = Config(str(path)).toDict()
 
-BPS_SEARCH_ORDER = ["bps_cmdline", "payload", "cluster", "pipetask", "site", "bps_defined"]
+BPS_SEARCH_ORDER = ["bps_cmdline", "payload", "cluster", "pipetask", "site", "cloud", "bps_defined"]
 
 # Need a string that won't be a valid default value
 # to indicate whether default was defined for search.
