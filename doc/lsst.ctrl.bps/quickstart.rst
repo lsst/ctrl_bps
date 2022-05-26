@@ -232,7 +232,7 @@ Restart a failed run with
 where ``<id>`` is the id of the run that need to be restarted.  What the id is
 depends on the workflow management system the BPS is configured to use.  For
 example, if the BPS was configured to use the HTCondor, the only valid id is
-the submit directory. 
+the submit directory.
 
 If the restart completed successfully, the command will output something
 similar to:
@@ -255,7 +255,7 @@ command-line option and in the config file).  The value of a setting is
 determined by following order:
 
 #. command-line option,
-#. config file (if used by a subcommand), 
+#. config file (if used by a subcommand),
 #. environment variable,
 #. package default.
 
@@ -303,7 +303,8 @@ Environment variables can be used as well with ``${var}`` syntax, for example
 
 Section names can be used to store default settings at that concept level which
 can be overridden by settings at more specific concept levels.  Currently the
-order from most specific to general is: ``payload``, ``pipetask``, and ``site``.
+order from most specific to general is: ``payload``, ``pipetask``, ``site``,
+and ``cloud``.
 
 **payload**
     description of the submission including definition of inputs.  These values
@@ -347,6 +348,12 @@ order from most specific to general is: ``payload``, ``pipetask``, and ``site``.
     which are matched to ``computeSite``.  See the documentation of the WMS
     plugin in use for examples of site specifications.
 
+**cloud**
+    settings for a particular cloud (group of sites) can be set here.
+    Subsections cloud names which are matched to ``computeCloud``.  See
+    the documentation of the WMS plugin in use for examples of cloud
+    specifications.
+
 Supported settings
 ^^^^^^^^^^^^^^^^^^
 
@@ -382,6 +389,10 @@ Supported settings
 **computeSite**
     Specification of the compute site where to run the workflow and which site
     settings to use in ``bps prepare``).
+
+**computeCloud**
+    Specification of the compute cloud where to run the workflow and which
+    cloud settings to use in ``bps prepare``).
 
 **createQuantumGraph**
     The command line specification for generating QuantumGraphs.
@@ -430,7 +441,7 @@ Supported settings
     The process will continue until number of retries reaches its limit
     determined by ``numberOfRetries`` (5 by default) *or* the resultant memory
     request reaches the memory cap determined by ``requestMemoryMax``.
-    
+
     Once the memory request reaches the cap the job will be run one time
     allowing to use the amount of memory determined by the cap (providing a
     retry is still permitted) and removed from the job queue afterwards if it
@@ -447,7 +458,7 @@ Supported settings
     GB), and ``memoryMultiplier = 2.0`` the job will be allowed to use 64 GB
     of memory during its first retry.  If it fails due to insufficient memory,
     it will be removed from the job queue.
-    
+
     In both examples if the job keeps failing for other reasons, the final
     number of retries will be determined by ``numberOfRetries``.
 
@@ -851,7 +862,7 @@ e.g.  ``submit/shared/pipecheck/20220407T184331Z/quantumGraphGeneration.out``.
 
 .. _bps-appendix-a:
 
-Appendix A 
+Appendix A
 ----------
 
 Prerequisites

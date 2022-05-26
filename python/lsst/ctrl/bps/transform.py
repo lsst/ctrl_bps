@@ -174,6 +174,12 @@ def create_init_workflow(config, qgraph, qgraph_gwfile):
         "replaceEnvVars": True,
         "required": False,
     }
+    found, value = config.search("computeSite", opt=search_opt)
+    if found:
+        search_opt["curvals"]["curr_site"] = value
+    found, value = config.search("computeCloud", opt=search_opt)
+    if found:
+        search_opt["curvals"]["curr_cloud"] = value
 
     init_workflow = GenericWorkflow("init")
     init_workflow.add_file(qgraph_gwfile)
@@ -440,6 +446,7 @@ def _get_job_values(config, search_opt, cmd_line_key):
     job_values : `dict` [ `str`, `Any` ]`
         A mapping between job attributes and their values.
     """
+    _LOG.debug("cmd_line_key=%s, search_opt=%s", cmd_line_key, search_opt)
     job_values = {}
     for attr in _ATTRS_ALL:
         # Variable names in yaml are camel case instead of snake case.
@@ -667,6 +674,12 @@ def create_generic_workflow(config, cqgraph, name, prefix):
 
         # First get job values from cluster or cluster config
         search_opt["curvals"] = {"curr_cluster": cluster.label}
+        found, value = config.search("computeSite", opt=search_opt)
+        if found:
+            search_opt["curvals"]["curr_site"] = value
+        found, value = config.search("computeCloud", opt=search_opt)
+        if found:
+            search_opt["curvals"]["curr_cloud"] = value
 
         # If some config values are set for this cluster
         if cluster.label not in cached_job_values:
@@ -712,7 +725,7 @@ def create_generic_workflow(config, cqgraph, name, prefix):
             qnode = cqgraph.get_quantum_node(node_id)
 
             if qnode.taskDef.label not in cached_pipetask_values:
-                search_opt["curvals"] = {"curr_pipetask": qnode.taskDef.label}
+                search_opt["curvals"]["curr_pipetask"] = qnode.taskDef.label
                 cached_pipetask_values[qnode.taskDef.label] = _get_job_values(
                     config, search_opt, "runQuantumCommand"
                 )
@@ -802,7 +815,14 @@ def add_final_job(config, generic_workflow, prefix):
     _, when_create = config.search(".executionButler.whenCreate")
     _, when_merge = config.search(".executionButler.whenMerge")
 
-    search_opt = {"searchobj": config[".executionButler"], "default": None}
+    search_opt = {"searchobj": config[".executionButler"], "curvals": {}, "default": None}
+    found, value = config.search("computeSite", opt=search_opt)
+    if found:
+        search_opt["curvals"]["curr_site"] = value
+    found, value = config.search("computeCloud", opt=search_opt)
+    if found:
+        search_opt["curvals"]["curr_cloud"] = value
+
     if when_create.upper() != "NEVER" and when_merge.upper() != "NEVER":
         # create gwjob
         gwjob = GenericWorkflowJob("mergeExecutionButler")
