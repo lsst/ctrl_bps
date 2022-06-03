@@ -52,7 +52,10 @@ def single_quantum_clustering(config, qgraph, name):
         given QuantumGraph.
     """
     cqgraph = ClusteredQuantumGraph(
-        name=name, qgraph=qgraph, qgraph_filename=config[".bps_defined.runQgraphFile"]
+        name=name,
+        qgraph=qgraph,
+        qgraph_filename=config[".bps_defined.runQgraphFile"],
+        butler_uri=config["butlerConfig"],
     )
 
     # Save mapping of quantum nodeNumber to name so don't have to create it
@@ -170,7 +173,10 @@ def dimension_clustering(config, qgraph, name):
         ClusteredQuantumGraph with clustering as defined in config.
     """
     cqgraph = ClusteredQuantumGraph(
-        name=name, qgraph=qgraph, qgraph_filename=config[".bps_defined.runQgraphFile"]
+        name=name,
+        qgraph=qgraph,
+        qgraph_filename=config[".bps_defined.runQgraphFile"],
+        butler_uri=config["butlerConfig"],
     )
 
     # save mapping in order to create dependencies later
