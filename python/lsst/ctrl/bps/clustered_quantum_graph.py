@@ -31,12 +31,14 @@ import re
 import pickle
 from collections import Counter, defaultdict
 from pathlib import Path
+
 from networkx import DiGraph
 
 from lsst.daf.butler import DimensionUniverse
 from lsst.daf.butler.core.utils import iterable
 from lsst.pipe.base import QuantumGraph, NodeId
 from .bps_draw import draw_networkx_dot
+from .pre_transform import read_quantum_graph
 
 
 _LOG = logging.getLogger(__name__)
@@ -179,6 +181,8 @@ class ClusteredQuantumGraph:
     qgraph_filename : `str`
         Filename for given QuantumGraph if it has already been
         serialized.
+    butler_uri : `str`
+        Location of butler repo used to create the QuantumGraph.
 
     Raises
     ------
@@ -192,19 +196,23 @@ class ClusteredQuantumGraph:
     use API over totally minimized memory usage.
     """
 
-    def __init__(self, name, qgraph, qgraph_filename=None):
-        if '/' in name:
+    def __init__(self, name, qgraph, qgraph_filename=None, butler_uri=None):
+        if "/" in name:
             raise ValueError(f"name cannot have a / ({name})")
         self._name = name
         self._quantum_graph = qgraph
         self._quantum_graph_filename = Path(qgraph_filename).resolve()
+        self._butler_uri = Path(butler_uri).resolve()
         self._cluster_graph = DiGraph()
 
     def __str__(self):
-        return f"ClusteredQuantumGraph(name={self.name}," \
-               f"quantum_graph_filename={self._quantum_graph_filename}," \
-               f"len(qgraph)={len(self._quantum_graph) if self._quantum_graph else None}," \
-               f"len(cqgraph)={len(self._cluster_graph) if self._cluster_graph else None})"
+        return (
+            f"ClusteredQuantumGraph(name={self.name},"
+            f"quantum_graph_filename={self._quantum_graph_filename},"
+            f"butler_uri ={self._butler_uri},"
+            f"len(qgraph)={len(self._quantum_graph) if self._quantum_graph else None},"
+            f"len(cqgraph)={len(self._cluster_graph) if self._cluster_graph else None})"
+        )
 
     def __len__(self):
         """Return the number of clusters.
@@ -484,15 +492,14 @@ class ClusteredQuantumGraph:
 
         cgraph = None
         if format_ == "pickle":
-            dim_univ = DimensionUniverse()
             with open(filename, "rb") as fh:
                 cgraph = pickle.load(fh)
 
             # The QuantumGraph was saved separately
             try:
-                cgraph._quantum_graph = QuantumGraph.loadUri(cgraph._quantum_graph_filename, dim_univ)
+                cgraph._quantum_graph = read_quantum_graph(cgraph._quantum_graph_filename, cgraph._butler_uri)
             except FileNotFoundError:  # Try same path as ClusteredQuantumGraph
                 new_filename = path.parent / Path(cgraph._quantum_graph_filename).name
-                cgraph._quantum_graph = QuantumGraph.loadUri(new_filename, dim_univ)
+                cgraph._quantum_graph = read_quantum_graph(new_filename, cgraph._butler_uri)
 
         return cgraph
