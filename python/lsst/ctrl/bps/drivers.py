@@ -259,6 +259,7 @@ def cluster_qgraph_driver(config_file, **kwargs):
             "Peak memory usage for bps process %s (main), %s (largest child process)",
             *tuple(f"{val.to(DEFAULT_MEM_UNIT):{DEFAULT_MEM_FMT}}" for val in get_peak_mem_usage()),
         )
+    _LOG.info("ClusteredQuantumGraph contains %d cluster(s)", len(clustered_qgraph))
 
     submit_path = config[".bps_defined.submitPath"]
     _, save_clustered_qgraph = config.search("saveClusteredQgraph", opt={"default": False})
@@ -306,6 +307,8 @@ def transform_driver(config_file, **kwargs):
             "Peak memory usage for bps process %s (main), %s (largest child process)",
             *tuple(f"{val.to(DEFAULT_MEM_UNIT):{DEFAULT_MEM_FMT}}" for val in get_peak_mem_usage()),
         )
+    num_jobs = sum(generic_workflow.job_counts.values())
+    _LOG.info("GenericWorkflow contains %d job(s) (including final)", num_jobs)
 
     _, save_workflow = config.search("saveGenericWorkflow", opt={"default": False})
     if save_workflow:
