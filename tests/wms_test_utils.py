@@ -18,7 +18,32 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+import logging
 
-__all__ = ["acquire", "cluster", "transform", "prepare", "submit", "restart", "report", "cancel", "ping"]
+from lsst.ctrl.bps.wms_service import BaseWmsService
 
-from .commands import acquire, cancel, cluster, ping, prepare, report, restart, submit, transform
+_LOG = logging.getLogger(__name__)
+
+
+class WmsServiceSuccess(BaseWmsService):
+    def ping(self, pass_thru):
+        _LOG.info(f"Success {pass_thru}")
+        return 0, ""
+
+
+class WmsServiceFailure(BaseWmsService):
+    def ping(self, pass_thru):
+        _LOG.warning("service failure")
+        return 64, "Couldn't contact service X"
+
+
+class WmsServicePassThru(BaseWmsService):
+    def ping(self, pass_thru):
+        _LOG.info(pass_thru)
+        return 0, pass_thru
+
+
+class WmsServiceDefault(BaseWmsService):
+    def ping(self, pass_thru):
+        _LOG.info(f"DEFAULT {pass_thru}")
+        return 0, "default"
