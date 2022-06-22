@@ -17,12 +17,34 @@ how to find it.
 The location of the plugin can be specified as listed below (in the increasing
 order of priority):
 
-#. by setting ``WMS_SERVICE_CLASS`` environment variable,
+#. by setting ``BPS_WMS_SERVICE_CLASS`` environment variable,
 #. in the config file *via* ``wmsServiceClass`` setting,
 #. using command-line option ``--wms-service-class``.
 
 If plugin location is not specified explicitly using one of the methods above,
 a default value, ``lsst.ctrl.bps.htcondor.HTCondorService``, will be used.
+
+.. _bps-ping:
+
+Checking status of WMS services
+-------------------------------
+
+Run `bps ping` to check the status of the WMS services.  This subcommand
+requires specifying the WMS plugin (see :ref:`bps-wmsclass`).  If the plugin
+provides such functionality, it will check whether the WMS services
+necessary for workflow management (submission, reporting, canceling,
+etc) are usable.  If the WMS services require authentication, that will
+also be tested.
+
+If services are ready for use, then `bps ping` will log an INFO success
+message and exit with 0.  If not, it will log ERROR messages and exit
+with a non-0 exit code.  If the WMS plugin did not implement the ping
+functionality, a NotImplementedError will be thrown.
+
+.. note::
+
+   `bps ping` does *not* test whether compute resources are available or
+   that jobs will run.
 
 .. .. _bps-authenticating:
 

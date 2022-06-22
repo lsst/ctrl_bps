@@ -27,6 +27,7 @@ from ...drivers import (
     acquire_qgraph_driver,
     cancel_driver,
     cluster_qgraph_driver,
+    ping_driver,
     prepare_driver,
     report_driver,
     restart_driver,
@@ -130,3 +131,13 @@ def report(*args, **kwargs):
 def cancel(*args, **kwargs):
     """Cancel submitted workflow(s)."""
     cancel_driver(*args, **kwargs)
+
+
+@click.command(cls=BpsCommand)
+@opt.wms_service_option()
+@click.option("--pass-thru", "pass_thru", default=str(), help="Pass the given string to the WMS service.")
+def ping(*args, **kwargs):
+    """Ping workflow services."""
+    # Note: Using return statement doesn't actually return the value
+    # to the shell.  Using click function instead.
+    click.get_current_context().exit(ping_driver(*args, **kwargs))

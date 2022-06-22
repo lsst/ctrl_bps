@@ -260,6 +260,28 @@ class BaseWmsService:
         """
         raise NotImplementedError
 
+    def ping(self, pass_thru):
+        """Checks whether WMS services are up, reachable, and can authenticate
+        if authentication is required.
+
+        The services to be checked are those needed for submit, report, cancel,
+        restart, but ping cannot guarantee whether jobs would actually run
+        successfully.
+
+        Parameters
+        ----------
+        pass_thru : `str`, optional
+            Information to pass through to WMS.
+
+        Returns
+        -------
+        status : `int`
+            0 for success, non-zero for failure
+        message : `str`
+            Any message from WMS (e.g., error details).
+        """
+        raise NotImplementedError
+
 
 class BaseWmsWorkflow(metaclass=ABCMeta):
     """Interface for single workflow specific to a WMS.

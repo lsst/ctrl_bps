@@ -35,6 +35,7 @@ __all__ = [
     "report_driver",
     "restart_driver",
     "cancel_driver",
+    "ping_driver",
 ]
 
 
@@ -55,6 +56,7 @@ from lsst.utils.usage import get_peak_mem_usage
 from . import BPS_DEFAULTS, BPS_SEARCH_ORDER, DEFAULT_MEM_FMT, DEFAULT_MEM_UNIT, BpsConfig
 from .bps_utils import _dump_env_info, _dump_pkg_info
 from .cancel import cancel
+from .ping import ping
 from .pre_transform import acquire_quantum_graph, cluster_quanta
 from .prepare import prepare
 from .report import report
@@ -496,3 +498,43 @@ def cancel_driver(wms_service, run_id, user, require_bps, pass_thru, is_global=F
         default_config = BpsConfig(BPS_DEFAULTS)
         wms_service = os.environ.get("BPS_WMS_SERVICE_CLASS", default_config["wmsServiceClass"])
     cancel(wms_service, run_id, user, require_bps, pass_thru, is_global=is_global)
+
+
+def ping_driver(wms_service=None, pass_thru=None):
+    """Checks whether WMS services are up, reachable, and any authentication,
+    if needed, succeeds.
+
+    The services to be checked are those needed for submit, report, cancel,
+    restart, but ping cannot guarantee whether jobs would actually run
+    successfully.
+
+    Parameters
+    ----------
+    wms_service : `str`, optional
+        Name of the Workload Management System service class.
+    pass_thru : `str`, optional
+        Information to pass through to WMS.
+
+    Returns
+    -------
+    success : `int`
+        Whether services are up and usable (0) or not (non-zero).
+    """
+    if wms_service is None:
+        default_config = BpsConfig(BPS_DEFAULTS)
+        wms_service = os.environ.get("BPS_WMS_SERVICE_CLASS", default_config["wmsServiceClass"])
+    status, message = ping(wms_service, pass_thru)
+
+    if message:
+        if not status:
+            _LOG.info(message)
+        else:
+            _LOG.error(message)
+
+    # Log overall status message
+    if not status:
+        _LOG.info("Ping successful.")
+    else:
+        _LOG.error("Ping failed (%d).", status)
+
+    return status
