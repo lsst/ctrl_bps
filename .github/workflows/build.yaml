@@ -10,7 +10,10 @@ jobs:
   build_and_test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
+        with:
+          # Need to clone everything for the git tags.
+          fetch-depth: 0
 
       - uses: conda-incubator/setup-miniconda@v2
         with:
