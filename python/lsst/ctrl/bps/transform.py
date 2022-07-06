@@ -72,7 +72,6 @@ _ATTRS_SUM = frozenset(
 # Job attributes do not fall into a specific category
 _ATTRS_MISC = frozenset(
     {
-        "cmdline",
         "cmdvals",
         "environment",
         "pre_cmdline",
