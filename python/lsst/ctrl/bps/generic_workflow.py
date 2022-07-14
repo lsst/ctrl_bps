@@ -271,7 +271,7 @@ class GenericWorkflowJob:
 
     # As of python 3.7.8, can't use __slots__ if give default values, so
     # writing own __init__.
-    def __init__(self, name: str):
+    def __init__(self, name):
         self.name = name
         self.label = None
         self.quanta_counts = Counter()
