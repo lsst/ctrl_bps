@@ -73,9 +73,6 @@ _ATTRS_SUM = frozenset(
 _ATTRS_MISC = frozenset(
     {
         "cmdvals",
-        "environment",
-        "pre_cmdline",
-        "post_cmdline",
         "profile",
         "attrs",
     }
