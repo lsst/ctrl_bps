@@ -19,14 +19,15 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Unit tests of transform.py"""
+import dataclasses
 import os
 import shutil
 import tempfile
 import unittest
 
 from cqg_test_utils import make_test_clustered_quantum_graph
-from lsst.ctrl.bps import BPS_SEARCH_ORDER, BpsConfig
-from lsst.ctrl.bps.transform import create_generic_workflow, create_generic_workflow_config
+from lsst.ctrl.bps import BPS_SEARCH_ORDER, BpsConfig, GenericWorkflowJob
+from lsst.ctrl.bps.transform import _get_job_values, create_generic_workflow, create_generic_workflow_config
 
 TESTDIR = os.path.abspath(os.path.dirname(__file__))
 
@@ -38,11 +39,11 @@ class TestCreateGenericWorkflowConfig(unittest.TestCase):
         """Test successful creation of the config."""
         config = BpsConfig({"a": 1, "b": 2, "uniqProcName": "testCreate"})
         wf_config = create_generic_workflow_config(config, "/test/create/prefix")
-        assert isinstance(wf_config, BpsConfig)
+        self.assertIsInstance(wf_config, BpsConfig)
         for key in config:
-            assert wf_config[key] == config[key]
-        assert wf_config["workflowName"] == "testCreate"
-        assert wf_config["workflowPath"] == "/test/create/prefix"
+            self.assertEqual(wf_config[key], config[key])
+        self.assertEqual(wf_config["workflowName"], "testCreate")
+        self.assertEqual(wf_config["workflowPath"], "/test/create/prefix")
 
 
 class TestCreateGenericWorkflow(unittest.TestCase):
@@ -91,14 +92,14 @@ class TestCreateGenericWorkflow(unittest.TestCase):
         for jname in workflow:
             gwjob = workflow.get_job(jname)
             print(gwjob)
-            assert gwjob.compute_site == "site2"
-            assert gwjob.compute_cloud == "cloud1"
-            assert gwjob.executable.src_uri == "s2exe"
-            assert gwjob.queue == "global_queue"
+            self.assertEqual(gwjob.compute_site, "site2")
+            self.assertEqual(gwjob.compute_cloud, "cloud1")
+            self.assertEqual(gwjob.executable.src_uri, "s2exe")
+            self.assertEqual(gwjob.queue, "global_queue")
         final = workflow.get_final()
-        assert final.compute_site == "site2"
-        assert final.compute_cloud == "cloud1"
-        assert final.queue == "global_queue"
+        self.assertEqual(final.compute_site, "site2")
+        self.assertEqual(final.compute_cloud, "cloud1")
+        self.assertEqual(final.queue, "global_queue")
 
     def testCreatingQuantumGraphMixed(self):
         """Test creating a GenericWorkflow with setting overrides."""
@@ -114,21 +115,63 @@ class TestCreateGenericWorkflow(unittest.TestCase):
             gwjob = workflow.get_job(jname)
             print(gwjob)
             if jname.startswith("cl1"):
-                assert gwjob.compute_site == "notthere"
-                assert gwjob.compute_cloud == "cloud2"
-                assert gwjob.executable.src_uri == "c2exe"
+                self.assertEqual(gwjob.compute_site, "notthere")
+                self.assertEqual(gwjob.compute_cloud, "cloud2")
+                self.assertEqual(gwjob.executable.src_uri, "c2exe")
             elif jname.startswith("cl2"):
-                assert gwjob.compute_site == "site1"
-                assert gwjob.compute_cloud is None
-                assert gwjob.executable.src_uri == "s1exe"
+                self.assertEqual(gwjob.compute_site, "site1")
+                self.assertIsNone(gwjob.compute_cloud)
+                self.assertEqual(gwjob.executable.src_uri, "s1exe")
             elif jname.startswith("pipetask"):
-                assert gwjob.compute_site == "global"
-                assert gwjob.compute_cloud is None
-                assert gwjob.executable.src_uri == "s3exe"
+                self.assertEqual(gwjob.compute_site, "global")
+                self.assertIsNone(gwjob.compute_cloud)
+                self.assertEqual(gwjob.executable.src_uri, "s3exe")
         final = workflow.get_final()
-        assert final.compute_site == "special_site"
-        assert final.compute_cloud == "special_cloud"
-        assert final.queue == "special_final_queue"
+        self.assertEqual(final.compute_site, "special_site")
+        self.assertEqual(final.compute_cloud, "special_cloud")
+        self.assertEqual(final.queue, "special_final_queue")
+
+
+class TestGetJobValues(unittest.TestCase):
+    """Tests of _get_job_values."""
+
+    def setUp(self):
+        self.default_job = GenericWorkflowJob("default_job")
+
+    def testGettingDefaults(self):
+        """Test retrieving default values."""
+        config = BpsConfig({})
+        job_values = _get_job_values(config, {}, None)
+        self.assertTrue(
+            all(
+                [
+                    getattr(self.default_job, field.name) == job_values[field.name]
+                    for field in dataclasses.fields(self.default_job)
+                ]
+            )
+        )
+
+    def testEnablingMemoryScaling(self):
+        """Test enabling the memory scaling mechanism."""
+        config = BpsConfig({"memoryMultiplier": 2.0})
+        job_values = _get_job_values(config, {}, None)
+        self.assertAlmostEqual(job_values["memory_multiplier"], 2.0)
+        self.assertEqual(job_values["number_of_retries"], 5)
+
+    def testDisablingMemoryScaling(self):
+        """Test disabling the memory scaling mechanism."""
+        config = BpsConfig({"memoryMultiplier": 0.5})
+        job_values = _get_job_values(config, {}, None)
+        self.assertIsNone(job_values["memory_multiplier"])
+
+    def testRetrievingCmdLine(self):
+        """Test retrieving the command line."""
+        cmd_line_key = "runQuantum"
+        config = BpsConfig({cmd_line_key: "/path/to/foo bar.txt"})
+        job_values = _get_job_values(config, {}, cmd_line_key)
+        self.assertEqual(job_values["executable"].name, "foo")
+        self.assertEqual(job_values["executable"].src_uri, "/path/to/foo")
+        self.assertEqual(job_values["arguments"], "bar.txt")
 
 
 if __name__ == "__main__":
