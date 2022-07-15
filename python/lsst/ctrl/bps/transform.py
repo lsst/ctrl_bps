@@ -72,11 +72,7 @@ _ATTRS_SUM = frozenset(
 # Job attributes do not fall into a specific category
 _ATTRS_MISC = frozenset(
     {
-        "cmdline",
         "cmdvals",
-        "environment",
-        "pre_cmdline",
-        "post_cmdline",
         "profile",
         "attrs",
     }
@@ -447,6 +443,10 @@ def _get_job_values(config, search_opt, cmd_line_key):
         A mapping between job attributes and their values.
     """
     _LOG.debug("cmd_line_key=%s, search_opt=%s", cmd_line_key, search_opt)
+
+    # Create a dummy job to easily access the default values.
+    default_gwjob = GenericWorkflowJob("default_job")
+
     job_values = {}
     for attr in _ATTRS_ALL:
         # Variable names in yaml are camel case instead of snake case.
@@ -455,7 +455,7 @@ def _get_job_values(config, search_opt, cmd_line_key):
         if found:
             job_values[attr] = value
         else:
-            job_values[attr] = None
+            job_values[attr] = getattr(default_gwjob, attr)
 
     # If the automatic memory scaling is enabled (i.e. the memory multiplier
     # is set and it is a positive number greater than 1.0), adjust number
@@ -828,8 +828,14 @@ def add_final_job(config, generic_workflow, prefix):
         gwjob = GenericWorkflowJob("mergeExecutionButler")
         gwjob.label = "mergeExecutionButler"
 
+        # Set job attributes based on the values find in the config excluding
+        # the ones in the _ATTRS_MISC group. The attributes in this group are
+        # somewhat "special":
+        #   * HTCondor plugin, which uses 'attrs' and 'profile', has its own
+        #   mechanism for setting them,
+        #   * 'cmdvals' is being set internally, not via config.
         job_values = _get_job_values(config, search_opt, None)
-        for attr in _ATTRS_ALL:
+        for attr in _ATTRS_ALL - _ATTRS_MISC:
             if not getattr(gwjob, attr) and job_values.get(attr, None):
                 setattr(gwjob, attr, job_values[attr])
 
