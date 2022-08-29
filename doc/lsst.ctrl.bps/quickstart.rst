@@ -181,6 +181,8 @@ example ::
        FAILED   0   176263 jdoe       dev   quick    pcheck     shared_pipecheck_20201111T13h51m59s
     SUCCEEDED 100   176265 jdoe       dev   quick    pcheck     shared_pipecheck_20201111T13h59m26s
 
+For more detailed information on a given submission, use ``bps report --id ID``.
+
 Use ``bps report --help`` to see all currently supported options.
 
 .. _bps-cancel:
@@ -881,6 +883,17 @@ If ``bps submit`` is taking a long time, probably it is spending the time
 during QuantumGraph generation.  The QuantumGraph generation command line and
 output will be in ``quantumGraphGeneration.out`` in the submit run directory,
 e.g.  ``submit/shared/pipecheck/20220407T184331Z/quantumGraphGeneration.out``.
+
+
+.. _bps_running_job_taking_long:
+
+Why is my running job taking so long?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+If the submission seems to be stuck in ``RUNNING`` state, some jobs may be held due to running out of memory.
+Check using ``bps report --id ID``.
+
+If that's the case, the jobs can often be edited and released in a plugin-specific way.
 
 .. _bps-appendix-a:
 
