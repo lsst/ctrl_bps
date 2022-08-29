@@ -1,1 +1,0 @@
-Introduce a new option, --global, to bps cancel and bps report which allows the user to interact (cancel or get the report on) with jobs in any job queue of a workflow management system using distributed job queues, e.g., HTCondor.

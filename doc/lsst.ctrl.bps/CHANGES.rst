@@ -1,5 +1,56 @@
-ctrl_bps v23.0.1 2022-02-02
-===========================
+lsst-ctrl-bps v24.0.0 (2022-08-29)
+==================================
+
+New Features
+------------
+
+- Plugins have been moved to separate packages.
+  These new packages are ``ctrl_bps_htcondor``, ``ctrl_bps_pegasus`` (not currently supported) and ``ctrl_bps_panda``.
+  (`DM-33521 <https://jira.lsstcorp.org/browse/DM-33521>`_)
+- Introduce a new command, ``restart``, that allows one to restart the failed workflow from the point of its failure. It restarts the workflow as it is just retrying failed jobs, no configuration changes are possible at the moment. (`DM-29575 <https://jira.lsstcorp.org/browse/DM-29575>`_)
+- Introduce a new option, ``--global``, to ``bps cancel`` and ``bps report`` which allows the user to interact (cancel or get the report on) with jobs in any job queue of a workflow management system using distributed job queues, e.g., HTCondor. (`DM-29614 <https://jira.lsstcorp.org/browse/DM-29614>`_)
+- Add ``ping`` subcommand to test whether the workflow services are available. (`DM-35144 <https://jira.lsstcorp.org/browse/DM-35144>`_)
+
+
+Bug Fixes
+---------
+
+- * Fix cluster naming bug where variables in ``clusterTemplate`` were replaced too early.
+  * Fix cluster naming bug if no ``clusterTemplate`` nor ``templateDataId`` given. (`DM-34265 <https://jira.lsstcorp.org/browse/DM-34265>`_)
+- Change bps to use ``DimensionUniverse`` from the relevant butler repository instead of the default universe from code. (`DM-35090 <https://jira.lsstcorp.org/browse/DM-35090>`_)
+
+
+Other Changes and Additions
+---------------------------
+
+- Display run name after successful submission. (`DM-29575 <https://jira.lsstcorp.org/browse/DM-29575>`_)
+- * Abort submission if submit-side run directory already exists.
+  * Emit more informative error message when creating the execution Butler fails. (`DM-32657 <https://jira.lsstcorp.org/browse/DM-32657>`_)
+- Reformat the code base with ``black`` and ``isort``. (`DM-33267 <https://jira.lsstcorp.org/browse/DM-33267>`_)
+- Select BPS commands now report approximate memory usage during their execution. (`DM-33331 <https://jira.lsstcorp.org/browse/DM-33331>`_)
+- Add a group and user attribute to the `~lsst.ctrl.bps.GenericWorkflowJob` that can be passed via WMS plugins to any batch systems that require such attributes for accounting purposes. (`DM-33887 <https://jira.lsstcorp.org/browse/DM-33887>`_)
+- * Abort submission if a ``Quantum`` is missing a dimension required by the clustering definition.
+  * Abort submission if clustering definition results in cycles in the `~lsst.ctrl.bps.ClusteredQuantumGraph`.
+  * Add unit tests for the quantum clustering functions. (`DM-34265 <https://jira.lsstcorp.org/browse/DM-34265>`_)
+- Add concept of cloud, in particular to be used by PanDA plugin.
+
+  * Submit YAML can specify cloud with ``computeCloud``.
+  * Common cloud values can be specified in cloud subsection.
+
+    .. code-block:: YAML
+
+      cloud:
+        cloud_name_1:
+          key1: value
+          key2: value
+
+  * `~lsst.ctrl.bps.GenericWorkflowJob` has ``compute_cloud``. (`DM-34876 <https://jira.lsstcorp.org/browse/DM-34876>`_)
+- * Print number of clusters in `~lsst.ctrl.bps.ClusteredQuantumGraph`.
+  * Print number of jobs (including final) in `~lsst.ctrl.bps.GenericWorkflow`. (`DM-35066 <https://jira.lsstcorp.org/browse/DM-35066>`_)
+
+
+ctrl_bps v23.0.1 (2022-02-02)
+=============================
 
 New Features
 ------------
@@ -23,8 +74,8 @@ Other Changes and Additions
   * Set maximum number of jobs in a PanDA task (maxJobsPerTask) to 70000 in config/bps_idf.yaml. (`DM-32830 <https://jira.lsstcorp.org/browse/DM-32830>`_)
 
 
-ctrl_bps v23.0.0 2021-12-10
-===========================
+ctrl_bps v23.0.0 (2021-12-10)
+=============================
 
 New Features
 ------------
@@ -40,13 +91,13 @@ New Features
   * Too many files were being written to single directories in
     ``job/<label>``.  There is now a template for it defined in yaml:
 
-    .. code-block:: yaml
+    .. code-block:: YAML
 
        subDirTemplate: "{label}/{tract}/{patch}/{visit.day_obs}/{exposure.day_obs}/{band}/{subfilter}/{physical_filter}/{visit}/{exposure}"
 
     To revert back to previous behavior, in your submit yaml set:
 
-    .. code-block:: yaml
+    .. code-block:: YAML
 
        subDirTemplate: "{label}"
 

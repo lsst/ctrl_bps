@@ -1,2 +1,0 @@
-* Fix cluster naming bug where variables in clusterTemplate replaced too early.
-* Fix cluster naming bug if no clusterTemplate nor templateDataId given.
