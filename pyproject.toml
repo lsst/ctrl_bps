@@ -62,7 +62,7 @@ version = { attr = "lsst_versions.get_lsst_version" }
     package_dir = "python"
     filename = "doc/lsst.ctrl.bps/CHANGES.rst"
     directory = "doc/changes"
-    title_format = "ctrl_bps {version} {project_date}"
+    title_format = "lsst-ctrl-bps {version} ({project_date})"
     issue_format = "`{issue} <https://jira.lsstcorp.org/browse/{issue}>`_"
 
     [[tool.towncrier.type]]
