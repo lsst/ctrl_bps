@@ -1,1 +1,0 @@
-Reformat the code base with black and isort.

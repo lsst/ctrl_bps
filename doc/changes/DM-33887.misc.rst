@@ -1,1 +1,0 @@
-Add a group and user attribute to the GenericWorkflowJob that can be passed via WMS plugins to any batch systems that require such attributes for accounting purposes.
