@@ -1,2 +1,0 @@
-* Abort submission if submit-side run directory already exists.
-* Emit more informative error message when creating the execution Butler fails.

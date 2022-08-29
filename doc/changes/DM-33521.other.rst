@@ -1,2 +1,0 @@
-Transfer code related to currently supported workflow management system plugins
-to separate packages.
