@@ -37,6 +37,7 @@ from ...drivers import (
     prepare_driver,
     report_driver,
     restart_driver,
+    run_job_driver,
     submit_driver,
     transform_driver,
 )
@@ -90,6 +91,14 @@ def prepare(*args, **kwargs):
 def submit(*args, **kwargs):
     """Submit a workflow for execution."""
     submit_driver(*args, **kwargs)
+
+
+@click.command(cls=BpsCommand)
+@click.argument("job_config_file")
+@click.argument("job_name")
+def run_job(*args, **kwargs):
+    """Execute the JOB_NAME job using config from the JOB_CONFIG_FILE."""
+    run_job_driver(*args, **kwargs)
 
 
 @click.command(cls=BpsCommand)

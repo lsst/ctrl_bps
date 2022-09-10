@@ -6,12 +6,6 @@
 # See the COPYRIGHT file at the top-level directory of this distribution
 # for details of code ownership.
 #
-# This software is dual licensed under the GNU General Public License and also
-# under a 3-clause BSD license. Recipients may choose which of these licenses
-# to use; please see the files gpl-3.0.txt and/or bsd_license.txt,
-# respectively.  If you choose the GPL option then the following text applies
-# (but note that there is still no warranty even if you opt for BSD instead):
-#
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
@@ -25,17 +19,42 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-__all__ = [
-    "acquire",
-    "cluster",
-    "transform",
-    "prepare",
-    "submit",
-    "restart",
-    "report",
-    "cancel",
-    "ping",
-    "run_job",
-]
+"""Configuration model for the config for a bps job.
+"""
 
-from .commands import acquire, cancel, cluster, ping, prepare, report, restart, run_job, submit, transform
+from pydantic import BaseModel, Field
+
+
+class JobConfigExec(BaseModel):
+    """Job executable"""
+
+    executable: str
+    arguments: str
+    cmdvals: dict[str, str]
+    transfer: bool
+
+
+class JobConfigFile(BaseModel):
+    """Job input/output file"""
+
+    external_uri: str
+    is_dir: bool
+    job_uri: str | None
+    transfer: bool
+
+
+class JobConfigJob(BaseModel):
+    """Job description"""
+
+    cmd: JobConfigExec
+    inputs: list[str] = Field(default_factory=list)
+    outputs: list[str] = Field(default_factory=list)
+    files: dict[str, JobConfigFile] = Field(default_factory=dict)
+
+
+class JobConfigChunk(BaseModel):
+    """Group of jobs"""
+
+    workflow_name: str
+    filename: str
+    jobs: dict[str, JobConfigJob] = Field(default_factory=dict)

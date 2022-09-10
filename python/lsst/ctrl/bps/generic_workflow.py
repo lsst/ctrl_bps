@@ -83,14 +83,16 @@ class GenericWorkflowFile:
         wms_transfer: bool = False,
         job_access_remote: bool = False,
         job_shared: bool = False,
+        is_dir: bool = False,
     ):
         self.name = name
         self.src_uri = src_uri
         self.wms_transfer = wms_transfer
         self.job_access_remote = job_access_remote
         self.job_shared = job_shared
+        self.is_dir = is_dir
 
-    __slots__ = ("name", "src_uri", "wms_transfer", "job_access_remote", "job_shared")
+    __slots__ = ("name", "src_uri", "wms_transfer", "job_access_remote", "job_shared", "is_dir")
 
     def __hash__(self):
         return hash(self.name)

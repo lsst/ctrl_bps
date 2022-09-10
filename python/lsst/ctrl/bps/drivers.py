@@ -42,6 +42,7 @@ __all__ = [
     "restart_driver",
     "cancel_driver",
     "ping_driver",
+    "run_job_driver",
 ]
 
 
@@ -54,6 +55,7 @@ import shutil
 from collections.abc import Iterable
 from pathlib import Path
 
+import pydantic
 from lsst.pipe.base import Instrument
 from lsst.utils import doImport
 from lsst.utils.timer import time_this
@@ -62,11 +64,13 @@ from lsst.utils.usage import get_peak_mem_usage
 from . import BPS_DEFAULTS, BPS_SEARCH_ORDER, DEFAULT_MEM_FMT, DEFAULT_MEM_UNIT, BpsConfig
 from .bps_utils import _dump_env_info, _dump_pkg_info
 from .cancel import cancel
+from .job_config import JobConfigChunk
 from .ping import ping
 from .pre_transform import acquire_quantum_graph, cluster_quanta
 from .prepare import prepare
 from .report import report
 from .restart import restart
+from .run_job import run_job
 from .submit import submit
 from .transform import transform
 
@@ -555,3 +559,20 @@ def ping_driver(wms_service=None, pass_thru=None):
         _LOG.error("Ping failed (%d).", status)
 
     return status
+
+
+def run_job_driver(job_config_file, job_name):
+    """Restart a failed workflow.
+
+    Parameters
+    ----------
+    job_config_file : `str`
+        File containing config needed to execute job.
+    job_name : `str`
+        Name of job to execute.
+    """
+    _LOG.debug("job_config_file = %s", job_config_file)
+    chunk = pydantic.parse_file_as(path=job_config_file, type_=JobConfigChunk)
+    _LOG.debug("job_name = %s", job_name)
+    job = chunk.jobs[job_name]
+    run_job(job_name, job)
