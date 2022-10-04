@@ -884,8 +884,8 @@ Relevant Config Entries:
        pipetasks: label1, label2     # comma-separated list of labels
        dimensions: dim1, dim2        # comma-separated list of dimensions
        equalDimensions: dim1:dim1a   # e.g., visit:exposure
-       # request_cpus: N             # Overrides for jobs in this cluster
-       # request_memory: NNNN        # MB, Overrides for jobs in this cluster
+       # requestCpus: N              # Overrides for jobs in this cluster
+       # requestMemory: NNNN         # MB, Overrides for jobs in this cluster
 
 .. _bps-troubleshooting:
 
