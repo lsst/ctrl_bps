@@ -572,8 +572,7 @@ Supported settings
 
 **bpsUseShared**
     Whether to put full submit-time path to QuantumGraph file in command line
-    because the WMS plugin requires shared filesystem.  Defaults to False.
-    HTCondor and Pegasus plugins do not need this value.
+    because the WMS plugin requires shared filesystem.  Defaults to ``True``.
 
 **whenSaveJobQgraph**
     When to output job QuantumGraph files (default = TRANSFORM).
