@@ -775,6 +775,28 @@ For ``--replace-run`` behavior, replace the one collection-chain command with th
 **executionButlerTemplate**
     Template for Execution Butler directory name.
 
+
+You can include other job specific requirements in ``executionButler`` section
+as well.  For example, to ensure that the job running the Execution Butler will
+have 4 GB of memory at its disposal, use ``requestMemory`` option:
+
+.. code-block:: YAML
+
+   executionButler:
+     requestMemory: 4096
+     ...
+
+Automatic memory scaling (for a WMS plugin that supports it) can be enabled in
+a similar way, for example
+
+.. code-block:: YAML
+
+   executionButler:
+     requestMemory: 4096
+     requestMemoryMax: 16384
+     memoryMultiplier: 2.0
+     ...
+
 User-visible Changes
 ^^^^^^^^^^^^^^^^^^^^
 
@@ -965,4 +987,3 @@ when installing an LSST package:
 .. _ctrl_bps: https://github.com/lsst/ctrl_bps
 .. _pipelines_check: https://github.com/lsst/pipelines_check
 .. _lsst_bps_plugins: https://github.com/lsst/lsst_bps_plugins
-
