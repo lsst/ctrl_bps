@@ -132,8 +132,8 @@ class BaseRunReport(abc.ABC):
         """
 
 
-class AbridgedRunReport(BaseRunReport):
-    """An abridged run report."""
+class SummaryRunReport(BaseRunReport):
+    """A summary run report."""
 
     def add(self, run_report, use_global_id=False):
         # Docstring inherited from the base class.
@@ -261,7 +261,7 @@ def report(wms_service, run_id, user, hist_days, pass_thru, is_global=False):
 
     runs, message = wms_service.report(run_id, user, hist_days, pass_thru, is_global=is_global)
 
-    run_brief = AbridgedRunReport(
+    run_brief = SummaryRunReport(
         [
             ("X", "S"),
             ("STATE", "S"),

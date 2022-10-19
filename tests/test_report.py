@@ -26,7 +26,7 @@ import unittest
 
 from astropy.table import Table
 from lsst.ctrl.bps import WmsJobReport, WmsRunReport, WmsStates
-from lsst.ctrl.bps.report import AbridgedRunReport, BaseRunReport, DetailedRunReport
+from lsst.ctrl.bps.report import BaseRunReport, DetailedRunReport, SummaryRunReport
 
 
 class FakeRunReport(BaseRunReport):
@@ -70,17 +70,20 @@ class FakeRunReportTestCase(unittest.TestCase):
 
     def testSortWithKnownKey(self):
         """Test sorting the report using known column."""
-        expected = io.StringIO()
-        table = Table(dtype=self.fields)
-        table.add_row(["1.0", WmsStates.SUCCEEDED.name])
-        table.add_row(["2.0", WmsStates.RUNNING.name])
-        print(table, file=expected)
+        expected_output = io.StringIO()
+        expected = Table(dtype=self.fields)
+        expected.add_row(["1.0", WmsStates.SUCCEEDED.name])
+        expected.add_row(["2.0", WmsStates.RUNNING.name])
+        print(expected, file=expected_output)
 
-        result = io.StringIO()
+        actual_output = io.StringIO()
         self.report.sort("ID")
-        print(self.report, file=result)
+        print(self.report, file=actual_output)
 
-        self.assertEqual(result.getvalue(), expected.getvalue())
+        self.assertEqual(actual_output.getvalue(), expected_output.getvalue())
+
+        expected_output.close()
+        actual_output.close()
 
     def testSortWithUnknownKey(self):
         """Test sorting the report using unknown column."""
@@ -88,7 +91,7 @@ class FakeRunReportTestCase(unittest.TestCase):
             self.report.sort("foo")
 
 
-class AbridgedRunReportTestCase(unittest.TestCase):
+class SummaryRunReportTestCase(unittest.TestCase):
     """Test a summary run report."""
 
     def setUp(self):
@@ -122,65 +125,68 @@ class AbridgedRunReportTestCase(unittest.TestCase):
             },
             job_summary=None,
         )
-        self.report = AbridgedRunReport(self.fields)
+        self.report = SummaryRunReport(self.fields)
 
-        self.table = Table(dtype=self.fields)
-        self.table.add_row(["", "RUNNING", "50", "1.0", "tester", "dev", "testing", "test", "run"])
+        self.expected = Table(dtype=self.fields)
+        self.expected.add_row(["", "RUNNING", "50", "1.0", "tester", "dev", "testing", "test", "run"])
 
-        self.expected = io.StringIO()
-        self.result = io.StringIO()
+        self.expected_output = io.StringIO()
+        self.actual_output = io.StringIO()
 
     def tearDown(self):
-        self.expected.close()
-        self.result.close()
+        self.expected_output.close()
+        self.actual_output.close()
 
     def testAddWithNoFlag(self):
         """Test adding a report for a run with no issues."""
-        print("\n".join(self.table.pformat_all()), file=self.expected)
+        print("\n".join(self.expected.pformat_all()), file=self.expected_output)
 
         self.report.add(self.run)
-        print(self.report, file=self.result)
+        print(self.report, file=self.actual_output)
 
-        self.assertEqual(self.result.getvalue(), self.expected.getvalue())
+        self.assertEqual(self.actual_output.getvalue(), self.expected_output.getvalue())
 
     def testAddWithFailedFlag(self):
         """Test adding a run with a failed job."""
-        self.table["X"][0] = "F"
-        print("\n".join(self.table.pformat_all()), file=self.expected)
+        self.expected["X"][0] = "F"
+        print("\n".join(self.expected.pformat_all()), file=self.expected_output)
 
+        # Alter the run report to include a failed job.
         self.run.job_state_counts = {
             state: 1 if state in {WmsStates.FAILED, WmsStates.SUCCEEDED} else 0 for state in WmsStates
         }
         self.report.add(self.run)
-        print(self.report, file=self.result)
+        print(self.report, file=self.actual_output)
 
-        self.assertEqual(self.result.getvalue(), self.expected.getvalue())
+        self.assertEqual(self.actual_output.getvalue(), self.expected_output.getvalue())
 
     def testAddWithHeldFlag(self):
         """Test adding a run with a held job."""
-        self.table["X"][0] = "H"
-        print("\n".join(self.table.pformat_all()), file=self.expected)
+        self.expected["X"][0] = "H"
+        print("\n".join(self.expected.pformat_all()), file=self.expected_output)
 
+        # Alter the run report to include a held job.
         self.run.job_state_counts = {
             state: 1 if state in {WmsStates.SUCCEEDED, WmsStates.HELD} else 0 for state in WmsStates
         }
         self.report.add(self.run)
-        print(self.report, file=self.result)
+        print(self.report, file=self.actual_output)
 
-        self.assertEqual(self.result.getvalue(), self.expected.getvalue())
+        self.assertEqual(self.actual_output.getvalue(), self.expected_output.getvalue())
 
     def testAddWithDeletedFlag(self):
         """Test adding a run with a deleted job."""
-        self.table["X"][0] = "D"
-        print("\n".join(self.table.pformat_all()), file=self.expected)
+        self.expected["X"][0] = "D"
+        print("\n".join(self.expected.pformat_all()), file=self.expected_output)
 
+        # Alter the run report to include a deleted job.
         self.run.job_state_counts = {
             state: 1 if state in {WmsStates.SUCCEEDED, WmsStates.DELETED} else 0 for state in WmsStates
         }
         self.report.add(self.run)
-        print(self.report, file=self.result)
+        print(self.report, file=self.actual_output)
 
-        self.assertEqual(self.result.getvalue(), self.expected.getvalue())
+        self.assertEqual(self.actual_output.getvalue(), self.expected_output.getvalue())
 
 
 class DetailedRunReportTestCase(unittest.TestCase):
@@ -225,30 +231,30 @@ class DetailedRunReportTestCase(unittest.TestCase):
             },
         )
 
-        self.result = DetailedRunReport(self.fields)
+        self.actual = DetailedRunReport(self.fields)
 
     def testAddWithJobSummary(self):
         """Test adding a run with a job summary."""
         self.run.jobs = None
-        self.result.add(self.run)
+        self.actual.add(self.run)
 
-        self.assertEqual(self.result, self.expected)
+        self.assertEqual(self.actual, self.expected)
 
     def testAddWithJobs(self):
         """Test adding a run with a job info, but not job summary."""
         self.run.job_summary = None
-        self.result.add(self.run)
+        self.actual.add(self.run)
 
-        self.assertEqual(self.result, self.expected)
+        self.assertEqual(self.actual, self.expected)
 
     def testAddWithoutJobInfo(self):
         """Test adding a run without either a job summary or job info."""
         self.run.jobs = None
         self.run.job_summary = None
-        self.result.add(self.run)
+        self.actual.add(self.run)
 
-        self.assertEqual(len(self.result), 1)
-        self.assertRegex(self.result.message, r"^WARNING.*incomplete")
+        self.assertEqual(len(self.actual), 1)
+        self.assertRegex(self.actual.message, r"^WARNING.*incomplete")
 
     def testAddWithoutRunSummary(self):
         """Test adding a run without a run summary."""
@@ -263,10 +269,10 @@ class DetailedRunReportTestCase(unittest.TestCase):
         expected = DetailedRunReport.from_table(table)
 
         self.run.run_summary = None
-        self.result.add(self.run)
+        self.actual.add(self.run)
 
-        self.assertRegex(self.result.message, r"^WARNING.*sorted alphabetically")
-        self.assertEqual(self.result, expected)
+        self.assertRegex(self.actual.message, r"^WARNING.*sorted alphabetically")
+        self.assertEqual(self.actual, expected)
 
 
 if __name__ == "__main__":
