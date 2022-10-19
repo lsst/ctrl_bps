@@ -62,10 +62,10 @@ class WmsJobReport:
     """Job id assigned by the workflow management system."""
 
     name: str
-    """Job name."""
+    """A name assigned automatically by BPS."""
 
     label: str
-    """LSST task related job label, for example 'isr'."""
+    """A user-facing label for a job. Multiple jobs can have the same label."""
 
     state: WmsStates
     """Job's current execution state."""
@@ -76,7 +76,7 @@ class WmsRunReport:
     """WMS run information to be included in detailed report output"""
 
     wms_id: str = None
-    """Run identification number.
+    """Id assigned to the run by the WMS.
     """
 
     global_wms_id: str = None
