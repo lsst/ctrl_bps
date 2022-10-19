@@ -25,8 +25,14 @@ import io
 import unittest
 
 from astropy.table import Table
-from lsst.ctrl.bps import WmsJobReport, WmsRunReport, WmsStates
-from lsst.ctrl.bps.report import BaseRunReport, DetailedRunReport, SummaryRunReport
+from lsst.ctrl.bps import (
+    BaseRunReport,
+    DetailedRunReport,
+    SummaryRunReport,
+    WmsJobReport,
+    WmsRunReport,
+    WmsStates,
+)
 
 
 class FakeRunReport(BaseRunReport):
@@ -34,7 +40,7 @@ class FakeRunReport(BaseRunReport):
 
     def add(self, run_report, use_global_id=False):
         id_ = run_report.global_wms_id if use_global_id else run_report.wms_id
-        self.table.add_row([id_, run_report.state.name])
+        self._table.add_row([id_, run_report.state.name])
 
 
 class FakeRunReportTestCase(unittest.TestCase):
