@@ -46,30 +46,32 @@ class BaseRunReport(abc.ABC):
         Each field has a name and a type.
     """
 
-    message = None
-    """Any extra information a method may want to pass to its caller (`str`).
-    """
-
     def __init__(self, fields):
-        self.table = Table(dtype=fields)
+        self._table = Table(dtype=fields)
+        self._msg = None
 
     def __eq__(self, other):
         if isinstance(other, BaseRunReport):
-            return all(self.table == other.table)
+            return all(self._table == other._table)
         return False
 
     def __len__(self):
         """Number of runs in the report."""
-        return len(self.table)
+        return len(self._table)
 
     def __str__(self):
-        lines = list(self.table.pformat_all())
+        lines = list(self._table.pformat_all())
         return "\n".join(lines)
+
+    @property
+    def message(self):
+        """Extra information a method need to pass to its caller (`str`)."""
+        return self._msg
 
     def clear(self):
         """Remove all entries from the report."""
-        self.message = None
-        self.table.remove_rows(slice(len(self)))
+        self._msg = None
+        self._table.remove_rows(slice(len(self)))
 
     def sort(self, columns, ascending=True):
         """Sort the report entries according to one or more keys.
@@ -88,12 +90,12 @@ class BaseRunReport(abc.ABC):
         """
         if isinstance(columns, str):
             columns = [columns]
-        unknown_keys = set(columns) - set(self.table.colnames)
+        unknown_keys = set(columns) - set(self._table.colnames)
         if unknown_keys:
             raise AttributeError(
                 f"cannot sort the report entries: column(s) {', '.join(unknown_keys)} not found"
             )
-        self.table.sort(keys=columns, reverse=not ascending)
+        self._table.sort(keys=columns, reverse=not ascending)
 
     @classmethod
     def from_table(cls, table):
@@ -102,13 +104,15 @@ class BaseRunReport(abc.ABC):
         Parameters
         ----------
         table : `astropy.table.Table`
+            Information about a run in a tabular form.
 
         Returns
         -------
         inst : `lsst.ctrl.bps.report.BaseRunReport
+            A report created based on the information in the provided table.
         """
         inst = cls(table.dtype.descr)
-        inst.table = table.copy()
+        inst._table = table.copy()
         return inst
 
     @abc.abstractmethod
@@ -164,7 +168,7 @@ class AbridgedRunReport(BaseRunReport):
             run_report.payload,
             run_report.run,
         )
-        self.table.add_row(row)
+        self._table.add_row(row)
 
 
 class DetailedRunReport(BaseRunReport):
@@ -183,7 +187,7 @@ class DetailedRunReport(BaseRunReport):
         total = ["TOTAL"]
         total.extend([run_report.job_state_counts[state] for state in WmsStates])
         total.append(sum(by_label_expected.values()) if by_label_expected else run_report.total_number_jobs)
-        self.table.add_row(total)
+        self._table.add_row(total)
 
         # Use the provided job summary. If it doesn't exist, compile it from
         # information about individual jobs.
@@ -193,14 +197,14 @@ class DetailedRunReport(BaseRunReport):
             job_summary = compile_job_summary(run_report.jobs)
         else:
             id_ = run_report.global_wms_id if use_global_id else run_report.wms_id
-            self.message = f"WARNING: Job summary for run '{id_}' not available, report maybe incomplete."
+            self._msg = f"WARNING: Job summary for run '{id_}' not available, report maybe incomplete."
             return
 
         if by_label_expected:
             job_order = list(by_label_expected)
         else:
             job_order = sorted(job_summary)
-            self.message = "WARNING: Could not determine order of pipeline, instead sorted alphabetically."
+            self._msg = "WARNING: Could not determine order of pipeline, instead sorted alphabetically."
         for label in job_order:
             try:
                 counts = job_summary[label]
@@ -215,11 +219,11 @@ class DetailedRunReport(BaseRunReport):
             run = [label]
             run.extend([counts[state] for state in WmsStates])
             run.append(by_label_expected[label] if by_label_expected else -1)
-            self.table.add_row(run)
+            self._table.add_row(run)
 
     def __str__(self):
-        alignments = ["<"] + [">"] * (len(self.table.colnames) - 1)
-        lines = list(self.table.pformat_all(align=alignments))
+        alignments = ["<"] + [">"] * (len(self._table.colnames) - 1)
+        lines = list(self._table.pformat_all(align=alignments))
         lines.insert(3, lines[1])
         return str("\n".join(lines))
 
