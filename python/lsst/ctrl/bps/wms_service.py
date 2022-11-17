@@ -42,16 +42,38 @@ _LOG = logging.getLogger(__name__)
 class WmsStates(Enum):
     """Run and job states"""
 
-    UNKNOWN = 0  # Can't determine state
-    MISFIT = 1  # Determined state, but doesn't fit other states
-    UNREADY = 2  # Still waiting for parents to finish
-    READY = 3  # All of its parents have finished successfully
-    PENDING = 4  # Ready to run, visible in batch queue
-    RUNNING = 5  # Currently running
-    DELETED = 6  # In the process of being deleted or already deleted
-    HELD = 7  # In a hold state
-    SUCCEEDED = 8  # Have completed with success status
-    FAILED = 9  # Have completed with non-success status
+    UNKNOWN = 0
+    """Can't determine state."""
+
+    MISFIT = 1
+    """Determined state, but doesn't fit other states."""
+
+    UNREADY = 2
+    """Still waiting for parents to finish."""
+
+    READY = 3
+    """All of its parents have finished successfully."""
+
+    PENDING = 4
+    """Ready to run, visible in batch queue."""
+
+    RUNNING = 5
+    """Currently running."""
+
+    DELETED = 6
+    """In the process of being deleted or already deleted."""
+
+    HELD = 7
+    """In a hold state."""
+
+    SUCCEEDED = 8
+    """Have completed with success status."""
+
+    FAILED = 9
+    """Have completed with non-success status."""
+
+    PRUNED = 10
+    """At least one of the parents failed or can't be run."""
 
 
 @dataclasses.dataclass(slots=True)
