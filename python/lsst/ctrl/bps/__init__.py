@@ -24,6 +24,7 @@ import pkgutil
 __path__ = pkgutil.extend_path(__path__, __name__)
 
 from .bps_config import *
+from .bps_reports import *
 from .clustered_quantum_graph import *
 from .constants import *
 from .generic_workflow import *

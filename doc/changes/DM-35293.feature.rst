@@ -1,0 +1,1 @@
+Make report() to look for job summary before trying to compile necessary data based on the information for individual jobs.

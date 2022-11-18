@@ -42,65 +42,111 @@ _LOG = logging.getLogger(__name__)
 class WmsStates(Enum):
     """Run and job states"""
 
-    UNKNOWN = 0  # Can't determine state
-    MISFIT = 1  # Determined state, but doesn't fit other states
-    UNREADY = 2  # Still waiting for parents to finish
-    READY = 3  # All of its parents have finished successfully
-    PENDING = 4  # Ready to run, visible in batch queue
-    RUNNING = 5  # Currently running
-    DELETED = 6  # In the process of being deleted or already deleted
-    HELD = 7  # In a hold state
-    SUCCEEDED = 8  # Have completed with success status
-    FAILED = 9  # Have completed with non-success status
+    UNKNOWN = 0
+    """Can't determine state."""
+
+    MISFIT = 1
+    """Determined state, but doesn't fit other states."""
+
+    UNREADY = 2
+    """Still waiting for parents to finish."""
+
+    READY = 3
+    """All of its parents have finished successfully."""
+
+    PENDING = 4
+    """Ready to run, visible in batch queue."""
+
+    RUNNING = 5
+    """Currently running."""
+
+    DELETED = 6
+    """In the process of being deleted or already deleted."""
+
+    HELD = 7
+    """In a hold state."""
+
+    SUCCEEDED = 8
+    """Have completed with success status."""
+
+    FAILED = 9
+    """Have completed with non-success status."""
+
+    PRUNED = 10
+    """At least one of the parents failed or can't be run."""
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(slots=True)
 class WmsJobReport:
     """WMS job information to be included in detailed report output"""
 
     wms_id: str
+    """Job id assigned by the workflow management system."""
+
     name: str
+    """A name assigned automatically by BPS."""
+
     label: str
+    """A user-facing label for a job. Multiple jobs can have the same label."""
+
     state: WmsStates
+    """Job's current execution state."""
 
-    __slots__ = ("wms_id", "name", "label", "state")
 
-
-@dataclasses.dataclass
+@dataclasses.dataclass(slots=True)
 class WmsRunReport:
     """WMS run information to be included in detailed report output"""
 
-    wms_id: str
-    global_wms_id: str
-    path: str
-    label: str
-    run: str
-    project: str
-    campaign: str
-    payload: str
-    operator: str
-    run_summary: str
-    state: WmsStates
-    jobs: list
-    total_number_jobs: int
-    job_state_counts: dict
+    wms_id: str = None
+    """Id assigned to the run by the WMS.
+    """
 
-    __slots__ = (
-        "wms_id",
-        "global_wms_id",
-        "path",
-        "label",
-        "run",
-        "project",
-        "campaign",
-        "payload",
-        "operator",
-        "run_summary",
-        "state",
-        "total_number_jobs",
-        "jobs",
-        "job_state_counts",
-    )
+    global_wms_id: str = None
+    """Global run identification number.
+
+    Only applicable in the context of a WMS using distributed job queues
+    (e.g., HTCondor).
+    """
+
+    path: str = None
+    """Path to the submit directory."""
+
+    label: str = None
+    """Run's label."""
+
+    run: str = None
+    """Run's name."""
+
+    project: str = None
+    """Name of the project run belongs to."""
+
+    campaign: str = None
+    """Name of the campaign the run belongs to."""
+
+    payload: str = None
+    """Name of the payload."""
+
+    operator: str = None
+    """Username of the operator who submitted the run."""
+
+    run_summary: str = None
+    """Job counts per label."""
+
+    state: WmsStates = None
+    """Run's execution state."""
+
+    jobs: list[WmsJobReport] = None
+    """Information about individual jobs in the run."""
+
+    total_number_jobs: int = None
+    """Total number of jobs in the run."""
+
+    job_state_counts: dict[WmsStates, int] = None
+    """Job counts per state."""
+
+    job_summary: dict[str, dict[WmsStates, int]] = None
+    """Job counts per label and per state.
+    """
 
 
 class BaseWmsService:
