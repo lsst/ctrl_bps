@@ -35,7 +35,7 @@ class TestCommandPing(unittest.TestCase):
             mock_driver.return_value = 0
             result = self.runner.invoke(bps.cli, ["ping"])
             self.assertEqual(result.exit_code, 0)
-            mock_driver.assert_called_with(wms_service=None, pass_thru="")
+            mock_driver.assert_called_with(wms_service=None, compute_site=None, pass_thru="")
 
     def testPingClass(self):
         with unittest.mock.patch("lsst.ctrl.bps.cli.cmd.commands.ping_driver") as mock_driver:
@@ -44,7 +44,9 @@ class TestCommandPing(unittest.TestCase):
                 bps.cli, ["ping", "--wms-service-class", "wms_test_utils.WmsServiceSuccess"]
             )
             self.assertEqual(result.exit_code, 0)
-            mock_driver.assert_called_with(wms_service="wms_test_utils.WmsServiceSuccess", pass_thru="")
+            mock_driver.assert_called_with(
+                wms_service="wms_test_utils.WmsServiceSuccess", compute_site=None, pass_thru=""
+            )
 
     def testPingFailure(self):
         with unittest.mock.patch("lsst.ctrl.bps.cli.cmd.commands.ping_driver") as mock_driver:
@@ -53,7 +55,11 @@ class TestCommandPing(unittest.TestCase):
                 bps.cli, ["ping", "--wms-service-class", "wms_test_utils.WmsServiceFailure"]
             )
             self.assertEqual(result.exit_code, 64)
-            mock_driver.assert_called_with(wms_service="wms_test_utils.WmsServiceFailure", pass_thru="")
+            mock_driver.assert_called_with(
+                wms_service="wms_test_utils.WmsServiceFailure",
+                compute_site=None,
+                pass_thru="",
+            )
 
     def testPingPassthru(self):
         with unittest.mock.patch("lsst.ctrl.bps.cli.cmd.commands.ping_driver") as mock_driver:
@@ -64,13 +70,17 @@ class TestCommandPing(unittest.TestCase):
                     "ping",
                     "--wms-service-class",
                     "wms_test_utils.WmsServicePassThru",
+                    "--compute-site",
+                    "MY_COMPUTE_SITE",
                     "--pass-thru",
                     "EXTRA_VALUES",
                 ],
             )
             self.assertEqual(result.exit_code, 0)
             mock_driver.assert_called_with(
-                wms_service="wms_test_utils.WmsServicePassThru", pass_thru="EXTRA_VALUES"
+                wms_service="wms_test_utils.WmsServicePassThru",
+                compute_site="MY_COMPUTE_SITE",
+                pass_thru="EXTRA_VALUES",
             )
 
 

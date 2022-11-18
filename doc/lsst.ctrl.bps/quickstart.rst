@@ -46,6 +46,26 @@ functionality, a NotImplementedError will be thrown.
    `bps ping` does *not* test whether compute resources are available or
    that jobs will run.
 
+.. _bps-computesite:
+
+Specifying the Compute site
+---------------------------
+
+A number of `ctrl_bps`_ subcommands described in this document require the
+specification of a compute site. This denotes the site where the workflow will
+be run and determines which site settings to use (e.g., in ``bps prepare``).
+
+The compute site must be specified (in increasing order of priority) via
+either the ``computeSite`` setting in the config file or by using the
+``--compute-site`` command-line option.
+
+.. note::
+
+    Some plugins save the compute site in files produced via ``prepare``. In
+    this case, an override of the compute site may not be picked up when
+    performing a ``restart``. Consult WMS plugin documentation to see if the
+    plugin fully supports setting ``computeSite`` for a restart.
+
 .. .. _bps-authenticating:
 
 .. Authenticating

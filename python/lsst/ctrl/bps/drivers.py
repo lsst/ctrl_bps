@@ -90,6 +90,7 @@ def _init_submission_driver(config_file, **kwargs):
         "qgraph": "qgraphFile",
         "pipeline": "pipelineYaml",
         "wms_service": "wmsServiceClass",
+        "compute_site": "computeSite",
     }
     for key, value in kwargs.items():
         # Don't want to override config with None or empty string values.
