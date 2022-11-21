@@ -70,6 +70,7 @@ def transform(*args, **kwargs):
 @click.command(cls=BpsCommand)
 @opt.config_file_argument(required=True)
 @opt.wms_service_option()
+@opt.compute_site_option()
 @opt.submission_options()
 def prepare(*args, **kwargs):
     """Prepare a workflow for submission."""
@@ -79,6 +80,7 @@ def prepare(*args, **kwargs):
 @click.command(cls=BpsCommand)
 @opt.config_file_argument(required=True)
 @opt.wms_service_option()
+@opt.compute_site_option()
 @opt.submission_options()
 def submit(*args, **kwargs):
     """Submit a workflow for execution."""
@@ -87,6 +89,7 @@ def submit(*args, **kwargs):
 
 @click.command(cls=BpsCommand)
 @opt.wms_service_option()
+@opt.compute_site_option()
 @click.option("--id", "run_id", help="Run id of workflow to restart.")
 def restart(*args, **kwargs):
     """Restart a failed workflow."""
@@ -95,6 +98,7 @@ def restart(*args, **kwargs):
 
 @click.command(cls=BpsCommand)
 @opt.wms_service_option()
+@opt.compute_site_option()
 @click.option("--id", "run_id", help="Restrict report to specific WMS run id.")
 @click.option("--user", help="Restrict report to specific user.")
 @click.option("--hist", "hist_days", default=0.0, help="Search WMS history X days for completed info.")
@@ -112,6 +116,7 @@ def report(*args, **kwargs):
 
 @click.command(cls=BpsCommand)
 @opt.wms_service_option()
+@opt.compute_site_option()
 @click.option("--id", "run_id", help="Run id of workflow to cancel.")
 @click.option("--user", help="User for which to cancel all submitted workflows.")
 @click.option(
@@ -135,6 +140,7 @@ def cancel(*args, **kwargs):
 
 @click.command(cls=BpsCommand)
 @opt.wms_service_option()
+@opt.compute_site_option()
 @click.option("--pass-thru", "pass_thru", default=str(), help="Pass the given string to the WMS service.")
 def ping(*args, **kwargs):
     """Ping workflow services."""

@@ -26,6 +26,7 @@ __all__ = [
     "extra_init_option",
     "extra_run_quantum_option",
     "wms_service_option",
+    "compute_site_option",
 ]
 
 from lsst.daf.butler.cli.utils import MWOptionDecorator
@@ -47,4 +48,9 @@ wms_service_option = MWOptionDecorator(
     "'wmsServiceClass' in config file (if used by subcommand), "
     "environment variable BPS_WMS_SERVICE_CLASS, default "
     "('lsst.ctrl.bps.wms.htcondor.HTCondorService')",
+)
+compute_site_option = MWOptionDecorator(
+    "--compute-site",
+    "compute_site",
+    help="The compute site used to run the workflow.",
 )
