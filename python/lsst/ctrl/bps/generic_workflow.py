@@ -29,7 +29,7 @@ import dataclasses
 import itertools
 import logging
 import pickle
-from collections import Counter
+from collections import Counter, defaultdict
 from typing import Optional
 
 from lsst.utils.iteration import ensure_iterable
@@ -370,6 +370,7 @@ class GenericWorkflow(DiGraph):
         self._executables = {}
         self._inputs = {}  # mapping job.names to list of GenericWorkflowFile
         self._outputs = {}  # mapping job.names to list of GenericWorkflowFile
+        self._labels = defaultdict(list)  # mapping job label to list of GenericWorkflowJob
         self.run_id = None
         self._final = None
 
@@ -395,20 +396,27 @@ class GenericWorkflow(DiGraph):
         return qcounts
 
     @property
+    def labels(self):
+        """List of job labels (`list` [`str`], read-only)"""
+        return list(self._labels.keys())
+
+    def regenerate_labels(self):
+        """Regenerate the list of job labels."""
+        self._labels = defaultdict(list)
+        for job_name in self:
+            job = self.get_job(job_name)
+            self._labels[job.label].append(job)
+
+    @property
     def job_counts(self):
         """Count of jobs per job label (`collections.Counter`)."""
-        jcounts = Counter()
-        for job_name in self:
-            gwjob = self.get_job(job_name)
-            jcounts[gwjob.label] += 1
+        jcounts = Counter({label: len(jobs) for label, jobs in self._labels.items()})
 
         # Final is separate
         final = self.get_final()
         if final:
             if isinstance(final, GenericWorkflow):
-                for job_name in final:
-                    gwjob = final.get_job(job_name)
-                    jcounts[gwjob.label] += 1
+                jcounts.update(final.job_counts())
             else:
                 jcounts[final.label] += 1
 
@@ -467,6 +475,7 @@ class GenericWorkflow(DiGraph):
         self.add_job_relationships(parent_names, job.name)
         self.add_job_relationships(job.name, child_names)
         self.add_executable(job.executable)
+        self._labels[job.label].append(job)
 
     def add_node(self, node_for_adding, **attr):
         """Override networkx function to call more specific add_job function.
@@ -549,12 +558,18 @@ class GenericWorkflow(DiGraph):
         job_name : `str`
             Name of job to delete from workflow.
         """
+        job = self.get_job(job_name)
+        self._labels[job.label].remove(job)
+        # Don't leave keys around if removed last job
+        if not self._labels[job.label]:
+            del self._labels[job.label]
+
         # Connect all parent jobs to all children jobs.
         parents = self.predecessors(job_name)
         children = self.successors(job_name)
         self.add_job_relationships(parents, children)
 
-        # Delete job node (which deleted edges).
+        # Delete job node (which deletes edges).
         self.remove_node(job_name)
 
     def add_job_inputs(self, job_name, files):
@@ -777,6 +792,15 @@ class GenericWorkflow(DiGraph):
             self.add_job_outputs(job_name, workflow.get_job_outputs(job_name, data=True))
             self.add_executable(workflow.get_job(job_name).executable)
 
+        # Note: label ordering inferred from dict order
+        #       so adding given source workflow first
+        labels = defaultdict(list)
+        for label in workflow._labels:
+            labels[label] = workflow._labels[label]
+        for label in self._labels:
+            labels[label] = self._labels[label]
+        self._labels = labels
+
     def add_final(self, final):
         """Add special final job/workflow to the generic workflow.
 
@@ -847,3 +871,18 @@ class GenericWorkflow(DiGraph):
                 else:
                     execs.append(executable)
         return execs
+
+    def get_jobs_by_label(self, label: str):
+        """Retrieve jobs by label from workflow.
+
+        Parameters
+        ----------
+        label : `str`
+            Label of jobs to retrieve.
+
+        Returns
+        -------
+        jobs : list[`lsst.ctrl.bps.GenericWorkflowJob`]
+            Jobs having given label.
+        """
+        return self._labels[label]
