@@ -299,8 +299,7 @@ def dimension_clustering(config, qgraph, name):
                 qnode = qgraph.getQuantumNodeByNodeId(nid)
 
                 print(
-                    f"Quanta missing when clustering: {qnode.taskDef.label}, "
-                    f"{qnode.quantum.dataId.byName()}"
+                    f"Quanta missing when clustering: {qnode.taskDef.label}, {qnode.quantum.dataId.byName()}"
                 )
                 raise
 

@@ -112,7 +112,7 @@ def acquire_quantum_graph(config, out_prefix=""):
         if not os.path.exists(execution_butler_dir):
             raise OSError(
                 f"Missing execution butler dir ({execution_butler_dir}) after "
-                f"creating QuantumGraph (whenMakeExecutionButler == QGRAPH_CMDLINE"
+                "creating QuantumGraph (whenMakeExecutionButler == QGRAPH_CMDLINE"
             )
     elif when_create.upper() == "ACQUIRE":
         _create_execution_butler(config, qgraph_filename, execution_butler_dir, config["submitPath"])
