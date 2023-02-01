@@ -103,7 +103,7 @@ def report(wms_service, run_id, user, hist_days, pass_thru, is_global=False):
             print(
                 f"No records found for job id '{run_id}'. "
                 f"Hints: Double check id, retry with a larger --hist value (currently: {hist_days}), "
-                f"and/or use --global to search all job queues."
+                "and/or use --global to search all job queues."
             )
     else:
         for run in runs:
