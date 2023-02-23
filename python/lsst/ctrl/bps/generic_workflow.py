@@ -28,11 +28,12 @@ __all__ = ["GenericWorkflow", "GenericWorkflowFile", "GenericWorkflowJob", "Gene
 import dataclasses
 import itertools
 import logging
+import pickle
 from collections import Counter
 from typing import Optional
 
 from lsst.utils.iteration import ensure_iterable
-from networkx import DiGraph, read_gpickle, topological_sort, write_gpickle
+from networkx import DiGraph, topological_sort
 from networkx.algorithms.dag import is_directed_acyclic_graph
 
 from .bps_draw import draw_networkx_dot
@@ -716,7 +717,7 @@ class GenericWorkflow(DiGraph):
             Format in which to write the data. It defaults to pickle format.
         """
         if format_ == "pickle":
-            write_gpickle(self, stream)
+            pickle.dump(self, stream)
         else:
             raise RuntimeError(f"Unknown format ({format_})")
 
@@ -739,7 +740,7 @@ class GenericWorkflow(DiGraph):
             Generic workflow loaded from the given stream
         """
         if format_ == "pickle":
-            return read_gpickle(stream)
+            return pickle.load(stream)
 
         raise RuntimeError(f"Unknown format ({format_})")
 
