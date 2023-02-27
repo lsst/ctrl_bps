@@ -380,38 +380,79 @@ def submit_driver(config_file, **kwargs):
         "not accurately reflect actual memory usage by the bps process."
     )
 
-    _LOG.info("Starting submission process")
+    _LOG.info("Initializing execution environment")
     with time_this(
         log=_LOG,
         level=logging.INFO,
         prefix=None,
-        msg="Completed entire submission process",
+        msg="Initializing execution environment completed",
         mem_usage=True,
         mem_unit=DEFAULT_MEM_UNIT,
         mem_fmt=DEFAULT_MEM_FMT,
     ):
-        wms_workflow_config, wms_workflow = prepare_driver(config_file, **kwargs)
+        config = _init_submission_driver(config_file, **kwargs)
 
-        _LOG.info("Starting submit stage")
+    remote_build = {}
+    if config["wmsServiceClass"] == "lsst.ctrl.bps.panda.PanDAService":
+        remote_build = config.get("remoteBuild", {})
+        if not remote_build.get("enabled", False):
+            remote_build = {}
+
+    if remote_build:
+        _LOG.info("Starting submission process")
         with time_this(
             log=_LOG,
             level=logging.INFO,
             prefix=None,
-            msg="Completed submit stage",
+            msg="Completed entire submission process",
             mem_usage=True,
             mem_unit=DEFAULT_MEM_UNIT,
             mem_fmt=DEFAULT_MEM_FMT,
         ):
-            submit(wms_workflow_config, wms_workflow)
+            wms_workflow = submit(config, None, remote_build=remote_build, config_file=config_file)
             _LOG.info("Run '%s' submitted for execution with id '%s'", wms_workflow.name, wms_workflow.run_id)
-    if _LOG.isEnabledFor(logging.INFO):
-        _LOG.info(
-            "Peak memory usage for bps process %s (main), %s (largest child process)",
-            *tuple(f"{val.to(DEFAULT_MEM_UNIT):{DEFAULT_MEM_FMT}}" for val in get_peak_mem_usage()),
-        )
 
-    print(f"Run Id: {wms_workflow.run_id}")
-    print(f"Run Name: {wms_workflow.name}")
+        if _LOG.isEnabledFor(logging.INFO):
+            _LOG.info(
+                "Peak memory usage for bps process %s (main), %s (largest child process)",
+                *tuple(f"{val.to(DEFAULT_MEM_UNIT):{DEFAULT_MEM_FMT}}" for val in get_peak_mem_usage()),
+            )
+
+        print(f"Run Id: {wms_workflow.run_id}")
+        print(f"Run Name: {wms_workflow.name}")
+    else:
+        _LOG.info("Starting submission process")
+        with time_this(
+            log=_LOG,
+            level=logging.INFO,
+            prefix=None,
+            msg="Completed entire submission process",
+            mem_usage=True,
+            mem_unit=DEFAULT_MEM_UNIT,
+            mem_fmt=DEFAULT_MEM_FMT,
+        ):
+            wms_workflow_config, wms_workflow = prepare_driver(config_file, **kwargs)
+
+            _LOG.info("Starting submit stage")
+            with time_this(
+                log=_LOG,
+                level=logging.INFO,
+                prefix=None,
+                msg="Completed submit stage",
+                mem_usage=True,
+                mem_unit=DEFAULT_MEM_UNIT,
+                mem_fmt=DEFAULT_MEM_FMT,
+            ):
+                submit(wms_workflow_config, wms_workflow)
+                _LOG.info("Run '%s' submitted for execution with id '%s'", wms_workflow.name, wms_workflow.run_id)
+        if _LOG.isEnabledFor(logging.INFO):
+            _LOG.info(
+                "Peak memory usage for bps process %s (main), %s (largest child process)",
+                *tuple(f"{val.to(DEFAULT_MEM_UNIT):{DEFAULT_MEM_FMT}}" for val in get_peak_mem_usage()),
+            )
+
+        print(f"Run Id: {wms_workflow.run_id}")
+        print(f"Run Name: {wms_workflow.name}")
 
 
 def restart_driver(wms_service, run_id):

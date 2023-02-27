@@ -180,7 +180,7 @@ class BaseWmsService:
         """
         raise NotImplementedError
 
-    def submit(self, workflow):
+    def submit(self, workflow, config=None, remote_build=None, config_file=None):
         """Submit a single WMS workflow
 
         Parameters
