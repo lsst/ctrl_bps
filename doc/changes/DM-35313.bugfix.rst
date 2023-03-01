@@ -1,1 +1,0 @@
-Fix the bug causing submissions to fail when the config defines site-specific job attributes.
