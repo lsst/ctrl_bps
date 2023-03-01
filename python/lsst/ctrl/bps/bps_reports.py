@@ -106,7 +106,7 @@ class BaseRunReport(abc.ABC):
 
         Returns
         -------
-        inst : `lsst.ctrl.bps.report.BaseRunReport
+        inst : `lsst.ctrl.bps.report.BaseRunReport`
             A report created based on the information in the provided table.
         """
         inst = cls(table.dtype.descr)
