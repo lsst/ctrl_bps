@@ -24,11 +24,11 @@ dependencies = [
     "pyyaml >=5.1",
     "click >= 7.0",
     "networkx",
-    "lsst-daf-butler",
-    "lsst-pipe-base",
-    "lsst-ctrl-mpexec",
-    "lsst-utils",
-    "lsst-resources"
+    "lsst-daf-butler >=25.0,<25.100",
+    "lsst-pipe-base >=25.0,<25.100",
+    "lsst-ctrl-mpexec >=25.0,<25.100",
+    "lsst-utils >=25.0,<25.100",
+    "lsst-resources >=25.0,<25.100"
 ]
 dynamic = ["version"]
 

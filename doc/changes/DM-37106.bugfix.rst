@@ -1,1 +1,0 @@
-Remove BPS computeSite option from all subcommands except submit.
