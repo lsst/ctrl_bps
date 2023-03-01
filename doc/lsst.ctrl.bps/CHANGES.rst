@@ -1,3 +1,26 @@
+lsst-ctrl-bps v25.0.0 (2023-03-01)
+==================================
+
+New Features
+------------
+
+- Make ``report()`` look for job summary before trying to compile necessary data based on the information for individual jobs. (`DM-35293 <https://jira.lsstcorp.org/browse/DM-35293>`_)
+- Add ability to specify ``computeSite`` via the command line. (`DM-37044 <https://jira.lsstcorp.org/browse/DM-37044>`_)
+
+
+Bug Fixes
+---------
+
+- Fix the bug causing submissions to fail when the config defines site-specific job attributes. (`DM-35313 <https://jira.lsstcorp.org/browse/DM-35313>`_)
+- Remove BPS computeSite option from all subcommands except ``submit``. (`DM-37106 <https://jira.lsstcorp.org/browse/DM-37106>`_)
+
+
+Other Changes and Additions
+---------------------------
+
+- Replace NetworkX functions that are being deprecated. (`DM-34959 <https://jira.lsstcorp.org/browse/DM-34959>`_)
+
+
 lsst-ctrl-bps v24.0.0 (2022-08-29)
 ==================================
 
