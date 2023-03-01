@@ -43,7 +43,6 @@ from any of these intermediate points.
 
 
 class BpsCli(LoaderCLI):
-
     localCmdPkg = "lsst.ctrl.bps.cli.cmd"
 
 
