@@ -21,7 +21,6 @@ initPreCmdOpts: "{defaultPreCmdOpts}"
 # for running Quanta
 runPreCmdOpts: "{defaultPreCmdOpts}"
 
-
 # Values defining input dataset as well as collection names of output
 payload:
   #USER payloadName: pipelines_check    # Used in bps report, and default output collection
@@ -32,12 +31,18 @@ payload:
   output: "u/{operator}/{payloadName}"
   outputRun: "{output}/{timestamp}"
 
+# Mid-level values, rarely overridden other than by plugins or tools
+pipetaskOutput: "-o {output}"
+pipetaskInput: "-i {inCollection}"
+pipetaskDataQuery: '-d "{dataQuery}"'
+fileDistributionEndPoint: ""   # Needed by PanDA plugin, must end in / if non-empty string
+
 pipetask:
   pipetaskInit:
     # Notes:  Declaring and chaining now happen within execution butler steps.
     # This command no longer needs -o and must have --extend-run.
     # Change panda-plugin's config at config/bps_idf.yaml too when changing runQuantumCommand
-    runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask {initPreCmdOpts} run -b {butlerConfig} -i {inCollection} -o {output} --output-run {outputRun} --qgraph {qgraphFile} --qgraph-id {qgraphId} --qgraph-node-id {qgraphNodeId} --clobber-outputs --init-only --extend-run {extraInitOptions}"
+    runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask {initPreCmdOpts} run -b {butlerConfig} {pipetaskInput} {pipetaskOutput} --output-run {outputRun} --qgraph {fileDistributionEndPoint}{qgraphFile} --qgraph-id {qgraphId} --qgraph-node-id {qgraphNodeId} --clobber-outputs --init-only --extend-run {extraInitOptions}"
   #OPT myTask:
   #OPT   requestCpus:
   #OPT   requestMemory:
@@ -50,9 +55,8 @@ pipetask:
 # Default commands and usage requests for creating QuantumGraph, running Quantum.
 # Defaults to using full workflow QuantumGraph instead of per-job QuantumGraphs.
 whenSaveJobQgraph: "NEVER"
-createQuantumGraph: '${CTRL_MPEXEC_DIR}/bin/pipetask {qgraphPreCmdOpts} qgraph -b {butlerConfig} -i {inCollection} -o {output} --output-run {outputRun} -p {pipelineYaml} -q {qgraphFile} -d "{dataQuery}" {extraQgraphOptions}'
-# Change panda-plugin's config at config/bps_idf.yaml too when changing runQuantumCommand
-runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask {runPreCmdOpts} run -b {butlerConfig} -i {inCollection} -o {output} --output-run {outputRun} --qgraph {qgraphFile} --qgraph-id {qgraphId} --qgraph-node-id {qgraphNodeId} --clobber-outputs --skip-init-writes --extend-run {extraRunQuantumOptions}"
+createQuantumGraph: '${CTRL_MPEXEC_DIR}/bin/pipetask {qgraphPreCmdOpts} qgraph -b {butlerConfig} {pipetaskInput} {pipetaskOutput} --output-run {outputRun} -p {pipelineYaml} -q {qgraphFile} {pipetaskDataQuery} {extraQgraphOptions}'
+runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask {runPreCmdOpts} run -b {butlerConfig} {pipetaskInput} {pipetaskOutput} --output-run {outputRun} --qgraph {fileDistributionEndPoint}{qgraphFile} --qgraph-id {qgraphId} --qgraph-node-id {qgraphNodeId} --clobber-outputs --skip-init-writes --extend-run {extraRunQuantumOptions}"
 preemptible: True
 requestMemory: 2048
 requestCpus: 1
@@ -79,7 +83,7 @@ useLazyCommands: True
 executionButler:
   whenCreate: "SUBMIT"
   #OPT executionButlerDir: "/my/exec/butler/dir"  # User-provided or defaults to executionButlerTemplate
-  createCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask qgraph -b {butlerConfig} -i {inCollection} -o {output} --output-run {outputRun} --save-execution-butler {executionButlerDir} -g {qgraphFile}"
+  createCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask qgraph -b {butlerConfig} {pipetaskInput} {pipetaskOutput} --output-run {outputRun} --save-execution-butler {executionButlerDir} -g {qgraphFile}"
   whenMerge: "ALWAYS"
   implementation: JOB  # Added for future flexibility, e.g., if prefer workflow instead of shell script.
   concurrencyLimit: db_limit
