@@ -66,6 +66,30 @@ class TestBpsConfigConstructor(unittest.TestCase):
             BpsConfig(sequence)
 
 
+class TestBpsConfigGet(unittest.TestCase):
+    def setUp(self):
+        self.config = BpsConfig({"foo": "bar"})
+
+    def tearDown(self):
+        pass
+
+    def testKeyExistsNoDefault(self):
+        """Test if the value is returned when the key is in the dictionary."""
+        self.assertEqual("bar", self.config.get("foo"))
+
+    def testKeyExistsDefaultProvided(self):
+        """Test if the value is returned when the key is in the dictionary."""
+        self.assertEqual("bar", self.config.get("foo", "qux"))
+
+    def testKeyMissingNoDefault(self):
+        """Test if the provided default is returned if the key is missing."""
+        self.assertEqual("", self.config.get("baz"))
+
+    def testKeyMissingDefaultProvided(self):
+        """Test if the custom default is returned if the key is missing."""
+        self.assertEqual("qux", self.config.get("baz", "qux"))
+
+
 class TestBpsConfigSearch(unittest.TestCase):
     def setUp(self):
         filename = os.path.join(TESTDIR, "data/config.yaml")

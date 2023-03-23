@@ -131,6 +131,31 @@ class BpsConfig(Config):
         """
         return BpsConfig(self)
 
+    def get(self, key, default=""):
+        """Return the value for key if key is in the config, else default.
+
+        If default is not given, it defaults to an empty string.
+
+        Parameters
+        ----------
+        key : `str`
+            Key to look for in config.
+        default : Any, optional
+            Default value to return if the key is not in the config.
+
+        Returns
+        -------
+        val : Any
+            Value from config if found, default otherwise.
+
+        Notes
+        -----
+        The provided default value (an empty string) was chosen to maintain
+        the internal consistency with other methods of the class.
+        """
+        _, val = self.search(key, opt={"default": default})
+        return val
+
     def __getitem__(self, name):
         """Return the value from the config for the given name.
 
