@@ -31,7 +31,6 @@ import shutil
 import subprocess
 
 from lsst.ctrl.bps.bps_utils import _create_execution_butler
-from lsst.daf.butler import Butler
 from lsst.pipe.base.graph import QuantumGraph
 from lsst.utils import doImport
 from lsst.utils.logging import VERBOSE
@@ -106,7 +105,7 @@ def acquire_quantum_graph(config, out_prefix=""):
 
     _LOG.info("Reading quantum graph from '%s'", qgraph_filename)
     with time_this(log=_LOG, level=logging.INFO, prefix=None, msg="Completed reading quantum graph"):
-        qgraph = read_quantum_graph(qgraph_filename, config["butlerConfig"])
+        qgraph = QuantumGraph.loadUri(qgraph_filename)
 
     if when_create.upper() == "QGRAPH_CMDLINE":
         if not os.path.exists(execution_butler_dir):
@@ -189,36 +188,6 @@ def create_quantum_graph(config, out_prefix=""):
             f"Check {out} for more details."
         )
     return qgraph_filename
-
-
-def read_quantum_graph(qgraph_filename, butler_uri):
-    """Read the QuantumGraph from disk.
-
-    Parameters
-    ----------
-    qgraph_filename : `str`
-        Name of file containing QuantumGraph to be used for workflow
-        generation.
-    butler_uri : `str`
-        Location of butler repository that can be used to create a
-        butler object.
-
-    Returns
-    -------
-    qgraph : `lsst.pipe.base.graph.QuantumGraph`
-        The QuantumGraph read from a file.
-
-    Raises
-    ------
-    RuntimeError
-        If the QuantumGraph contains 0 Quanta.
-    """
-    # Get the DimensionUniverse from the butler repository
-    butler = Butler(butler_uri, writeable=False)
-    qgraph = QuantumGraph.loadUri(qgraph_filename, butler.registry.dimensions)
-    if len(qgraph) == 0:
-        raise RuntimeError("QuantumGraph is empty")
-    return qgraph
 
 
 def cluster_quanta(config, qgraph, name):
