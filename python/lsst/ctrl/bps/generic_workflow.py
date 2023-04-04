@@ -272,9 +272,9 @@ class GenericWorkflowJob:
 
     # As of python 3.7.8, can't use __slots__ if give default values, so
     # writing own __init__.
-    def __init__(self, name: str):
+    def __init__(self, name, label="UNK"):
         self.name = name
-        self.label = None
+        self.label = label
         self.quanta_counts = Counter()
         self.tags = {}
         self.executable = None
@@ -366,11 +366,11 @@ class GenericWorkflow(DiGraph):
         super().__init__(incoming_graph_data, **attr)
         self._name = name
         self.run_attrs = {}
+        self._job_labels = GenericWorkflowLabels()
         self._files = {}
         self._executables = {}
         self._inputs = {}  # mapping job.names to list of GenericWorkflowFile
         self._outputs = {}  # mapping job.names to list of GenericWorkflowFile
-        self._labels = defaultdict(list)  # mapping job label to list of GenericWorkflowJob
         self.run_id = None
         self._final = None
 
@@ -397,20 +397,24 @@ class GenericWorkflow(DiGraph):
 
     @property
     def labels(self):
-        """List of job labels (`list` [`str`], read-only)"""
-        return list(self._labels.keys())
+        """Job labels (`list` [`str`], read-only)"""
+        return self._job_labels.labels
 
     def regenerate_labels(self):
         """Regenerate the list of job labels."""
-        self._labels = defaultdict(list)
+        self._job_labels = GenericWorkflowLabels()
         for job_name in self:
             job = self.get_job(job_name)
-            self._labels[job.label].append(job)
+            self._job_labels.add_job(
+                job,
+                [self.get_job(p).label for p in self.predecessors(job.name)],
+                [self.get_job(p).label for p in self.successors(job.name)],
+            )
 
     @property
     def job_counts(self):
         """Count of jobs per job label (`collections.Counter`)."""
-        jcounts = Counter({label: len(jobs) for label, jobs in self._labels.items()})
+        jcounts = self._job_labels.job_counts
 
         # Final is separate
         final = self.get_final()
@@ -467,6 +471,9 @@ class GenericWorkflow(DiGraph):
         child_names : `list` [`str`], optional
             Names of jobs that are children of given job
         """
+        _LOG.debug("job: %s (%s)", job.name, job.label)
+        _LOG.debug("parent_names: %s", parent_names)
+        _LOG.debug("child_names: %s", child_names)
         if not isinstance(job, GenericWorkflowJob):
             raise RuntimeError(f"Invalid type for job to be added to GenericWorkflowGraph ({type(job)}).")
         if self.has_node(job.name):
@@ -475,7 +482,11 @@ class GenericWorkflow(DiGraph):
         self.add_job_relationships(parent_names, job.name)
         self.add_job_relationships(job.name, child_names)
         self.add_executable(job.executable)
-        self._labels[job.label].append(job)
+        self._job_labels.add_job(
+            job,
+            [self.get_job(p).label for p in self.predecessors(job.name)],
+            [self.get_job(p).label for p in self.successors(job.name)],
+        )
 
     def add_node(self, node_for_adding, **attr):
         """Override networkx function to call more specific add_job function.
@@ -502,6 +513,10 @@ class GenericWorkflow(DiGraph):
         """
         if parents is not None and children is not None:
             self.add_edges_from(itertools.product(ensure_iterable(parents), ensure_iterable(children)))
+            self._job_labels.add_job_relationships(
+                [self.get_job(n).label for n in ensure_iterable(parents)],
+                [self.get_job(n).label for n in ensure_iterable(children)],
+            )
 
     def add_edges_from(self, ebunch_to_add, **attr):
         """Add several edges between jobs in the generic workflow.
@@ -559,10 +574,9 @@ class GenericWorkflow(DiGraph):
             Name of job to delete from workflow.
         """
         job = self.get_job(job_name)
-        self._labels[job.label].remove(job)
-        # Don't leave keys around if removed last job
-        if not self._labels[job.label]:
-            del self._labels[job.label]
+
+        # Remove from job labels
+        self._job_labels.del_job(job)
 
         # Connect all parent jobs to all children jobs.
         parents = self.predecessors(job_name)
@@ -786,20 +800,21 @@ class GenericWorkflow(DiGraph):
             for sink in new_sinks:
                 self.add_edge(sink, source)
 
-        # Files are stored separately so copy them.
+        # Add separately stored info
         for job_name in workflow:
+            job = self.get_job(job_name)
+            # Add job labels
+            self._job_labels.add_job(
+                job,
+                [self.get_job(p).label for p in self.predecessors(job.name)],
+                [self.get_job(p).label for p in self.successors(job.name)],
+            )
+            # Files are stored separately so copy them.
             self.add_job_inputs(job_name, workflow.get_job_inputs(job_name, data=True))
             self.add_job_outputs(job_name, workflow.get_job_outputs(job_name, data=True))
+            # Executables are stored separately so copy them.
+            self.add_job_inputs(job_name, workflow.get_job_inputs(job_name, data=True))
             self.add_executable(workflow.get_job(job_name).executable)
-
-        # Note: label ordering inferred from dict order
-        #       so adding given source workflow first
-        labels = defaultdict(list)
-        for label in workflow._labels:
-            labels[label] = workflow._labels[label]
-        for label in self._labels:
-            labels[label] = self._labels[label]
-        self._labels = labels
 
     def add_final(self, final):
         """Add special final job/workflow to the generic workflow.
@@ -885,4 +900,101 @@ class GenericWorkflow(DiGraph):
         jobs : list[`lsst.ctrl.bps.GenericWorkflowJob`]
             Jobs having given label.
         """
-        return self._labels[label]
+        return self._job_labels.get_jobs_by_label(label)
+
+
+class GenericWorkflowLabels:
+    """Label-oriented representation of the GenericWorkflow."""
+
+    def __init__(self):
+        self._label_graph = DiGraph()  # Dependency graph of job labels
+        self._label_to_jobs = defaultdict(list)  # mapping job label to list of GenericWorkflowJob
+
+    @property
+    def labels(self):
+        """List of job labels (`list` [`str`], read-only)"""
+        return list(topological_sort(self._label_graph))
+
+    @property
+    def job_counts(self):
+        """Count of jobs per job label (`collections.Counter`)."""
+        jcounts = Counter({label: len(jobs) for label, jobs in self._label_to_jobs.items()})
+        return jcounts
+
+    def get_jobs_by_label(self, label: str):
+        """Retrieve jobs by label from workflow.
+
+        Parameters
+        ----------
+        label : `str`
+            Label of jobs to retrieve.
+
+        Returns
+        -------
+        jobs : list[`lsst.ctrl.bps.GenericWorkflowJob`]
+            Jobs having given label.
+        """
+        return self._label_to_jobs[label]
+
+    def add_job(self, job, parent_labels, child_labels):
+        """Add job's label to labels.
+
+        Parameters
+        ----------
+        job : `lsst.ctrl.bps.GenericWorkflowJob`
+            The job to delete from the job labels.
+        parent_labels : `list` [`str`]
+            Parent job labels.
+        children_labels : `list` [`str`]
+            Children job labels.
+        """
+        _LOG.debug("job: %s (%s)", job.name, job.label)
+        _LOG.debug("parent_labels: %s", parent_labels)
+        _LOG.debug("child_labels: %s", child_labels)
+        self._label_to_jobs[job.label].append(job)
+        self._label_graph.add_node(job.label)
+        for parent in parent_labels:
+            self._label_graph.add_edge(parent, job.label)
+        for child in child_labels:
+            self._label_graph.add_edge(job.label, child)
+
+    def add_job_relationships(self, parent_labels, children_labels):
+        """Add dependencies between parent and child job labels.
+        All parents will be connected to all children.
+
+        Parameters
+        ----------
+        parent_labels : `list` [`str`]
+            Parent job labels.
+        children_labels : `list` [`str`]
+            Children job labels.
+        """
+        if parent_labels is not None and children_labels is not None:
+            # Since labels, must ensure not adding edge from label to itself.
+            edges = [
+                e
+                for e in itertools.product(ensure_iterable(parent_labels), ensure_iterable(children_labels))
+                if e[0] != e[1]
+            ]
+
+            self._label_graph.add_edges_from(edges)
+
+    def del_job(self, job):
+        """Delete job and its label from job labels.
+
+        Parameters
+        ----------
+        job : `lsst.ctrl.bps.GenericWorkflowJob`
+            The job to delete from the job labels.
+        """
+        self._label_to_jobs[job.label].remove(job)
+        # Don't leave keys around if removed last job
+        if not self._label_to_jobs[job.label]:
+            del self._label_to_jobs[job.label]
+
+            parents = self._label_graph.predecessors(job.label)
+            children = self._label_graph.successors(job.label)
+            self._label_graph.remove_node(job.label)
+            self._label_graph.add_edges_from(
+                itertools.product(ensure_iterable(parents), ensure_iterable(children))
+            )

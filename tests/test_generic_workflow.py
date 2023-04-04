@@ -35,73 +35,81 @@ class TestGenericWorkflowJob(unittest.TestCase):
 
 
 class TestGenericWorkflow(unittest.TestCase):
+    def setUp(self):
+        self.exec1 = gw.GenericWorkflowExec(
+            name="test1.py", src_uri="${CTRL_BPS_DIR}/bin/test1.py", transfer_executable=False
+        )
+        self.job1 = gw.GenericWorkflowJob("job1", label="label1")
+        self.job1.quanta_counts = Counter({"pt1": 1, "pt2": 2})
+        self.job1.executable = self.exec1
+
+        self.job2 = gw.GenericWorkflowJob("job2", label="label2")
+        self.job2.quanta_counts = Counter({"pt1": 1, "pt2": 2})
+        self.job2.executable = self.exec1
+
     def testAddJobDuplicate(self):
-        job1 = gw.GenericWorkflowJob("job1")
         gwf = gw.GenericWorkflow("mytest")
-        gwf.add_job(job1)
+        gwf.add_job(self.job1)
         with self.assertRaises(RuntimeError):
-            gwf.add_job(job1)
+            gwf.add_job(self.job1)
 
     def testAddJobValid(self):
-        job1 = gw.GenericWorkflowJob("job1")
         gwf = gw.GenericWorkflow("mytest")
-        gwf.add_job(job1)
+        gwf.add_job(self.job1)
         self.assertEqual(1, gwf.number_of_nodes())
         self.assertListEqual(["job1"], list(gwf))
         getjob = gwf.get_job("job1")
-        self.assertEqual(job1, getjob)
+        self.assertEqual(self.job1, getjob)
 
     def testAddJobRelationshipsSingle(self):
-        job1 = gw.GenericWorkflowJob("job1")
-        job2 = gw.GenericWorkflowJob("job2")
         gwf = gw.GenericWorkflow("mytest")
-        gwf.add_job(job1)
-        gwf.add_job(job2)
+        gwf.add_job(self.job1)
+        gwf.add_job(self.job2)
         gwf.add_job_relationships("job1", "job2")
         self.assertListEqual([("job1", "job2")], list(gwf.edges()))
 
     def testAddJobRelationshipsMultiChild(self):
-        job1 = gw.GenericWorkflowJob("job1")
-        job2 = gw.GenericWorkflowJob("job2")
         job3 = gw.GenericWorkflowJob("job3")
+        job3.label = "label2"
+        job3.quanta_counts = Counter({"pt1": 1, "pt2": 2})
+        job3.executable = self.exec1
+
         gwf = gw.GenericWorkflow("mytest")
-        gwf.add_job(job1)
-        gwf.add_job(job2)
+        gwf.add_job(self.job1)
+        gwf.add_job(self.job2)
         gwf.add_job(job3)
         gwf.add_job_relationships("job1", ["job2", "job3"])
         self.assertListEqual([("job1", "job2"), ("job1", "job3")], list(gwf.edges()))
 
     def testAddJobRelationshipsMultiParents(self):
-        job1 = gw.GenericWorkflowJob("job1")
-        job2 = gw.GenericWorkflowJob("job2")
         job3 = gw.GenericWorkflowJob("job3")
+        job3.label = "label2"
+        job3.quanta_counts = Counter({"pt1": 1, "pt2": 2})
+        job3.executable = self.exec1
         gwf = gw.GenericWorkflow("mytest")
-        gwf.add_job(job1)
-        gwf.add_job(job2)
+        gwf.add_job(self.job1)
+        gwf.add_job(self.job2)
         gwf.add_job(job3)
         gwf.add_job_relationships(["job1", "job2"], "job3")
         self.assertListEqual([("job1", "job3"), ("job2", "job3")], list(gwf.edges()))
 
     def testAddJobRelationshipsNone(self):
-        job1 = gw.GenericWorkflowJob("job1")
         gwf = gw.GenericWorkflow("mytest")
-        gwf.add_job(job1)
+        gwf.add_job(self.job1)
         gwf.add_job_relationships(None, "job1")
         self.assertListEqual([], list(gwf.edges()))
         gwf.add_job_relationships("job1", None)
         self.assertListEqual([], list(gwf.edges()))
 
     def testGetJobExists(self):
-        job1 = gw.GenericWorkflowJob("job1")
         gwf = gw.GenericWorkflow("mytest")
-        gwf.add_job(job1)
-        job2 = gwf.get_job("job1")
-        self.assertIs(job1, job2)
+        gwf.add_job(self.job1)
+        get_job = gwf.get_job("job1")
+        self.assertIs(self.job1, get_job)
 
     def testGetJobError(self):
-        job1 = gw.GenericWorkflowJob("job1")
         gwf = gw.GenericWorkflow("mytest")
-        gwf.add_job(job1)
+        gwf.add_job(self.job1)
         with self.assertRaises(KeyError):
             _ = gwf.get_job("job_not_there")
 
@@ -113,10 +121,8 @@ class TestGenericWorkflow(unittest.TestCase):
 
     def testSavePickle(self):
         gwf = gw.GenericWorkflow("mytest")
-        job1 = gw.GenericWorkflowJob("job1")
-        job2 = gw.GenericWorkflowJob("job2")
-        gwf.add_job(job1)
-        gwf.add_job(job2)
+        gwf.add_job(self.job1)
+        gwf.add_job(self.job2)
         gwf.add_job_relationships("job1", "job2")
         stream = io.BytesIO()
         gwf.save(stream, "pickle")
@@ -127,61 +133,42 @@ class TestGenericWorkflow(unittest.TestCase):
         )
 
     def testLabels(self):
-        job1 = gw.GenericWorkflowJob("job1")
-        job1.label = "label1"
-        job2 = gw.GenericWorkflowJob("job2")
-        job2.label = "label1"
         job3 = gw.GenericWorkflowJob("job3")
         job3.label = "label2"
         gwf = gw.GenericWorkflow("mytest")
-        gwf.add_job(job1)
-        gwf.add_job(job2)
+        gwf.add_job(self.job1)
+        gwf.add_job(self.job2)
         gwf.add_job(job3)
         gwf.add_job_relationships(["job1", "job2"], "job3")
         self.assertListEqual(["label1", "label2"], gwf.labels)
 
     def testRegenerateLabels(self):
-        job1 = gw.GenericWorkflowJob("job1")
-        job1.label = "label1"
-        job2 = gw.GenericWorkflowJob("job2")
-        job2.label = "label1"
-        job3 = gw.GenericWorkflowJob("job3")
-        job3.label = "label2"
+        job3 = gw.GenericWorkflowJob("job3", label="label2")
         gwf = gw.GenericWorkflow("mytest")
-        gwf.add_job(job1)
-        gwf.add_job(job2)
+        gwf.add_job(self.job1)
+        gwf.add_job(self.job2)
         gwf.add_job(job3)
         gwf.add_job_relationships(["job1", "job2"], "job3")
-        job1.label = "label1b"
-        job2.label = "label1b"
+        self.job1.label = "label1b"
+        self.job2.label = "label1b"
         job3.label = "label2b"
         gwf.regenerate_labels()
         self.assertListEqual(["label1b", "label2b"], gwf.labels)
 
     def testJobCounts(self):
-        job1 = gw.GenericWorkflowJob("job1")
-        job1.label = "label1"
-        job2 = gw.GenericWorkflowJob("job2")
-        job2.label = "label1"
-        job3 = gw.GenericWorkflowJob("job3")
-        job3.label = "label2"
+        job3 = gw.GenericWorkflowJob("job3", label="label2")
         gwf = gw.GenericWorkflow("mytest")
-        gwf.add_job(job1)
-        gwf.add_job(job2)
+        gwf.add_job(self.job1)
+        gwf.add_job(self.job2)
         gwf.add_job(job3)
         gwf.add_job_relationships(["job1", "job2"], "job3")
-        self.assertEqual(Counter({"label1": 2, "label2": 1}), gwf.job_counts)
+        self.assertEqual(Counter({"label1": 1, "label2": 2}), gwf.job_counts)
 
     def testDelJob(self):
-        job1 = gw.GenericWorkflowJob("job1")
-        job1.label = "label1"
-        job2 = gw.GenericWorkflowJob("job2")
-        job2.label = "label1"
-        job3 = gw.GenericWorkflowJob("job3")
-        job3.label = "label2"
+        job3 = gw.GenericWorkflowJob("job3", label="label2")
         gwf = gw.GenericWorkflow("mytest")
-        gwf.add_job(job1)
-        gwf.add_job(job2)
+        gwf.add_job(self.job1)
+        gwf.add_job(self.job2)
         gwf.add_job(job3)
         gwf.add_job_relationships(["job1", "job2"], "job3")
 
@@ -191,26 +178,26 @@ class TestGenericWorkflow(unittest.TestCase):
         self.assertEqual(Counter({"label1": 1, "label2": 1}), gwf.job_counts)
 
     def testAddWorkflowSource(self):
-        job1 = gw.GenericWorkflowJob("job1")
-        job1.label = "label1"
-        job2 = gw.GenericWorkflowJob("job2")
-        job2.label = "label1"
         job3 = gw.GenericWorkflowJob("job3")
         job3.label = "label2"
         gwf = gw.GenericWorkflow("mytest")
-        gwf.add_job(job1)
-        gwf.add_job(job2)
+        gwf.add_job(self.job1)
+        gwf.add_job(self.job2)
         gwf.add_job(job3)
         gwf.add_job_relationships(["job1", "job2"], "job3")
 
         srcjob1 = gw.GenericWorkflowJob("srcjob1")
         srcjob1.label = "srclabel1"
+        srcjob1.executable = self.exec1
         srcjob2 = gw.GenericWorkflowJob("srcjob2")
         srcjob2.label = "srclabel1"
+        srcjob2.executable = self.exec1
         srcjob3 = gw.GenericWorkflowJob("srcjob3")
         srcjob3.label = "srclabel2"
+        srcjob3.executable = self.exec1
         srcjob4 = gw.GenericWorkflowJob("srcjob4")
         srcjob4.label = "srclabel2"
+        srcjob4.executable = self.exec1
         gwf2 = gw.GenericWorkflow("mytest2")
         gwf2.add_job(srcjob1)
         gwf2.add_job(srcjob2)
@@ -221,7 +208,7 @@ class TestGenericWorkflow(unittest.TestCase):
 
         gwf.add_workflow_source(gwf2)
 
-        self.assertEqual(Counter({"srclabel1": 2, "srclabel2": 2, "label1": 2, "label2": 1}), gwf.job_counts)
+        self.assertEqual(Counter({"srclabel1": 2, "srclabel2": 2, "label1": 1, "label2": 2}), gwf.job_counts)
         self.assertListEqual(["srclabel1", "srclabel2", "label1", "label2"], gwf.labels)
         self.assertListEqual(
             sorted(
@@ -240,19 +227,15 @@ class TestGenericWorkflow(unittest.TestCase):
         )
 
     def testGetJobsByLabel(self):
-        job1 = gw.GenericWorkflowJob("job1")
-        job1.label = "label1"
-        job2 = gw.GenericWorkflowJob("job2")
-        job2.label = "label1"
         job3 = gw.GenericWorkflowJob("job3")
-        job3.label = "label2"
+        job3.label = "label3"
         gwf = gw.GenericWorkflow("mytest")
-        gwf.add_job(job1)
-        gwf.add_job(job2)
+        gwf.add_job(self.job1)
+        gwf.add_job(self.job2)
         gwf.add_job(job3)
         gwf.add_job_relationships(["job1", "job2"], "job3")
 
-        self.assertListEqual([job3], gwf.get_jobs_by_label("label2"))
+        self.assertListEqual([job3], gwf.get_jobs_by_label("label3"))
 
 
 if __name__ == "__main__":

@@ -34,7 +34,7 @@ from pathlib import Path
 
 from lsst.pipe.base import NodeId, QuantumGraph
 from lsst.utils.iteration import ensure_iterable
-from networkx import DiGraph
+from networkx import DiGraph, is_isomorphic, topological_sort
 
 from .bps_draw import draw_networkx_dot
 
@@ -216,6 +216,15 @@ class ClusteredQuantumGraph:
         """Return the number of clusters."""
         return len(self._cluster_graph)
 
+    def __eq__(self, other):
+        if not isinstance(other, ClusteredQuantumGraph):
+            return False
+        if len(self) != len(other):
+            return False
+        return self._quantum_graph == other._quantum_graph and is_isomorphic(
+            self._cluster_graph, other._cluster_graph
+        )
+
     @property
     def name(self):
         """The name of the ClusteredQuantumGraph."""
@@ -311,9 +320,9 @@ class ClusteredQuantumGraph:
         Returns
         -------
         clusters : `Iterator` [`lsst.ctrl.bps.QuantaCluster`]
-            Iterator over clusters.
+            Iterator over clusters in topological order.
         """
-        return map(self.get_cluster, self._cluster_graph.nodes())
+        return map(self.get_cluster, topological_sort(self._cluster_graph))
 
     def successors(self, name):
         """Return clusters that are successors of the cluster

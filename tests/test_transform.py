@@ -76,7 +76,7 @@ class TestCreateGenericWorkflow(unittest.TestCase):
             },
             BPS_SEARCH_ORDER,
         )
-        self.cqg = make_test_clustered_quantum_graph(self.config)
+        _, self.cqg = make_test_clustered_quantum_graph(self.tmpdir)
 
     def tearDown(self):
         shutil.rmtree(self.tmpdir, ignore_errors=True)

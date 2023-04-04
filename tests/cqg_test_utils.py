@@ -22,8 +22,9 @@
 """
 
 import uuid
+from copy import deepcopy
 
-from lsst.ctrl.bps.quantum_clustering_funcs import dimension_clustering
+from lsst.ctrl.bps import ClusteredQuantumGraph, QuantaCluster
 from networkx import is_directed_acyclic_graph
 from qg_test_utils import make_test_quantum_graph
 
@@ -163,7 +164,57 @@ def compare_cqg_dicts(truth, cqg):
     ), f"Mismatch edges: truth={truth['edges']}, cqg={cqg['edges']}"
 
 
-def make_test_clustered_quantum_graph(config):
+# T1(1,2)   T1(3,4)  T4(1,2)  T4(3,4)
+#   |         |
+# T2(1,2)   T2(3,4)
+#   |         |
+# T3(1,2)   T3(3,4)
+def make_test_clustered_quantum_graph(outdir):
+    """Make a ClusteredQuantumGraph for testing.
+
+    Parameters
+    ----------
+    outdir : `str`
+        Root used for the QuantumGraph filename stored
+        in the ClusteredQuantumGraph.
+
+    Returns
+    -------
+    qgraph : `lsst.pipe.base.QuantumGraph`
+        The fake QuantumGraph created for the test
+        ClusteredQuantumGraph returned separately.
+    cqg : `lsst.ctrl.bps.ClusteredQuantumGraph
+    """
     qgraph = make_test_quantum_graph()
-    cqg = dimension_clustering(config, qgraph, "test_cqg")
-    return cqg
+    qgraph2 = deepcopy(qgraph)  # keep separate copy
+
+    cqg = ClusteredQuantumGraph("cqg1", qgraph, f"{outdir}/test_file.qgraph")
+
+    # since random hash ids, create mapping for tests
+    test_lookup = {}
+    for qnode in qgraph:
+        data_id = qnode.quantum.dataId.byName()
+        key = f"{qnode.taskDef.label}_{data_id['D1']}_{data_id['D2']}"
+        test_lookup[key] = qnode
+
+    # Add orphans
+    cluster = QuantaCluster.from_quantum_node(test_lookup["T4_1_2"], "T4_1_2")
+    cqg.add_cluster(cluster)
+    cluster = QuantaCluster.from_quantum_node(test_lookup["T4_3_4"], "T4_3_4")
+    cqg.add_cluster(cluster)
+
+    # T1,T2,T3  Dim1 = 1, Dim2 = 2
+    qc1 = QuantaCluster.from_quantum_node(test_lookup["T1_1_2"], "T1_1_2")
+    qc2 = QuantaCluster.from_quantum_node(test_lookup["T2_1_2"], "T23_1_2")
+    qc2.add_quantum_node(test_lookup["T3_1_2"])
+    cqg.add_cluster([qc2, qc1])  # reversed to check order is corrected in tests
+    cqg.add_dependency(qc1, qc2)
+
+    # T1,T2,T3  Dim1 = 3, Dim2 = 4
+    qc1 = QuantaCluster.from_quantum_node(test_lookup["T1_3_4"], "T1_3_4")
+    qc2 = QuantaCluster.from_quantum_node(test_lookup["T2_3_4"], "T23_3_4")
+    qc2.add_quantum_node(test_lookup["T3_3_4"])
+    cqg.add_cluster([qc2, qc1])  # reversed to check order is corrected in tests
+    cqg.add_dependency(qc1, qc2)
+
+    return qgraph2, cqg
