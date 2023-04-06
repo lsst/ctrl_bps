@@ -72,6 +72,7 @@ _ATTRS_SUM = frozenset(
 # Job attributes do not fall into a specific category
 _ATTRS_MISC = frozenset(
     {
+        "label",  # taskDef labels aren't same in job and may not match job label
         "cmdvals",
         "profile",
         "attrs",
@@ -181,7 +182,7 @@ def create_init_workflow(config, qgraph, qgraph_gwfile):
     init_workflow.add_file(qgraph_gwfile)
 
     # create job for executing --init-only
-    gwjob = GenericWorkflowJob("pipetaskInit")
+    gwjob = GenericWorkflowJob("pipetaskInit", label="pipetaskInit")
 
     job_values = _get_job_values(config, search_opt, "runQuantumCommand")
     job_values["name"] = "pipetaskInit"
@@ -670,7 +671,7 @@ def create_generic_workflow(config, cqgraph, name, prefix):
             cluster.qgraph_node_ids,
         )
 
-        gwjob = GenericWorkflowJob(cluster.name)
+        gwjob = GenericWorkflowJob(cluster.name, label=cluster.label)
 
         # First get job values from cluster or cluster config
         search_opt["curvals"] = {"curr_cluster": cluster.label}
@@ -825,8 +826,7 @@ def add_final_job(config, generic_workflow, prefix):
 
     if when_create.upper() != "NEVER" and when_merge.upper() != "NEVER":
         # create gwjob
-        gwjob = GenericWorkflowJob("mergeExecutionButler")
-        gwjob.label = "mergeExecutionButler"
+        gwjob = GenericWorkflowJob("mergeExecutionButler", label="mergeExecutionButler")
 
         # Set job attributes based on the values find in the config excluding
         # the ones in the _ATTRS_MISC group. The attributes in this group are
@@ -885,7 +885,7 @@ def _create_final_command(config, prefix):
     }
 
     script_file = os.path.join(prefix, "final_job.bash")
-    with open(script_file, "w") as fh:
+    with open(script_file, "w", encoding="utf8") as fh:
         print("#!/bin/bash\n", file=fh)
         print("set -e", file=fh)
         print("set -x", file=fh)

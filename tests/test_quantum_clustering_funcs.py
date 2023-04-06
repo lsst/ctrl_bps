@@ -433,6 +433,30 @@ class TestDimensionClustering(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             _ = dimension_clustering(config, self.qgraph, "task-depends")
 
+    def testClusterOrder(self):
+        """Ensure clusters method is in topological order as some
+        uses require to always have processed parent before
+        children."""
+        config = BpsConfig(
+            {
+                "templateDataId": "{D1}_{D2}_{D3}_{D4}",
+                "cluster": {
+                    "cl2": {"pipetasks": "T2, T3", "dimensions": "D1, D2"},
+                },
+            }
+        )
+
+        cqg = dimension_clustering(config, self.qgraph, "task-cluster-order")
+        processed = set()
+        for cluster in cqg.clusters():
+            for parent in cqg.predecessors(cluster.name):
+                self.assertIn(
+                    parent.name,
+                    processed,
+                    f"clusters() returned {cluster.name} before its parent {parent.name}",
+                )
+            processed.add(cluster.name)
+
 
 if __name__ == "__main__":
     unittest.main()
