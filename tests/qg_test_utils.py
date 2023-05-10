@@ -98,8 +98,13 @@ class Dummy4PipelineTask(PipelineTask):
     ConfigClass = Dummy4Config
 
 
-def make_test_quantum_graph():
+def make_test_quantum_graph(run: str = "run"):
     """Create a QuantumGraph for unit tests.
+
+    Parameters
+    ----------
+    run : `str`, optional
+        Name of the RUN collection for output datasets.
 
     Returns
     -------
@@ -157,6 +162,8 @@ def make_test_quantum_graph():
     # need to make a mapping of TaskDef to set of quantum
     quantum_map = {}
     tasks = []
+    # Map to keep output/intermediate refs.
+    intermediate_refs: dict[tuple[DatasetType, DataCoordinate], DatasetRef] = {}
     for task, label in (
         (Dummy1PipelineTask, "T1"),
         (Dummy2PipelineTask, "T2"),
@@ -174,7 +181,7 @@ def make_test_quantum_graph():
                     storageClass=task_def.connections.initInput.storageClass,
                     universe=universe,
                 )
-                init_refs = [DatasetRef(init_init_ds_type, DataCoordinate.makeEmpty(universe))]
+                init_refs = [DatasetRef(init_init_ds_type, DataCoordinate.makeEmpty(universe), run=run)]
             else:
                 init_refs = None
             input_ds_type = DatasetType(
@@ -183,26 +190,24 @@ def make_test_quantum_graph():
                 storageClass=task_def.connections.input.storageClass,
                 universe=universe,
             )
-            input_refs = [
-                DatasetRef(
-                    input_ds_type, DataCoordinate.standardize({"D1": dim1, "D2": dim2}, universe=universe)
-                )
-            ]
+            data_id = DataCoordinate.standardize({"D1": dim1, "D2": dim2}, universe=universe)
+            if ref := intermediate_refs.get((input_ds_type, data_id)):
+                input_refs = [ref]
+            else:
+                input_refs = [DatasetRef(input_ds_type, data_id, run=run)]
             output_ds_type = DatasetType(
                 task_def.connections.output.name,
                 task_def.connections.output.dimensions,
                 storageClass=task_def.connections.output.storageClass,
                 universe=universe,
             )
-            output_refs = [
-                DatasetRef(
-                    output_ds_type, DataCoordinate.standardize({"D1": dim1, "D2": dim2}, universe=universe)
-                )
-            ]
+            ref = DatasetRef(output_ds_type, data_id, run=run)
+            intermediate_refs[(output_ds_type, data_id)] = ref
+            output_refs = [ref]
             quantum_set.add(
                 Quantum(
                     taskName=task.__qualname__,
-                    dataId=DataCoordinate.standardize({"D1": dim1, "D2": dim2}, universe=universe),
+                    dataId=data_id,
                     taskClass=task,
                     initInputs=init_refs,
                     inputs={input_ds_type: input_refs},
