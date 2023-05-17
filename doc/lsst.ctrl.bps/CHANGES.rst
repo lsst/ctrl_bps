@@ -4,8 +4,8 @@ lsst-ctrl-bps v24.1.0 (2023-02-23)
 Other Changes and Additions
 ---------------------------
 
-- Replace NetworkX functions that are being deprecated. (`DM-34959 <https://jira.lsstcorp.org/browse/DM-34959>`_)
-
+- Replaced NetworkX functions that are being deprecated. (`DM-34959 <https://jira.lsstcorp.org/browse/DM-34959>`_)
+- Modified some default yaml values to more easily allow parts to be modified, like leaving off the output collection. (`DM-38307 <https://jira.lsstcorp.org/browse/DM-38307>`_)
 
 lsst-ctrl-bps v24.0.0 (2022-08-29)
 ==================================
