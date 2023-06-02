@@ -34,7 +34,12 @@ from lsst.ctrl.mpexec.cli.opt import (
 )
 from lsst.daf.butler.cli.utils import OptionGroup, option_section
 
-from .options import extra_init_option, extra_qgraph_option, extra_run_quantum_option
+from .options import (
+    extra_init_option,
+    extra_qgraph_option,
+    extra_run_quantum_option,
+    extra_update_qgraph_option,
+)
 
 
 # Using snake_case for a submission option group (a class) to keep the naming
@@ -56,6 +61,7 @@ class submission_options(OptionGroup):  # noqa: N801
             pipeline_option(),
             qgraph_option(),
             extra_qgraph_option(),
+            extra_update_qgraph_option(),
             extra_init_option(),
             extra_run_quantum_option(),
         ]

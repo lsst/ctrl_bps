@@ -29,6 +29,7 @@ import os
 import shlex
 import shutil
 import subprocess
+from pathlib import Path
 
 from lsst.ctrl.bps.bps_utils import _create_execution_butler
 from lsst.pipe.base.graph import QuantumGraph
@@ -188,6 +189,52 @@ def create_quantum_graph(config, out_prefix=""):
             f"Check {out} for more details."
         )
     return qgraph_filename
+
+
+def update_quantum_graph(config, qgraph_filename, out_prefix="", inplace=False):
+    """Update output run in an existing quantum graph.
+
+    Parameters
+    ----------
+    config : `BpsConfig`
+        BPS configuration.
+    qgraph_filename : `str`
+        Name of file containing the quantum graph that needs to be updated.
+    out_prefix : `str`, optional
+        Path in which to output QuantumGraph as well as the stdout/stderr
+        from generating the QuantumGraph.  Defaults to empty string so
+        code will write the QuantumGraph and stdout/stderr to the current
+        directory.
+    inplace : `bool`, optional
+        If set to True, all updates of the graph will be done in place without
+        creating a backup copy. Defaults to False.
+    """
+    src_qgraph = Path(qgraph_filename)
+    dest_qgraph = Path(qgraph_filename)
+
+    # If requested, create a backup copy of the quantum graph by adding
+    # '_orig' suffix to its stem (the filename without the extension).
+    if not inplace:
+        _LOG.info("Backing up quantum graph from '%s'", qgraph_filename)
+        src_qgraph = src_qgraph.parent / f"{src_qgraph.stem}_orig{src_qgraph.suffix}"
+        with time_this(log=_LOG, level=logging.INFO, prefix=None, msg="Completed backing up quantum graph"):
+            shutil.copy2(qgraph_filename, src_qgraph)
+
+    # Get the command for updating the quantum graph.
+    search_opt = {"curvals": {"qgraphFile": str(src_qgraph), "outputQgraphFile": str(dest_qgraph)}}
+    found, cmd = config.search("updateQuantumGraph", opt=search_opt)
+    if not found:
+        _LOG.error("command for updating quantum graph not found")
+    _LOG.info(cmd)
+
+    # Run the command to update the quantum graph.
+    out = os.path.join(out_prefix, "quantumGraphUpdate.out")
+    status = execute(cmd, out)
+    if status != 0:
+        raise RuntimeError(
+            f"Updating quantum graph failed with non-zero exit code ({status})\n"
+            f"Check {out} for more details."
+        )
 
 
 def cluster_quanta(config, qgraph, name):

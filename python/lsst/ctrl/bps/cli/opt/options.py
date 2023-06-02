@@ -23,6 +23,7 @@
 
 __all__ = [
     "extra_qgraph_option",
+    "extra_update_qgraph_option",
     "extra_init_option",
     "extra_run_quantum_option",
     "wms_service_option",
@@ -33,6 +34,9 @@ from lsst.daf.butler.cli.utils import MWOptionDecorator
 
 extra_qgraph_option = MWOptionDecorator(
     "--extra-qgraph-options", help="String to pass through to QuantumGraph builder."
+)
+extra_update_qgraph_option = MWOptionDecorator(
+    "--extra-update-qgraph-options", help="String to pass through to QuantumGraph updater."
 )
 extra_init_option = MWOptionDecorator(
     "--extra-init-options", help="String to pass through to pipetaskInit execution."
