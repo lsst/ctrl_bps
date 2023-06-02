@@ -82,6 +82,10 @@ def acquire_quantum_graph(config, out_prefix=""):
             # Use QuantumGraph file in original given location.
             qgraph_filename = input_qgraph_filename
 
+        # Update the output run in the user provided quantum graph.
+        if "finalJob" in config:
+            update_quantum_graph(config, qgraph_filename, out_prefix)
+
         # Copy Execution Butler if user provided (shouldn't provide execution
         # butler if not providing QuantumGraph)
         if when_create.upper() == "USER_PROVIDED":
