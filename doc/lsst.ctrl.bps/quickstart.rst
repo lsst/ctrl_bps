@@ -152,6 +152,9 @@ via variables.
 - ``--extra-qgraph-options``
   String to pass through to QuantumGraph builder.
   Replaces variable ``extraQgraphOptions`` in ``createQuantumGraph``.
+- ``--extra-update-qgraph-options``
+  String to pass through to QuantumGraph updater.  Replaces variable
+  ``extraUpdateQgraphOptions`` in ``updateQuantumGraph``.
 - ``--extra-init-options``
   String to pass through to pipetaskInit execution.
   Replaces variable ``extraInitOptions`` in ``pipetaskInit``'s
@@ -837,6 +840,170 @@ The major differences visible to users are:
         - final_post_mergeExecutionButler.out: An internal file for debugging
           incorrect reporting of final run status.
 
+.. _quantum-backed-butler:
+
+Quantum-backed Butler
+---------------------
+
+Similarly to the execution Butler, the quantum-backed Butler is a mechanism for
+reducing access to the central Butler registry when running LSST pipelines at
+scale. See `DMTN-177`_ for more details.
+
+.. warning::
+
+   Using quantum-backed Butler was only tested with the BPS HTCondor pluging.
+   It may work with the BPS Parsl plugin. It definitely will *not* work with
+   the BPS PanDA plugin at the moment.
+
+Command-line Changes
+^^^^^^^^^^^^^^^^^^^^
+
+At the moment there is no a single configuration option to enable/disable the
+quantum-backed Butler.  Pipetasks commands need to be modified manually in the
+BPS config file:
+
+.. code-block:: YAML
+
+   runQuantumCommand: >-
+     ${CTRL_MPEXEC_DIR}/bin/pipetask run-qbb
+     {butlerConfig}
+     {fileDistributionEndPoint}{qgraphFile}
+     --qgraph-node-id {qgraphNodeId}
+     {extraRunQuantumOptions}
+   pipetask:
+     pipetaskInit:
+       runQuantumCommand: >-
+         ${CTRL_MPEXEC_DIR}/bin/pipetask pre-exec-init-qbb
+         {butlerConfig}
+         {fileDistributionEndPoint}{qgraphFile}
+         {extraInitOptions}
+
+To be able to reuse pre-existing quantum graphs a new command,
+``updateQuantumGraph`` needs to be included as well:
+
+.. code-block:: YAML
+
+   updateQuantumGraph: >-
+     ${CTRL_MPEXEC_DIR}/bin/pipetask update-graph-run
+     {qgraphFile}
+     {outputRun}
+     {outputQgraphFile}
+
+as the ``outputRun`` value embedded in the existing quantum graph must be
+updated for each run.
+
+New YAML Section
+^^^^^^^^^^^^^^^^
+
+.. code-block:: YAML
+
+   finalJob:
+     whenSetup: "NEVER"
+     whenRun: "ALWAYS"
+     # Added for future flexibility, e.g., if prefer workflow instead of shell
+     # script.
+     implementation: JOB
+     concurrencyLimit: db_limit
+     command1: >-
+       ${DAF_BUTLER_DIR}/bin/butler transfer-from-graph
+       {fileDistributionEndPoint}{qgraphFile}
+       {butlerConfig}
+       --register-dataset-types
+       --update-output-chain
+       --transfer-dimensions
+
+**whenSetup**
+    When during the submission process set up the final job.  Provided for
+    future use, has no effect when using quantum-backed Butler yet.
+
+**whenRun**
+    Determines when the datasets will be transferred back to the central
+    Butler repository:
+
+    * ALWAYS: Transfer the datasets back  even if entire workflow was not
+      executed successfully or run was cancelled.
+    * SUCCESS: Only transfer the datasets back if entire workflow was executed
+      successfully.
+    * NEVER: BPS is not responsible for transferring the datasets back to the
+      central repository.
+
+**implementation**
+    How to implement the steps responsible for transferring datasets back to
+    the original Butler repository:
+
+    * JOB: Single bash script is written with sequence of commands and is
+      represented in the GenericWorkflow as a GenericWorkflowJob.
+    * WORKFLOW: (Not implemented yet): Instead of a bash script, make a
+      little workflow representing the sequence of commands.
+
+**concurrency_limit**
+    Name of the concurrency limit. For butler repositories that need to limit
+    the number of simultaneous merges, this name tells the plugin to limit the
+    number of ``finalJob`` jobs via some mechanism, e.g., a special
+    queue.
+
+    * db_limit: special concurrency limit to be used when limiting number of
+      simultaneous butler database connections.
+
+**command1, command2, ...**
+    Commands executed in numerical order as part of the ``finalJob`` job.
+
+
+You can include other job specific requirements in ``finalJob`` section as
+well. For example, to ensure that the job running the quantum-backed Butler will
+have 4 GB of memory at its disposal, use ``requestMemory`` option:
+
+.. code-block:: YAML
+
+   finalJob:
+     requestMemory: 4096
+     ...
+
+Automatic memory scaling (for a WMS plugin that supports it) can be enabled in
+a similar way, for example
+
+.. code-block:: YAML
+
+   finalJob:
+     requestMemory: 4096
+     requestMemoryMax: 16384
+     memoryMultiplier: 2.0
+     ...
+
+User-visible Changes
+^^^^^^^^^^^^^^^^^^^^
+
+The major differences to users are:
+
+* Quantum-backed Butler takes precedence over the execution Butler.
+  If the BPS configuration file contains *both* the ``executionButler`` and the
+  ``finalJob`` sections, the quantum-backed Butler will be used during the
+  workflow execution.
+
+* **bps report** shows a new job called **finalJob** in the detailed view.
+  This job is responsible for transferring datasets from the quantum graph back
+  to the central Butler. Similarly to other jobs, it can succeed or fail.
+
+* Extra files in the submit directory:
+
+  - ``final_job.bash``: Script that is executed to transfer the datasets back to
+    the central repo.
+  - ``quantumGraphUpdate.out``: Output of the command responsible for updating
+    the output run in the provided pre-existing quantum graph.
+  - ``final_post_finalJob.out``: An internal file for debugging incorrect
+    reporting of final run status.
+  - ``<qgraph_filename>_orig.qgraph``: A backup copy of the original
+    pre-existing quantum graph file that was used for submitting the run.  Note
+    that this file will *not* be present in the submit directory if the
+    pipeline YAML specification was used during the submission instead.
+
+.. note::
+
+   For your convenience an example BPS config file the quantum-backed Butler
+   was added to the package,
+   ``$CTRL_BPS_DIR/python/lsst/ctrl/bps/config/bps_qbb.yaml``. You can include
+   it in your existing config with ``includeConfigs`` setting.
+
 .. _clustering:
 
 Clustering
@@ -956,7 +1123,6 @@ Prerequisites
 #. A workflow management service and its dependencies if any.
 
    For currently supported WMS plugins see `lsst_bps_plugins`_.
-
 
 Installing Batch Processing Service
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
