@@ -225,7 +225,7 @@ def update_quantum_graph(config, qgraph_filename, out_prefix="", inplace=False):
             shutil.copy2(qgraph_filename, src_qgraph)
 
     # Get the command for updating the quantum graph.
-    search_opt = {"curvals": {"qgraphFile": str(src_qgraph), "outputQgraphFile": str(dest_qgraph)}}
+    search_opt = {"curvals": {"inputQgraphFile": str(src_qgraph), "qgraphFile": str(dest_qgraph)}}
     found, cmd = config.search("updateQuantumGraph", opt=search_opt)
     if not found:
         _LOG.error("command for updating quantum graph not found")
