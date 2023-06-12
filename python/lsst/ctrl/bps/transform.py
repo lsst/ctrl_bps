@@ -818,7 +818,7 @@ def add_final_job(config, generic_workflow, prefix):
     This dispatch function was introduced to preserve the existing code
     responsible for dealing with the execution Butler (EB). Once there is
     no need to support the EB any longer it can be replaced by the function
-    responsible for handling the final jab.
+    responsible for handling the final job.
     """
     # The order of the entries determines the priorities regarding what
     # method will be used when adding the final job if the configuration
@@ -836,7 +836,12 @@ def add_final_job(config, generic_workflow, prefix):
 
 
 def _add_final_job(config, generic_workflow, prefix):
-    """Add job responsible for transferring data back.
+    """Add the final job.
+
+    Depending on configuration, the final job will be added as a special job
+    which will always run regardless of the exit status of the workflow or
+    a regular sink node which will only run if the workflow execution finished
+    with no errors.
 
     Parameters
     ----------
@@ -851,11 +856,6 @@ def _add_final_job(config, generic_workflow, prefix):
     if when_run.upper() != "NEVER":
         create_final_job = _make_final_job_creator("finalJob", _create_final_command)
         gwjob = create_final_job(config, generic_workflow, prefix)
-
-        # Depending on configuration, add the final job as a special job which
-        # will always run regardless of the exit status of the workflow or
-        # a regular sink node which will only run if the workflow execution
-        # finished with no errors.
         if when_run.upper() == "ALWAYS":
             generic_workflow.add_final(gwjob)
         elif when_run.upper() == "SUCCESS":
@@ -866,6 +866,11 @@ def _add_final_job(config, generic_workflow, prefix):
 
 def _add_merge_job(config, generic_workflow, prefix):
     """Add job responsible for merging back the execution Butler.
+
+    Depending on configuration, the merge job will be added as a special job
+    which will always run regardless of the exit status of the workflow or
+    a regular sink node which will only run if the workflow execution finished
+    with no errors.
 
     Parameters
     ----------
@@ -881,13 +886,9 @@ def _add_merge_job(config, generic_workflow, prefix):
     if when_create.upper() != "NEVER" and when_merge.upper() != "NEVER":
         create_final_job = _make_final_job_creator("executionButler", _create_merge_command)
         gwjob = create_final_job(config, generic_workflow, prefix)
-
-        # Put transfer repo job in appropriate location in workflow.
         if when_merge.upper() == "ALWAYS":
-            # add as special final job
             generic_workflow.add_final(gwjob)
         elif when_merge.upper() == "SUCCESS":
-            # add as regular sink node
             add_final_job_as_sink(generic_workflow, gwjob)
         else:
             raise ValueError(f"Invalid value for executionButler.whenMerge: {when_merge}")
