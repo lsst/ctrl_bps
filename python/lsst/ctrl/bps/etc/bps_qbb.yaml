@@ -1,5 +1,5 @@
 includeConfigs:
-- ${CTRL_BPS_DIR}/python/lsst/ctrl/bps/etc/bps_defaults.yaml
+  - resource://lsst.ctrl.bps/etc/bps_defaults.yaml
 updateQgraphPreCmdOpts: "{defaultPreCmdOpts}"
 updateQuantumGraph: >-
   ${CTRL_MPEXEC_DIR}/bin/pipetask {updateQgraphPreCmdOpts} update-graph-run
