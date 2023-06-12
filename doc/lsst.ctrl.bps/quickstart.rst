@@ -849,11 +849,15 @@ Similarly to the execution Butler, the quantum-backed Butler is a mechanism for
 reducing access to the central Butler registry when running LSST pipelines at
 scale. See `DMTN-177`_ for more details.
 
+Until the quantum-backed Butler becomes the default, to use it, include
+``resource://lsst.ctrl.bps/etc/bps_qbb.yaml`` it in your existing config
+with ``includeConfigs`` setting after other includes.
+
 .. warning::
 
-   Using quantum-backed Butler was only tested with the BPS HTCondor pluging.
+   Using quantum-backed Butler was only tested with the BPS HTCondor plugin.
    It may work with the BPS Parsl plugin. It definitely will *not* work with
-   the BPS PanDA plugin at the moment.
+   the BPS PanDA plugin until DM-39553 is done.
 
 Command-line Changes
 ^^^^^^^^^^^^^^^^^^^^
@@ -917,19 +921,17 @@ New YAML Section
     future use, has no effect when using quantum-backed Butler yet.
 
 **whenRun**
-    Determines when the datasets will be transferred back to the central
-    Butler repository:
+    Determines when the final job will be executed:
 
-    * ALWAYS: Transfer the datasets back  even if entire workflow was not
-      executed successfully or run was cancelled.
-    * SUCCESS: Only transfer the datasets back if entire workflow was executed
+    * ALWAYS: Execute the final job even if entire workflow was not executed
+      successfully or run was cancelled.
+    * SUCCESS: Only execute the final job if entire workflow was executed
       successfully.
-    * NEVER: BPS is not responsible for transferring the datasets back to the
-      central repository.
+    * NEVER: BPS is not responsible for performing any additional actions after
+      the execution of the workflow is finished.
 
 **implementation**
-    How to implement the steps responsible for transferring datasets back to
-    the original Butler repository:
+    How to implement the steps to be executed as the final job:
 
     * JOB: Single bash script is written with sequence of commands and is
       represented in the GenericWorkflow as a GenericWorkflowJob.
@@ -948,10 +950,9 @@ New YAML Section
 **command1, command2, ...**
     Commands executed in numerical order as part of the ``finalJob`` job.
 
-
 You can include other job specific requirements in ``finalJob`` section as
-well. For example, to ensure that the job running the quantum-backed Butler will
-have 4 GB of memory at its disposal, use ``requestMemory`` option:
+well. For example, to ensure that the job running the quantum-backed Butler
+will have 4 GB of memory at its disposal, use ``requestMemory`` option:
 
 .. code-block:: YAML
 
@@ -986,8 +987,8 @@ The major differences to users are:
 
 * Extra files in the submit directory:
 
-  - ``final_job.bash``: Script that is executed to transfer the datasets back to
-    the central repo.
+  - ``final_job.bash``: Script that is executed to transfer the datasets back
+    to the central repo.
   - ``quantumGraphUpdate.out``: Output of the command responsible for updating
     the output run in the provided pre-existing quantum graph.
   - ``final_post_finalJob.out``: An internal file for debugging incorrect
@@ -996,13 +997,6 @@ The major differences to users are:
     pre-existing quantum graph file that was used for submitting the run.  Note
     that this file will *not* be present in the submit directory if the
     pipeline YAML specification was used during the submission instead.
-
-.. note::
-
-   For your convenience an example BPS config file the quantum-backed Butler
-   was added to the package,
-   ``$CTRL_BPS_DIR/python/lsst/ctrl/bps/config/bps_qbb.yaml``. You can include
-   it in your existing config with ``includeConfigs`` setting.
 
 .. _clustering:
 
