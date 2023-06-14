@@ -1,6 +1,17 @@
 includeConfigs:
   - resource://lsst.ctrl.bps/etc/bps_defaults.yaml
 updateQgraphPreCmdOpts: "{defaultPreCmdOpts}"
+createQuantumGraph: >-
+  ${CTRL_MPEXEC_DIR}/bin/pipetask {qgraphPreCmdOpts} qgraph
+  --butler-config {butlerConfig}
+  {pipetaskInput}
+  {pipetaskOutput}
+  --output-run {outputRun}
+  --pipeline {pipelineYaml}
+  --save-qgraph {qgraphFile}
+  --qgraph-datastore-records
+  {pipetaskDataQuery}
+  {extraQgraphOptions}
 updateQuantumGraph: >-
   ${CTRL_MPEXEC_DIR}/bin/pipetask {updateQgraphPreCmdOpts} update-graph-run
   {inputQgraphFile}
