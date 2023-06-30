@@ -19,7 +19,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-"""
+"""Classes and functions used in reporting run status.
 """
 
 __all__ = ["BaseRunReport", "DetailedRunReport", "SummaryRunReport"]
@@ -54,7 +54,7 @@ class BaseRunReport(abc.ABC):
         return False
 
     def __len__(self):
-        """Number of runs in the report."""
+        """Return the number of runs in the report."""
         return len(self._table)
 
     def __str__(self):

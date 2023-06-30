@@ -115,7 +115,7 @@ class QuantaCluster:
 
     @property
     def qgraph_node_ids(self):
-        """QuantumGraph NodeIds corresponding to this cluster."""
+        """Quantum graph NodeIds corresponding to this cluster."""
         _LOG.debug("_qgraph_node_ids = %s", self._qgraph_node_ids)
         return frozenset(self._qgraph_node_ids)
 

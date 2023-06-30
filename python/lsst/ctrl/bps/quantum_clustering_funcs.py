@@ -112,12 +112,11 @@ def _check_clusters_tasks(cluster_config, task_graph):
         Mapping of cluster label to ordered list of task labels.
 
     Raises
-    -------
+    ------
     RuntimeError
         Raised if task label appears in more than one cluster def or
         if there's a cycle in the cluster defs.
     """
-
     # Build a PipelineTask graph of just labels because TaskGraph
     # methods revolve around TaskDefs instead of labels.
     label_graph = DiGraph()
