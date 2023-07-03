@@ -40,20 +40,28 @@ METADATA = {"D1": [1, 2, 3]}
 
 
 class Dummy1Connections(PipelineTaskConnections, dimensions=("D1", "D2")):
+    """Connections class used for tests."""
+
     initOutput = cT.InitOutput(name="Dummy1InitOutput", storageClass="ExposureF", doc="n/a")
     input = cT.Input(name="Dummy1Input", storageClass="ExposureF", doc="n/a", dimensions=("D1", "D2"))
     output = cT.Output(name="Dummy1Output", storageClass="ExposureF", doc="n/a", dimensions=("D1", "D2"))
 
 
 class Dummy1Config(PipelineTaskConfig, pipelineConnections=Dummy1Connections):
+    """Config class used for testing."""
+
     conf1 = Field(dtype=int, default=1, doc="dummy config")
 
 
 class Dummy1PipelineTask(PipelineTask):
+    """PipelineTask used for testing."""
+
     ConfigClass = Dummy1Config
 
 
 class Dummy2Connections(PipelineTaskConnections, dimensions=("D1", "D2")):
+    """Second connections class used for testing."""
+
     initInput = cT.InitInput(name="Dummy1InitOutput", storageClass="ExposureF", doc="n/a")
     initOutput = cT.InitOutput(name="Dummy2InitOutput", storageClass="ExposureF", doc="n/a")
     input = cT.Input(name="Dummy1Output", storageClass="ExposureF", doc="n/a", dimensions=("D1", "D2"))
@@ -61,14 +69,20 @@ class Dummy2Connections(PipelineTaskConnections, dimensions=("D1", "D2")):
 
 
 class Dummy2Config(PipelineTaskConfig, pipelineConnections=Dummy2Connections):
+    """Config class used for second pipeline task."""
+
     conf1 = Field(dtype=int, default=1, doc="dummy config")
 
 
 class Dummy2PipelineTask(PipelineTask):
+    """Second test PipelineTask."""
+
     ConfigClass = Dummy2Config
 
 
 class Dummy3Connections(PipelineTaskConnections, dimensions=("D1", "D2")):
+    """Third connections class used for testing."""
+
     initInput = cT.InitInput(name="Dummy2InitOutput", storageClass="ExposureF", doc="n/a")
     initOutput = cT.InitOutput(name="Dummy3InitOutput", storageClass="ExposureF", doc="n/a")
     input = cT.Input(name="Dummy2Output", storageClass="ExposureF", doc="n/a", dimensions=("D1", "D2"))
@@ -76,25 +90,35 @@ class Dummy3Connections(PipelineTaskConnections, dimensions=("D1", "D2")):
 
 
 class Dummy3Config(PipelineTaskConfig, pipelineConnections=Dummy3Connections):
+    """Third config used for testing."""
+
     conf1 = Field(dtype=int, default=1, doc="dummy config")
 
 
 class Dummy3PipelineTask(PipelineTask):
+    """Third test PipelineTask."""
+
     ConfigClass = Dummy3Config
 
 
 # Test if a Task that does not interact with the other Tasks works fine in
 # the graph.
 class Dummy4Connections(PipelineTaskConnections, dimensions=("D1", "D2")):
+    """Fourth connections class used for testing."""
+
     input = cT.Input(name="Dummy4Input", storageClass="ExposureF", doc="n/a", dimensions=("D1", "D2"))
     output = cT.Output(name="Dummy4Output", storageClass="ExposureF", doc="n/a", dimensions=("D1", "D2"))
 
 
 class Dummy4Config(PipelineTaskConfig, pipelineConnections=Dummy4Connections):
+    """Fourth config used for testing."""
+
     conf1 = Field(dtype=int, default=1, doc="dummy config")
 
 
 class Dummy4PipelineTask(PipelineTask):
+    """Fourth test PipelineTask."""
+
     ConfigClass = Dummy4Config
 
 

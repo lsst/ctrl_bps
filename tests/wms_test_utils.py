@@ -26,24 +26,32 @@ _LOG = logging.getLogger(__name__)
 
 
 class WmsServiceSuccess(BaseWmsService):
+    """WMS service class with working ping."""
+
     def ping(self, pass_thru):
         _LOG.info(f"Success {pass_thru}")
         return 0, ""
 
 
 class WmsServiceFailure(BaseWmsService):
+    """WMS service class with non-functional ping."""
+
     def ping(self, pass_thru):
         _LOG.warning("service failure")
         return 64, "Couldn't contact service X"
 
 
 class WmsServicePassThru(BaseWmsService):
+    """WMS service class with pass through ping."""
+
     def ping(self, pass_thru):
         _LOG.info(pass_thru)
         return 0, pass_thru
 
 
 class WmsServiceDefault(BaseWmsService):
+    """WMS service class with default ping."""
+
     def ping(self, pass_thru):
         _LOG.info(f"DEFAULT {pass_thru}")
         return 0, "default"

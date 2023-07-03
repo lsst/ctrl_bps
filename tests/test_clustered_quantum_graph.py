@@ -39,6 +39,8 @@ TESTDIR = os.path.abspath(os.path.dirname(__file__))
 
 
 class TestQuantaCluster(unittest.TestCase):
+    """Tests for clustering."""
+
     def setUp(self):
         self.qgraph = make_test_quantum_graph()
         nodes = list(self.qgraph.getNodesForTask(self.qgraph.findTaskDefByLabel("T1")))
