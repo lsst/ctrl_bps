@@ -144,10 +144,8 @@ class TestGetJobValues(unittest.TestCase):
         job_values = _get_job_values(config, {}, None)
         self.assertTrue(
             all(
-                [
-                    getattr(self.default_job, field.name) == job_values[field.name]
-                    for field in dataclasses.fields(self.default_job)
-                ]
+                getattr(self.default_job, field.name) == job_values[field.name]
+                for field in dataclasses.fields(self.default_job)
             )
         )
 
