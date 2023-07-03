@@ -31,7 +31,7 @@ TESTDIR = os.path.abspath(os.path.dirname(__file__))
 class TestBpsConfigConstructor(unittest.TestCase):
     def setUp(self):
         self.filename = os.path.join(TESTDIR, "data/config.yaml")
-        with open(self.filename, "r") as f:
+        with open(self.filename) as f:
             self.dictionary = yaml.safe_load(f)
 
     def tearDown(self):
