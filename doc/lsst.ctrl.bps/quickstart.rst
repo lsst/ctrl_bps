@@ -29,21 +29,21 @@ a default value, ``lsst.ctrl.bps.htcondor.HTCondorService``, will be used.
 Checking status of WMS services
 -------------------------------
 
-Run `bps ping` to check the status of the WMS services.  This subcommand
+Run ``bps ping`` to check the status of the WMS services.  This subcommand
 requires specifying the WMS plugin (see :ref:`bps-wmsclass`).  If the plugin
 provides such functionality, it will check whether the WMS services
 necessary for workflow management (submission, reporting, canceling,
 etc) are usable.  If the WMS services require authentication, that will
 also be tested.
 
-If services are ready for use, then `bps ping` will log an INFO success
+If services are ready for use, then ``bps ping`` will log an INFO success
 message and exit with 0.  If not, it will log ERROR messages and exit
 with a non-0 exit code.  If the WMS plugin did not implement the ping
 functionality, a NotImplementedError will be thrown.
 
 .. note::
 
-   `bps ping` does *not* test whether compute resources are available or
+   ``bps ping`` does *not* test whether compute resources are available or
    that jobs will run.
 
 .. _bps-computesite:
@@ -673,7 +673,7 @@ BPS can be configured to either create per-job QuantumGraph files or use the
 single full QuantumGraph file plus node numbers for each job. The default is
 using per-job QuantumGraph files.
 
-To use full QuantumGraph file, the submit YAML must set `whenSaveJobQgraph` to
+To use full QuantumGraph file, the submit YAML must set ``whenSaveJobQgraph`` to
 "NEVER" and the ``pipetask run`` command must include ``--qgraph-id {qgraphId}
 --qgraph-node-id {qgraphNodeId}``.  For example:
 
@@ -824,7 +824,7 @@ User-visible Changes
 
 The major differences visible to users are:
 
-    - `bps report` shows new job called mergeExecutionButler in detailed view.
+    - ``bps report`` shows new job called mergeExecutionButler in detailed view.
       This is what saves the run info into the central butler repository.
       As with any job, it can succeed or fail.  Different from other jobs, it
       will execute at the end of a run regardless of whether a job failed or
@@ -1006,8 +1006,8 @@ Clustering
 The description of all the Quanta to be executed by a submission exists in the
 full QuantumGraph for the run.  bps breaks that work up into compute jobs
 where each compute job is assigned a subgraph of the full QuantumGraph.  This
-subgraph of Quanta is called a `cluster`.  bps can be configured to use
-different clustering algorithms by setting `clusterAlgorithm`.  The default
+subgraph of Quanta is called a "cluster".  bps can be configured to use
+different clustering algorithms by setting ``clusterAlgorithm``.  The default
 is single Quantum per Job.
 
 Single Quantum per Job
@@ -1016,7 +1016,7 @@ Single Quantum per Job
 This is the default clustering algorithm.  Each job gets a cluster containing
 a single Quantum.
 
-Compute job names are based upon the Quantum dataId + `templateDataId`. The
+Compute job names are based upon the Quantum dataId + ``templateDataId``. The
 PipelineTask label is used for grouping jobs in bps report output.
 
 Config Entries (not currently needed as it is the default):
@@ -1044,7 +1044,7 @@ The minimum configuration information is a label, a list of PipelineTask
 labels, and a list of dimensions.  Sometimes a submission may want to treat
 two dimensions as the same thing (e.g., visit and exposure) in terms of
 putting Quanta in the same cluster.  That is handled in the config via
-`equalDimensions` (a comma-separated list of dimA:dimB pairs).
+``equalDimensions`` (a comma-separated list of dimA:dimB pairs).
 
 Job dependencies are created based upon the Quanta dependencies.  This means
 that the naming and order of the clusters in the submission YAML does not

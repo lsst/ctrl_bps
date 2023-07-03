@@ -68,7 +68,7 @@ class BpsConfig(Config):
 
     Parameters
     ----------
-    other : `str`, `dict`, `Config`, `BpsConfig`
+    other : `str`, `dict`, `~lsst.daf.butler.Config`, `BpsConfig`
         Path to a yaml file or a dict/Config/BpsConfig containing configuration
         to copy.
     search_order : `list` [`str`], optional
