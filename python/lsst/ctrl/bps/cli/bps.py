@@ -18,6 +18,8 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""Definition of Batch Production Service command-line interface.
+"""
 import click
 from lsst.daf.butler.cli.butler import LoaderCLI
 from lsst.daf.butler.cli.opt import (
@@ -43,6 +45,8 @@ from any of these intermediate points.
 
 
 class BpsCli(LoaderCLI):
+    """Specialized command loader implementing the ``bps`` command."""
+
     localCmdPkg = "lsst.ctrl.bps.cli.cmd"
 
 
@@ -53,8 +57,10 @@ class BpsCli(LoaderCLI):
 @log_tty_option()
 @log_label_option()
 def cli(log_level, long_log, log_file, log_tty, log_label):
+    """Command line interface for BPS."""
     pass
 
 
 def main():
+    """Return main entry point for command-line."""
     return cli()

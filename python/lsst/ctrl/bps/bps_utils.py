@@ -61,7 +61,9 @@ class WhenToSaveQuantumGraphs(Enum):
 
 @contextlib.contextmanager
 def chdir(path):
-    """A chdir function that can be used inside a context.
+    """Change working directory.
+
+    A chdir function that can be used inside a context.
 
     Parameters
     ----------
@@ -77,8 +79,7 @@ def chdir(path):
 
 
 def create_job_quantum_graph_filename(config, job, out_prefix=None):
-    """Create a filename to be used when storing the QuantumGraph
-    for a job.
+    """Create a filename to be used when storing the QuantumGraph for a job.
 
     Parameters
     ----------

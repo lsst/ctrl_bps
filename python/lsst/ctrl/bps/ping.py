@@ -32,7 +32,7 @@ _LOG = logging.getLogger(__name__)
 
 
 def ping(wms_service, pass_thru=None):
-    """Checks whether WMS services are up, reachable, and any authentication,
+    """Check whether WMS services are up, reachable, and any authentication,
     if needed, succeeds.
 
     The services to be checked are those needed for submit, report, cancel,

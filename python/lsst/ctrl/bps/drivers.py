@@ -502,7 +502,7 @@ def cancel_driver(wms_service, run_id, user, require_bps, pass_thru, is_global=F
 
 
 def ping_driver(wms_service=None, pass_thru=None):
-    """Checks whether WMS services are up, reachable, and any authentication,
+    """Check whether WMS services are up, reachable, and any authentication,
     if needed, succeeds.
 
     The services to be checked are those needed for submit, report, cancel,

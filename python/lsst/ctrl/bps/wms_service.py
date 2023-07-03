@@ -299,7 +299,7 @@ class BaseWmsService:
         raise NotImplementedError
 
     def run_submission_checks(self):
-        """Checks to run at start if running WMS specific submission steps.
+        """Check to run at start if running WMS specific submission steps.
 
         Any exception other than NotImplementedError will halt submission.
         Submit directory may not yet exist when this is called.
@@ -307,7 +307,7 @@ class BaseWmsService:
         raise NotImplementedError
 
     def ping(self, pass_thru):
-        """Checks whether WMS services are up, reachable, and can authenticate
+        """Check whether WMS services are up, reachable, and can authenticate
         if authentication is required.
 
         The services to be checked are those needed for submit, report, cancel,
@@ -368,7 +368,6 @@ class BaseWmsWorkflow(metaclass=ABCMeta):
         wms_workflow : `lsst.ctrl.bps.BaseWmsWorkflow`
             A WMS specific workflow.
         """
-
         raise NotImplementedError
 
     def write(self, out_prefix):

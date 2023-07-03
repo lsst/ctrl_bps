@@ -38,10 +38,8 @@ def draw_networkx_dot(graph, outname):
     outname : `str`
         Output filename for drawn graph
     """
-
     # Note:  Leaving function here for now.  Want to move
     #        more of the drawing attributes, etc here in
     #        the future.  If pygraphviz makes it into the
     #        stack can also use better layout functions.
-
     networkx.drawing.nx_pydot.write_dot(graph, outname)
