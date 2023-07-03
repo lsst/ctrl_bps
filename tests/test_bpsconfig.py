@@ -133,7 +133,8 @@ class TestBpsConfigSearch(unittest.TestCase):
 
     def testVariables(self):
         """Test combinations of expandEnvVars, replaceEnvVars,
-        and replaceVars."""
+        and replaceVars.
+        """
         test_opt = {"expandEnvVars": False, "replaceEnvVars": False, "replaceVars": False}
         found, value = self.config.search("grault", opt=test_opt)
         self.assertEqual(found, True)

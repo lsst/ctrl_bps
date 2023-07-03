@@ -47,7 +47,6 @@ class TestSingleQuantumClustering(unittest.TestCase):
 
     def testClustering(self):
         """Test valid single quantum clustering."""
-
         # Note: the cluster config should be ignored.
         config = BpsConfig(
             {
@@ -63,7 +62,8 @@ class TestSingleQuantumClustering(unittest.TestCase):
 
     def testClusteringNoTemplate(self):
         """Test valid single quantum clustering wihtout a template for the
-        cluster names."""
+        cluster names.
+        """
         # Note: the cluster config should be ignored.
         config = BpsConfig({"cluster": {"cl1": {"pipetasks": "T1, T2, T3, T4", "dimensions": "D1, D2"}}})
 
@@ -373,7 +373,8 @@ class TestDimensionClustering(unittest.TestCase):
 
     def testClusterExtra(self):
         """Clustering includes labels of pipetasks that aren't in QGraph.
-        They should just be ignored."""
+        They should just be ignored.
+        """
         name = "extra"
         config = BpsConfig(
             {
@@ -436,7 +437,8 @@ class TestDimensionClustering(unittest.TestCase):
     def testClusterOrder(self):
         """Ensure clusters method is in topological order as some
         uses require to always have processed parent before
-        children."""
+        children.
+        """
         config = BpsConfig(
             {
                 "templateDataId": "{D1}_{D2}_{D3}_{D4}",
