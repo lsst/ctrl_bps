@@ -223,7 +223,7 @@ class TestGenericWorkflow(unittest.TestCase):
                     ("job2", "job3"),
                 ]
             ),
-            sorted(list(gwf.edges())),
+            sorted(gwf.edges()),
         )
 
     def testGetJobsByLabel(self):
