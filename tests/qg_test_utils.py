@@ -177,7 +177,7 @@ def make_test_quantum_graph(run: str = "run"):
             if task_def.connections.initInputs:
                 init_init_ds_type = DatasetType(
                     task_def.connections.initInput.name,
-                    tuple(),
+                    (),
                     storageClass=task_def.connections.initInput.storageClass,
                     universe=universe,
                 )
