@@ -39,9 +39,11 @@ TESTDIR = os.path.abspath(os.path.dirname(__file__))
 
 
 class TestQuantaCluster(unittest.TestCase):
+    """Tests for clustering."""
+
     def setUp(self):
         self.qgraph = make_test_quantum_graph()
-        nodes = [n for n in self.qgraph.getNodesForTask(self.qgraph.findTaskDefByLabel("T1"))]
+        nodes = list(self.qgraph.getNodesForTask(self.qgraph.findTaskDefByLabel("T1")))
         self.qnode1 = nodes[0]
         self.qnode2 = nodes[1]
 
@@ -134,21 +136,21 @@ class TestClusteredQuantumGraph(unittest.TestCase):
 
     def testSuccessorsExisting(self):
         """Test successors method returns existing successors."""
-        self.assertEqual([x for x in self.cqg1.successors("T1_1_2")], ["T23_1_2"])
+        self.assertEqual(list(self.cqg1.successors("T1_1_2")), ["T23_1_2"])
 
     def testSuccessorsNone(self):
         """Test successors method handles no successors."""
         # check iterable and empty
-        self.assertEqual(len([x for x in self.cqg1.successors("T4_1_2")]), 0)
+        self.assertEqual(len(list(self.cqg1.successors("T4_1_2"))), 0)
 
     def testPredecessorsExisting(self):
         """Test predecessors method returns existing predecessors."""
-        self.assertEqual([x for x in self.cqg1.predecessors("T23_1_2")], ["T1_1_2"])
+        self.assertEqual(list(self.cqg1.predecessors("T23_1_2")), ["T1_1_2"])
 
     def testPredecessorsNone(self):
         """Test predecessors method handles no predecessors."""
         # check iterable and empty
-        self.assertEqual(len([x for x in self.cqg1.predecessors("T1_1_2")]), 0)
+        self.assertEqual(len(list(self.cqg1.predecessors("T1_1_2"))), 0)
 
     # def testAddDependency(self):
 

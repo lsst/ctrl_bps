@@ -30,7 +30,6 @@ import itertools
 import logging
 import pickle
 from collections import Counter, defaultdict
-from typing import Optional
 
 from lsst.utils.iteration import ensure_iterable
 from networkx import DiGraph, topological_sort
@@ -134,139 +133,139 @@ class GenericWorkflowJob:
     """Name of job.  Must be unique within workflow.
     """
 
-    label: Optional[str]
+    label: str | None
     """Primary user-facing label for job.  Does not need to be unique
     and may be used for summary reports.
     """
 
-    quanta_counts: Optional[Counter]
+    quanta_counts: Counter | None
     """Counts of quanta per task label in job.
     """
 
-    tags: Optional[dict]
+    tags: dict | None
     """Other key/value pairs for job that user may want to use as a filter.
     """
 
-    executable: Optional[GenericWorkflowExec]
+    executable: GenericWorkflowExec | None
     """Executable for job.
     """
 
-    arguments: Optional[str]
+    arguments: str | None
     """Command line arguments for job.
     """
 
-    cmdvals: Optional[dict]
+    cmdvals: dict | None
     """Values for variables in cmdline when using lazy command line creation.
     """
 
-    memory_multiplier: Optional[float]
+    memory_multiplier: float | None
     """Memory growth rate between retries.
     """
 
-    request_memory: Optional[int]  # MB
+    request_memory: int | None  # MB
     """Max memory (in MB) that the job is expected to need.
     """
 
-    request_memory_max: Optional[int]  # MB
+    request_memory_max: int | None  # MB
     """Max memory (in MB) that the job should ever use.
     """
 
-    request_cpus: Optional[int]  # cores
+    request_cpus: int | None  # cores
     """Max number of cpus that the job is expected to need.
     """
 
-    request_disk: Optional[int]  # MB
+    request_disk: int | None  # MB
     """Max amount of job scratch disk (in MB) that the job is expected to need.
     """
 
-    request_walltime: Optional[str]  # minutes
+    request_walltime: str | None  # minutes
     """Max amount of time (in seconds) that the job is expected to need.
     """
 
-    compute_site: Optional[str]
+    compute_site: str | None
     """Key to look up site-specific information for running the job.
     """
 
-    accounting_group: Optional[str]
+    accounting_group: str | None
     """Name of the accounting group to use.
     """
 
-    accounting_user: Optional[str]
+    accounting_user: str | None
     """Name of the user to use for accounting purposes.
     """
 
-    mail_to: Optional[str]
+    mail_to: str | None
     """Comma separated list of email addresses for emailing job status.
     """
 
-    when_to_mail: Optional[str]
+    when_to_mail: str | None
     """WMS-specific terminology for when to email job status.
     """
 
-    number_of_retries: Optional[int]
+    number_of_retries: int | None
     """Number of times to automatically retry a failed job.
     """
 
-    retry_unless_exit: Optional[int]
+    retry_unless_exit: int | None
     """Exit code for job that means to not automatically retry.
     """
 
-    abort_on_value: Optional[int]
+    abort_on_value: int | None
     """Job exit value for signals to abort the entire workflow.
     """
 
-    abort_return_value: Optional[int]
+    abort_return_value: int | None
     """Exit value to use when aborting the entire workflow.
     """
 
-    priority: Optional[str]
+    priority: str | None
     """Initial priority of job in WMS-format.
     """
 
-    category: Optional[str]
+    category: str | None
     """WMS-facing label of job within single workflow (e.g., can be used for
     throttling jobs within a single workflow).
     """
 
-    concurrency_limit: Optional[str]
+    concurrency_limit: str | None
     """Names of concurrency limits that the WMS plugin can appropriately
     translate to limit the number of this job across all running workflows.
     """
 
-    queue: Optional[str]
+    queue: str | None
     """Name of queue to use. Different WMS can translate this concept
     differently.
     """
 
-    pre_cmdline: Optional[str]
+    pre_cmdline: str | None
     """Command line to be executed prior to executing job.
     """
 
-    post_cmdline: Optional[str]
+    post_cmdline: str | None
     """Command line to be executed after job executes.
 
     Should be executed regardless of exit status.
     """
 
-    preemptible: Optional[bool]
+    preemptible: bool | None
     """The flag indicating whether the job can be preempted.
     """
 
-    profile: Optional[dict]
+    profile: dict | None
     """Nested dictionary of WMS-specific key/value pairs with primary key being
     WMS key (e.g., pegasus, condor, panda).
     """
 
-    attrs: Optional[dict]
+    attrs: dict | None
     """Key/value pairs of job attributes (for WMS that have attributes in
     addition to commands).
     """
 
-    environment: Optional[dict]
+    environment: dict | None
     """Environment variable names and values to be explicitly set inside job.
     """
 
-    compute_cloud: Optional[str]
+    compute_cloud: str | None
     """Key to look up cloud-specific information for running the job.
     """
 

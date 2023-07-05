@@ -29,6 +29,8 @@ TESTDIR = os.path.abspath(os.path.dirname(__file__))
 
 
 class TestChdir(unittest.TestCase):
+    """Test directory changing."""
+
     def setUp(self):
         self.cwd = os.getcwd()
         self.tmpdir = tempfile.mkdtemp(dir=TESTDIR)

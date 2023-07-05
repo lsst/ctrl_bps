@@ -175,7 +175,7 @@ class BaseWmsService:
 
         Returns
         -------
-        wms_workflow : `BaseWmsWorkflow`
+        wms_workflow : `lsst.ctrl.bps.BaseWmsWorkflow`
             Prepared WMS Workflow to submit for execution
         """
         raise NotImplementedError

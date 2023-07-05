@@ -32,6 +32,8 @@ TESTDIR = os.path.abspath(os.path.dirname(__file__))
 
 
 class TestInitSubmissionDriver(unittest.TestCase):
+    """Test submission."""
+
     def setUp(self):
         self.cwd = os.getcwd()
         self.tmpdir = tempfile.mkdtemp(dir=TESTDIR)
@@ -53,6 +55,8 @@ class TestInitSubmissionDriver(unittest.TestCase):
 
 
 class TestPingDriver(unittest.TestCase):
+    """Test ping."""
+
     def testWmsServiceSuccess(self):
         retval = ping_driver("wms_test_utils.WmsServiceSuccess")
         self.assertEqual(retval, 0)

@@ -28,6 +28,8 @@ import networkx.algorithms.isomorphism as iso
 
 
 class TestGenericWorkflowJob(unittest.TestCase):
+    """Test of generic workflow jobs."""
+
     def testEquality(self):
         job1 = gw.GenericWorkflowJob("job1")
         job2 = gw.GenericWorkflowJob("job1")
@@ -35,6 +37,8 @@ class TestGenericWorkflowJob(unittest.TestCase):
 
 
 class TestGenericWorkflow(unittest.TestCase):
+    """Test generic workflow."""
+
     def setUp(self):
         self.exec1 = gw.GenericWorkflowExec(
             name="test1.py", src_uri="${CTRL_BPS_DIR}/bin/test1.py", transfer_executable=False
@@ -223,7 +227,7 @@ class TestGenericWorkflow(unittest.TestCase):
                     ("job2", "job3"),
                 ]
             ),
-            sorted(list(gwf.edges())),
+            sorted(gwf.edges()),
         )
 
     def testGetJobsByLabel(self):

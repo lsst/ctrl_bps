@@ -26,6 +26,8 @@ from lsst.ctrl.bps.ping import ping
 
 
 class TestPing(unittest.TestCase):
+    """Tests for ping."""
+
     def setUp(self):
         self.logger = logging.getLogger("test_ping")
         self.logger.setLevel(logging.INFO)

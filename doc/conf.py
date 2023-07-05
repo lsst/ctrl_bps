@@ -11,3 +11,10 @@ html_title = project
 html_short_title = project
 doxylink = {}
 exclude_patterns = ["changes/*"]
+
+# Try to pull in links for butler and pipe_base.
+intersphinx_mapping["lsst"] = ("https://pipelines.lsst.io/v/daily/", None)  # noqa
+
+nitpick_ignore = [
+    ("py:class", "networkx.classes.digraph.DiGraph"),
+]

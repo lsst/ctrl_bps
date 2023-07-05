@@ -30,6 +30,8 @@ TESTDIR = os.path.abspath(os.path.dirname(__file__))
 
 
 class TestExecute(unittest.TestCase):
+    """Test execution."""
+
     def setUp(self):
         self.file = tempfile.NamedTemporaryFile("w+")
 
@@ -50,6 +52,8 @@ class TestExecute(unittest.TestCase):
 
 
 class TestCreatingQuantumGraph(unittest.TestCase):
+    """Test quantum graph creation."""
+
     def setUp(self):
         self.tmpdir = tempfile.mkdtemp(dir=TESTDIR)
 

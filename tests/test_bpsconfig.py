@@ -29,9 +29,11 @@ TESTDIR = os.path.abspath(os.path.dirname(__file__))
 
 
 class TestBpsConfigConstructor(unittest.TestCase):
+    """Test BpsConfig construction."""
+
     def setUp(self):
         self.filename = os.path.join(TESTDIR, "data/config.yaml")
-        with open(self.filename, "r") as f:
+        with open(self.filename) as f:
             self.dictionary = yaml.safe_load(f)
 
     def tearDown(self):
@@ -67,6 +69,8 @@ class TestBpsConfigConstructor(unittest.TestCase):
 
 
 class TestBpsConfigGet(unittest.TestCase):
+    """Test retrieval of items from BpsConfig."""
+
     def setUp(self):
         self.config = BpsConfig({"foo": "bar"})
 
@@ -91,6 +95,8 @@ class TestBpsConfigGet(unittest.TestCase):
 
 
 class TestBpsConfigSearch(unittest.TestCase):
+    """Test searching of BpsConfig."""
+
     def setUp(self):
         filename = os.path.join(TESTDIR, "data/config.yaml")
         self.config = BpsConfig(filename, search_order=["baz", "bar", "foo"])
@@ -133,7 +139,8 @@ class TestBpsConfigSearch(unittest.TestCase):
 
     def testVariables(self):
         """Test combinations of expandEnvVars, replaceEnvVars,
-        and replaceVars."""
+        and replaceVars.
+        """
         test_opt = {"expandEnvVars": False, "replaceEnvVars": False, "replaceVars": False}
         found, value = self.config.search("grault", opt=test_opt)
         self.assertEqual(found, True)

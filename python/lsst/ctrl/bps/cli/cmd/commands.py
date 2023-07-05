@@ -122,7 +122,7 @@ def report(*args, **kwargs):
     show_default=True,
     help="Only cancel jobs submitted via bps.",
 )
-@click.option("--pass-thru", "pass_thru", default=str(), help="Pass the given string to the WMS service.")
+@click.option("--pass-thru", "pass_thru", default="", help="Pass the given string to the WMS service.")
 @click.option(
     "--global/--no-global",
     "is_global",
@@ -136,7 +136,7 @@ def cancel(*args, **kwargs):
 
 @click.command(cls=BpsCommand)
 @opt.wms_service_option()
-@click.option("--pass-thru", "pass_thru", default=str(), help="Pass the given string to the WMS service.")
+@click.option("--pass-thru", "pass_thru", default="", help="Pass the given string to the WMS service.")
 def ping(*args, **kwargs):
     """Ping workflow services."""
     # Note: Using return statement doesn't actually return the value
