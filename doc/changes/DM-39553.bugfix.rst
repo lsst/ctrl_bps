@@ -1,1 +1,2 @@
 * Remove reloading of bps default values from bps_qbb.yaml.
+* Generalize finalJob's command line for no shared filesystem.

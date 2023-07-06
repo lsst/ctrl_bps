@@ -1025,8 +1025,7 @@ def _create_final_command(config, prefix):
     executable = GenericWorkflowExec(os.path.basename(script_file), script_file, True)
 
     _, orig_butler = config.search("butlerConfig")
-    _, qgraph_file = config.search("runQgraphFile")
-    return executable, f"{qgraph_file} {orig_butler}"
+    return executable, f"<FILE:runQgraphFile> {orig_butler}"
 
 
 def _create_merge_command(config, prefix):
