@@ -30,18 +30,15 @@ import copy
 import logging
 import re
 import string
-from importlib import resources
 from os.path import expandvars
 
-from lsst.daf.butler.core.config import Config
-
-from . import etc
+from lsst.daf.butler import Config
+from lsst.resources import ResourcePath
 
 _LOG = logging.getLogger(__name__)
 
 # Using lsst.daf.butler.Config to resolve possible includes.
-with resources.path(etc, "bps_defaults.yaml") as path:
-    BPS_DEFAULTS = Config(str(path)).toDict()
+BPS_DEFAULTS = Config(ResourcePath("resource://lsst.ctrl.bps/etc/bps_defaults.yaml")).toDict()
 
 BPS_SEARCH_ORDER = ["bps_cmdline", "payload", "cluster", "pipetask", "site", "cloud", "bps_defined"]
 
