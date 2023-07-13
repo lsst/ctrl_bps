@@ -812,7 +812,6 @@ class GenericWorkflow(DiGraph):
             self.add_job_inputs(job_name, workflow.get_job_inputs(job_name, data=True))
             self.add_job_outputs(job_name, workflow.get_job_outputs(job_name, data=True))
             # Executables are stored separately so copy them.
-            self.add_job_inputs(job_name, workflow.get_job_inputs(job_name, data=True))
             self.add_executable(workflow.get_job(job_name).executable)
 
     def add_final(self, final):

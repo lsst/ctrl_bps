@@ -824,11 +824,11 @@ def add_final_job(config, generic_workflow, prefix):
     # method will be used when adding the final job if the configuration
     # provides conflicting specifications.
     dispatcher = {
-        "finalJob": _add_final_job,
-        "executionButler": _add_merge_job,
+        ".finalJob.whenRun": _add_final_job,
+        ".executionButler.whenCreate": _add_merge_job,
     }
     for name, func in dispatcher.items():
-        if name in config:
+        if name in config and config[name] != "NEVER":
             break
     else:
         raise RuntimeError("Final job specification not found")
@@ -1025,8 +1025,7 @@ def _create_final_command(config, prefix):
     executable = GenericWorkflowExec(os.path.basename(script_file), script_file, True)
 
     _, orig_butler = config.search("butlerConfig")
-    _, qgraph_file = config.search("runQgraphFile")
-    return executable, f"{qgraph_file} {orig_butler}"
+    return executable, f"<FILE:runQgraphFile> {orig_butler}"
 
 
 def _create_merge_command(config, prefix):

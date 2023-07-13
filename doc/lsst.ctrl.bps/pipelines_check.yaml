@@ -1,4 +1,4 @@
-pipelineYaml: "${OBS_SUBARU_DIR}/pipelines/DRP.yaml#processCcd"
+pipelineYaml: "${DRP_PIPE_DIR}/pipelines/HSC/pipelines_check.yaml#processCcd"
 
 project: dev
 campaign: quick

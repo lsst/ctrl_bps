@@ -1,0 +1,3 @@
+* Modify criteria on when to choose new style finalJob vs old mergeExecutionButler job to allow ctrl_bps_panda to define values like queues for both and still allow switching between them.
+* Update pipeline yaml path in pipelines check example
+* Remove warning from docs about not working in other WMS.

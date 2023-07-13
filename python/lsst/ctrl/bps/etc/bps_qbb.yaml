@@ -1,5 +1,3 @@
-includeConfigs:
-  - resource://lsst.ctrl.bps/etc/bps_defaults.yaml
 updateQgraphPreCmdOpts: "{defaultPreCmdOpts}"
 createQuantumGraph: >-
   ${CTRL_MPEXEC_DIR}/bin/pipetask {qgraphPreCmdOpts} qgraph

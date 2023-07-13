@@ -853,12 +853,6 @@ Until the quantum-backed Butler becomes the default, to use it, include
 ``resource://lsst.ctrl.bps/etc/bps_qbb.yaml`` it in your existing config
 with ``includeConfigs`` setting after other includes.
 
-.. warning::
-
-   Using quantum-backed Butler was only tested with the BPS HTCondor plugin.
-   It may work with the BPS Parsl plugin. It definitely will *not* work with
-   the BPS PanDA plugin until DM-39553 is done.
-
 Command-line Changes
 ^^^^^^^^^^^^^^^^^^^^
 
