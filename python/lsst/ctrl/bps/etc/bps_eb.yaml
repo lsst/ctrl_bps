@@ -1,0 +1,69 @@
+runQuantumCommand: >-
+  ${CTRL_MPEXEC_DIR}/bin/pipetask {runPreCmdOpts} run
+  --butler-config {butlerConfig}
+  {pipetaskInput}
+  {pipetaskOutput}
+  --output-run {outputRun}
+  --qgraph {fileDistributionEndPoint}{qgraphFile}
+  --qgraph-id {qgraphId}
+  --qgraph-node-id {qgraphNodeId}
+  --clobber-outputs
+  --skip-init-writes
+  --extend-run
+  {extraRunQuantumOptions}
+executionButlerTemplate: "{submitPath}/EXEC_REPO-{uniqProcName}"
+executionButler:
+  whenCreate: "SUBMIT"
+  #OPT executionButlerDir: "/my/exec/butler/dir"  # User-provided or defaults to executionButlerTemplate
+  createCommand: >-
+    ${CTRL_MPEXEC_DIR}/bin/pipetask qgraph
+    --butler-config {butlerConfig}
+    {pipetaskInput}
+    {pipetaskOutput}
+    --output-run {outputRun}
+    --save-execution-butler {executionButlerDir}
+    --qgraph {qgraphFile}
+  whenMerge: "ALWAYS"
+  implementation: JOB  # Added for future flexibility, e.g., if prefer workflow instead of shell script.
+  concurrencyLimit: db_limit
+  mergePreCmdOpts: "{defaultPreCmdOpts}"
+  command1: >-
+    ${DAF_BUTLER_DIR}/bin/butler {mergePreCmdOpts} transfer-datasets
+    {executionButlerDir}
+    {butlerConfig}
+    --collections {outputRun}
+    --register-dataset-types
+  command2: >-
+    ${DAF_BUTLER_DIR}/bin/butler {mergePreCmdOpts} collection-chain
+    {butlerConfig}
+    {output}
+    --flatten
+    --mode=extend
+    {inCollection}
+  command3: >-
+    ${DAF_BUTLER_DIR}/bin/butler {mergePreCmdOpts} collection-chain
+    {butlerConfig}
+    {output}
+    --flatten
+    --mode=prepend
+    {outputRun}
+finalJob:
+  whenRun: NEVER
+pipetask:
+  pipetaskInit:
+    # Notes:  Declaring and chaining now happen within execution butler steps.
+    # This command no longer needs -o and must have --extend-run.
+    # Change panda-plugin's config at config/bps_idf.yaml too when changing runQuantumCommand
+    runQuantumCommand: >-
+      ${CTRL_MPEXEC_DIR}/bin/pipetask {initPreCmdOpts} run
+      --butler-config {butlerConfig}
+      {pipetaskInput}
+      {pipetaskOutput}
+      --output-run {outputRun}
+      --qgraph {fileDistributionEndPoint}{qgraphFile}
+      --qgraph-id {qgraphId}
+      --qgraph-node-id {qgraphNodeId}
+      --clobber-outputs
+      --init-only
+      --extend-run
+      {extraInitOptions}
