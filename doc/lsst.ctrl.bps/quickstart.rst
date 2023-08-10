@@ -697,25 +697,56 @@ To use full QuantumGraph file, the submit YAML must set ``whenSaveJobQgraph`` to
 Execution Butler
 ----------------
 
+.. warning::
+
+   Execution butler is being deprecated. BPS will now use the quantum-backed
+   butler by default.  Until ticket `DM-40342`__ is merged you can still use
+   the execution butler for your runs by adding
+   ``resource://lsst.ctrl.bps/etc/bps_eb.yaml`` in your existing submit YAML
+   with ``includeConfigs`` setting *after* other includes if any.
+
+.. __: https://jira.lsstcorp.org/browse/DM-40342
+
 Execution Butler is a behind-the-scenes mechanism to lessen the number
 of simultaneous connections to the Butler database.
-
-
-.. _DMTN-177: https://github.com/lsst-dm/dmtn-177
-
-
-Pipetask command lines are not the same when using Execution Butler.
-There is currently not a single configuration option to enable/disable
-Execution Butler.
 
 Command-line Changes
 ^^^^^^^^^^^^^^^^^^^^
 
+There is no a single configuration option to enable/disable Execution butler.
+Pipetasks commands need to be modified manually in the BPS submit YAML file
+(modified for you when doing the above mentioned include of ``bps_eb.yaml``):
+
 .. code-block:: YAML
 
+   runQuantumCommand: >-
+     ${CTRL_MPEXEC_DIR}/bin/pipetask {runPreCmdOpts} run
+     --butler-config {butlerConfig}
+     {pipetaskInput}
+     {pipetaskOutput}
+     --output-run {outputRun}
+     --qgraph {fileDistributionEndPoint}{qgraphFile}
+     --qgraph-id {qgraphId}
+     --qgraph-node-id {qgraphNodeId}
+     --clobber-outputs
+     --skip-init-writes
+     --extend-run
+     {extraRunQuantumOptions}
    pipetask:
-       pipetaskInit:
-           runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask --long-log run -b {butlerConfig} -i {inCollection} --output-run {outputRun} --init-only --register-dataset-types --qgraph {qgraphFile} --extend-run {extraInitOptions}"
+     pipetaskInit:
+       runQuantumCommand: >-
+         ${CTRL_MPEXEC_DIR}/bin/pipetask {initPreCmdOpts} run
+         --butler-config {butlerConfig}
+         {pipetaskInput}
+         {pipetaskOutput}
+         --output-run {outputRun}
+         --qgraph {fileDistributionEndPoint}{qgraphFile}
+         --qgraph-id {qgraphId}
+         --qgraph-node-id {qgraphNodeId}
+         --clobber-outputs
+         --init-only
+         --extend-run
+         {extraInitOptions}
 
 New YAML Section
 ^^^^^^^^^^^^^^^^
@@ -845,13 +876,15 @@ The major differences visible to users are:
 Quantum-backed Butler
 ---------------------
 
-Similarly to the execution Butler, the quantum-backed Butler is a mechanism for
-reducing access to the central Butler registry when running LSST pipelines at
-scale. See `DMTN-177`_ for more details.
+.. warning::
 
-Until the quantum-backed Butler becomes the default, to use it, include
-``resource://lsst.ctrl.bps/etc/bps_qbb.yaml`` it in your existing config
-with ``includeConfigs`` setting after other includes.
+   BPS now uses the quantum-backed butler by default and
+   ``resource://lsst.ctrl.bps/etc/bps_qbb.yaml`` was removed from the package.
+   If the include list in your config still contains it,  please remove it.
+
+Similarly to the execution butler, the quantum-backed butler is a mechanism for
+reducing access to the central butler registry when running LSST pipelines at
+scale. See `DMTN-177`_ for more details.
 
 Command-line Changes
 ^^^^^^^^^^^^^^^^^^^^
@@ -1155,6 +1188,7 @@ when installing an LSST package:
    setup -k -r .
    scons
 
+.. _DMTN-177: https://github.com/lsst-dm/dmtn-177
 .. _SQLite3: https://www.sqlite.org/index.html
 .. _PostgreSQL: https://www.postgresql.org
 .. _ctrl_bps: https://github.com/lsst/ctrl_bps

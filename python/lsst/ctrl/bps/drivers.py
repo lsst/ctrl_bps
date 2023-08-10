@@ -224,7 +224,17 @@ def acquire_qgraph_driver(config_file, **kwargs):
             *tuple(f"{val.to(DEFAULT_MEM_UNIT):{DEFAULT_MEM_FMT}}" for val in get_peak_mem_usage()),
         )
 
-    config[".bps_defined.executionButlerDir"] = execution_butler_dir
+    # When using QBB (and neither 'executionButlerTemplate' nor
+    # 'executionButlerDir' is set) acquire_quantum_graph() will set
+    # 'execution_butler_dir' to the submit directory.  This will trick
+    # 'ctrl_bps_parsl' to use a non-existent execution butler and the run will
+    # fail. See ParslJob.get_command_line() for details.
+    #
+    # This simple trick should keep 'ctrl_bps_parsl' working for the time being
+    # without making more complex changes in the logic which will be removed
+    # soon anyway (see DM-40342).
+    if os.path.normpath(execution_butler_dir) != os.path.normpath(submit_path):
+        config[".bps_defined.executionButlerDir"] = execution_butler_dir
     config[".bps_defined.runQgraphFile"] = qgraph_file
     return config, qgraph
 
