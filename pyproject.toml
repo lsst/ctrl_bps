@@ -4,6 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lsst-ctrl-bps"
+requires-python = ">=3.10.0"
 description = "Pluggable execution of workflow graphs from Rubin pipelines."
 license = {text = "BSD 3-Clause License"}
 readme = "README.md"
