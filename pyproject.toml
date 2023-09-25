@@ -4,6 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lsst-ctrl-bps"
+requires-python = ">=3.10.0"
 description = "Pluggable execution of workflow graphs from Rubin pipelines."
 license = {text = "GPLv3+ License"}
 readme = "README.md"
@@ -16,6 +17,7 @@ classifiers = [
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
     "Topic :: Scientific/Engineering :: Astronomy",
 ]
 keywords = ["lsst"]
@@ -24,11 +26,11 @@ dependencies = [
     "pyyaml >=5.1",
     "click >= 7.0",
     "networkx",
-    "lsst-daf-butler",
-    "lsst-pipe-base",
-    "lsst-ctrl-mpexec",
-    "lsst-utils",
-    "lsst-resources"
+    "lsst-daf-butler >=26.0,<26.100",
+    "lsst-pipe-base >=26.0,<26.100",
+    "lsst-ctrl-mpexec >=26.0,<26.100",
+    "lsst-utils >=26.0,<26.100",
+    "lsst-resources >=26.0,<26.100"
 ]
 dynamic = ["version"]
 

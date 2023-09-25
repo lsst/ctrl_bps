@@ -1,2 +1,0 @@
-Modify some default yaml values to more easily allow parts to be
-modified, like leaving off the output collection.

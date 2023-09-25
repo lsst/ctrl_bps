@@ -1,1 +1,0 @@
-Expand quantum cluster dimensions to include all implied dimensions.

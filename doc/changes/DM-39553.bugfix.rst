@@ -1,3 +1,0 @@
-* Remove reloading of bps default values from bps_qbb.yaml.
-* Generalize finalJob's command line for no shared filesystem.
-* Remove duplicate add_job_inputs line that was doubling inputs for pipetaskInit.
