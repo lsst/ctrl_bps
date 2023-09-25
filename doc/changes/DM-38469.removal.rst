@@ -1,1 +1,0 @@
-Remove read_quantum_graph method as passing of butler repository's DimensionUniverse to QuantumGraph.loadUri() is no longer required.
