@@ -1,3 +1,46 @@
+lsst-ctrl-bps v26.0.0 (2023-09-25)
+==================================
+
+New Features
+------------
+
+- Provided support for using quantum backed Butler. (`DM-33500 <https://jira.lsstcorp.org/browse/DM-33500>`_)
+- Addd traversal of ``GenericWorkflow`` by job label. (`DM-34915 <https://jira.lsstcorp.org/browse/DM-34915>`_)
+- Expanded quantum cluster dimensions to include all implied dimensions. (`DM-39949 <https://jira.lsstcorp.org/browse/DM-39949>`_)
+
+
+API Changes
+-----------
+
+- Implemented ``get()`` method in ``BpsConfig``. (`DM-38418 <https://jira.lsstcorp.org/browse/DM-38418>`_)
+
+
+Bug Fixes
+---------
+
+- Improved label order handling to fix bugs highlighted by rescue workflows. (`DM-38377 <https://jira.lsstcorp.org/browse/DM-38377>`_)
+- * Removed reloading of bps default values from ``bps_qbb.yaml``.
+  * Generalized finalJob's command line for no shared filesystem.
+  * Removed duplicate ``add_job_inputs`` line that was doubling inputs for ``pipetaskInit``. (`DM-39553 <https://jira.lsstcorp.org/browse/DM-39553>`_)
+
+
+Other Changes and Additions
+---------------------------
+
+- Described how to specify job requirements for ``mergeExecutionButler`` job. (`DM-34131 <https://jira.lsstcorp.org/browse/DM-34131>`_)
+- Modified some default YAML values to more easily allow parts to be
+  modified, like leaving off the output collection. (`DM-38307 <https://jira.lsstcorp.org/browse/DM-38307>`_)
+- * Modified criteria on when to choose new style ``finalJob`` vs old ``mergeExecutionButler`` job to allow ``ctrl_bps_panda`` to define values like queues for both and still allow switching between them.
+  * Updated pipeline YAML path in pipelines check example
+  * Removed warning from docs about not working in other WMS. (`DM-39553 <https://jira.lsstcorp.org/browse/DM-39553>`_)
+- Made quantum-backed butler the default mechanism for reducing access to the central butler registry. (`DM-40025 <https://jira.lsstcorp.org/browse/DM-40025>`_)
+
+An API Removal or Deprecation
+-----------------------------
+
+- Removed ``read_quantum_graph`` method as passing of butler repository's ``DimensionUniverse`` to ``QuantumGraph.loadUri()`` is no longer required. (`DM-38469 <https://jira.lsstcorp.org/browse/DM-38469>`_)
+
+
 lsst-ctrl-bps v25.0.0 (2023-03-01)
 ==================================
 

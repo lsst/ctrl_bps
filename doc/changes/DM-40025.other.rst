@@ -1,1 +1,0 @@
-Make quantum-backed butler the default mechanism for reducing access to the central butler registry.
