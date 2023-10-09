@@ -29,7 +29,7 @@ import unittest
 
 import yaml
 from lsst.ctrl.bps import BpsConfig
-from lsst.daf.butler.core.config import Config
+from lsst.daf.butler import Config
 
 TESTDIR = os.path.abspath(os.path.dirname(__file__))
 
