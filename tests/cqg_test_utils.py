@@ -59,7 +59,7 @@ def check_cqg(cqg, truth=None):
         for id_ in cluster.qgraph_node_ids:
             qnode = cqg.get_quantum_node(id_)
             assert id_ not in node_ids, (
-                f"Checking cluster {cluster.name}, id {id_} ({qnode.quantum.dataId.byName()}) appears more "
+                f"Checking cluster {cluster.name}, id {id_} ({qnode.quantum.dataId}) appears more "
                 "than once in CQG."
             )
             node_ids.add(id_)
@@ -199,7 +199,7 @@ def make_test_clustered_quantum_graph(outdir):
     # since random hash ids, create mapping for tests
     test_lookup = {}
     for qnode in qgraph:
-        data_id = qnode.quantum.dataId.byName()
+        data_id = dict(qnode.quantum.dataId.required)
         key = f"{qnode.taskDef.label}_{data_id['D1']}_{data_id['D2']}"
         test_lookup[key] = qnode
 

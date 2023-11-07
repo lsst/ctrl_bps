@@ -315,7 +315,7 @@ def add_dim_clusters(cluster_config, cluster_label, qgraph, ordered_tasks, cqgra
             info = {}
 
             missing_info = set()
-            data_id_info = qnode.quantum.dataId.full.byName()
+            data_id_info = dict(qnode.quantum.dataId.mapping)
             for dim_name in cluster_dims:
                 _LOG.debug("dim_name = %s", dim_name)
                 if dim_name in data_id_info:
@@ -402,6 +402,6 @@ def add_cluster_dependencies(cqgraph, cluster, quantum_to_cluster):
                 _LOG.error(
                     "Quanta missing when clustering: %s, %s",
                     qnode.taskDef.label,
-                    qnode.quantum.dataId.full.byName(),
+                    qnode.quantum.dataId,
                 )
                 raise
