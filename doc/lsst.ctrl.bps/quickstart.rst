@@ -277,9 +277,8 @@ Restart a failed run with
    bps restart --id <id>
 
 where ``<id>`` is the id of the run that need to be restarted.  What the id is
-depends on the workflow management system the BPS is configured to use.  For
-example, if the BPS was configured to use the HTCondor, the only valid id is
-the submit directory.
+depends on the workflow management system the BPS is configured to use.
+Consult plugin-specific documentation to see what options are available.
 
 If the restart completed successfully, the command will output something
 similar to:
