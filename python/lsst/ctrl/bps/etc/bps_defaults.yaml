@@ -123,3 +123,10 @@ finalJob:
     --register-dataset-types
     --update-output-chain
     --transfer-dimensions
+
+manifestChecker:
+  whenSetup: "NEVER"
+  whenRun: "ALWAYS"
+  implementation: JOB
+  command1: >-
+    pipetask report {butlerConfig} {fileDistributionEndPoint}{qgraphFile} pipetask_report.yaml
