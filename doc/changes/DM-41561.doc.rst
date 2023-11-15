@@ -1,0 +1,1 @@
+Move plugin-specific restart details to the plugin's documentation.
