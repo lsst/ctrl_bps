@@ -211,7 +211,7 @@ def make_test_quantum_graph(run: str = "run"):
                     storageClass=task_def.connections.initInput.storageClass,
                     universe=universe,
                 )
-                init_refs = [DatasetRef(init_init_ds_type, DataCoordinate.makeEmpty(universe), run=run)]
+                init_refs = [DatasetRef(init_init_ds_type, DataCoordinate.make_empty(universe), run=run)]
             else:
                 init_refs = None
             input_ds_type = DatasetType(
