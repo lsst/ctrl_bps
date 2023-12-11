@@ -107,6 +107,13 @@ def restart(*args, **kwargs):
 @click.option("--hist", "hist_days", default=0.0, help="Search WMS history X days for completed info.")
 @click.option("--pass-thru", help="Pass the given string to the WMS service class.")
 @click.option(
+    "--return-exit-codes",
+    is_flag=True,
+    show_default=True,
+    default=False,
+    help="Return exit codes from jobs with a non-success status.",
+)
+@click.option(
     "--global/--no-global",
     "is_global",
     default=False,

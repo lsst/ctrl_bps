@@ -28,7 +28,7 @@
 """Classes and functions used in reporting run status.
 """
 
-__all__ = ["BaseRunReport", "DetailedRunReport", "SummaryRunReport"]
+__all__ = ["BaseRunReport", "DetailedRunReport", "SummaryRunReport", "ExitCodesReport"]
 
 import abc
 import logging
@@ -229,6 +229,53 @@ class DetailedRunReport(BaseRunReport):
         alignments = ["<"] + [">"] * (len(self._table.colnames) - 1)
         lines = list(self._table.pformat_all(align=alignments))
         lines.insert(3, lines[1])
+        return str("\n".join(lines))
+
+
+class ExitCodesReport(BaseRunReport):
+    """An extension of run report to give information about
+    error handling from the wms service.
+    """
+
+    def add(self, run_report, use_global_id=False):
+        # Docstring inherited from the base class.
+
+        # get labels from things and exit codes
+
+        labels = []
+        if run_report.run_summary:
+            for part in run_report.run_summary.split(";"):
+                label, _ = part.split(":")
+                labels.append(label)
+        else:
+            id_ = run_report.global_wms_id if use_global_id else run_report.wms_id
+            self._msg = f"WARNING: Job summary for run '{id_}' not available, report maybe incomplete."
+            return
+        exit_code_summary = run_report.exit_code_summary
+        for label in labels:
+            exit_codes = exit_code_summary[label]
+            if exit_codes:
+                # payload errors always return 1 on failure
+                pipe_error_count = sum([code for code in exit_codes if code == 1])
+                infra_codes = [code for code in exit_codes if code != 0 and code != 1]
+                if infra_codes:
+                    infra_error_count = len(infra_codes)
+                    str_infra_codes = [str(code) for code in infra_codes]
+                    infra_error_codes = ", ".join(sorted(set(str_infra_codes)))
+                else:
+                    infra_error_count = 0
+                    infra_error_codes = "None"
+            else:
+                pipe_error_count = 0
+                infra_error_codes = "None"
+                infra_error_count = 0
+            run = [label]
+            run.extend([pipe_error_count, infra_error_count, infra_error_codes])
+            self._table.add_row(run)
+
+    def __str__(self):
+        alignments = ["<"] + [">"] * (len(self._table.colnames) - 1)
+        lines = list(self._table.pformat_all(align=alignments))
         return str("\n".join(lines))
 
 

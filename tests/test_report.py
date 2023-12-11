@@ -34,6 +34,7 @@ from astropy.table import Table
 from lsst.ctrl.bps import (
     BaseRunReport,
     DetailedRunReport,
+    ExitCodesReport,
     SummaryRunReport,
     WmsJobReport,
     WmsRunReport,
@@ -285,6 +286,76 @@ class DetailedRunReportTestCase(unittest.TestCase):
 
         self.assertRegex(self.actual.message, r"^WARNING.*sorted alphabetically")
         self.assertEqual(self.actual, expected)
+
+
+class ExitCodesReportTestCase(unittest.TestCase):
+    """Test an exit code report."""
+
+    def setUp(self):
+        self.fields = [
+            (" ", "S"),
+            ("PAYLOAD ERROR COUNT", "i"),
+            ("INFRASTRUCTURE ERROR COUNT", "i"),
+            ("INFRASTRUCTURE ERROR CODES", "S"),
+        ]
+
+        table = Table(dtype=self.fields)
+        table.add_row(["foo"] + [0] + [0] + ["None"])
+        table.add_row(["bar"] + [1] + [3] + ["2, 3, 4"])
+        self.expected = ExitCodesReport.from_table(table)
+
+        self.run = WmsRunReport(
+            wms_id="1.0",
+            global_wms_id="foo#1.0",
+            path="/path/to/run",
+            label="label",
+            run="run",
+            project="dev",
+            campaign="testing",
+            payload="test",
+            operator="tester",
+            run_summary="foo:1;bar:1",
+            state=WmsStates.RUNNING,
+            jobs=[
+                WmsJobReport(wms_id="1.0", name="", label="foo", state=WmsStates.SUCCEEDED),
+                WmsJobReport(wms_id="2.0", name="", label="bar", state=WmsStates.RUNNING),
+            ],
+            total_number_jobs=2,
+            job_state_counts={
+                state: 1 if state in {WmsStates.SUCCEEDED, WmsStates.RUNNING} else 0 for state in WmsStates
+            },
+            job_summary={
+                "foo": {state: 1 if state == WmsStates.SUCCEEDED else 0 for state in WmsStates},
+                "bar": {state: 1 if state == WmsStates.RUNNING else 0 for state in WmsStates},
+            },
+            exit_code_summary={
+                "foo": [0, 0, 0, 0],
+                "bar": [1, 2, 3, 4],
+            },
+        )
+
+        self.actual = ExitCodesReport(self.fields)
+
+    def testAddWithJobSummary(self):
+        """Test adding a run with a job summary."""
+        self.run.jobs = None
+        self.actual.add(self.run)
+        print(self.actual)
+        print(self.expected)
+        self.assertEqual(self.actual, self.expected)
+
+    def testAddWithJobs(self):
+        """Test adding a run with a job info, but not job summary."""
+        self.run.job_summary = None
+        self.actual.add(self.run)
+
+        self.assertEqual(self.actual, self.expected)
+
+    def testAddWithoutRunSummary(self):
+        """Test adding a run without a run summary."""
+        self.run.run_summary = None
+        self.actual.add(self.run)
+        self.assertRegex(self.actual.message, r"^WARNING.*incomplete")
 
 
 if __name__ == "__main__":

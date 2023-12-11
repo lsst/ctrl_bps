@@ -459,7 +459,7 @@ def restart_driver(wms_service, run_id):
             print("Restart failed: Unknown error")
 
 
-def report_driver(wms_service, run_id, user, hist_days, pass_thru, is_global=False):
+def report_driver(wms_service, run_id, user, hist_days, pass_thru, is_global=False, return_exit_codes=False):
     """Print out summary of jobs submitted for execution.
 
     Parameters
@@ -481,11 +481,26 @@ def report_driver(wms_service, run_id, user, hist_days, pass_thru, is_global=Fal
 
         Only applicable in the context of a WMS using distributed job queues
         (e.g., HTCondor).
+    return_exit_codes : `bool`, optional
+        If set, return exit codes related to jobs with a
+        non-success status. Defaults to False, which means that only
+        the summary state is returned.
+
+        Only applicable in the context of a WMS with associated
+        handlers to return exit codes from jobs.
     """
     if wms_service is None:
         default_config = BpsConfig(BPS_DEFAULTS)
         wms_service = os.environ.get("BPS_WMS_SERVICE_CLASS", default_config["wmsServiceClass"])
-    report(wms_service, run_id, user, hist_days, pass_thru, is_global=is_global)
+    report(
+        wms_service,
+        run_id,
+        user,
+        hist_days,
+        pass_thru,
+        is_global=is_global,
+        return_exit_codes=return_exit_codes,
+    )
 
 
 def cancel_driver(wms_service, run_id, user, require_bps, pass_thru, is_global=False):

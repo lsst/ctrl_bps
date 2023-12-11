@@ -35,13 +35,13 @@ import logging
 
 from lsst.utils import doImport
 
-from .bps_reports import DetailedRunReport, SummaryRunReport
+from .bps_reports import DetailedRunReport, ExitCodesReport, SummaryRunReport
 from .wms_service import WmsStates
 
 _LOG = logging.getLogger(__name__)
 
 
-def report(wms_service, run_id, user, hist_days, pass_thru, is_global=False):
+def report(wms_service, run_id, user, hist_days, pass_thru, is_global=False, return_exit_codes=False):
     """Print out summary of jobs submitted for execution.
 
     Parameters
@@ -63,6 +63,13 @@ def report(wms_service, run_id, user, hist_days, pass_thru, is_global=False):
 
         Only applicable in the context of a WMS using distributed job queues
         (e.g., HTCondor).
+    return_exit_codes : `bool`, optional
+        If set, return exit codes related to jobs with a
+        non-success status. Defaults to False, which means that only
+        the summary state is returned.
+
+        Only applicable in the context of a WMS with associated
+        handlers to return exit codes from jobs.
     """
     wms_service_class = doImport(wms_service)
     wms_service = wms_service_class({})
@@ -87,6 +94,7 @@ def report(wms_service, run_id, user, hist_days, pass_thru, is_global=False):
             ("RUN", "S"),
         ]
     )
+
     if run_id:
         fields = [(" ", "S")] + [(state.name, "i") for state in WmsStates] + [("EXPECTED", "i")]
         run_report = DetailedRunReport(fields)
@@ -102,6 +110,19 @@ def report(wms_service, run_id, user, hist_days, pass_thru, is_global=False):
             print(f"Global job id: {run.global_wms_id}")
             print("\n")
             print(run_report)
+
+            if return_exit_codes:
+                fields = [
+                    (" ", "S"),
+                    ("PAYLOAD ERROR COUNT", "i"),
+                    ("INFRASTRUCTURE ERROR COUNT", "i"),
+                    ("INFRASTRUCTURE ERROR CODES", "S"),
+                ]
+                run_exits_report = ExitCodesReport(fields)
+                run_exits_report.add(run, use_global_id=is_global)
+                print("\n")
+                print(run_exits_report)
+                run_exits_report.clear()
 
             run_brief.clear()
             run_report.clear()

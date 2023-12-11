@@ -1,0 +1,1 @@
+Introduced the ``--return-exit-codes`` flag to bps report, which provides a summary of exit code counts and exit codes for non-payload errors. This currently only works for PanDA.
