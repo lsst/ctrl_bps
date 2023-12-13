@@ -187,6 +187,8 @@ def acquire_qgraph_driver(config_file, **kwargs):
     ----------
     config_file : `str`
         Name of the configuration file.
+    **kwargs : `~typing.Any`
+        Additional modifiers to the configuration.
 
     Returns
     -------
@@ -252,6 +254,8 @@ def cluster_qgraph_driver(config_file, **kwargs):
     ----------
     config_file : `str`
         Name of the configuration file.
+    **kwargs : `~typing.Any`
+        Additional modifiers to the configuration.
 
     Returns
     -------
@@ -297,6 +301,8 @@ def transform_driver(config_file, **kwargs):
     ----------
     config_file : `str`
         Name of the configuration file.
+    **kwargs : `~typing.Any`
+        Additional modifiers to the configuration.
 
     Returns
     -------
@@ -347,6 +353,8 @@ def prepare_driver(config_file, **kwargs):
     ----------
     config_file : `str`
         Name of the configuration file.
+    **kwargs : `~typing.Any`
+        Additional modifiers to the configuration.
 
     Returns
     -------
@@ -388,6 +396,8 @@ def submit_driver(config_file, **kwargs):
     ----------
     config_file : `str`
         Name of the configuration file.
+    **kwargs : `~typing.Any`
+        Additional modifiers to the configuration.
     """
     kwargs.setdefault("runWmsSubmissionChecks", True)
 
@@ -471,7 +481,7 @@ def report_driver(wms_service, run_id, user, hist_days, pass_thru, is_global=Fal
     user : `str`
         A user name the report will be restricted to.
     hist_days : int
-        Number of days
+        Number of days.
     pass_thru : `str`
         A string to pass directly to the WMS service class.
     is_global : `bool`, optional

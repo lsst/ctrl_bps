@@ -285,7 +285,7 @@ def compile_job_summary(jobs):
     Parameters
     ----------
     jobs : `list` [`lsst.ctrl.bps.WmsRunReport`]
-        List of
+        List of run reports.
 
     Returns
     -------

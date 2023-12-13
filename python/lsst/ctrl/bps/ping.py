@@ -55,7 +55,7 @@ def ping(wms_service, pass_thru=None):
     Returns
     -------
     status : `int`
-        Services are available (0) or problems (not 0)
+        Services are available (0) or problems (not 0).
     message : `str`
         Any message from WMS (e.g., error details).
     """

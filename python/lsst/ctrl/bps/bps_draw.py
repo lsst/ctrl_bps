@@ -42,7 +42,7 @@ def draw_networkx_dot(graph, outname):
     graph : `networkx.DiGraph`
         The graph which graphical representation should be persisted.
     outname : `str`
-        Output filename for drawn graph
+        Output filename for drawn graph.
     """
     # Note:  Leaving function here for now.  Want to move
     #        more of the drawing attributes, etc here in

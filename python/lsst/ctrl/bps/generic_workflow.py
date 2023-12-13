@@ -133,6 +133,13 @@ class GenericWorkflowExec:
 class GenericWorkflowJob:
     """Information about a job that may be needed by various workflow
     management services.
+
+    Parameters
+    ----------
+    name : `str`
+        Name of job. Must be unique within workflow.
+    label : `str`, optional
+        Primary user-facing label for job.
     """
 
     name: str
@@ -363,7 +370,7 @@ class GenericWorkflow(DiGraph):
     incoming_graph_data : `Any`, optional
         Data used to initialized graph that is passed through to DiGraph
         constructor.  Can be any type supported by networkx.DiGraph.
-    attr : `dict`
+    **attr : `dict`
         Keyword arguments passed through to DiGraph constructor.
     """
 
@@ -402,7 +409,7 @@ class GenericWorkflow(DiGraph):
 
     @property
     def labels(self):
-        """Job labels (`list` [`str`], read-only)"""
+        """Job labels (`list` [`str`], read-only)."""
         return self._job_labels.labels
 
     def regenerate_labels(self):
@@ -444,8 +451,8 @@ class GenericWorkflow(DiGraph):
         Parameters
         ----------
         data : `bool`, optional
-            Whether to return the file data as well as the file object name.
-            (The defaults is False.)
+            Whether to return the file data as well as the file object name
+            (The defaults is False).
         transfer_only : `bool`, optional
             Whether to only return files for which a workflow management system
             would be responsible for transferring.
@@ -472,9 +479,9 @@ class GenericWorkflow(DiGraph):
         job : `lsst.ctrl.bps.GenericWorkflowJob`
             Job to add to the generic workflow.
         parent_names : `list` [`str`], optional
-            Names of jobs that are parents of given job
+            Names of jobs that are parents of given job.
         child_names : `list` [`str`], optional
-            Names of jobs that are children of given job
+            Names of jobs that are children of given job.
         """
         _LOG.debug("job: %s (%s)", job.name, job.label)
         _LOG.debug("parent_names: %s", parent_names)
@@ -597,7 +604,7 @@ class GenericWorkflow(DiGraph):
         Parameters
         ----------
         job_name : `str`
-            Name of job to which inputs should be added
+            Name of job to which inputs should be added.
         files : `lsst.ctrl.bps.GenericWorkflowFile` or \
                 `list` [`lsst.ctrl.bps.GenericWorkflowFile`]
             File object(s) to be added as inputs to the specified job.
@@ -617,7 +624,7 @@ class GenericWorkflow(DiGraph):
         Parameters
         ----------
         name : `str`
-            Name of file object
+            Name of file object.
 
         Returns
         -------
@@ -632,7 +639,7 @@ class GenericWorkflow(DiGraph):
         Parameters
         ----------
         gwfile : `lsst.ctrl.bps.GenericWorkflowFile`
-            File object to add to workflow
+            File object to add to workflow.
         """
         if gwfile.name not in self._files:
             self._files[gwfile.name] = gwfile
@@ -756,7 +763,7 @@ class GenericWorkflow(DiGraph):
 
     @classmethod
     def load(cls, stream, format_="pickle"):
-        """Load a GenericWorkflow from the given stream
+        """Load a GenericWorkflow from the given stream.
 
         Parameters
         ----------
@@ -770,7 +777,7 @@ class GenericWorkflow(DiGraph):
         Returns
         -------
         generic_workflow : `lsst.ctrl.bps.GenericWorkflow`
-            Generic workflow loaded from the given stream
+            Generic workflow loaded from the given stream.
         """
         if format_ == "pickle":
             return pickle.load(stream)
@@ -788,6 +795,7 @@ class GenericWorkflow(DiGraph):
         Parameters
         ----------
         workflow : `lsst.ctrl.bps.GenericWorkflow`
+           The given workflow.
         """
         # Find source nodes in self.
         self_sources = [n for n in self if self.in_degree(n) == 0]
@@ -871,7 +879,7 @@ class GenericWorkflow(DiGraph):
         ----------
         data : `bool`, optional
             Whether to return the executable data as well as the exec object
-            name.  (The defaults is False.)
+            name (The defaults is False).
         transfer_only : `bool`, optional
             Whether to only return executables for which transfer_executable
             is True.
@@ -915,7 +923,7 @@ class GenericWorkflowLabels:
 
     @property
     def labels(self):
-        """List of job labels (`list` [`str`], read-only)"""
+        """List of job labels (`list` [`str`], read-only)."""
         return list(topological_sort(self._label_graph))
 
     @property

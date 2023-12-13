@@ -140,15 +140,17 @@ def make_test_quantum_graph(run: str = "run"):
     -------
     qgraph : `lsst.pipe.base.QuantumGraph`
         A test QuantumGraph looking like the following:
-        (DummyTask4 is completely independent.)
+        (DummyTask4 is completely independent).
 
         Numbers in parens are the values for the two dimensions (D1, D2).
 
-        T1(1,2)   T1(3,4)  T4(1,2)  T4(3,4)
+        .. code-block::
+
+          T1(1,2)   T1(3,4)  T4(1,2)  T4(3,4)
            |         |
-        T2(1,2)   T2(3,4)
+          T2(1,2)   T2(3,4)
            |         |
-        T3(1,2)   T3(3,4)
+          T3(1,2)   T3(3,4)
     """
     config = Config(
         {
