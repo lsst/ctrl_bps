@@ -85,7 +85,6 @@ class QuantaCluster:
         ----------
         quantum_node : `lsst.pipe.base.QuantumNode`
             QuantumNode for which to make into a single quantum cluster.
-
         template : `str`
             Template for creating cluster name.
 
@@ -248,7 +247,7 @@ class ClusteredQuantumGraph:
 
         Parameters
         ----------
-        clusters_for_adding: `QuantaCluster` or `Iterable` [`QuantaCluster`]
+        clusters_for_adding : `QuantaCluster` or `Iterable` [`QuantaCluster`]
             The cluster to be added to the ClusteredQuantumGraph.
         """
         for cluster in ensure_iterable(clusters_for_adding):
@@ -420,7 +419,6 @@ class ClusteredQuantumGraph:
         ----------
         filename : `str`
             File to which the ClusteredQuantumGraph should be serialized.
-
         format_ : `str`, optional
             Format in which to write the data. It defaults to pickle format.
         """
@@ -457,7 +455,6 @@ class ClusteredQuantumGraph:
         ----------
         filename : `str`
             File to which the ClusteredQuantumGraph should be serialized.
-
         format_ : `str`, optional
             Format in which to draw the data. It defaults to dot format.
         """

@@ -500,7 +500,7 @@ class GenericWorkflow(DiGraph):
         ----------
         node_for_adding : `lsst.ctrl.bps.GenericWorkflowJob`
             Job to be added to generic workflow.
-        attr :
+        **attr
             Needed to match original networkx function, but not used.
         """
         self.add_job(node_for_adding)
@@ -531,7 +531,7 @@ class GenericWorkflow(DiGraph):
         ebunch_to_add : Iterable [`tuple`]
             Iterable of job name pairs between which a dependency should be
             saved.
-        attr : keyword arguments, optional
+        **attr : keyword arguments, optional
             Data can be assigned using keyword arguments (not currently used).
         """
         for edge_to_add in ebunch_to_add:
@@ -546,7 +546,7 @@ class GenericWorkflow(DiGraph):
             Name of parent job.
         v_of_edge : `str`
             Name of child job.
-        attr : keyword arguments, optional
+        **attr : keyword arguments, optional
             Attributes to save with edge.
         """
         if u_of_edge not in self:
@@ -746,7 +746,6 @@ class GenericWorkflow(DiGraph):
         stream : `str` or `io.BufferedIOBase`
             Stream to pass to the format-specific writer.  Accepts anything
             that the writer accepts.
-
         format_ : `str`, optional
             Format in which to write the data. It defaults to pickle format.
         """
@@ -949,7 +948,7 @@ class GenericWorkflowLabels:
             The job to delete from the job labels.
         parent_labels : `list` [`str`]
             Parent job labels.
-        children_labels : `list` [`str`]
+        child_labels : `list` [`str`]
             Children job labels.
         """
         _LOG.debug("job: %s (%s)", job.name, job.label)

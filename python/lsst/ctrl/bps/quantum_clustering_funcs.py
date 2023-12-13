@@ -384,7 +384,7 @@ def add_cluster_dependencies(cqgraph, cluster, quantum_to_cluster):
 
     Raises
     ------
-    KeyError :
+    KeyError
         Raised if any of the cluster's quantum node ids are missing
         from quantum_to_cluster or if their parent quantum node ids
         are missing from quantum_to_cluster.
