@@ -46,7 +46,7 @@ from .bps_draw import draw_networkx_dot
 _LOG = logging.getLogger(__name__)
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(slots=True)
 class GenericWorkflowFile:
     """Information about a file that may be needed by various workflow
     management services.
@@ -57,46 +57,28 @@ class GenericWorkflowFile:
     within run.
     """
 
-    src_uri: str or None  # don't know that need ResourcePath
+    src_uri: str | None = None  # don't know that need ResourcePath
     """Original location of file/directory.
     """
 
-    wms_transfer: bool
+    wms_transfer: bool = False
     """Whether the WMS should ignore file or not.  Default is False.
     """
 
-    job_access_remote: bool
+    job_access_remote: bool = False
     """Whether the job can remotely access file (using separately specified
     file access protocols).  Default is False.
     """
 
-    job_shared: bool
+    job_shared: bool = False
     """Whether job requires its own copy of this file.  Default is False.
     """
-
-    # As of python 3.7.8, can't use __slots__ + dataclass if give default
-    # values, so writing own __init__.
-    def __init__(
-        self,
-        name: str,
-        src_uri: str = None,
-        wms_transfer: bool = False,
-        job_access_remote: bool = False,
-        job_shared: bool = False,
-    ):
-        self.name = name
-        self.src_uri = src_uri
-        self.wms_transfer = wms_transfer
-        self.job_access_remote = job_access_remote
-        self.job_shared = job_shared
-
-    __slots__ = ("name", "src_uri", "wms_transfer", "job_access_remote", "job_shared")
 
     def __hash__(self):
         return hash(self.name)
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(slots=True)
 class GenericWorkflowExec:
     """Information about an executable that may be needed by various workflow
     management services.
@@ -107,253 +89,164 @@ class GenericWorkflowExec:
     within run.
     """
 
-    src_uri: str or None  # don't know that need ResourcePath
+    src_uri: str or None = None  # don't know that need ResourcePath
     """Original location of executable.
     """
 
-    transfer_executable: bool
+    transfer_executable: bool = False
     """Whether the WMS/plugin is responsible for staging executable to
     location usable by job.
     """
-
-    # As of python 3.7.8, can't use __slots__ + dataclass if give default
-    # values, so writing own __init__.
-    def __init__(self, name: str, src_uri: str = None, transfer_executable: bool = False):
-        self.name = name
-        self.src_uri = src_uri
-        self.transfer_executable = transfer_executable
-
-    __slots__ = ("name", "src_uri", "transfer_executable")
 
     def __hash__(self):
         return hash(self.name)
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(slots=True)
 class GenericWorkflowJob:
     """Information about a job that may be needed by various workflow
     management services.
-
-    Parameters
-    ----------
-    name : `str`
-        Name of job. Must be unique within workflow.
-    label : `str`, optional
-        Primary user-facing label for job.
     """
 
     name: str
     """Name of job.  Must be unique within workflow.
     """
 
-    label: str | None
+    label: str = "UNK"
     """Primary user-facing label for job.  Does not need to be unique
     and may be used for summary reports.
     """
 
-    quanta_counts: Counter | None
+    quanta_counts: Counter = dataclasses.field(default_factory=Counter)
     """Counts of quanta per task label in job.
     """
 
-    tags: dict | None
+    tags: dict = dataclasses.field(default_factory=dict)
     """Other key/value pairs for job that user may want to use as a filter.
     """
 
-    executable: GenericWorkflowExec | None
+    executable: GenericWorkflowExec | None = None
     """Executable for job.
     """
 
-    arguments: str | None
+    arguments: str | None = None
     """Command line arguments for job.
     """
 
-    cmdvals: dict | None
+    cmdvals: dict = dataclasses.field(default_factory=dict)
     """Values for variables in cmdline when using lazy command line creation.
     """
 
-    memory_multiplier: float | None
+    memory_multiplier: float | None = None
     """Memory growth rate between retries.
     """
 
-    request_memory: int | None  # MB
+    request_memory: int | None = None  # MB
     """Max memory (in MB) that the job is expected to need.
     """
 
-    request_memory_max: int | None  # MB
+    request_memory_max: int | None = None  # MB
     """Max memory (in MB) that the job should ever use.
     """
 
-    request_cpus: int | None  # cores
+    request_cpus: int | None = None  # cores
     """Max number of cpus that the job is expected to need.
     """
 
-    request_disk: int | None  # MB
+    request_disk: int | None = None  # MB
     """Max amount of job scratch disk (in MB) that the job is expected to need.
     """
 
-    request_walltime: str | None  # minutes
+    request_walltime: str | None = None  # minutes
     """Max amount of time (in seconds) that the job is expected to need.
     """
 
-    compute_site: str | None
+    compute_site: str | None = None
     """Key to look up site-specific information for running the job.
     """
 
-    accounting_group: str | None
+    accounting_group: str | None = None
     """Name of the accounting group to use.
     """
 
-    accounting_user: str | None
+    accounting_user: str | None = None
     """Name of the user to use for accounting purposes.
     """
 
-    mail_to: str | None
+    mail_to: str | None = None
     """Comma separated list of email addresses for emailing job status.
     """
 
-    when_to_mail: str | None
+    when_to_mail: str | None = None
     """WMS-specific terminology for when to email job status.
     """
 
-    number_of_retries: int | None
+    number_of_retries: int | None = None
     """Number of times to automatically retry a failed job.
     """
 
-    retry_unless_exit: int | None
+    retry_unless_exit: int | None = None
     """Exit code for job that means to not automatically retry.
     """
 
-    abort_on_value: int | None
+    abort_on_value: int | None = None
     """Job exit value for signals to abort the entire workflow.
     """
 
-    abort_return_value: int | None
+    abort_return_value: int | None = None
     """Exit value to use when aborting the entire workflow.
     """
 
-    priority: str | None
+    priority: str | None = None
     """Initial priority of job in WMS-format.
     """
 
-    category: str | None
+    category: str | None = None
     """WMS-facing label of job within single workflow (e.g., can be used for
     throttling jobs within a single workflow).
     """
 
-    concurrency_limit: str | None
+    concurrency_limit: str | None = None
     """Names of concurrency limits that the WMS plugin can appropriately
     translate to limit the number of this job across all running workflows.
     """
 
-    queue: str | None
+    queue: str | None = None
     """Name of queue to use. Different WMS can translate this concept
     differently.
     """
 
-    pre_cmdline: str | None
+    pre_cmdline: str | None = None
     """Command line to be executed prior to executing job.
     """
 
-    post_cmdline: str | None
+    post_cmdline: str | None = None
     """Command line to be executed after job executes.
 
     Should be executed regardless of exit status.
     """
 
-    preemptible: bool | None
+    preemptible: bool | None = None
     """The flag indicating whether the job can be preempted.
     """
 
-    profile: dict | None
+    profile: dict = dataclasses.field(default_factory=dict)
     """Nested dictionary of WMS-specific key/value pairs with primary key being
     WMS key (e.g., pegasus, condor, panda).
     """
 
-    attrs: dict | None
+    attrs: dict = dataclasses.field(default_factory=dict)
     """Key/value pairs of job attributes (for WMS that have attributes in
     addition to commands).
     """
 
-    environment: dict | None
+    environment: dict = dataclasses.field(default_factory=dict)
     """Environment variable names and values to be explicitly set inside job.
     """
 
-    compute_cloud: str | None
+    compute_cloud: str | None = None
     """Key to look up cloud-specific information for running the job.
     """
-
-    # As of python 3.7.8, can't use __slots__ if give default values, so
-    # writing own __init__.
-    def __init__(self, name, label="UNK"):
-        self.name = name
-        self.label = label
-        self.quanta_counts = Counter()
-        self.tags = {}
-        self.executable = None
-        self.arguments = None
-        self.cmdvals = {}
-        self.memory_multiplier = None
-        self.request_memory = None
-        self.request_memory_max = None
-        self.request_cpus = None
-        self.request_disk = None
-        self.request_walltime = None
-        self.compute_site = None
-        self.accounting_group = None
-        self.accounting_user = None
-        self.mail_to = None
-        self.when_to_mail = None
-        self.number_of_retries = None
-        self.retry_unless_exit = None
-        self.abort_on_value = None
-        self.abort_return_value = None
-        self.priority = None
-        self.category = None
-        self.concurrency_limit = None
-        self.queue = None
-        self.pre_cmdline = None
-        self.post_cmdline = None
-        self.preemptible = None
-        self.profile = {}
-        self.attrs = {}
-        self.environment = {}
-        self.compute_cloud = None
-
-    __slots__ = (
-        "name",
-        "label",
-        "quanta_counts",
-        "tags",
-        "mail_to",
-        "when_to_mail",
-        "executable",
-        "arguments",
-        "cmdvals",
-        "memory_multiplier",
-        "request_memory",
-        "request_memory_max",
-        "request_cpus",
-        "request_disk",
-        "request_walltime",
-        "number_of_retries",
-        "retry_unless_exit",
-        "abort_on_value",
-        "abort_return_value",
-        "compute_site",
-        "accounting_group",
-        "accounting_user",
-        "environment",
-        "priority",
-        "category",
-        "concurrency_limit",
-        "queue",
-        "pre_cmdline",
-        "post_cmdline",
-        "preemptible",
-        "profile",
-        "attrs",
-        "compute_cloud",
-    )
 
     def __hash__(self):
         return hash(self.name)
