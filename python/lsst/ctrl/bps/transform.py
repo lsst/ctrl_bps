@@ -403,7 +403,7 @@ def _get_qgraph_gwfile(config, save_qgraph_per_job, gwjob, run_qgraph_file, pref
     ----------
     config : `lsst.ctrl.bps.BpsConfig`
         Bps configuration.
-    save_qgraph_per_job: `lsst.ctrl.bps.bps_utils.WhenToSaveQuantumGraphs`
+    save_qgraph_per_job : `lsst.ctrl.bps.bps_utils.WhenToSaveQuantumGraphs`
         What submission stage to save per-job qgraph files (or NEVER)
     gwjob : `lsst.ctrl.bps.GenericWorkflowJob`
         Job for which determining QuantumGraph file.
@@ -497,7 +497,7 @@ def _handle_job_values(quantum_job_values, gwjob, attributes=_ATTRS_ALL):
         Job values for running single Quantum.
     gwjob : `lsst.ctrl.bps.GenericWorkflowJob`
         Generic workflow job in which to store the universal values.
-    attributes: `Iterable` [`str`], optional
+    attributes : `Iterable` [`str`], optional
         Job attributes to be set in the job following different rules.
         The default value is _ATTRS_ALL.
     """
@@ -517,7 +517,7 @@ def _handle_job_values_universal(quantum_job_values, gwjob, attributes=_ATTRS_UN
         Job values for running single Quantum.
     gwjob : `lsst.ctrl.bps.GenericWorkflowJob`
         Generic workflow job in which to store the universal values.
-    attributes: `Iterable` [`str`], optional
+    attributes : `Iterable` [`str`], optional
         Job attributes to be set in the job following different rules.
         The default value is _ATTRS_UNIVERSAL.
     """
@@ -560,7 +560,7 @@ def _handle_job_values_max(quantum_job_values, gwjob, attributes=_ATTRS_MAX):
         Job values for running single Quantum.
     gwjob : `lsst.ctrl.bps.GenericWorkflowJob`
         Generic workflow job in which to store the aggregate values.
-    attributes: `Iterable` [`str`], optional
+    attributes : `Iterable` [`str`], optional
         Job attributes to be set in the job following different rules.
         The default value is _ATTR_MAX.
     """
@@ -605,7 +605,7 @@ def _handle_job_values_sum(quantum_job_values, gwjob, attributes=_ATTRS_SUM):
         Job values for running single Quantum.
     gwjob : `lsst.ctrl.bps.GenericWorkflowJob`
         Generic workflow job in which to store the aggregate values.
-    attributes: `Iterable` [`str`], optional
+    attributes : `Iterable` [`str`], optional
         Job attributes to be set in the job following different rules.
         The default value is _ATTRS_SUM.
     """

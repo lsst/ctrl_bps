@@ -52,10 +52,10 @@ class QuantaCluster:
 
     Parameters
     ----------
-    name: `str`
+    name : `str`
         Lookup key (logical file name) of file/directory. Must
         be unique within ClusteredQuantumGraph.
-    label: `str`
+    label : `str`
         Value used to group clusters.
     tags : `dict` [`str`, `Any`], optional
         Arbitrary key/value pairs for the cluster.
@@ -63,7 +63,7 @@ class QuantaCluster:
     Raises
     ------
     ValueError
-        Raised if invalid name (e.g., name contains /)
+        Raised if invalid name (e.g., name contains /).
     """
 
     def __init__(self, name, label, tags=None):
@@ -85,7 +85,6 @@ class QuantaCluster:
         ----------
         quantum_node : `lsst.pipe.base.QuantumNode`
             QuantumNode for which to make into a single quantum cluster.
-
         template : `str`
             Template for creating cluster name.
 
@@ -136,6 +135,7 @@ class QuantaCluster:
         Parameters
         ----------
         quantum_node : `lsst.pipe.base.QuantumNode`
+            Quantum node to add.
         """
         _LOG.debug("quantum_node = %s", quantum_node)
         _LOG.debug("quantum_node.nodeId = %s", quantum_node.nodeId)
@@ -248,7 +248,7 @@ class ClusteredQuantumGraph:
 
         Parameters
         ----------
-        clusters_for_adding: `QuantaCluster` or `Iterable` [`QuantaCluster`]
+        clusters_for_adding : `QuantaCluster` or `Iterable` [`QuantaCluster`]
             The cluster to be added to the ClusteredQuantumGraph.
         """
         for cluster in ensure_iterable(clusters_for_adding):
@@ -420,7 +420,6 @@ class ClusteredQuantumGraph:
         ----------
         filename : `str`
             File to which the ClusteredQuantumGraph should be serialized.
-
         format_ : `str`, optional
             Format in which to write the data. It defaults to pickle format.
         """
@@ -457,7 +456,6 @@ class ClusteredQuantumGraph:
         ----------
         filename : `str`
             File to which the ClusteredQuantumGraph should be serialized.
-
         format_ : `str`, optional
             Format in which to draw the data. It defaults to dot format.
         """

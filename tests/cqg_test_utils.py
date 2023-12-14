@@ -78,9 +78,9 @@ def replace_node_name(name, label, dims):
     Parameters
     ----------
     name : `str`
-        Cluster name
+        Cluster name.
     label : `str`
-        Cluster label
+        Cluster label.
     dims : `dict` [`str`, `Any`]
         Dimension names and values in order to make new name unique.
 
@@ -189,7 +189,8 @@ def make_test_clustered_quantum_graph(outdir):
     qgraph : `lsst.pipe.base.QuantumGraph`
         The fake QuantumGraph created for the test
         ClusteredQuantumGraph returned separately.
-    cqg : `lsst.ctrl.bps.ClusteredQuantumGraph
+    cqg : `lsst.ctrl.bps.ClusteredQuantumGraph`
+        Clustered quantum graph.
     """
     qgraph = make_test_quantum_graph()
     qgraph2 = deepcopy(qgraph)  # keep separate copy

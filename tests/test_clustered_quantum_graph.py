@@ -116,7 +116,7 @@ class TestClusteredQuantumGraph(unittest.TestCase):
         self.assertEqual(self.cqg1.name, "cqg1")
 
     def testQgraph(self):
-        """Test qgraph method"""
+        """Test qgraph method."""
         self.assertEqual(self.cqg1.qgraph, self.qgraph)
 
     # def testAddClusterSingle(self):
@@ -138,7 +138,7 @@ class TestClusteredQuantumGraph(unittest.TestCase):
     #     """Test get_quantum_node method where node doesn't exist."""
 
     def testClusters(self):
-        """Test clusters method returns in correct order"""
+        """Test clusters method returns in correct order."""
 
     def testSuccessorsExisting(self):
         """Test successors method returns existing successors."""

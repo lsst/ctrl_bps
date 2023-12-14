@@ -53,7 +53,7 @@ def report(wms_service, run_id, user, hist_days, pass_thru, is_global=False, ret
     user : `str`
         A username the report will be restricted to.
     hist_days : int
-        Number of days
+        Number of days.
     pass_thru : `str`
         A string to pass directly to the WMS service class.
     is_global : `bool`, optional

@@ -25,7 +25,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-"""Base classes for working with a specific WMS"""
+"""Base classes for working with a specific WMS."""
 
 
 __all__ = [
@@ -46,7 +46,7 @@ _LOG = logging.getLogger(__name__)
 
 
 class WmsStates(Enum):
-    """Run and job states"""
+    """Run and job states."""
 
     UNKNOWN = 0
     """Can't determine state."""
@@ -84,7 +84,7 @@ class WmsStates(Enum):
 
 @dataclasses.dataclass(slots=True)
 class WmsJobReport:
-    """WMS job information to be included in detailed report output"""
+    """WMS job information to be included in detailed report output."""
 
     wms_id: str
     """Job id assigned by the workflow management system."""
@@ -101,7 +101,7 @@ class WmsJobReport:
 
 @dataclasses.dataclass(slots=True)
 class WmsRunReport:
-    """WMS run information to be included in detailed report output"""
+    """WMS run information to be included in detailed report output."""
 
     wms_id: str = None
     """Id assigned to the run by the WMS.
@@ -179,24 +179,24 @@ class BaseWmsService:
         config : `lsst.ctrl.bps.BpsConfig`
             BPS configuration.
         generic_workflow : `lsst.ctrl.bps.GenericWorkflow`
-            Generic representation of a single workflow
+            Generic representation of a single workflow.
         out_prefix : `str`
-            Prefix for all WMS output files
+            Prefix for all WMS output files.
 
         Returns
         -------
         wms_workflow : `lsst.ctrl.bps.BaseWmsWorkflow`
-            Prepared WMS Workflow to submit for execution
+            Prepared WMS Workflow to submit for execution.
         """
         raise NotImplementedError
 
     def submit(self, workflow):
-        """Submit a single WMS workflow
+        """Submit a single WMS workflow.
 
         Parameters
         ----------
         workflow : `lsst.ctrl.bps.BaseWmsWorkflow`
-            Prepared WMS Workflow to submit for execution
+            Prepared WMS Workflow to submit for execution.
         """
         raise NotImplementedError
 
@@ -213,10 +213,10 @@ class BaseWmsService:
         -------
         wms_id : `str`
             Id of the restarted workflow. If restart failed, it will be set
-            to None.
+            to `None`.
         run_name : `str`
             Name of the restarted workflow. If restart failed, it will be set
-            to None.
+            to `None`.
         message : `str`
             A message describing any issues encountered during the restart.
             If there were no issue, an empty string is returned.
@@ -347,7 +347,7 @@ class BaseWmsService:
         Returns
         -------
         status : `int`
-            0 for success, non-zero for failure
+            0 for success, non-zero for failure.
         message : `str`
             Any message from WMS (e.g., error details).
         """
@@ -374,7 +374,7 @@ class BaseWmsWorkflow(metaclass=ABCMeta):
 
     @classmethod
     def from_generic_workflow(cls, config, generic_workflow, out_prefix, service_class):
-        """Create a WMS-specific workflow from a GenericWorkflow
+        """Create a WMS-specific workflow from a GenericWorkflow.
 
         Parameters
         ----------

@@ -234,15 +234,15 @@ def add_clusters_per_quantum(config, label, qgraph, cqgraph, quantum_to_cluster)
     config : `lsst.ctrl.bps.BpsConfig`
         BPS configuration.
     label : `str`
-        taskDef label for which to add clusters.
+        The taskDef label for which to add clusters.
     qgraph : `lsst.pipe.base.QuantumGraph`
         QuantumGraph providing quanta for the clusters.
     cqgraph : `lsst.ctrl.bps.ClusteredQuantumGraph`
         The ClusteredQuantumGraph to which the new 1-quantum
-        clusters are added. (modified in method)
+        clusters are added (modified in method).
     quantum_to_cluster : `dict` [ `str`, `str` ]
-        Mapping of quantum node id to which cluster it was added.
-        (modified in method)
+        Mapping of quantum node id to which cluster it was added
+        (modified in method).
     """
     _LOG.info("Creating 1-quantum clusters for task %s", label)
     found, template_data_id = config.search(
@@ -280,10 +280,10 @@ def add_dim_clusters(cluster_config, cluster_label, qgraph, ordered_tasks, cqgra
         Mapping of cluster label to ordered list of task labels.
     cqgraph : `lsst.ctrl.bps.ClusteredQuantumGraph`
         The ClusteredQuantumGraph to which the new 1-quantum
-        clusters are added. (modified in method)
+        clusters are added (modified in method).
     quantum_to_cluster : `dict` [ `str`, `str` ]
-        Mapping of quantum node id to which cluster it was added.
-        (modified in method)
+        Mapping of quantum node id to which cluster it was added
+        (modified in method).
     """
     cluster_dims = []
     if "dimensions" in cluster_config:
@@ -375,16 +375,16 @@ def add_cluster_dependencies(cqgraph, cluster, quantum_to_cluster):
     ----------
     cqgraph : `lsst.ctrl.bps.ClusteredQuantumGraph`
         The ClusteredQuantumGraph to which the new 1-quantum
-        clusters are added. (modified in method)
+        clusters are added (modified in method).
     cluster : `lsst.ctrl.bps.QuantaCluster`
         The cluster for which to add dependencies.
     quantum_to_cluster : `dict` [ `str`, `str` ]
-        Mapping of quantum node id to which cluster it was added.
-        (modified in method)
+        Mapping of quantum node id to which cluster it was added
+        (modified in method).
 
     Raises
     ------
-    KeyError :
+    KeyError
         Raised if any of the cluster's quantum node ids are missing
         from quantum_to_cluster or if their parent quantum node ids
         are missing from quantum_to_cluster.
