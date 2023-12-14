@@ -122,4 +122,3 @@ finalJob:
     {butlerConfig}
     --register-dataset-types
     --update-output-chain
-    --transfer-dimensions
