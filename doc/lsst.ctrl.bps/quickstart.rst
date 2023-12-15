@@ -940,7 +940,6 @@ New YAML Section
        {butlerConfig}
        --register-dataset-types
        --update-output-chain
-       --transfer-dimensions
 
 **whenSetup**
     When during the submission process set up the final job.  Provided for
