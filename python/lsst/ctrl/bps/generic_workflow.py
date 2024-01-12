@@ -609,16 +609,16 @@ class GenericWorkflow(DiGraph):
             Output files for the given job. If no output files for the job,
             returns an empty list.
         """
+        _LOG.debug("_files=%s", self._files.keys())
         outputs = []
 
         if job_name in self._outputs:
-            for file_name in self._outputs[job_name]:
-                file = self._files[file_name]
-                if not transfer_only or file.wms_transfer:
+            for gwfile in self._outputs[job_name]:
+                if not transfer_only or gwfile.wms_transfer:
                     if not data:
-                        outputs.append(file_name)
+                        outputs.append(gwfile.name)
                     else:
-                        outputs.append(self._files[file_name])
+                        outputs.append(gwfile)
         return outputs
 
     def draw(self, stream, format_="dot"):

@@ -34,6 +34,7 @@ import logging
 import math
 import os
 import re
+from collections import defaultdict
 
 from lsst.utils.logging import VERBOSE
 from lsst.utils.timer import time_this, timeMethod
@@ -217,9 +218,59 @@ def create_init_workflow(config, qgraph, qgraph_gwfile):
     butler_gwfile = _get_butler_gwfile(prefix, when_create, butler_config, execution_butler_dir)
 
     init_workflow.add_job_inputs(gwjob.name, [qgraph_gwfile, butler_gwfile])
+
+    # Note: init can't create summary file
+
     _enhance_command(config, init_workflow, gwjob, {})
 
     return init_workflow
+
+
+def _handle_summary(config, generic_workflow, gwjob, search_opt, cached_job_values):
+    """Add summary file to job if needed.
+
+    Parameters
+    ----------
+    config : `lsst.ctrl.bps.BpsConfig`
+        BPS configuration.
+    generic_workflow : `lsst.ctrl.bps.GenericWorkflow`
+        Generic workflow that contains the job.
+    gwjob : `lsst.ctrl.bps.GenericWorkflowJob`
+        Generic workflow job to which the summary file should be saved.
+    cached_job_values : `dict` [`str`, dict[`str`, `Any`]]
+        Cached values common across jobs with same label.  Updated if values
+        aren't already saved for given gwjob's label.
+    """
+    found, create_summary = config.search("createSummary", opt=search_opt)
+    _LOG.debug("createSummary=%s, search_opt=%s", create_summary, search_opt)
+    if create_summary:
+        orig_curvals = search_opt.get('curvals', {})
+        new_curvals = defaultdict(str)
+        new_curvals.update(orig_curvals)
+        new_curvals["label"] = gwjob.label
+        new_curvals["job_name"] = gwjob.name
+        if gwjob.tags:
+            new_curvals.update(gwjob.tags)
+        new_search_opt = {"replaceVars": True,
+                          "curvals": new_curvals}
+        found, summary_uri = config.search("summaryPattern", opt=new_search_opt)
+        if not found:
+            raise RuntimeError("Missing summaryPattern in configuraton")
+        summary_uri = os.path.join(config["submitPath"], os.path.normpath(summary_uri))
+        _LOG.debug("job_name=%s;  summary_uri=%s", new_curvals["job_name"], summary_uri)
+
+        name = os.path.basename(summary_uri)
+        summary = GenericWorkflowFile(
+            name,
+            src_uri=summary_uri,
+            wms_transfer=True,
+            job_access_remote=False,
+            job_shared=False,
+        )
+        generic_workflow.add_job_outputs(gwjob.name, [summary])
+
+        # Update job command
+        gwjob.arguments += f" --summary {{{name}}}"
 
 
 def _enhance_command(config, generic_workflow, gwjob, cached_job_values):
@@ -752,6 +803,7 @@ def create_generic_workflow(config, cqgraph, name, prefix):
         gwjob.cmdvals["qgraphNodeId"] = ",".join(
             sorted([f"{node_id}" for node_id in cluster.qgraph_node_ids])
         )
+        _handle_summary(config, generic_workflow, gwjob, search_opt, cached_job_values)
         _enhance_command(config, generic_workflow, gwjob, cached_job_values)
 
         # If writing per-job QuantumGraph files during TRANSFORM stage,
