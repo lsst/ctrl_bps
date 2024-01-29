@@ -251,26 +251,29 @@ class ExitCodesReport(BaseRunReport):
             id_ = run_report.global_wms_id if use_global_id else run_report.wms_id
             self._msg = f"WARNING: Job summary for run '{id_}' not available, report maybe incomplete."
             return
+
+        # Payload (e.g. pipetask) error codes:
+        # * 1: general failure,
+        # * 2: command line error (e.g. unknown command and/or option).
+        pyld_error_codes = {1, 2}
+
         exit_code_summary = run_report.exit_code_summary
         for label in labels:
             exit_codes = exit_code_summary[label]
-            if exit_codes:
-                # payload errors always return 1 on failure
-                pipe_error_count = sum([code for code in exit_codes if code == 1])
-                infra_codes = [code for code in exit_codes if code != 0 and code != 1]
-                if infra_codes:
-                    infra_error_count = len(infra_codes)
-                    str_infra_codes = [str(code) for code in infra_codes]
-                    infra_error_codes = ", ".join(sorted(set(str_infra_codes)))
-                else:
-                    infra_error_count = 0
-                    infra_error_codes = "None"
-            else:
-                pipe_error_count = 0
-                infra_error_codes = "None"
-                infra_error_count = 0
-            run = [label]
-            run.extend([pipe_error_count, infra_error_count, infra_error_codes])
+
+            pyld_errors = [code for code in exit_codes if code in pyld_error_codes]
+            pyld_error_count = len(pyld_errors)
+            pyld_error_summary = (
+                ", ".join(sorted(str(code) for code in set(pyld_errors))) if pyld_errors else "None"
+            )
+
+            infra_errors = [code for code in exit_codes if code not in pyld_error_codes]
+            infra_error_count = len(infra_errors)
+            infra_error_summary = (
+                ", ".join(sorted(str(code) for code in set(infra_errors))) if infra_errors else "None"
+            )
+
+            run = [label, pyld_error_count, pyld_error_summary, infra_error_count, infra_error_summary]
             self._table.add_row(run)
 
     def __str__(self):
