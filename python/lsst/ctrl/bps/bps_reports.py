@@ -240,8 +240,8 @@ class ExitCodesReport(BaseRunReport):
     def add(self, run_report, use_global_id=False):
         # Docstring inherited from the base class.
 
-        # get labels from things and exit codes
-
+        # Use label ordering from the run summary as it should reflect
+        # the ordering of the pipetasks in the pipeline.
         labels = []
         if run_report.run_summary:
             for part in run_report.run_summary.split(";"):
@@ -287,7 +287,7 @@ def compile_job_summary(jobs):
 
     Parameters
     ----------
-    jobs : `list` [`lsst.ctrl.bps.WmsRunReport`]
+    jobs : `list` [`lsst.ctrl.bps.WmsJobReport`]
         List of run reports.
 
     Returns
@@ -337,7 +337,7 @@ def group_jobs_by_label(jobs):
 
     Returns
     -------
-    by_label : `dict` [`str`, `lsst.ctrl.bps.WmsJobReport`]
+    by_label : `dict` [`str`, `list` [`lsst.ctrl.bps.WmsJobReport`]]
         Mapping of job state to a list of jobs.
     """
     by_label = {}
