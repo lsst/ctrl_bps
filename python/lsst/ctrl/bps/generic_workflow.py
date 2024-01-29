@@ -325,7 +325,7 @@ class GenericWorkflow(DiGraph):
         final = self.get_final()
         if final:
             if isinstance(final, GenericWorkflow):
-                jcounts.update(final.job_counts())
+                jcounts.update(final.job_counts)
             else:
                 jcounts[final.label] += 1
 
