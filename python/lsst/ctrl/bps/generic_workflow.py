@@ -822,8 +822,7 @@ class GenericWorkflowLabels:
     @property
     def job_counts(self):
         """Count of jobs per job label (`collections.Counter`)."""
-        jcounts = Counter({label: len(jobs) for label, jobs in self._label_to_jobs.items()})
-        return jcounts
+        return Counter({label: len(self._label_to_jobs[label]) for label in self.labels})
 
     def get_jobs_by_label(self, label: str):
         """Retrieve jobs by label from workflow.
