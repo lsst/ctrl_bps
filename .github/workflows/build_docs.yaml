@@ -35,7 +35,7 @@ jobs:
         run: pip install --no-deps -v .
 
       - name: Install documenteer
-        run: pip install 'documenteer[pipelines]>0.8,<0.9'
+        run: pip install 'documenteer[pipelines]==0.8.2'
 
       - name: Build documentation
         working-directory: ./doc

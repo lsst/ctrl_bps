@@ -295,13 +295,14 @@ class ExitCodesReportTestCase(unittest.TestCase):
         self.fields = [
             (" ", "S"),
             ("PAYLOAD ERROR COUNT", "i"),
+            ("PAYLOAD ERROR CODES", "S"),
             ("INFRASTRUCTURE ERROR COUNT", "i"),
             ("INFRASTRUCTURE ERROR CODES", "S"),
         ]
 
         table = Table(dtype=self.fields)
-        table.add_row(["foo"] + [0] + [0] + ["None"])
-        table.add_row(["bar"] + [1] + [3] + ["2, 3, 4"])
+        table.add_row(["foo", 0, "None", 0, "None"])
+        table.add_row(["bar", 2, "1, 2", 2, "3, 4"])
         self.expected = ExitCodesReport.from_table(table)
 
         self.run = WmsRunReport(
@@ -329,7 +330,7 @@ class ExitCodesReportTestCase(unittest.TestCase):
                 "bar": {state: 1 if state == WmsStates.RUNNING else 0 for state in WmsStates},
             },
             exit_code_summary={
-                "foo": [0, 0, 0, 0],
+                "foo": [],
                 "bar": [1, 2, 3, 4],
             },
         )
@@ -340,15 +341,12 @@ class ExitCodesReportTestCase(unittest.TestCase):
         """Test adding a run with a job summary."""
         self.run.jobs = None
         self.actual.add(self.run)
-        print(self.actual)
-        print(self.expected)
         self.assertEqual(self.actual, self.expected)
 
     def testAddWithJobs(self):
         """Test adding a run with a job info, but not job summary."""
         self.run.job_summary = None
         self.actual.add(self.run)
-
         self.assertEqual(self.actual, self.expected)
 
     def testAddWithoutRunSummary(self):

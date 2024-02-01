@@ -153,9 +153,11 @@ class WmsRunReport:
     job_summary: dict[str, dict[WmsStates, int]] = None
     """Job counts per label and per state."""
 
-    exit_code_summary: dict[list] = None
-    """Summary of non-zero exit codes per job label
-    available through the WMS.
+    exit_code_summary: dict[str, list[int]] = None
+    """Summary of non-zero exit codes per job label available through the WMS.
+
+    Currently behavior for jobs that were canceled, held, etc. are plugin
+    dependent.
     """
 
 
