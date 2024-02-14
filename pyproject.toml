@@ -56,6 +56,9 @@ license-files = ["COPYRIGHT", "LICENSE", "bsd_license.txt", "gpl-v3.0.txt"]
 [tool.setuptools.dynamic]
 version = { attr = "lsst_versions.get_lsst_version" }
 
+[project.scripts]
+bps = "lsst.ctrl.bps.cli.bps:main"
+
 [tool.towncrier]
     package = "lsst.ctrl.bps"
     package_dir = "python"
