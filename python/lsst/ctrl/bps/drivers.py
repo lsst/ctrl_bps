@@ -406,6 +406,33 @@ def submit_driver(config_file, **kwargs):
         "not accurately reflect actual memory usage by the bps process."
     )
 
+    remote_build = {}
+    config = BpsConfig(config_file, BPS_SEARCH_ORDER)
+    _, remote_build = config.search("remoteBuild", opt={"default": {}})
+    if remote_build:
+        if config["wmsServiceClass"] == "lsst.ctrl.bps.panda.PanDAService":
+            if not remote_build.search("enabled", opt={"default": False})[1]:
+                remote_build = {}
+                _LOG.info("The workflow is sumitted to the local Data Facility.")
+            else:
+                _LOG.info("Remote submission is enabled. The workflow is sumitted to a remote Data Facility.")
+                _LOG.info("Initializing execution environment")
+                with time_this(
+                    log=_LOG,
+                    level=logging.INFO,
+                    prefix=None,
+                    msg="Initializing execution environment completed",
+                    mem_usage=True,
+                    mem_unit=DEFAULT_MEM_UNIT,
+                    mem_fmt=DEFAULT_MEM_FMT,
+                ):
+                    config = _init_submission_driver(config_file, **kwargs)
+                    kwargs["remote_build"] = remote_build
+                    kwargs["config_file"] = config_file
+                    wms_workflow = None
+    else:
+        _LOG.info("The workflow is sumitted to the local Data Facility.")
+
     _LOG.info("Starting submission process")
     with time_this(
         log=_LOG,
@@ -416,7 +443,10 @@ def submit_driver(config_file, **kwargs):
         mem_unit=DEFAULT_MEM_UNIT,
         mem_fmt=DEFAULT_MEM_FMT,
     ):
-        wms_workflow_config, wms_workflow = prepare_driver(config_file, **kwargs)
+        if not remote_build:
+            wms_workflow_config, wms_workflow = prepare_driver(config_file, **kwargs)
+        else:
+            wms_workflow_config = config
 
         _LOG.info("Starting submit stage")
         with time_this(
@@ -428,7 +458,9 @@ def submit_driver(config_file, **kwargs):
             mem_unit=DEFAULT_MEM_UNIT,
             mem_fmt=DEFAULT_MEM_FMT,
         ):
-            submit(wms_workflow_config, wms_workflow)
+            workflow = submit(wms_workflow_config, wms_workflow, **kwargs)
+            if not wms_workflow:
+                wms_workflow = workflow
             _LOG.info("Run '%s' submitted for execution with id '%s'", wms_workflow.name, wms_workflow.run_id)
     if _LOG.isEnabledFor(logging.INFO):
         _LOG.info(
