@@ -50,8 +50,8 @@ def submit(config, wms_workflow, wms_service=None, **kwargs):
     wms_service : `lsst.ctrl.bps.BaseWmsService`, optional
         The workflow management service to which the workflow should be
         submitted.
-    kwargs: `dict`, optional
-        The other parameters.
+    **kwargs : `~typing.Any`
+        Additional modifiers to submit a workflow.
 
     Returns
     -------
