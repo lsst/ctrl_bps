@@ -7,4 +7,3 @@ git+https://github.com/lsst/utils@main#egg=lsst-utils
 git+https://github.com/lsst/pipe_base@main#egg=lsst-pipe-base
 git+https://github.com/lsst/resources@main#egg=lsst-resources
 git+https://github.com/lsst/ctrl_mpexec@main#egg=lsst-ctrl-mpexec
-sqlalchemy <2.0
