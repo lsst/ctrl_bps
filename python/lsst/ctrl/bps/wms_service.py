@@ -192,13 +192,15 @@ class BaseWmsService:
         """
         raise NotImplementedError
 
-    def submit(self, workflow):
+    def submit(self, workflow, **kwargs):
         """Submit a single WMS workflow.
 
         Parameters
         ----------
         workflow : `lsst.ctrl.bps.BaseWmsWorkflow`
             Prepared WMS Workflow to submit for execution.
+        **kwargs : `~typing.Any`
+            Additional modifiers to the configuration.
         """
         raise NotImplementedError
 
