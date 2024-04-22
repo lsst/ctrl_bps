@@ -35,7 +35,7 @@ import logging
 
 from lsst.utils import doImport
 
-from .bps_reports import DetailedRunReport, ExitCodesReport, SummaryRunReport
+from .bps_reports import DetailedRunReport, ExitCodesReport, SummaryRunReport, get_job_summary
 from .wms_service import WmsStates
 
 _LOG = logging.getLogger(__name__)
@@ -141,3 +141,62 @@ def report(wms_service, run_id, user, hist_days, pass_thru, is_global=False, ret
     if message:
         print(message)
         print("\n")
+
+
+def summarize(wms_service, run_id, hist_days=2, pass_thru=None, is_global=False):
+    """Provide a job summary for the given run.
+
+    Parameters
+    ----------
+    wms_service : `str`
+        Name of the class representing a plugin/service for the given WMS.
+    run_id : `str`
+        A run id the report will be restricted to.
+    hist_days : `int`, optional
+        If non-zero, the records of the completed jobs from the given number
+        of past days will be queried additionally to the records of
+        the currently running jobs.
+    pass_thru : `str`, optional
+        A string to pass directly to the WMS service class.
+    is_global : `bool`, optional
+        If set, all available job queues will be queried for job information.
+        Defaults to False which means that only a local job queue will be
+        queried for information.
+
+        Only applicable in the context of a WMS using distributed job queues
+        (e.g., HTCondor).
+
+    Returns
+    -------
+    summary : `dict` [`str`, `dict` [`lsst.ctrl.bps.WmsState`, `int`]] | None
+        The summary of the execution statuses for each job label in the run.
+        For each job label, execution statuses are mapped to number of jobs
+        having a given status. None if the attempt to produce the job summary
+        failed.
+    message : `str`
+        An error message if the attempt to produce the job summary failed,
+        an empty string otherwise.
+    """
+    wms_service_class = doImport(wms_service)
+    wms_service = wms_service_class({})
+    wms_reports, wms_message = wms_service.report(
+        run_id, user=None, hist=hist_days, pass_thru=pass_thru, is_global=is_global
+    )
+    message = ""
+    try:
+        wms_report = wms_reports.pop()
+    except IndexError:
+        summary = None
+        message = f"No records found for job id '{run_id}'"
+    else:
+        summary = get_job_summary(wms_report)
+        if summary is None:
+            id_ = wms_report.global_wms_id if is_global else wms_report.wms_id
+            message = (
+                f"Job summary for run '{id_}' not available. "
+                f"Neither pre-existing summary nor information about individual jobs was found"
+            )
+    if message:
+        if wms_message:
+            message += f": {wms_message}"
+    return summary, message

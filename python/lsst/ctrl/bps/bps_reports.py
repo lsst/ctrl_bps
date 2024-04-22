@@ -28,7 +28,7 @@
 """Classes and functions used in reporting run status.
 """
 
-__all__ = ["BaseRunReport", "DetailedRunReport", "SummaryRunReport", "ExitCodesReport"]
+__all__ = ["BaseRunReport", "DetailedRunReport", "SummaryRunReport", "ExitCodesReport", "get_job_summary"]
 
 import abc
 import logging
@@ -193,13 +193,8 @@ class DetailedRunReport(BaseRunReport):
         total.append(sum(by_label_expected.values()) if by_label_expected else run_report.total_number_jobs)
         self._table.add_row(total)
 
-        # Use the provided job summary. If it doesn't exist, compile it from
-        # information about individual jobs.
-        if run_report.job_summary:
-            job_summary = run_report.job_summary
-        elif run_report.jobs:
-            job_summary = compile_job_summary(run_report.jobs)
-        else:
+        job_summary = get_job_summary(run_report)
+        if job_summary is None:
             id_ = run_report.global_wms_id if use_global_id else run_report.wms_id
             self._msg = f"WARNING: Job summary for run '{id_}' not available, report maybe incomplete."
             return
@@ -282,6 +277,30 @@ class ExitCodesReport(BaseRunReport):
         return str("\n".join(lines))
 
 
+def get_job_summary(run_report):
+    """Produce job summary based on the provided run report.
+
+    Parameters
+    ----------
+    run_report : `lsst.ctrl.bps.WmsRunReport`
+        Information for single run.
+
+    Returns
+    -------
+    summary : `dict` [`str`, `dict` [`lsst.ctrl.bps.WmsStates`, `int`]] | None
+        The summary of the execution statuses for each job label in the run.
+        For each job label, execution statuses are mapped to number of jobs
+        having a given status. None if the job summary could not be produced.
+    """
+    if run_report.job_summary:
+        summary = run_report.job_summary
+    elif run_report.jobs:
+        summary = compile_job_summary(run_report.jobs)
+    else:
+        summary = None
+    return summary
+
+
 def compile_job_summary(jobs):
     """Compile job summary from information available for individual jobs.
 
@@ -292,7 +311,7 @@ def compile_job_summary(jobs):
 
     Returns
     -------
-    job_summary : `dict` [`str`, dict` [`lsst.ctrl.bps.WmsState`, `int`]]
+    job_summary : `dict` [`str`, dict` [`lsst.ctrl.bps.WmsStates`, `int`]]
         The summary of the execution statuses for each job label in the run.
         For each job label, execution statuses are mapped to number of jobs
         having a given status.
