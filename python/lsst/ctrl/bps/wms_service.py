@@ -33,6 +33,7 @@ __all__ = [
     "BaseWmsWorkflow",
     "WmsJobReport",
     "WmsRunReport",
+    "WmsSpecificInfo",
     "WmsStates",
 ]
 
@@ -41,6 +42,7 @@ import dataclasses
 import logging
 from abc import ABCMeta
 from enum import Enum
+from typing import Any
 
 _LOG = logging.getLogger(__name__)
 
@@ -80,6 +82,94 @@ class WmsStates(Enum):
 
     PRUNED = 10
     """At least one of the parents failed or can't be run."""
+
+
+class WmsSpecificInfo:
+    """Class representing WMS specific information.
+
+    Each piece of information is split into two parts: a template and
+    a context. The template is a string that can contain literal text and/or
+    *named* replacement fields delimited by braces ``{}``. The context is
+    a mapping between the variables that names correspond to the replacement
+    fields in the template and their values.
+
+    To produce a human-readable representation of the information, e.g., for
+    logging purposes, it needs to be rendered first to combine these two parts.
+    On the other hand, the context alone might be sufficient if the provided
+    information is being ingested to a database.
+    """
+
+    def __init__(self):
+        self._context: dict[str, Any] = {}
+        self._templates: list[str] = []
+
+    @property
+    def context(self) -> dict[str, Any]:
+        """The context that will be used to render the information.
+
+        Returns
+        -------
+        context : `dict` [`str`, `Any`]
+            The dictionary representing the mapping between *every* template
+            variable and its value.
+        """
+        return self._context
+
+    @property
+    def templates(self) -> list[str]:
+        """The list of templates that will be used to render the information.
+
+        Returns
+        -------
+        templates : `list` [`str`]
+            The complete list of the message templates in order in which
+            the messages were added.
+        """
+        return self._templates
+
+    def add_message(self, template: str, context: dict[str, Any] | None = None, **kwargs) -> None:
+        """Add a message to the WMS information.
+
+        If keyword arguments are specified, the passed context is then updated
+        with those key/value pairs.
+
+        Parameters
+        ----------
+        template : `str`
+            A message template.
+        context : `dict` [`str`, `Any`], optional
+            A mapping between template variables and their values.
+        **kwargs
+            Additional keyword arguments.
+
+        Raises
+        ------
+        ValueError
+            Raised if the message can't be rendered due to errors in either
+            the template, the context, or both.
+        """
+        if context is None:
+            context = {}
+        try:
+            context.update(kwargs)
+            template.format_map(context)
+        except Exception as exc:
+            raise ValueError(f"Adding template '{template}' with context '{context}' failed") from exc
+        self._context.update(context)
+        self._templates.append(template)
+
+    def render(self) -> str:
+        """Render the WMS information as a string.
+
+        Returns
+        -------
+        info : `str`
+            Rendered WMS information.
+        """
+        lines = []
+        for template in self._templates:
+            lines.append(template.format_map(self._context))
+        return "\n".join(lines)
 
 
 @dataclasses.dataclass(slots=True)
@@ -159,6 +249,9 @@ class WmsRunReport:
     Currently behavior for jobs that were canceled, held, etc. are plugin
     dependent.
     """
+
+    specific_info: WmsSpecificInfo = None
+    """Any additional WMS specific information."""
 
 
 class BaseWmsService:
