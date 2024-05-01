@@ -122,3 +122,14 @@ finalJob:
     {butlerConfig}
     --register-dataset-types
     --update-output-chain
+
+# Set a global default memory limit (in MiB) for the automatic memory scaling
+# mechanism. The value, 480 GiB, picked based on the cluster specifications
+# available at
+#
+#     https://s3df.slac.stanford.edu/public/doc/#/batch-compute
+#
+# When DM-44110 is completed, BPS plugins will be able to provide their
+# own defaults.  Currently, needs to be override in user's config
+# if a different limit needs to be used.
+memoryLimit: 491520
