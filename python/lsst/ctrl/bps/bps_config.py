@@ -34,12 +34,14 @@ __all__ = ["BPS_DEFAULTS", "BPS_SEARCH_ORDER", "BpsConfig", "BpsFormatter"]
 
 import copy
 import logging
+import os
 import re
 import string
 from os.path import expandvars
 
 from lsst.daf.butler import Config
 from lsst.resources import ResourcePath
+from lsst.utils import doImport
 
 _LOG = logging.getLogger(__name__)
 
@@ -72,13 +74,35 @@ class BpsConfig(Config):
     Parameters
     ----------
     other : `str`, `dict`, `~lsst.daf.butler.Config`, `BpsConfig`
-        Path to a yaml file or a dict/Config/BpsConfig containing configuration
+        Path to a YAML file or a dict/Config/BpsConfig containing configuration
         to copy.
     search_order : `list` [`str`], optional
         Root section names in the order in which they should be searched.
+    defaults : `str`, `dict`, `~lsst.daf.butler.Config`, optional
+        Default settings that will be used to prepopulate the config. If None
+        (default), BPS defaults will be used instead. If the WMS service
+        default settings are available, they will be added afterwards.
+        WMS settings takes precedence over provided default settings.
+        The option has no effect if configuration is *not* read from a file.
+    wms_service_class : `str`, optional
+        Fully qualified name of the WMS service class to use to get plugin's
+        specific default settings. If ``None`` (default), the WMS service
+        class provided by
+
+        1. user's config,
+        2. environmental variable BPS_WMS_SERVICE_CLASS,
+        3. BPS default settings
+
+        will be used instead. The search order reflects the precedence if
+        the WMS class is defined in multiple places.
+
+    Raises
+    ------
+    ValueError
+        Raised if the class cannot be instantiated from the provided object.
     """
 
-    def __init__(self, other, search_order=None):
+    def __init__(self, other, search_order=None, defaults=None, wms_service_class=None):
         # In BPS config, the same setting can be defined multiple times in
         # different sections.  The sections are search in a pre-defined
         # order. Hence, a value which is found first effectively overrides
@@ -94,20 +118,50 @@ class BpsConfig(Config):
         # class __getitem__ method.
         super().__init__()
 
+        try:
+            config = Config(other)
+        except Exception as exc:
+            raise ValueError(f"A BpsConfig could not be loaded from other: {other}") from exc
+
         if isinstance(other, str):
-            # First load default config from ctrl_bps, then override with
-            # user config.
-            tmp_config = Config(BPS_DEFAULTS)
-            user_config = Config(other)
-            tmp_config.update(user_config)
-            other = tmp_config
+
+            # Start with the default settings either provided by the user
+            # or use those defined in this module.
+            tmp_config = Config(defaults if defaults is not None else BPS_DEFAULTS)
+
+            # Next, include WMS defaults and/or apply its overrides
+            # if available.
+            #
+            # If the WMS service class was not set explicitly, use
+            # the value provided by:
+            #   1. user's config,
+            #   2. environmental variable BPS_WMS_SERVICE_CLASS,
+            #   3. BPS default settings.
+            if wms_service_class is None:
+                wms_service_class = config.get(
+                    "wmsServiceClass",
+                    os.environ.get("BPS_WMS_SERVICE_CLASS", tmp_config.get("wmsServiceClass")),
+                )
+            try:
+                wms_service_class = doImport(wms_service_class)
+            except TypeError:
+                # Do not die if the WMS service class is still not set.
+                pass
+            else:
+                wms_service = wms_service_class({})
+                wms_defaults = wms_service.defaults
+                if wms_defaults is not None:
+                    wms_config = Config(wms_defaults)
+                    tmp_config.update(wms_config)
+
+            # Finally, include values and/or apply overrides from the user's
+            # config.
+            tmp_config.update(config)
+            config = tmp_config
+
             if search_order is None:
                 search_order = BPS_SEARCH_ORDER
 
-        try:
-            config = Config(other)
-        except RuntimeError:
-            raise RuntimeError(f"A BpsConfig could not be loaded from other: {other}")
         self.update(config)
 
         if isinstance(other, BpsConfig):
