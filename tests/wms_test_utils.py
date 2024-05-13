@@ -61,3 +61,51 @@ class WmsServiceDefault(BaseWmsService):
     def ping(self, pass_thru):
         _LOG.info(f"DEFAULT {pass_thru}")
         return 0, "default"
+
+
+class WmsServiceFromCmdline(BaseWmsService):
+    """WMS service class with its own default settings."""
+
+    @property
+    def defaults(self):
+        return {"corge": "cmdline"}
+
+    @property
+    def defaults_path(self):
+        return "/wms/class/from/cmdline"
+
+
+class WmsServiceFromConfig(BaseWmsService):
+    """WMS service class with its own default settings."""
+
+    @property
+    def defaults(self):
+        return {"corge": "config"}
+
+    @property
+    def defaults_path(self):
+        return "/wms/class/from/config"
+
+
+class WmsServiceFromEnv(BaseWmsService):
+    """WMS service class with its own default settings."""
+
+    @property
+    def defaults(self):
+        return {"corge": "env"}
+
+    @property
+    def defaults_path(self):
+        return "/wms/class/from/env"
+
+
+class WmsServiceFromDefaults(BaseWmsService):
+    """WMS service class with its own default settings."""
+
+    @property
+    def defaults(self):
+        return {"corge": "defaults"}
+
+    @property
+    def defaults_path(self):
+        return "/wms/class/from/defaults"
