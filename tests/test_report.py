@@ -27,6 +27,7 @@
 
 """Tests for reporting mechanism."""
 
+import dataclasses
 import io
 import unittest
 
@@ -39,6 +40,7 @@ from lsst.ctrl.bps import (
     WmsJobReport,
     WmsRunReport,
     WmsStates,
+    compile_job_summary,
 )
 
 
@@ -347,6 +349,51 @@ class ExitCodesReportTestCase(unittest.TestCase):
         self.run.run_summary = None
         self.actual.add(self.run)
         self.assertRegex(self.actual.message, r"^WARNING.*incomplete")
+
+
+class CompileJobSummaryTestCase(unittest.TestCase):
+    """Test compiling a job summary."""
+
+    def setUp(self):
+        self.report = WmsRunReport(
+            wms_id="1.0",
+            global_wms_id="foo#1.0",
+            path="/path/to/run",
+            label="label",
+            run="run",
+            project="dev",
+            campaign="testing",
+            payload="test",
+            operator="tester",
+            run_summary="foo:1",
+            state=WmsStates.SUCCEEDED,
+            jobs=[WmsJobReport(wms_id="1.0", name="", label="foo", state=WmsStates.SUCCEEDED)],
+            total_number_jobs=1,
+            job_state_counts={state: 1 if state == WmsStates.SUCCEEDED else 0 for state in WmsStates},
+            job_summary={
+                "foo": {state: 1 if state == WmsStates.SUCCEEDED else 0 for state in WmsStates},
+            },
+        )
+
+    def tearDown(self):
+        pass
+
+    def testSummaryExists(self):
+        result = dataclasses.replace(self.report)
+        compile_job_summary(result)
+        self.assertEqual(result, self.report)
+
+    def testSummaryMissing(self):
+        result = dataclasses.replace(self.report)
+        result.job_summary = None
+        compile_job_summary(result)
+        self.assertEqual(result, self.report)
+
+    def testCompilationError(self):
+        self.report.job_summary = None
+        self.report.jobs = None
+        with self.assertRaises(ValueError):
+            compile_job_summary(self.report)
 
 
 if __name__ == "__main__":
