@@ -1,0 +1,2 @@
+* The name of the function responsible for displaying BPS run report, ``report()`` was changed to ``display_report()``.
+* A new function, ``retrieve_report()`` was added which should be used for retrieving the run report from the BPS plugin in use.
