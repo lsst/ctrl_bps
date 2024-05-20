@@ -31,30 +31,42 @@ Note: Expectations are that future reporting effort will revolve around LSST
 oriented database tables.
 """
 
+__all__ = ["display_report", "retrieve_report"]
+
 import logging
+from collections.abc import Callable, Sequence
 
 from lsst.utils import doImport
 
-from .bps_reports import DetailedRunReport, ExitCodesReport, SummaryRunReport, get_job_summary
-from .wms_service import WmsStates
+from .bps_reports import DetailedRunReport, ExitCodesReport, SummaryRunReport, compile_job_summary
+from .wms_service import WmsRunReport, WmsStates
 
 _LOG = logging.getLogger(__name__)
 
 
-def report(wms_service, run_id, user, hist_days, pass_thru, is_global=False, return_exit_codes=False):
+def display_report(
+    wms_service: str,
+    *,
+    run_id: str | None = None,
+    user: str | None = None,
+    hist: int | None = None,
+    pass_thru: str | None = None,
+    is_global: bool = False,
+    return_exit_codes: bool = False,
+) -> None:
     """Print out summary of jobs submitted for execution.
 
     Parameters
     ----------
     wms_service : `str`
-        Name of the class.
-    run_id : `str`
+        Name of the WMS service class.
+    run_id : `str`, optional
         A run id the report will be restricted to.
-    user : `str`
+    user : `str`, optional
         A username the report will be restricted to.
-    hist_days : int
-        Number of days.
-    pass_thru : `str`
+    hist : int, optional
+        Include runs from the given number of past days.
+    pass_thru : `str`, optional
         A string to pass directly to the WMS service class.
     is_global : `bool`, optional
         If set, all available job queues will be queried for job information.
@@ -71,16 +83,6 @@ def report(wms_service, run_id, user, hist_days, pass_thru, is_global=False, ret
         Only applicable in the context of a WMS with associated
         handlers to return exit codes from jobs.
     """
-    wms_service_class = doImport(wms_service)
-    wms_service = wms_service_class({})
-
-    # If reporting on single run, increase history until better mechanism
-    # for handling completed jobs is available.
-    if run_id:
-        hist_days = max(hist_days, 2)
-
-    runs, message = wms_service.report(run_id, user, hist_days, pass_thru, is_global=is_global)
-
     run_brief = SummaryRunReport(
         [
             ("X", "S"),
@@ -98,6 +100,20 @@ def report(wms_service, run_id, user, hist_days, pass_thru, is_global=False, ret
     if run_id:
         fields = [(" ", "S")] + [(state.name, "i") for state in WmsStates] + [("EXPECTED", "i")]
         run_report = DetailedRunReport(fields)
+
+        # When reporting on single run, increase history until better mechanism
+        # for handling completed jobs is available.
+        hist = max(hist, 2)
+
+        runs, messages = retrieve_report(
+            wms_service,
+            run_id=run_id,
+            hist=hist,
+            pass_thru=pass_thru,
+            is_global=is_global,
+            postprocessors=(compile_job_summary,),
+        )
+
         for run in runs:
             run_brief.add(run, use_global_id=is_global)
             run_report.add(run, use_global_id=is_global)
@@ -127,35 +143,52 @@ def report(wms_service, run_id, user, hist_days, pass_thru, is_global=False, ret
 
             run_brief.clear()
             run_report.clear()
-        if not runs and not message:
+        if not runs and not messages:
             print(
                 f"No records found for job id '{run_id}'. "
-                f"Hints: Double check id, retry with a larger --hist value (currently: {hist_days}), "
+                f"Hints: Double check id, retry with a larger --hist value (currently: {hist}), "
                 "and/or use --global to search all job queues."
             )
     else:
+        runs, messages = retrieve_report(
+            wms_service,
+            user=user,
+            hist=hist,
+            pass_thru=pass_thru,
+            is_global=is_global,
+        )
         for run in runs:
             run_brief.add(run, use_global_id=is_global)
         run_brief.sort("ID")
         print(run_brief)
-    if message:
-        print(message)
+
+    if messages:
+        print("\n".join(messages))
         print("\n")
 
 
-def summarize(wms_service, run_id, hist_days=2, pass_thru=None, is_global=False):
-    """Provide a job summary for the given run.
+def retrieve_report(
+    wms_service: str,
+    *,
+    run_id: str | None = None,
+    user: str | None = None,
+    hist: float | None = None,
+    pass_thru: str | None = None,
+    is_global: bool = False,
+    postprocessors: Sequence[Callable[[WmsRunReport], None]] | None = None,
+) -> tuple[list[WmsRunReport], list[str]]:
+    """Retrieve summary of jobs submitted for execution.
 
     Parameters
     ----------
     wms_service : `str`
-        Name of the class representing a plugin/service for the given WMS.
-    run_id : `str`
+        Name of the WMS service class.
+    run_id : `str`, optional
         A run id the report will be restricted to.
-    hist_days : `int`, optional
-        If non-zero, the records of the completed jobs from the given number
-        of past days will be queried additionally to the records of
-        the currently running jobs.
+    user : `str`, optional
+        A username the report will be restricted to.
+    hist : int, optional
+        Include runs from the given number of past days.
     pass_thru : `str`, optional
         A string to pass directly to the WMS service class.
     is_global : `bool`, optional
@@ -165,38 +198,42 @@ def summarize(wms_service, run_id, hist_days=2, pass_thru=None, is_global=False)
 
         Only applicable in the context of a WMS using distributed job queues
         (e.g., HTCondor).
+    postprocessors : `collections.abc.Sequence` [callable], optional
+        List of functions for "massaging" reports returned by the plugin. Each
+        function must take one positional argument:
+
+        - ``report``: run report (`lsst.ctrl.bps.WmsRunReport`)
+
+        If None (default), each run report returned by the plugin (if any)
+        will be returned as is.
 
     Returns
     -------
-    summary : `dict` [`str`, `dict` [`lsst.ctrl.bps.WmsState`, `int`]] | None
-        The summary of the execution statuses for each job label in the run.
-        For each job label, execution statuses are mapped to number of jobs
-        having a given status. None if the attempt to produce the job summary
-        failed.
-    message : `str`
-        An error message if the attempt to produce the job summary failed,
-        an empty string otherwise.
+    reports : `list` [`WmsRunReport`]
+        Run reports satisfying the search criteria.
+    messages : `list` [`str`]
+        Errors that happened during report retrieval and/or processing.
+        Empty if no issues were encountered.
     """
+    messages = []
+
     wms_service_class = doImport(wms_service)
     wms_service = wms_service_class({})
-    wms_reports, wms_message = wms_service.report(
-        run_id, user=None, hist=hist_days, pass_thru=pass_thru, is_global=is_global
+    reports, message = wms_service.report(
+        wms_workflow_id=run_id, user=user, hist=hist, pass_thru=pass_thru, is_global=is_global
     )
-    message = ""
-    try:
-        wms_report = wms_reports.pop()
-    except IndexError:
-        summary = None
-        message = f"No records found for job id '{run_id}'"
-    else:
-        summary = get_job_summary(wms_report)
-        if summary is None:
-            id_ = wms_report.global_wms_id if is_global else wms_report.wms_id
-            message = (
-                f"Job summary for run '{id_}' not available. "
-                f"Neither pre-existing summary nor information about individual jobs was found"
-            )
     if message:
-        if wms_message:
-            message += f": {wms_message}"
-    return summary, message
+        messages.append(message)
+
+    if postprocessors:
+        for report in reports:
+            for postprocessor in postprocessors:
+                try:
+                    postprocessor(report)
+                except Exception as exc:
+                    messages.append(
+                        f"Postprocessing error for '{report.wms_id}': {str(exc)} "
+                        f"(origin: {postprocessor.__name__})"
+                    )
+
+    return reports, messages

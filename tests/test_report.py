@@ -253,14 +253,7 @@ class DetailedRunReportTestCase(unittest.TestCase):
 
         self.assertEqual(self.actual, self.expected)
 
-    def testAddWithJobs(self):
-        """Test adding a run with a job info, but not job summary."""
-        self.run.job_summary = None
-        self.actual.add(self.run)
-
-        self.assertEqual(self.actual, self.expected)
-
-    def testAddWithoutJobInfo(self):
+    def testAddWithoutJobSummary(self):
         """Test adding a run without either a job summary or job info."""
         self.run.jobs = None
         self.run.job_summary = None

@@ -65,7 +65,7 @@ from .cancel import cancel
 from .ping import ping
 from .pre_transform import acquire_quantum_graph, cluster_quanta
 from .prepare import prepare
-from .report import report
+from .report import display_report
 from .restart import restart
 from .submit import submit
 from .transform import transform
@@ -534,14 +534,14 @@ def report_driver(wms_service, run_id, user, hist_days, pass_thru, is_global=Fal
         handlers to return exit codes from jobs.
     """
     if wms_service is None:
-        default_config = BpsConfig({}, defaults=BPS_DEFAULTS)
-        wms_service = default_config["wmsServiceClass"]
-    report(
+        default_config = BpsConfig(BPS_DEFAULTS)
+        wms_service = os.environ.get("BPS_WMS_SERVICE_CLASS", default_config["wmsServiceClass"])
+    display_report(
         wms_service,
-        run_id,
-        user,
-        hist_days,
-        pass_thru,
+        run_id=run_id,
+        user=user,
+        hist=hist_days,
+        pass_thru=pass_thru,
         is_global=is_global,
         return_exit_codes=return_exit_codes,
     )
