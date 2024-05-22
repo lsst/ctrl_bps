@@ -400,6 +400,8 @@ and ``cloud``.
     the documentation of the WMS plugin in use for examples of cloud
     specifications.
 
+.. _bps-supported-settings:
+
 Supported settings
 ^^^^^^^^^^^^^^^^^^
 
@@ -464,57 +466,32 @@ Supported settings
     Amount of memory, in MB, a single Quantum execution of a particular pipetask
     will need (e.g., 2048).
 
-**requestMemoryMax**, optional
-    Maximal amount of memory, in MB, a single Quantum execution should ever use.
-    By default, it is equal to the ``memoryLimit``.
+    See :ref:`automatic-memory-scaling` for further information and examples.
 
-    If it is set, but its value exceeds the ``memoryLimit``, the value
-    provided by the ``memoryLimit`` will be used instead.
-
-    It has no effect if ``memoryMultiplier`` is not set.
+**numberOfRetries**, optional
+    The maximum number of retries allowed for a job (must be non-negative).
+    The default value is ``None`` meaning that the job will be run only once.
 
 **memoryMultiplier**, optional
     A positive number greater than 1.0 controlling how fast memory increases
     between consecutive runs for jobs which failed due to insufficient memory.
 
-    The memory limit increases in a (approximately) geometric manner between
-    consecutive executions with ``memoryMultiplier`` playing a role of the
-    common ratio.  First time, the job is run with memory limit determined by
-    ``requestMemory``. If it fails due to the insufficient memory, it will be
-    retried with a new memory limit equal to the product of the
-    ``memoryMultiplier`` and the memory usage from the previous attempt.
+    If the ``memoryMultiplier`` is equal or less than 1.0, the automatic memory
+    scaling will be disabled and memory requirements will not change between
+    retries.
 
-    The process will continue until number of retries reaches its limit
-    determined by ``numberOfRetries`` (5 by default) *or* the resultant memory
-    request reaches the memory cap determined by ``requestMemoryMax``.
+    If ``memoryMultiplier`` is set, the default value 5 will be used if
+    ``numberOfRetries`` was not set explicitly.
 
-    Once the memory request reaches the cap the job will be run one time
-    allowing to use the amount of memory determined by the cap (providing a
-    retry is still permitted) and removed from the job queue afterwards if it
-    fails due to insufficient memory again (even if more retries are permitted).
-
-    For example, with ``requestMemory = 3072`` (3 GB), ``requestMemoryMax =
-    20480`` (20 GB), and ``memoryMultiplier = 2.0`` the job will be allowed to
-    use 6 GB of memory during the first retry and 12 GB during the second one,
-    and 20 GB during the third one if each earlier run attempt failed due to
-    insufficient memory.  If the third retry also fails due to the insufficient
-    memory, the job will be removed from the job queue.
-
-    With ``requestMemory = 32768`` (32 GB), ``requestMemoryMax = 65536`` (64
-    GB), and ``memoryMultiplier = 2.0`` the job will be allowed to use 64 GB
-    of memory during its first retry.  If it fails due to insufficient memory,
-    it will be removed from the job queue.
-
-    In both examples if the job keeps failing for other reasons, the final
-    number of retries will be determined by ``numberOfRetries``.
-
-    If the ``memoryMultiplier`` is negative or less than 1.0, it will be
-    ignored and memory requirements will not change between retries.
-
-    At the moment, this feature is only supported by the HTCondor plugin.
+    See :ref:`automatic-memory-scaling` for further information and examples.
 
 **memoryLimit**, optional
     The compute resource's memory limit, in MB, to control the memory scaling.
+
+    ``requestMemoryMax`` will be automatically set to this value if not defined
+    or exceeds it.
+
+    It has no effect if ``memoryMultiplier`` is not set.
 
     If not set, BPS will try to determine it automatically by querying
     available computational resources (e.g. execute machines in an HTCondor
@@ -526,17 +503,18 @@ Supported settings
     If it is larger than the batch system permits, the job may stay in the job
     queue indefinitely.
 
-    ``requestMemoryMax`` will be automatically set to this value if not defined
-    or exceeds it.
+    See :ref:`automatic-memory-scaling` for further information and examples.
+
+**requestMemoryMax**, optional
+    Maximal amount of memory, in MB, a single Quantum execution should ever use.
+    By default, it is equal to the ``memoryLimit``.
 
     It has no effect if ``memoryMultiplier`` is not set.
 
-**numberOfRetries**, optional
-    The maximum number of retries allowed for a job (must be non-negative).
-    The default value is ``None`` meaning that the job will be run only once.
-    However, if automatic memory scaling is enabled (``memoryMultiplier`` is
-    set), the default value 5 will be used if ``numberOfRetries`` was not set
-    explicitly.
+    If it is set, but its value exceeds the ``memoryLimit``, the value
+    provided by the ``memoryLimit`` will be used instead.
+
+    See :ref:`automatic-memory-scaling` for further information and examples.
 
 **requestCpus**, optional
     Number of cpus that a single Quantum execution of a particular pipetask
@@ -662,6 +640,141 @@ Reserved keywords
    Any values shown in the example configuration file, but not covered in this
    section are examples of user-defined variables (e.g. ``inCollection``) and
    are not required by BPS.
+
+.. _managing-job-memory:
+
+Managing job memory requirements
+--------------------------------
+
+The primary parameter controlling job memory requirements is called
+``requestMemory``.  It specifies the amount of memory (in MiB) each job will
+have at its disposal during the execution of the workflow. Its default value
+is 2048 (2 GiB).
+
+The default value can be overridden globally for all the jobs as well as for
+jobs running specific tasks.  For example, including the lines below in your
+BPS config will result in all jobs having 4 GiB of memory during their
+execution *except* jobs running ``skyCorr`` task will be able to use up to
+8 GiB of RAM as task-specific setting takes precedence over the global
+one if both are present in your BPS config.
+
+.. code-block::
+
+   requestMemory: 4096
+
+   pipetasks:
+     skyCorr:
+       requestMemory: 8192
+
+Specifying memory requirements for jobs when using clustering works in a
+similar manner, see :ref:`user-defined-clustering` for more details and
+examples.
+
+.. _automatic-memory-scaling:
+
+Automatic memory scaling
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+Beyond the simple specification of the amount of memory a job needs, selected
+BPS plugins (`ctrl_bps_htcondor`_ and `ctrl_bps_panda`_) support automatic
+memory scaling (i.e. automatic retries with increased memory) for jobs that are
+failing due to the out of memory (OOM) error.
+
+The parameter controlling this scaling mechanism is ``memoryMultiplier``. If
+set to a number greater than 1.0, BPS will instruct the WMS to increase the
+amount of memory a job has at its disposal by the factor specified by this
+parameter each time the job fails due to the OOM error.
+
+Similar to ``requestMemory`` it can be specified either globally and/or
+for specific jobs only. It is also subject to the same precedence rule as
+``requestMemory`` is (i.e. task specific value takes precedence over the global
+one).  For example, having the lines below in your BPS config
+
+.. code-block::
+
+   memoryMultiplier: 2.0
+   requestMemory: 4096
+   # requestMemoryMax: 16384
+
+   pipetasks:
+     skyCorr:
+       memoryMultiplier: 3.0
+       requestMemory: 8192
+       # requestMemoryMax: 131072
+
+
+will make BPS instruct the WMS to retry all jobs failing due to the OOM
+error by doubling the amount of memory between each failed attempts with an
+exception of jobs running ``skyCorr``. For these jobs the amount of memory will
+be tripled between attempts when they keep failing due to the OOM error.
+
+The ``numberOfRetries`` default is 5 when ``memoryMultiplier`` is set, so the
+WMS will retry the job 5 times no matter what the failure, but the requested
+memory for the job is only increased when failing due to OOM error.
+
+.. note::
+
+   If the ``memoryMultiplier`` is equal or less than 1.0, the automatic memory
+   scaling will be disabled and memory requirements will not change between
+   retries.
+
+The optional parameter ``requestMemoryMax`` (commented out in the example
+above) puts a cap on how much memory a job can ask while trying to recover from
+the OOM error. You can use it to remove jobs failing due to the OOM error from
+the job queue *before* the number of retries reaches its limit (for example,
+when you know that the job should never need more than 32 GiB of memory).
+However, to explain how this cap is enforced we need to describe the scaling
+mechanism in a bit greater detail.
+
+When the automatic memory scaling is enabled the job memory requirement,
+:math:`m_n`, increases in a geometric manner between consecutive executions
+according to the formula:
+
+.. math::
+   :label: memory-scaling
+
+   m_{n} = \min(m_0 * M^{n}, m_\mathrm{max})
+
+with ``memoryMultiplier`` (:math:`M`) playing a role of the common ratio.
+
+During the first attempt (:math:`n = 0`), the job is run with memory limit
+determined by ``requestMemory`` (:math:`m_0`). If it fails due to the
+insufficient memory, it will be retried with a new memory limit equal to the
+product of the ``memoryMultiplier`` and the memory usage from the previous
+attempt.
+
+The process will continue until number of retries, :math:`n`, reaches its limit
+determined by ``numberOfRetries`` (5 by default) *or* the resultant memory
+request reaches the memory cap determined by ``requestMemoryMax``
+(:math:`m_\mathrm{max}`).  If ``requestMemoryMax`` is not set, the value
+defined by ``memoryLimit`` will be used instead (see
+:ref:`bps-supported-settings` for more information about this parameter).
+
+.. note::
+
+   You should **not** use ``requestMemoryMax`` and ``memoryLimit``
+   exchangeably.  The latter should reflect actual physical limitations of the
+   compute resource and rarely needs to be changed.
+
+Once the memory request reaches the cap the job will be run one time allowing
+to use the amount of memory determined by the cap (providing a retry is still
+permitted) and removed from the job queue afterwards if it fails due to
+insufficient memory again (even if more retries are permitted).
+
+For example, with ``requestMemory = 3072`` (3 GB), ``requestMemoryMax = 20480``
+(20 GB), and ``memoryMultiplier = 2.0`` the job will be allowed to use 6 GB of
+memory during the first retry and 12 GB during the second one, and 20 GB during
+the third one if each earlier run attempt failed due to insufficient memory.
+If the third retry also fails due to the insufficient memory, the job will be
+removed from the job queue.
+
+With ``requestMemory = 32768`` (32 GB), ``requestMemoryMax = 65536`` (64 GB),
+and ``memoryMultiplier = 2.0`` the job will be allowed to use 64 GB of memory
+during its first retry.  If it fails due to insufficient memory, it will be
+removed from the job queue.
+
+In both examples if the job keeps failing for other reasons, the final number
+of retries will be determined by ``numberOfRetries``.
 
 .. _job-qgraph-files:
 
@@ -1050,6 +1163,8 @@ Config Entries (not currently needed as it is the default):
 
    clusterAlgorithm: lsst.ctrl.bps.quantum_clustering_funcs.single_quantum_clustering
 
+.. _user-defined-clustering:
+
 User-defined Dimension Clustering
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -1190,5 +1305,7 @@ when installing an LSST package:
 .. _SQLite3: https://www.sqlite.org/index.html
 .. _PostgreSQL: https://www.postgresql.org
 .. _ctrl_bps: https://github.com/lsst/ctrl_bps
+.. _ctrl_bps_htcondor: https://pipelines.lsst.io/modules/lsst.ctrl.bps.htcondor/index.html
+.. _ctrl_bps_panda: https://pipelines.lsst.io/modules/lsst.ctrl.bps.panda/index.html
 .. _pipelines_check: https://github.com/lsst/pipelines_check
 .. _lsst_bps_plugins: https://github.com/lsst/lsst_bps_plugins
