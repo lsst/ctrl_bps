@@ -106,7 +106,7 @@ def _check_clusters_tasks(cluster_config, task_graph):
     ----------
     cluster_config : `lsst.ctrl.bps.BpsConfig`
         The cluster section from the BPS configuration.
-    task_graph : `lsst.pipe.base.taskGraph`
+    task_graph : `networkx.DiGraph`
         Directed graph of tasks.
 
     Returns
@@ -123,13 +123,13 @@ def _check_clusters_tasks(cluster_config, task_graph):
         Raised if task label appears in more than one cluster def or
         if there's a cycle in the cluster defs.
     """
-    # Build a PipelineTask graph of just labels because TaskGraph
-    # methods revolve around TaskDefs instead of labels.
+    # Build a PipelineTask graph of just labels because PipelineGraph
+    # methods revolve around NodeKey instead of labels.
     label_graph = DiGraph()
-    for tdef in task_graph:
-        label_graph.add_node(tdef.label)
-        for parent in task_graph.predecessors(tdef):
-            label_graph.add_edge(parent.label, tdef.label)
+    for node_key in task_graph:
+        label_graph.add_node(node_key.name)
+        for parent in task_graph.predecessors(node_key):
+            label_graph.add_edge(parent.name, node_key.name)
 
     # Build a "clustered" task graph to check for cycle.
     task_to_cluster = {}
@@ -170,8 +170,8 @@ def _check_clusters_tasks(cluster_config, task_graph):
 
     # Create dependencies between clusters.
     for edge in task_graph.edges:
-        if task_to_cluster[edge[0].label] != task_to_cluster[edge[1].label]:
-            clustered_task_graph.add_edge(task_to_cluster[edge[0].label], task_to_cluster[edge[1].label])
+        if task_to_cluster[edge[0].name] != task_to_cluster[edge[1].name]:
+            clustered_task_graph.add_edge(task_to_cluster[edge[0].name], task_to_cluster[edge[1].name])
 
     _LOG.debug("clustered_task_graph.edges = %s", list(clustered_task_graph.edges))
 
@@ -208,7 +208,9 @@ def dimension_clustering(config, qgraph, name):
     quantum_to_cluster = {}
 
     cluster_section = config["cluster"]
-    cluster_labels, ordered_tasks = _check_clusters_tasks(cluster_section, qgraph.taskGraph)
+    cluster_labels, ordered_tasks = _check_clusters_tasks(
+        cluster_section, qgraph.pipeline_graph.make_task_xgraph()
+    )
     for cluster_label in cluster_labels:
         _LOG.debug("cluster = %s", cluster_label)
         if cluster_label in cluster_section:
@@ -289,6 +291,7 @@ def add_dim_clusters(cluster_config, cluster_label, qgraph, ordered_tasks, cqgra
     if "dimensions" in cluster_config:
         cluster_dims = [d.strip() for d in cluster_config["dimensions"].split(",")]
     _LOG.debug("cluster_dims = %s", cluster_dims)
+    equal_dims = cluster_config.get("equalDimensions", None)
 
     found, template = cluster_config.search("clusterTemplate", opt={"replaceVars": False})
     if not found:
@@ -300,22 +303,13 @@ def add_dim_clusters(cluster_config, cluster_label, qgraph, ordered_tasks, cqgra
 
     new_clusters = []
     for task_label in ordered_tasks[cluster_label]:
-        # Currently getQuantaForTask is currently a mapping taskDef to
-        # Quanta, so quick enough to call repeatedly.
-        task_def = qgraph.findTaskDefByLabel(task_label)
-        if task_def is None:
-            continue
-        quantum_nodes = qgraph.getNodesForTask(task_def)
-
-        equal_dims = cluster_config.get("equalDimensions", None)
-
         # Determine cluster for each node
-        for qnode in quantum_nodes:
+        for uuid, quantum in qgraph.get_task_quanta(task_label).items():
             # Gather info for cluster name template into a dictionary.
-            info = {}
+            info = {"node_number": uuid}
 
             missing_info = set()
-            data_id_info = dict(qnode.quantum.dataId.mapping)
+            data_id_info = dict(quantum.dataId.mapping)
             for dim_name in cluster_dims:
                 _LOG.debug("dim_name = %s", dim_name)
                 if dim_name in data_id_info:
@@ -337,7 +331,7 @@ def add_dim_clusters(cluster_config, cluster_label, qgraph, ordered_tasks, cqgra
 
             if missing_info:
                 raise RuntimeError(
-                    f"Quantum {qnode.nodeId} ({data_id_info}) missing dimensions: {','.join(missing_info)}; "
+                    f"Quantum {uuid} ({data_id_info}) missing dimensions: {','.join(missing_info)}; "
                     f"required for cluster {cluster_label}"
                 )
 
@@ -351,7 +345,7 @@ def add_dim_clusters(cluster_config, cluster_label, qgraph, ordered_tasks, cqgra
             _LOG.debug("cluster_name = %s", cluster_name)
 
             # Save mapping for use when creating dependencies.
-            quantum_to_cluster[qnode.nodeId] = cluster_name
+            quantum_to_cluster[uuid] = cluster_name
 
             # Add cluster to the ClusteredQuantumGraph.
             # Saving NodeId instead of number because QuantumGraph API
@@ -361,7 +355,7 @@ def add_dim_clusters(cluster_config, cluster_label, qgraph, ordered_tasks, cqgra
             else:
                 cluster = QuantaCluster(cluster_name, cluster_label, info)
                 cqgraph.add_cluster(cluster)
-            cluster.add_quantum(qnode.nodeId, task_label)
+            cluster.add_quantum(uuid, task_label)
             new_clusters.append(cluster)
 
     for cluster in new_clusters:
