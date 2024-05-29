@@ -20,6 +20,7 @@ Other Changes and Additions
 ---------------------------
 
 - Added missing bps command-line from pip installations. (`DM-42905 <https://rubinobs.atlassian.net/browse/DM-42905>`_)
+- Moved plugin-specific restart details to the plugin's documentation. (`DM-41561 <https://rubinobs.atlassian.net/browse/DM-41561>`_)
 
 
 lsst-ctrl-bps v26.0.0 (2023-09-25)
