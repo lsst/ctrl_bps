@@ -200,8 +200,8 @@ def create_init_workflow(config, qgraph, qgraph_gwfile):
     # Pick a node id for each task (not quantum!) to avoid reading the entire
     # quantum graph during the initialization stage.
     node_ids = []
-    for task in qgraph.iterTaskGraph():
-        task_def = qgraph.findTaskDefByLabel(task.label)
+    for task_label in qgraph.pipeline_graph.tasks:
+        task_def = qgraph.findTaskDefByLabel(task_label)
         node = next(iter(qgraph.getNodesForTask(task_def)))
         node_ids.append(node.nodeId)
     gwjob.cmdvals["qgraphId"] = qgraph.graphID
