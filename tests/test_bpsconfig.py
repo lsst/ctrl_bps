@@ -45,65 +45,96 @@ class TestBpsConfigConstructor(unittest.TestCase):
     def tearDown(self):
         pass
 
-    def testFromFilenameWithoutDefaults(self):
+    def testFromFilename(self):
         """Test initialization from a file, but without defaults."""
-        config = BpsConfig(self.filename, defaults={})
+        config = BpsConfig(self.filename)
         self.assertEqual(set(config), {"foo", "bar", "baz"} | set(BPS_SEARCH_ORDER))
-
-    def testFromFilenameWithDefaults(self):
-        """Test initialization from a file, but without defaults."""
-        config = BpsConfig(self.filename, defaults={"quux": "1"})
-        self.assertEqual(set(config), {"foo", "bar", "baz", "quux"} | set(BPS_SEARCH_ORDER))
-
-    def testFromFilenameWmsFromCmdline(self):
-        """Test initialization from a file with WMS class at the cmdline."""
-        config = BpsConfig(
-            self.filename, defaults={}, wms_service_class="wms_test_utils.WmsServiceFromCmdline"
-        )
-        self.assertEqual(set(config), {"foo", "bar", "baz", "corge"} | set(BPS_SEARCH_ORDER))
-        self.assertEqual(config["corge"], "cmdline")
-
-    def testFromFilenameWmsFromConfig(self):
-        """Test initialization from a file with WMS class in the config."""
-        filename = os.path.join(TESTDIR, "data/config_with_wms.yaml")
-        config = BpsConfig(filename, defaults={})
-        self.assertEqual(set(config), {"corge", "wmsServiceClass"} | set(BPS_SEARCH_ORDER))
-        self.assertEqual(config["corge"], "config")
-
-    def testFromFilenameWmsFromEnv(self):
-        """Test initialization from a file with WMS class in the env."""
-        os.environ["BPS_WMS_SERVICE_CLASS"] = "wms_test_utils.WmsServiceFromEnv"
-        config = BpsConfig(self.filename, defaults={})
-        self.assertEqual(set(config), {"foo", "bar", "baz", "corge"} | set(BPS_SEARCH_ORDER))
-        self.assertEqual(config["corge"], "env")
-        del os.environ["BPS_WMS_SERVICE_CLASS"]
-
-    def testFromFilenameWmsFromDefaults(self):
-        """Test initialization from a file with default WMS class."""
-        config = BpsConfig(
-            self.filename, defaults={"wmsServiceClass": "wms_test_utils.WmsServiceFromDefaults"}
-        )
-        self.assertEqual(
-            set(config), {"foo", "bar", "baz", "corge", "wmsServiceClass"} | set(BPS_SEARCH_ORDER)
-        )
-        self.assertEqual(config["corge"], "defaults")
+        self.assertEqual(config.search_order, BPS_SEARCH_ORDER)
 
     def testFromDict(self):
         """Test initialization from a dictionary."""
         config = BpsConfig(self.dictionary)
-        self.assertIn("bar", config)
+        self.assertEqual(set(config), {"foo", "bar", "baz"} | set(BPS_SEARCH_ORDER))
+        self.assertEqual(config.search_order, BPS_SEARCH_ORDER)
 
     def testFromConfig(self):
         """Test initialization from other Config object."""
-        c = Config(self.dictionary)
-        config = BpsConfig(c)
-        self.assertIn("baz", config)
+        config_daf = Config(self.dictionary)
+        config = BpsConfig(config_daf)
+        self.assertEqual(set(config), {"foo", "bar", "baz"} | set(BPS_SEARCH_ORDER))
+        self.assertEqual(config.search_order, BPS_SEARCH_ORDER)
 
     def testFromBpsConfig(self):
         """Test initialization from other BpsConfig object."""
-        c = BpsConfig(self.dictionary)
-        config = BpsConfig(c)
-        self.assertIn("foo", config)
+        config_ref = BpsConfig(self.dictionary)
+        config = BpsConfig(config_ref)
+        self.assertEqual(set(config), set(config_ref))
+        self.assertEqual(config.search_order, config_ref.search_order)
+
+    def testDefaultsInclusion(self):
+        """Test including defaults."""
+        config = BpsConfig(self.filename, defaults={"quux": 1})
+        self.assertEqual(set(config), {"foo", "bar", "baz", "quux"} | set(BPS_SEARCH_ORDER))
+        self.assertEqual(config["quux"], 1)
+        self.assertEqual(config.search_order, BPS_SEARCH_ORDER)
+
+    def testDefaultsOverride(self):
+        """Test overriding defaults."""
+        config = BpsConfig(self.filename, defaults={"foo": {"qux": 2}, "quux": 1})
+        self.assertEqual(set(config), {"foo", "bar", "baz", "quux"} | set(BPS_SEARCH_ORDER))
+        self.assertEqual(config["quux"], 1)
+        self.assertEqual(config["foo"], BpsConfig({"qux": 1}))
+        self.assertEqual(config.search_order, BPS_SEARCH_ORDER)
+
+    def testWmsFromCmdline(self):
+        """Test initialization when WMS class specified at the cmdline."""
+        with unittest.mock.patch.dict(
+            os.environ, {"BPS_WMS_SERVICE_CLASS": "wms_test_utils.WmsServiceFromEnv"}
+        ):
+            filename = os.path.join(TESTDIR, "data/config_with_wms.yaml")
+            config = BpsConfig(
+                filename,
+                defaults={"wmsServiceClass": "wms_test_utils.WmsServiceFromDefaults"},
+                wms_service_class_fqn="wms_test_utils.WmsServiceFromCmdline",
+            )
+        self.assertEqual(set(config), {"corge", "wmsServiceClass"} | set(BPS_SEARCH_ORDER))
+        self.assertEqual(config["corge"], "cmdline")
+
+    def testWmsFromConfig(self):
+        """Test initialization when WMS class specified in the config."""
+        with unittest.mock.patch.dict(
+            os.environ, {"BPS_WMS_SERVICE_CLASS": "wms_test_utils.WmsServiceFromEnv"}
+        ):
+            filename = os.path.join(TESTDIR, "data/config_with_wms.yaml")
+            config = BpsConfig(
+                filename,
+                defaults={"wmsServiceClass": "wms_test_utils.WmsServiceFromDefaults"},
+                wms_service_class_fqn=None,
+            )
+        self.assertEqual(set(config), {"corge", "wmsServiceClass"} | set(BPS_SEARCH_ORDER))
+        self.assertEqual(config["corge"], "config")
+        self.assertEqual(config.search_order, BPS_SEARCH_ORDER)
+
+    def testWmsFromEnv(self):
+        """Test initialization with WMS class in the env."""
+        with unittest.mock.patch.dict(
+            os.environ, {"BPS_WMS_SERVICE_CLASS": "wms_test_utils.WmsServiceFromEnv"}
+        ):
+            config = BpsConfig(
+                {},
+                defaults={"wmsServiceClass": "wms_test_utils.WmsServiceFromDefaults"},
+                wms_service_class_fqn=None,
+            )
+        self.assertEqual(set(config), {"corge", "wmsServiceClass"} | set(BPS_SEARCH_ORDER))
+        self.assertEqual(config["corge"], "env")
+        self.assertEqual(config.search_order, BPS_SEARCH_ORDER)
+
+    def testWmsFromDefaults(self):
+        """Test initialization  with a default WMS class."""
+        config = BpsConfig({}, defaults={"wmsServiceClass": "wms_test_utils.WmsServiceFromDefaults"})
+        self.assertEqual(set(config), {"corge", "wmsServiceClass"} | set(BPS_SEARCH_ORDER))
+        self.assertEqual(config["corge"], "defaults")
+        self.assertEqual(config.search_order, BPS_SEARCH_ORDER)
 
     def testInvalidArg(self):
         """Test if exception is raised for an argument of unsupported type."""

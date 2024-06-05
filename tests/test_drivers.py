@@ -31,7 +31,6 @@ import shutil
 import tempfile
 import unittest
 
-from lsst.ctrl.bps import BpsConfig
 from lsst.ctrl.bps.drivers import _init_submission_driver, ping_driver
 
 TESTDIR = os.path.abspath(os.path.dirname(__file__))
@@ -47,14 +46,17 @@ class TestInitSubmissionDriver(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.tmpdir, ignore_errors=True)
 
+    @unittest.mock.patch("lsst.ctrl.bps.drivers.BPS_DEFAULTS", {})
     def testDeprecatedOutCollection(self):
         with self.assertRaisesRegex(KeyError, "outCollection"):
             _init_submission_driver({"payload": {"outCollection": "bad"}})
 
+    @unittest.mock.patch("lsst.ctrl.bps.drivers.BPS_DEFAULTS", {})
     def testMissingOutputRun(self):
         with self.assertRaisesRegex(KeyError, "outputRun"):
             _init_submission_driver({"payload": {"inCollection": "bad"}})
 
+    @unittest.mock.patch("lsst.ctrl.bps.drivers.BPS_DEFAULTS", {})
     def testMissingSubmitPath(self):
         with self.assertRaisesRegex(KeyError, "submitPath"):
             _init_submission_driver({"payload": {"outputRun": "bad"}})
@@ -80,11 +82,11 @@ class TestPingDriver(unittest.TestCase):
             retval = ping_driver()
             self.assertEqual(retval, 0)
 
-    @unittest.mock.patch.dict(os.environ, {})
+    @unittest.mock.patch(
+        "lsst.ctrl.bps.drivers.BPS_DEFAULTS", {"wmsServiceClass": "wms_test_utils.WmsServiceDefault"}
+    )
     def testWmsServiceNone(self):
-        # Override default wms to be the test one
-        with unittest.mock.patch.object(BpsConfig, "__getitem__") as mock_function:
-            mock_function.return_value = "wms_test_utils.WmsServiceDefault"
+        with unittest.mock.patch.dict(os.environ, {}):
             with self.assertLogs(level=logging.INFO) as cm:
                 retval = ping_driver()
                 self.assertEqual(retval, 0)
