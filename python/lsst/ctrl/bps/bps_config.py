@@ -79,22 +79,23 @@ class BpsConfig(Config):
     search_order : `list` [`str`], optional
         Root section names in the order in which they should be searched.
     defaults : `str`, `dict`, `~lsst.daf.butler.Config`, optional
-        Default settings that will be used to prepopulate the config. If None
-        (default), BPS defaults will be used instead. If the WMS service
-        default settings are available, they will be added afterwards.
-        WMS settings takes precedence over provided default settings.
-        The option has no effect if configuration is *not* read from a file.
-    wms_service_class : `str`, optional
+        Default settings that will be used to prepopulate the config.
+        If the WMS service default settings are available, they will be added
+        afterwards. WMS settings takes precedence over provided defaults.
+    wms_service_class_fqn : `str`, optional
         Fully qualified name of the WMS service class to use to get plugin's
         specific default settings. If ``None`` (default), the WMS service
         class provided by
 
-        1. user's config,
-        2. environmental variable BPS_WMS_SERVICE_CLASS,
-        3. BPS default settings
+        1. ``other`` config,
+        2. environmental variable ``BPS_WMS_SERVICE_CLASS``,
+        3. default settings
 
-        will be used instead. The search order reflects the precedence if
-        the WMS class is defined in multiple places.
+        will be used instead. The list above also reflects the priorities
+        if the WMS service class is defined in multiple places. For example,
+        the name of service class found in ``other`` takes precedence over
+        the name of the service class provided by the BPS_SERVICE_CLASS and/or
+        the default settings.
 
     Raises
     ------
@@ -102,7 +103,7 @@ class BpsConfig(Config):
         Raised if the class cannot be instantiated from the provided object.
     """
 
-    def __init__(self, other, search_order=None, defaults=None, wms_service_class=None):
+    def __init__(self, other, search_order=None, defaults=None, wms_service_class_fqn=None):
         # In BPS config, the same setting can be defined multiple times in
         # different sections.  The sections are search in a pre-defined
         # order. Hence, a value which is found first effectively overrides
@@ -119,61 +120,56 @@ class BpsConfig(Config):
         super().__init__()
 
         try:
-            config = Config(other)
+            other_config = Config(other)
         except Exception as exc:
             raise ValueError(f"A BpsConfig could not be loaded from other: {other}") from exc
 
-        if isinstance(other, str):
+        # Start with an empty configuration or pre-populate it with provided
+        # default settings if any were provided by the caller.
+        config = Config({} if not defaults else defaults)
 
-            # Start with the default settings either provided by the user
-            # or use those defined in this module.
-            tmp_config = Config(defaults if defaults is not None else BPS_DEFAULTS)
+        # Next, include WMS plugin specific defaults and/or overrides if
+        # available.
+        #
+        # If the WMS service class was not specified explicitly by the caller,
+        # try to use the value provided by either:
+        #
+        #     1. 'other' config,
+        #     2. environmental variable BPS_WMS_SERVICE_CLASS,
+        #     3. default settings
+        #
+        # (in decreasing priority).
+        if wms_service_class_fqn is None:
+            wms_service_class_fqn = other_config.get(
+                "wmsServiceClass",
+                os.environ.get("BPS_WMS_SERVICE_CLASS", config.get("wmsServiceClass")),
+            )
+        try:
+            wms_service_class = doImport(wms_service_class_fqn)
+        except TypeError:
+            # Do not die if the WMS service class is still not set.
+            pass
+        else:
+            wms_service = wms_service_class({})
+            wms_defaults = wms_service.defaults
+            if wms_defaults:
+                config.update(wms_defaults)
 
-            # Next, include WMS defaults and/or apply its overrides
-            # if available.
-            #
-            # If the WMS service class was not set explicitly, use
-            # the value provided by:
-            #   1. user's config,
-            #   2. environmental variable BPS_WMS_SERVICE_CLASS,
-            #   3. BPS default settings.
-            if wms_service_class is None:
-                wms_service_class = config.get(
-                    "wmsServiceClass",
-                    os.environ.get("BPS_WMS_SERVICE_CLASS", tmp_config.get("wmsServiceClass")),
-                )
-            try:
-                wms_service_class = doImport(wms_service_class)
-            except TypeError:
-                # Do not die if the WMS service class is still not set.
-                pass
-            else:
-                wms_service = wms_service_class({})
-                wms_defaults = wms_service.defaults
-                if wms_defaults is not None:
-                    wms_config = Config(wms_defaults)
-                    tmp_config.update(wms_config)
+            # Set the service class to the one which was defaults was used.
+            config["wmsServiceClass"] = wms_service_class_fqn
 
-            # Finally, include values and/or apply overrides from the user's
-            # config.
-            tmp_config.update(config)
-            config = tmp_config
-
-            if search_order is None:
-                search_order = BPS_SEARCH_ORDER
-
+        # Finally, include values and/or apply overrides from 'other' config.
+        config.update(other_config)
         self.update(config)
 
         if isinstance(other, BpsConfig):
-            self.search_order = copy.deepcopy(other.search_order)
             self.formatter = copy.deepcopy(other.formatter)
+            self.search_order = copy.deepcopy(other.search_order) if search_order is None else search_order
         else:
-            if search_order is None:
-                search_order = []
-            self.search_order = search_order
             self.formatter = BpsFormatter()
+            self.search_order = BPS_SEARCH_ORDER if search_order is None else search_order
 
-        # Make sure search sections exist
+        # Make sure search sections exist.
         for key in self.search_order:
             if not Config.__contains__(self, key):
                 self[key] = {}

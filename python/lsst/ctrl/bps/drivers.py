@@ -86,7 +86,7 @@ def _init_submission_driver(config_file, **kwargs):
     config : `lsst.ctrl.bps.BpsConfig`
         Batch Processing Service configuration.
     """
-    config = BpsConfig(config_file, BPS_SEARCH_ORDER)
+    config = BpsConfig(config_file, search_order=BPS_SEARCH_ORDER, defaults=BPS_DEFAULTS)
 
     # Override config with command-line values.
     # Handle diffs between pipetask argument names vs bps yaml
@@ -407,7 +407,7 @@ def submit_driver(config_file, **kwargs):
     )
 
     remote_build = {}
-    config = BpsConfig(config_file, BPS_SEARCH_ORDER)
+    config = BpsConfig(config_file, search_order=BPS_SEARCH_ORDER, defaults=BPS_DEFAULTS)
     _, remote_build = config.search("remoteBuild", opt={"default": {}})
     if remote_build:
         if config["wmsServiceClass"] == "lsst.ctrl.bps.panda.PanDAService":
