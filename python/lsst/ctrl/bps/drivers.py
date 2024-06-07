@@ -86,7 +86,12 @@ def _init_submission_driver(config_file, **kwargs):
     config : `lsst.ctrl.bps.BpsConfig`
         Batch Processing Service configuration.
     """
-    config = BpsConfig(config_file, search_order=BPS_SEARCH_ORDER, defaults=BPS_DEFAULTS)
+    config = BpsConfig(
+        config_file,
+        search_order=BPS_SEARCH_ORDER,
+        defaults=BPS_DEFAULTS,
+        wms_service_class_fqn=kwargs.get("wms_service"),
+    )
 
     # Override config with command-line values.
     # Handle diffs between pipetask argument names vs bps yaml
@@ -107,16 +112,6 @@ def _init_submission_driver(config_file, **kwargs):
                 value = ",".join(value)
             new_key = translation.get(key, re.sub(r"_(\S)", lambda match: match.group(1).upper(), key))
             config[f".bps_cmdline.{new_key}"] = value
-
-    # If the WMS service class was not defined neither at the command line nor
-    # explicitly in config file, use the value provided by the environmental
-    # variable BPS_WMS_SERVICE_CLASS.  If the variable is not set, stick to
-    # the package default.
-    wms_service = os.environ.get("BPS_WMS_SERVICE_CLASS", None)
-    if wms_service is not None and "wmsServiceClass" not in config[".bps_cmdline"]:
-        default_config = BpsConfig(BPS_DEFAULTS)
-        if config["wmsServiceClass"] == default_config["wmsServiceClass"]:
-            config["wmsServiceClass"] = wms_service
 
     # Set some initial values
     config[".bps_defined.timestamp"] = Instrument.makeCollectionTimestamp()
@@ -407,7 +402,12 @@ def submit_driver(config_file, **kwargs):
     )
 
     remote_build = {}
-    config = BpsConfig(config_file, search_order=BPS_SEARCH_ORDER, defaults=BPS_DEFAULTS)
+    config = BpsConfig(
+        config_file,
+        search_order=BPS_SEARCH_ORDER,
+        defaults=BPS_DEFAULTS,
+        wms_service_class_fqn=kwargs.get("wms_service"),
+    )
     _, remote_build = config.search("remoteBuild", opt={"default": {}})
     if remote_build:
         if config["wmsServiceClass"] == "lsst.ctrl.bps.panda.PanDAService":
@@ -483,8 +483,8 @@ def restart_driver(wms_service, run_id):
         Id or path of workflow that need to be restarted.
     """
     if wms_service is None:
-        default_config = BpsConfig(BPS_DEFAULTS)
-        wms_service = os.environ.get("BPS_WMS_SERVICE_CLASS", default_config["wmsServiceClass"])
+        default_config = BpsConfig({}, defaults=BPS_DEFAULTS)
+        wms_service = default_config["wmsServiceClass"]
 
     new_run_id, run_name, message = restart(wms_service, run_id)
     if new_run_id is not None:
@@ -532,8 +532,8 @@ def report_driver(wms_service, run_id, user, hist_days, pass_thru, is_global=Fal
         handlers to return exit codes from jobs.
     """
     if wms_service is None:
-        default_config = BpsConfig(BPS_DEFAULTS)
-        wms_service = os.environ.get("BPS_WMS_SERVICE_CLASS", default_config["wmsServiceClass"])
+        default_config = BpsConfig({}, defaults=BPS_DEFAULTS)
+        wms_service = default_config["wmsServiceClass"]
     report(
         wms_service,
         run_id,
@@ -569,8 +569,8 @@ def cancel_driver(wms_service, run_id, user, require_bps, pass_thru, is_global=F
         (e.g., HTCondor).
     """
     if wms_service is None:
-        default_config = BpsConfig(BPS_DEFAULTS)
-        wms_service = os.environ.get("BPS_WMS_SERVICE_CLASS", default_config["wmsServiceClass"])
+        default_config = BpsConfig({}, defaults=BPS_DEFAULTS)
+        wms_service = default_config["wmsServiceClass"]
     cancel(wms_service, run_id, user, require_bps, pass_thru, is_global=is_global)
 
 
@@ -595,8 +595,8 @@ def ping_driver(wms_service=None, pass_thru=None):
         Whether services are up and usable (0) or not (non-zero).
     """
     if wms_service is None:
-        default_config = BpsConfig(BPS_DEFAULTS)
-        wms_service = os.environ.get("BPS_WMS_SERVICE_CLASS", default_config["wmsServiceClass"])
+        default_config = BpsConfig({}, defaults=BPS_DEFAULTS)
+        wms_service = default_config["wmsServiceClass"]
     status, message = ping(wms_service, pass_thru)
 
     if message:
