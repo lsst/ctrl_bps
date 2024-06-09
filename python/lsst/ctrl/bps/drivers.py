@@ -413,9 +413,11 @@ def submit_driver(config_file, **kwargs):
         if config["wmsServiceClass"] == "lsst.ctrl.bps.panda.PanDAService":
             if not remote_build.search("enabled", opt={"default": False})[1]:
                 remote_build = {}
-                _LOG.info("The workflow is sumitted to the local Data Facility.")
+                _LOG.info("The workflow is submitted to the local Data Facility.")
             else:
-                _LOG.info("Remote submission is enabled. The workflow is sumitted to a remote Data Facility.")
+                _LOG.info(
+                    "Remote submission is enabled. The workflow is submitted to a remote Data Facility."
+                )
                 _LOG.info("Initializing execution environment")
                 with time_this(
                     log=_LOG,
@@ -431,7 +433,7 @@ def submit_driver(config_file, **kwargs):
                     kwargs["config_file"] = config_file
                     wms_workflow = None
     else:
-        _LOG.info("The workflow is sumitted to the local Data Facility.")
+        _LOG.info("The workflow is submitted to the local Data Facility.")
 
     _LOG.info("Starting submission process")
     with time_this(
