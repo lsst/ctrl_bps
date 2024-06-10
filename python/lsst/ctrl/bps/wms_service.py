@@ -186,8 +186,8 @@ class BaseWmsService:
         return None
 
     @property
-    def defaults_path(self):
-        """Path to WMS default settings (`str`)."""
+    def defaults_uri(self):
+        """URI to WMS default settings (`lsst.resources.ResourcePath`)."""
         return None
 
     def prepare(self, config, generic_workflow, out_prefix=None):
