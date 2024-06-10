@@ -173,6 +173,23 @@ class BaseWmsService:
     def __init__(self, config):
         self.config = config
 
+    @property
+    def defaults(self):
+        """Service default settings (`lsst.daf.butler.Config`).
+
+        Notes
+        -----
+        This property is currently being used in ``BpsConfig.__init__()``.
+        As long as that's the case it cannot be changed to return
+        a ``BpsConfig`` instance.
+        """
+        return None
+
+    @property
+    def defaults_uri(self):
+        """URI to WMS default settings (`lsst.resources.ResourcePath`)."""
+        return None
+
     def prepare(self, config, generic_workflow, out_prefix=None):
         """Create submission for a generic workflow for a specific WMS.
 

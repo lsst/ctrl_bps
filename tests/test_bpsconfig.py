@@ -28,7 +28,7 @@ import os
 import unittest
 
 import yaml
-from lsst.ctrl.bps import BpsConfig
+from lsst.ctrl.bps import BPS_SEARCH_ORDER, BpsConfig
 from lsst.daf.butler import Config
 
 TESTDIR = os.path.abspath(os.path.dirname(__file__))
@@ -46,31 +46,100 @@ class TestBpsConfigConstructor(unittest.TestCase):
         pass
 
     def testFromFilename(self):
-        """Test initialization from a file."""
+        """Test initialization from a file, but without defaults."""
         config = BpsConfig(self.filename)
-        self.assertIn("foo", config)
+        self.assertEqual(set(config), {"foo", "bar", "baz"} | set(BPS_SEARCH_ORDER))
+        self.assertEqual(config.search_order, BPS_SEARCH_ORDER)
 
     def testFromDict(self):
         """Test initialization from a dictionary."""
         config = BpsConfig(self.dictionary)
-        self.assertIn("bar", config)
+        self.assertEqual(set(config), {"foo", "bar", "baz"} | set(BPS_SEARCH_ORDER))
+        self.assertEqual(config.search_order, BPS_SEARCH_ORDER)
 
     def testFromConfig(self):
         """Test initialization from other Config object."""
-        c = Config(self.dictionary)
-        config = BpsConfig(c)
-        self.assertIn("baz", config)
+        config_daf = Config(self.dictionary)
+        config = BpsConfig(config_daf)
+        self.assertEqual(set(config), {"foo", "bar", "baz"} | set(BPS_SEARCH_ORDER))
+        self.assertEqual(config.search_order, BPS_SEARCH_ORDER)
 
     def testFromBpsConfig(self):
         """Test initialization from other BpsConfig object."""
-        c = BpsConfig(self.dictionary)
-        config = BpsConfig(c)
-        self.assertIn("foo", config)
+        config_ref = BpsConfig(self.dictionary)
+        config = BpsConfig(config_ref)
+        self.assertEqual(set(config), set(config_ref))
+        self.assertEqual(config.search_order, config_ref.search_order)
+
+    def testDefaultsInclusion(self):
+        """Test including defaults."""
+        config = BpsConfig(self.filename, defaults={"quux": 1})
+        self.assertEqual(set(config), {"foo", "bar", "baz", "quux"} | set(BPS_SEARCH_ORDER))
+        self.assertEqual(config["quux"], 1)
+        self.assertEqual(config.search_order, BPS_SEARCH_ORDER)
+
+    def testDefaultsOverride(self):
+        """Test overriding defaults."""
+        config = BpsConfig(self.filename, defaults={"foo": {"qux": 2}, "quux": 1})
+        self.assertEqual(set(config), {"foo", "bar", "baz", "quux"} | set(BPS_SEARCH_ORDER))
+        self.assertEqual(config["quux"], 1)
+        self.assertEqual(config["foo"], BpsConfig({"qux": 1}))
+        self.assertEqual(config.search_order, BPS_SEARCH_ORDER)
+
+    def testWmsFromCmdline(self):
+        """Test initialization when WMS class specified at the cmdline."""
+        with unittest.mock.patch.dict(
+            os.environ, {"BPS_WMS_SERVICE_CLASS": "wms_test_utils.WmsServiceFromEnv"}
+        ):
+            filename = os.path.join(TESTDIR, "data/config_with_wms.yaml")
+            config = BpsConfig(
+                filename,
+                defaults={"wmsServiceClass": "wms_test_utils.WmsServiceFromDefaults"},
+                wms_service_class_fqn="wms_test_utils.WmsServiceFromCmdline",
+            )
+        self.assertEqual(set(config), {"corge", "wmsServiceClass"} | set(BPS_SEARCH_ORDER))
+        self.assertEqual(config["corge"], "cmdline")
+
+    def testWmsFromConfig(self):
+        """Test initialization when WMS class specified in the config."""
+        with unittest.mock.patch.dict(
+            os.environ, {"BPS_WMS_SERVICE_CLASS": "wms_test_utils.WmsServiceFromEnv"}
+        ):
+            filename = os.path.join(TESTDIR, "data/config_with_wms.yaml")
+            config = BpsConfig(
+                filename,
+                defaults={"wmsServiceClass": "wms_test_utils.WmsServiceFromDefaults"},
+                wms_service_class_fqn=None,
+            )
+        self.assertEqual(set(config), {"corge", "wmsServiceClass"} | set(BPS_SEARCH_ORDER))
+        self.assertEqual(config["corge"], "config")
+        self.assertEqual(config.search_order, BPS_SEARCH_ORDER)
+
+    def testWmsFromEnv(self):
+        """Test initialization with WMS class in the env."""
+        with unittest.mock.patch.dict(
+            os.environ, {"BPS_WMS_SERVICE_CLASS": "wms_test_utils.WmsServiceFromEnv"}
+        ):
+            config = BpsConfig(
+                {},
+                defaults={"wmsServiceClass": "wms_test_utils.WmsServiceFromDefaults"},
+                wms_service_class_fqn=None,
+            )
+        self.assertEqual(set(config), {"corge", "wmsServiceClass"} | set(BPS_SEARCH_ORDER))
+        self.assertEqual(config["corge"], "env")
+        self.assertEqual(config.search_order, BPS_SEARCH_ORDER)
+
+    def testWmsFromDefaults(self):
+        """Test initialization  with a default WMS class."""
+        config = BpsConfig({}, defaults={"wmsServiceClass": "wms_test_utils.WmsServiceFromDefaults"})
+        self.assertEqual(set(config), {"corge", "wmsServiceClass"} | set(BPS_SEARCH_ORDER))
+        self.assertEqual(config["corge"], "defaults")
+        self.assertEqual(config.search_order, BPS_SEARCH_ORDER)
 
     def testInvalidArg(self):
         """Test if exception is raised for an argument of unsupported type."""
         sequence = ["wibble", "wobble", "wubble", "flob"]
-        with self.assertRaises(RuntimeError):
+        with self.assertRaises(ValueError):
             BpsConfig(sequence)
 
 
@@ -105,7 +174,7 @@ class TestBpsConfigSearch(unittest.TestCase):
 
     def setUp(self):
         filename = os.path.join(TESTDIR, "data/config.yaml")
-        self.config = BpsConfig(filename, search_order=["baz", "bar", "foo"])
+        self.config = BpsConfig(filename, search_order=["baz", "bar", "foo"], defaults={})
         os.environ["GARPLY"] = "garply"
 
     def tearDown(self):
