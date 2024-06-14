@@ -139,6 +139,8 @@ def _check_clusters_tasks(cluster_config, task_graph):
 
     # Create clusters based on given configuration.
     for cluster_label in cluster_config:
+        if cluster_label == 'wmsServiceClass':
+            continue
         _LOG.debug("cluster = %s", cluster_label)
         cluster_tasks = [pt.strip() for pt in cluster_config[cluster_label]["pipetasks"].split(",")]
         cluster_tasks_in_qgraph = []
