@@ -49,12 +49,18 @@ class TestBpsConfigConstructor(unittest.TestCase):
         """Test initialization from a file, but without defaults."""
         config = BpsConfig(self.filename)
         self.assertEqual(set(config), {"foo", "bar", "baz"} | set(BPS_SEARCH_ORDER))
+        self.assertEqual(set(config["foo"]), {"qux"})
+        self.assertEqual(set(config["bar"]), {"qux"})
+        self.assertEqual(set(config["baz"]), {"grault", "garply"})
         self.assertEqual(config.search_order, BPS_SEARCH_ORDER)
 
     def testFromDict(self):
         """Test initialization from a dictionary."""
         config = BpsConfig(self.dictionary)
         self.assertEqual(set(config), {"foo", "bar", "baz"} | set(BPS_SEARCH_ORDER))
+        self.assertEqual(set(config["foo"]), {"qux"})
+        self.assertEqual(set(config["bar"]), {"qux"})
+        self.assertEqual(set(config["baz"]), {"grault", "garply"})
         self.assertEqual(config.search_order, BPS_SEARCH_ORDER)
 
     def testFromConfig(self):
@@ -62,6 +68,9 @@ class TestBpsConfigConstructor(unittest.TestCase):
         config_daf = Config(self.dictionary)
         config = BpsConfig(config_daf)
         self.assertEqual(set(config), {"foo", "bar", "baz"} | set(BPS_SEARCH_ORDER))
+        self.assertEqual(set(config["foo"]), {"qux"})
+        self.assertEqual(set(config["bar"]), {"qux"})
+        self.assertEqual(set(config["baz"]), {"grault", "garply"})
         self.assertEqual(config.search_order, BPS_SEARCH_ORDER)
 
     def testFromBpsConfig(self):
@@ -83,7 +92,7 @@ class TestBpsConfigConstructor(unittest.TestCase):
         config = BpsConfig(self.filename, defaults={"foo": {"qux": 2}, "quux": 1})
         self.assertEqual(set(config), {"foo", "bar", "baz", "quux"} | set(BPS_SEARCH_ORDER))
         self.assertEqual(config["quux"], 1)
-        self.assertEqual(config["foo"], BpsConfig({"qux": 1}))
+        self.assertEqual(config["foo"], BpsConfig({"qux": 1}, search_order=[]))
         self.assertEqual(config.search_order, BPS_SEARCH_ORDER)
 
     def testWmsFromCmdline(self):
@@ -134,6 +143,16 @@ class TestBpsConfigConstructor(unittest.TestCase):
         config = BpsConfig({}, defaults={"wmsServiceClass": "wms_test_utils.WmsServiceFromDefaults"})
         self.assertEqual(set(config), {"corge", "wmsServiceClass"} | set(BPS_SEARCH_ORDER))
         self.assertEqual(config["corge"], "defaults")
+        self.assertEqual(config.search_order, BPS_SEARCH_ORDER)
+
+    def testDefaultsExclusion(self):
+        config = BpsConfig(
+            self.filename, defaults=None, wms_service_class_fqn="wms_test_utils.WmsServiceFromCmdline"
+        )
+        self.assertEqual(set(config), {"foo", "bar", "baz"} | set(BPS_SEARCH_ORDER))
+        self.assertEqual(set(config["foo"]), {"qux"})
+        self.assertEqual(set(config["bar"]), {"qux"})
+        self.assertEqual(set(config["baz"]), {"grault", "garply"})
         self.assertEqual(config.search_order, BPS_SEARCH_ORDER)
 
     def testInvalidArg(self):
