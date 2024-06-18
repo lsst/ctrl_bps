@@ -394,6 +394,6 @@ class BpsConfig(Config):
             _LOG.debug("after format=%s", value)
 
         if found and isinstance(value, Config):
-            value = BpsConfig(value)
+            value = BpsConfig(value, search_order=[])
 
         return found, value
