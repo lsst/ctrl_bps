@@ -31,7 +31,7 @@ Note: Expectations are that future reporting effort will revolve around LSST
 oriented database tables.
 """
 
-__all__ = ["display_report", "retrieve_report"]
+__all__ = ["BPS_POSTPROCESSORS", "display_report", "retrieve_report"]
 
 import logging
 from collections.abc import Callable, Sequence
@@ -40,6 +40,11 @@ from lsst.utils import doImport
 
 from .bps_reports import DetailedRunReport, ExitCodesReport, SummaryRunReport, compile_job_summary
 from .wms_service import WmsRunReport, WmsStates
+
+BPS_POSTPROCESSORS = (compile_job_summary,)
+"""Postprocessors for massaging run reports
+(`tuple` [`Callable` [[`WmsRunReport`], None]).
+"""
 
 _LOG = logging.getLogger(__name__)
 
@@ -111,7 +116,7 @@ def display_report(
             hist=hist,
             pass_thru=pass_thru,
             is_global=is_global,
-            postprocessors=(compile_job_summary,),
+            postprocessors=BPS_POSTPROCESSORS,
         )
 
         for run in runs:
