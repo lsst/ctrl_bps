@@ -42,6 +42,8 @@ from lsst.ctrl.bps import (
     WmsStates,
     compile_job_summary,
 )
+from lsst.ctrl.bps.report import retrieve_report
+from wms_test_utils import TEST_REPORT
 
 
 class FakeRunReport(BaseRunReport):
@@ -355,45 +357,63 @@ class CompileJobSummaryTestCase(unittest.TestCase):
     """Test compiling a job summary."""
 
     def setUp(self):
-        self.report = WmsRunReport(
-            wms_id="1.0",
-            global_wms_id="foo#1.0",
-            path="/path/to/run",
-            label="label",
-            run="run",
-            project="dev",
-            campaign="testing",
-            payload="test",
-            operator="tester",
-            run_summary="foo:1",
-            state=WmsStates.SUCCEEDED,
-            jobs=[WmsJobReport(wms_id="1.0", name="", label="foo", state=WmsStates.SUCCEEDED)],
-            total_number_jobs=1,
-            job_state_counts={state: 1 if state == WmsStates.SUCCEEDED else 0 for state in WmsStates},
-            job_summary={
-                "foo": {state: 1 if state == WmsStates.SUCCEEDED else 0 for state in WmsStates},
-            },
-        )
+        self.report = dataclasses.replace(TEST_REPORT)
 
     def tearDown(self):
         pass
 
     def testSummaryExists(self):
-        result = dataclasses.replace(self.report)
+        """Test if existing report is not altered."""
+        # Create a report with a "fake" job summary, i.e., a summary which
+        # differs from the one which would be compiled from the information
+        # about individual jobs.
+        expected = dataclasses.replace(self.report)
+        expected.job_summary = {"foo": {state: 1 if state == WmsStates.FAILED else 0 for state in WmsStates}}
+
+        result = dataclasses.replace(expected)
         compile_job_summary(result)
-        self.assertEqual(result, self.report)
+        self.assertEqual(result, expected)
 
     def testSummaryMissing(self):
+        """Test if the summary will be compiled if necessary."""
         result = dataclasses.replace(self.report)
         result.job_summary = None
         compile_job_summary(result)
         self.assertEqual(result, self.report)
 
     def testCompilationError(self):
+        """Test if error is raised if the summary cannot be compiled."""
         self.report.job_summary = None
         self.report.jobs = None
         with self.assertRaises(ValueError):
             compile_job_summary(self.report)
+
+
+class RetrieveReportTestCase(unittest.TestCase):
+    """Test report retrieval."""
+
+    def setUp(self):
+        self.report = dataclasses.replace(TEST_REPORT)
+
+    def tearDown(self):
+        pass
+
+    def testRetrievalPostprocessingSuccessful(self):
+        """Test retrieving a report successfully."""
+        reports, messages = retrieve_report(
+            "wms_test_utils.WmsServiceSuccess", run_id="1.0", postprocessors=(compile_job_summary,)
+        )
+        self.assertEqual(len(reports), 1)
+        self.assertEqual(reports[0], self.report)
+        self.assertFalse(messages)
+
+    def testRetrievalPostprocessingFailed(self):
+        """Test failing to retrieve a report."""
+        report, messages = retrieve_report(
+            "wms_test_utils.WmsServiceFailure", postprocessors=(compile_job_summary,)
+        )
+        self.assertEqual(len(messages), 1)
+        self.assertRegex(messages[0], "Postprocessing error")
 
 
 if __name__ == "__main__":

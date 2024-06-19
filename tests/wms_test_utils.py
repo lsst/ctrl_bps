@@ -24,11 +24,33 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+import dataclasses
 import logging
 
-from lsst.ctrl.bps.wms_service import BaseWmsService
+from lsst.ctrl.bps.wms_service import BaseWmsService, WmsJobReport, WmsRunReport, WmsStates
 
 _LOG = logging.getLogger(__name__)
+
+
+TEST_REPORT = WmsRunReport(
+    wms_id="1.0",
+    global_wms_id="foo#1.0",
+    path="/path/to/run",
+    label="label",
+    run="run",
+    project="dev",
+    campaign="testing",
+    payload="test",
+    operator="tester",
+    run_summary="foo:1",
+    state=WmsStates.SUCCEEDED,
+    jobs=[WmsJobReport(wms_id="1.0", name="", label="foo", state=WmsStates.SUCCEEDED)],
+    total_number_jobs=1,
+    job_state_counts={state: 1 if state == WmsStates.SUCCEEDED else 0 for state in WmsStates},
+    job_summary={
+        "foo": {state: 1 if state == WmsStates.SUCCEEDED else 0 for state in WmsStates},
+    },
+)
 
 
 class WmsServiceSuccess(BaseWmsService):
@@ -38,6 +60,18 @@ class WmsServiceSuccess(BaseWmsService):
         _LOG.info(f"Success {pass_thru}")
         return 0, ""
 
+    def report(
+        self,
+        wms_workflow_id=None,
+        user=None,
+        hist=0,
+        pass_thru=None,
+        is_global=False,
+        return_exit_codes=False,
+    ):
+        report = dataclasses.replace(TEST_REPORT)
+        return [report], []
+
 
 class WmsServiceFailure(BaseWmsService):
     """WMS service class with non-functional ping."""
@@ -45,6 +79,18 @@ class WmsServiceFailure(BaseWmsService):
     def ping(self, pass_thru):
         _LOG.warning("service failure")
         return 64, "Couldn't contact service X"
+
+    def report(
+        self,
+        wms_workflow_id=None,
+        user=None,
+        hist=0,
+        pass_thru=None,
+        is_global=False,
+        return_exit_codes=False,
+    ):
+        report = WmsRunReport()
+        return [report], []
 
 
 class WmsServicePassThru(BaseWmsService):
