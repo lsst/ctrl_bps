@@ -1,0 +1,1 @@
+Stopped ``BpsConfig.__init__()`` from including ``wmsServiceClass`` setting in every instance when the environment variable ``BPS_WMS_SERVICE_CLASS`` is set.

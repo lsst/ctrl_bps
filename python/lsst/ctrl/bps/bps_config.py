@@ -124,41 +124,42 @@ class BpsConfig(Config):
         except Exception as exc:
             raise ValueError(f"A BpsConfig could not be loaded from other: {other}") from exc
 
-        # Start with an empty configuration or pre-populate it with provided
-        # default settings if any were provided by the caller.
-        config = Config({} if not defaults else defaults)
+        config = Config()
 
-        # Next, include WMS plugin specific defaults and/or overrides if
-        # available.
-        #
-        # If the WMS service class was not specified explicitly by the caller,
-        # try to use the value provided by either:
-        #
-        #     1. 'other' config,
-        #     2. environmental variable BPS_WMS_SERVICE_CLASS,
-        #     3. default settings
-        #
-        # (in decreasing priority).
-        if wms_service_class_fqn is None:
-            wms_service_class_fqn = other_config.get(
-                "wmsServiceClass",
-                os.environ.get("BPS_WMS_SERVICE_CLASS", config.get("wmsServiceClass")),
-            )
-        try:
-            wms_service_class = doImport(wms_service_class_fqn)
-        except TypeError:
-            # Do not die if the WMS service class is still not set.
-            pass
-        else:
-            wms_service = wms_service_class({})
-            wms_defaults = wms_service.defaults
-            if wms_defaults:
-                config.update(wms_defaults)
+        # Pre-populate the config with default settings if any were provided
+        # by the caller. Include WMS plugin specific defaults and/or
+        # overrides as well if available.
+        if defaults:
+            config.update(defaults)
 
-            # Set the service class to the one which was defaults was used.
-            config["wmsServiceClass"] = wms_service_class_fqn
+            # If the WMS service class was not specified explicitly by the
+            # caller, try to use the value provided by either:
+            #
+            #     1. 'other' config,
+            #     2. environmental variable BPS_WMS_SERVICE_CLASS,
+            #     3. default settings
+            #
+            # (in decreasing priority).
+            if wms_service_class_fqn is None:
+                wms_service_class_fqn = other_config.get(
+                    "wmsServiceClass",
+                    os.environ.get("BPS_WMS_SERVICE_CLASS", config.get("wmsServiceClass")),
+                )
+            try:
+                wms_service_class = doImport(wms_service_class_fqn)
+            except TypeError:
+                # Do not die if the WMS service class is still not set.
+                pass
+            else:
+                wms_service = wms_service_class({})
+                wms_defaults = wms_service.defaults
+                if wms_defaults:
+                    config.update(wms_defaults)
 
-        # Finally, include values and/or apply overrides from 'other' config.
+                # Set the service class to the one which was defaults was used.
+                config["wmsServiceClass"] = wms_service_class_fqn
+
+        # Include values and/or apply overrides from 'other' config.
         config.update(other_config)
         self.update(config)
 
@@ -393,6 +394,6 @@ class BpsConfig(Config):
             _LOG.debug("after format=%s", value)
 
         if found and isinstance(value, Config):
-            value = BpsConfig(value)
+            value = BpsConfig(value, search_order=[])
 
         return found, value
