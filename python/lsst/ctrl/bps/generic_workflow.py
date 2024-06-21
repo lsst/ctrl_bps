@@ -185,8 +185,8 @@ class GenericWorkflowJob:
     """Number of times to automatically retry a failed job.
     """
 
-    retry_unless_exit: int | None = None
-    """Exit code for job that means to not automatically retry.
+    retry_unless_exit: int | list[int] | None = None
+    """Exit code(s) for job that means to not automatically retry.
     """
 
     abort_on_value: int | None = None

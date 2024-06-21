@@ -468,9 +468,22 @@ Supported settings
 
     See :ref:`automatic-memory-scaling` for further information and examples.
 
+.. _bps_number_of_retries:
+
 **numberOfRetries**, optional
     The maximum number of retries allowed for a job (must be non-negative).
     The default value is ``None`` meaning that the job will be run only once.
+
+.. _bps_retry_unless_exit:
+
+**retryUnlessExit**, optional
+    Non-zero exit code(s) for which a job should not be retried when
+    ``numberOfRetries`` is set.  The biggest use case is to allow jobs
+    exceeding requested memory to be automatically retried, but not jobs
+    failing due to science issue.  In the submit yaml, it can be written as a
+    single integer (e.g., ``retryUnlessExit: 1``) or as a list of integers
+    (e.g., ``retryUnlessExit: [1,2]``)  To disable it, set it to None (e.g.,
+    ``retryUnlessExit: null``)
 
 **memoryMultiplier**, optional
     A positive number greater than 1.0 controlling how fast memory increases
@@ -1236,6 +1249,34 @@ If the submission seems to be stuck in ``RUNNING`` state, some jobs may be held 
 Check using ``bps report --id ID``.
 
 If that's the case, the jobs can often be edited and released in a plugin-specific way.
+
+.. _bps_job_running_again:
+
+Why is my job running again?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+By default, bps will ask the WMS to retry jobs :ref:`numberOfRetries <bps_number_of_retries>` times
+except if the job exits with an exit code in :ref:`retryUnlessExit <bps_retry_unless_exit>`.
+See the ``*_config.yaml`` file in the submit directory for the default values.  If there is an exit code
+that should be added to the default value, create a JIRA ticket requesting the change.
+
+.. _bps_why_not_retrying_job:
+
+Why isn't the WMS retrying my job that failed?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+By default, bps will ask the WMS to retry jobs :ref:`numberOfRetries <bps_number_of_retries>` times
+except if the job exits with an exit code in :ref:`retryUnlessExit <bps_retry_unless_exit>`.
+
+Either:
+* the WMS doesn't support retrying jobs at all.  Check WMS-specific documentation.
+
+* numberOfRetries is 0 (or None).  See the ``*_config.yaml`` file in the submit
+  directory for the value.  This value can be overridden in the submit yaml.
+
+* the job that failed exited with an exit code that the WMS was told not to retry.
+  See the ``*_config.yaml`` file in the submit directory for the value.  This value
+  can be overridden in the submit yaml.
 
 .. _bps-appendix-a:
 
