@@ -34,7 +34,9 @@ oriented database tables.
 __all__ = ["BPS_POSTPROCESSORS", "display_report", "retrieve_report"]
 
 import logging
+import sys
 from collections.abc import Callable, Sequence
+from typing import TextIO
 
 from lsst.utils import doImport
 
@@ -50,33 +52,29 @@ _LOG = logging.getLogger(__name__)
 
 
 def display_report(
-    wms_service: str,
-    *,
-    run_id: str | None = None,
-    user: str | None = None,
-    hist: int | None = None,
-    pass_thru: str | None = None,
+    runs: list[WmsRunReport],
+    messages: list[str],
+    is_detailed: bool = False,
     is_global: bool = False,
     return_exit_codes: bool = False,
+    file: TextIO = sys.stdout,
 ) -> None:
     """Print out summary of jobs submitted for execution.
 
     Parameters
     ----------
-    wms_service : `str`
-        Name of the WMS service class.
-    run_id : `str`, optional
-        A run id the report will be restricted to.
-    user : `str`, optional
-        A username the report will be restricted to.
-    hist : int, optional
-        Include runs from the given number of past days.
-    pass_thru : `str`, optional
-        A string to pass directly to the WMS service class.
+    runs : `list` [`str`]
+        Runs to include in the summary.
+    messages : `list` [`str`]
+        Errors that happened during report and/or processing. Empty if
+        no issues were encountered.
+    is_detailed : `bool`, optional
+        If set, the function prints out a detailed report including statuses
+        of each task in the workflow grouped by task labels. By default, only
+        a brief summary of each run is displayed.
     is_global : `bool`, optional
-        If set, all available job queues will be queried for job information.
-        Defaults to False which means that only a local job queue will be
-        queried for information.
+        If set, a global run id(s) will be used when displaying the report.
+        By default, the report will use local run id(s).
 
         Only applicable in the context of a WMS using distributed job queues
         (e.g., HTCondor).
@@ -87,6 +85,8 @@ def display_report(
 
         Only applicable in the context of a WMS with associated
         handlers to return exit codes from jobs.
+    file : TextIO
+        File or file-like object to write the output to.
     """
     run_brief = SummaryRunReport(
         [
@@ -102,35 +102,23 @@ def display_report(
         ]
     )
 
-    if run_id:
+    if is_detailed:
         fields = [(" ", "S")] + [(state.name, "i") for state in WmsStates] + [("EXPECTED", "i")]
         run_report = DetailedRunReport(fields)
 
-        # When reporting on single run, increase history until better mechanism
-        # for handling completed jobs is available.
-        hist = max(hist, 2)
-
-        runs, messages = retrieve_report(
-            wms_service,
-            run_id=run_id,
-            hist=hist,
-            pass_thru=pass_thru,
-            is_global=is_global,
-            postprocessors=BPS_POSTPROCESSORS,
-        )
-
         for run in runs:
             run_brief.add(run, use_global_id=is_global)
+
             run_report.add(run, use_global_id=is_global)
             if run_report.message:
-                print(run_report.message)
+                print(run_report.message, file=file)
 
-            print(run_brief)
-            print("\n")
-            print(f"Path: {run.path}")
-            print(f"Global job id: {run.global_wms_id}")
-            print("\n")
-            print(run_report)
+            print(run_brief, file=file)
+            print("\n", file=file)
+            print(f"Path: {run.path}", file=file)
+            print(f"Global job id: {run.global_wms_id}", file=file)
+            print("\n", file=file)
+            print(run_report, file=file)
 
             if return_exit_codes:
                 fields = [
@@ -142,34 +130,21 @@ def display_report(
                 ]
                 run_exits_report = ExitCodesReport(fields)
                 run_exits_report.add(run, use_global_id=is_global)
-                print("\n")
-                print(run_exits_report)
+                print("\n", file=file)
+                print(run_exits_report, file=file)
                 run_exits_report.clear()
 
             run_brief.clear()
             run_report.clear()
-        if not runs and not messages:
-            print(
-                f"No records found for job id '{run_id}'. "
-                f"Hints: Double check id, retry with a larger --hist value (currently: {hist}), "
-                "and/or use --global to search all job queues."
-            )
     else:
-        runs, messages = retrieve_report(
-            wms_service,
-            user=user,
-            hist=hist,
-            pass_thru=pass_thru,
-            is_global=is_global,
-        )
         for run in runs:
             run_brief.add(run, use_global_id=is_global)
         run_brief.sort("ID")
-        print(run_brief)
+        print(run_brief, file=file)
 
     if messages:
-        print("\n".join(messages))
-        print("\n")
+        print("\n".join(messages), file=file)
+        print("\n", file=file)
 
 
 def retrieve_report(
