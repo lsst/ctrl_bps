@@ -28,14 +28,14 @@
 """Classes and functions used in reporting run status.
 """
 
-__all__ = ["BaseRunReport", "DetailedRunReport", "SummaryRunReport", "ExitCodesReport"]
+__all__ = ["BaseRunReport", "DetailedRunReport", "SummaryRunReport", "ExitCodesReport", "compile_job_summary"]
 
 import abc
 import logging
 
 from astropy.table import Table
 
-from .wms_service import WmsStates
+from .wms_service import WmsRunReport, WmsStates
 
 _LOG = logging.getLogger(__name__)
 
@@ -193,13 +193,8 @@ class DetailedRunReport(BaseRunReport):
         total.append(sum(by_label_expected.values()) if by_label_expected else run_report.total_number_jobs)
         self._table.add_row(total)
 
-        # Use the provided job summary. If it doesn't exist, compile it from
-        # information about individual jobs.
-        if run_report.job_summary:
-            job_summary = run_report.job_summary
-        elif run_report.jobs:
-            job_summary = compile_job_summary(run_report.jobs)
-        else:
+        job_summary = run_report.job_summary
+        if job_summary is None:
             id_ = run_report.global_wms_id if use_global_id else run_report.wms_id
             self._msg = f"WARNING: Job summary for run '{id_}' not available, report maybe incomplete."
             return
@@ -282,29 +277,37 @@ class ExitCodesReport(BaseRunReport):
         return str("\n".join(lines))
 
 
-def compile_job_summary(jobs):
-    """Compile job summary from information available for individual jobs.
+def compile_job_summary(report: WmsRunReport) -> None:
+    """Add a job summary to the run report if necessary.
+
+    If the job summary is not provided, the function will attempt to compile
+    it from information available for individual jobs (if any) and add it to
+    the report. If the report already includes a job summary, the function is
+    effectively a no-op.
 
     Parameters
     ----------
-    jobs : `list` [`lsst.ctrl.bps.WmsJobReport`]
-        List of run reports.
+    report : `lsst.ctrl.bps.WmsRunReport`
+        Information about a single run.
 
-    Returns
-    -------
-    job_summary : `dict` [`str`, dict` [`lsst.ctrl.bps.WmsState`, `int`]]
-        The summary of the execution statuses for each job label in the run.
-        For each job label, execution statuses are mapped to number of jobs
-        having a given status.
+    Raises
+    ------
+    ValueError
+        Raised if the job summary *and* information about individual jobs
+        is not available.
     """
+    if report.job_summary:
+        return
+    if not report.jobs:
+        raise ValueError("job summary cannot be complied: information about individual jobs not available.")
     job_summary = {}
-    by_label = group_jobs_by_label(jobs)
+    by_label = group_jobs_by_label(report.jobs)
     for label, job_group in by_label.items():
         by_label_state = group_jobs_by_state(job_group)
         _LOG.debug("by_label_state = %s", by_label_state)
         counts = {state: len(jobs) for state, jobs in by_label_state.items()}
         job_summary[label] = counts
-    return job_summary
+    report.job_summary = job_summary
 
 
 def group_jobs_by_state(jobs):

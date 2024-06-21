@@ -65,7 +65,7 @@ from .cancel import cancel
 from .ping import ping
 from .pre_transform import acquire_quantum_graph, cluster_quanta
 from .prepare import prepare
-from .report import report
+from .report import BPS_POSTPROCESSORS, display_report, retrieve_report
 from .restart import restart
 from .submit import submit
 from .transform import transform
@@ -513,7 +513,7 @@ def report_driver(wms_service, run_id, user, hist_days, pass_thru, is_global=Fal
     run_id : `str`
         A run id the report will be restricted to.
     user : `str`
-        A user name the report will be restricted to.
+        A user the report will be restricted to.
     hist_days : int
         Number of days.
     pass_thru : `str`
@@ -534,17 +534,44 @@ def report_driver(wms_service, run_id, user, hist_days, pass_thru, is_global=Fal
         handlers to return exit codes from jobs.
     """
     if wms_service is None:
-        default_config = BpsConfig({}, defaults=BPS_DEFAULTS)
-        wms_service = default_config["wmsServiceClass"]
-    report(
+        default_config = BpsConfig(BPS_DEFAULTS)
+        wms_service = os.environ.get("BPS_WMS_SERVICE_CLASS", default_config["wmsServiceClass"])
+
+    # When reporting on single run:
+    # * increase history until better mechanism for handling completed jobs is
+    #   available.
+    # * massage the retrieved reports using BPS report postprocessors.
+    if run_id:
+        hist_days = max(hist_days, 2)
+        postprocessors = BPS_POSTPROCESSORS
+    else:
+        postprocessors = None
+
+    runs, messages = retrieve_report(
         wms_service,
-        run_id,
-        user,
-        hist_days,
-        pass_thru,
+        run_id=run_id,
+        user=user,
+        hist=hist_days,
+        pass_thru=pass_thru,
         is_global=is_global,
-        return_exit_codes=return_exit_codes,
+        postprocessors=postprocessors,
     )
+
+    if runs or messages:
+        display_report(
+            runs,
+            messages,
+            is_detailed=bool(run_id),
+            is_global=is_global,
+            return_exit_codes=return_exit_codes,
+        )
+    else:
+        if run_id:
+            print(
+                f"No records found for job id '{run_id}'. "
+                f"Hints: Double check id, retry with a larger --hist value (currently: {hist_days}), "
+                "and/or use --global to search all job queues."
+            )
 
 
 def cancel_driver(wms_service, run_id, user, require_bps, pass_thru, is_global=False):
