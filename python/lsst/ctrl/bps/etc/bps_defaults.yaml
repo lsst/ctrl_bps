@@ -84,6 +84,9 @@ updateQuantumGraph: >-
 preemptible: True
 requestMemory: 2048
 requestCpus: 1
+numberOfRetries: 5
+retryUnlessExit: [1, 2]
+memoryMultiplier: 2
 
 wmsServiceClass: lsst.ctrl.bps.htcondor.HTCondorService
 bpsUseShared: True

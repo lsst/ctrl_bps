@@ -468,9 +468,29 @@ Supported settings
 
     See :ref:`automatic-memory-scaling` for further information and examples.
 
+.. _bps_number_of_retries:
+
 **numberOfRetries**, optional
     The maximum number of retries allowed for a job (must be non-negative).
-    The default value is ``None`` meaning that the job will be run only once.
+    The default value is 5 meaning that the job will be run at most 6 times.
+    To disable retries, set it to 0 (meaning that the job will be run only
+    once).  Some WMS have default values for number of retries which will be
+    used only if ``numberOfRetries`` is disabled but ``retryUnlessExit`` still
+    has a value.  So best to disable both if completely turning off retries.
+
+.. _bps_retry_unless_exit:
+
+**retryUnlessExit**, optional
+    Non-zero exit code(s) for which a job should not be retried when
+    ``numberOfRetries`` is set. It can be used to prevent the WMS from
+    retrying jobs failing due to science issues while letting the WMS retry
+    jobs exceeding requested memory.  In the submit yaml, it can be written
+    as a single integer (e.g., ``retryUnlessExit: 1``) or as a list of integers
+    (e.g., ``retryUnlessExit: [1,2]``)  The default value is ``[1,2]`` (2 for
+    errors on the command line, 1 because majority of the time means science
+    problem.  In particular does not include any signal values because those
+    generally happen with overuse of memory.)  To disable it, set it to
+    ``null`` (e.g., ``retryUnlessExit: null``).
 
 **memoryMultiplier**, optional
     A positive number greater than 1.0 controlling how fast memory increases
@@ -775,6 +795,18 @@ removed from the job queue.
 
 In both examples if the job keeps failing for other reasons, the final number
 of retries will be determined by ``numberOfRetries``.
+
+.. note::
+
+   To completely turn off retries, one must disable ``memoryMultiplier``,
+   ``numberOfRetries``, and ``retryUnlessExit``.
+
+   .. code::
+
+      memoryMultiplier: 1
+      numberOfRetries: 0
+      retryUnlessExit: null
+
 
 .. _job-qgraph-files:
 
@@ -1236,6 +1268,35 @@ If the submission seems to be stuck in ``RUNNING`` state, some jobs may be held 
 Check using ``bps report --id ID``.
 
 If that's the case, the jobs can often be edited and released in a plugin-specific way.
+
+.. _bps_job_running_again:
+
+Why is my job running again?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+By default, BPS will ask the WMS to retry jobs :ref:`numberOfRetries <bps_number_of_retries>` times
+except if the job exits with an exit code in :ref:`retryUnlessExit <bps_retry_unless_exit>`.
+See the ``*_config.yaml`` file in the submit directory for the default values.  If there is an exit code
+that should be added to the default value, create a JIRA ticket requesting the change.
+
+.. _bps_why_not_retrying_job:
+
+Why isn't the WMS retrying my job that failed?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+By default, BPS will ask the WMS to retry jobs :ref:`numberOfRetries <bps_number_of_retries>` times
+except if the job exits with an exit code in :ref:`retryUnlessExit <bps_retry_unless_exit>`.
+
+Either:
+
+* the WMS doesn't support retrying jobs at all.  Check WMS-specific documentation.
+
+* numberOfRetries is 0.  See the ``*_config.yaml`` file in the submit directory for the value.
+  This value can be overridden in the submit yaml.
+
+* the job that failed exited with an exit code that the WMS was told not to retry.
+  See the ``*_config.yaml`` file in the submit directory for the value of ``retryUnlessExit``.
+  This value can be overridden in the submit yaml.
 
 .. _bps-appendix-a:
 
