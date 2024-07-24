@@ -145,12 +145,12 @@ class SummaryRunReport(BaseRunReport):
         # Flag any running workflow that might need human attention.
         run_flag = " "
         if run_report.state == WmsStates.RUNNING:
-            if run_report.job_state_counts.get(WmsStates.FAILED, 0):
-                run_flag = "F"
+            if run_report.job_state_counts.get(WmsStates.HELD, 0):
+                run_flag = "H"
             elif run_report.job_state_counts.get(WmsStates.DELETED, 0):
                 run_flag = "D"
-            elif run_report.job_state_counts.get(WmsStates.HELD, 0):
-                run_flag = "H"
+            elif run_report.job_state_counts.get(WmsStates.FAILED, 0):
+                run_flag = "F"
 
         # Estimate success rate.
         percent_succeeded = "UNK"
