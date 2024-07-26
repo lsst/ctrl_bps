@@ -1,0 +1,1 @@
+In flag column in summary report, made (F)ailed lower precedence than (D)eleted and (H)eld.
