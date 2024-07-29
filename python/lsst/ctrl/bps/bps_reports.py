@@ -299,7 +299,7 @@ def compile_job_summary(report: WmsRunReport) -> None:
     if report.job_summary:
         return
     if not report.jobs:
-        raise ValueError("job summary cannot be complied: information about individual jobs not available.")
+        raise ValueError("job summary cannot be compiled: information about individual jobs not available.")
     job_summary = {}
     by_label = group_jobs_by_label(report.jobs)
     for label, job_group in by_label.items():
