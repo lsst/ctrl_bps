@@ -1073,6 +1073,7 @@ New YAML Section
 .. code-block:: YAML
 
    finalJob:
+     updateOutputChain: "--update-output-chain"
      whenSetup: "NEVER"
      whenRun: "ALWAYS"
      # Added for future flexibility, e.g., if prefer workflow instead of shell
@@ -1084,7 +1085,11 @@ New YAML Section
        {fileDistributionEndPoint}{qgraphFile}
        {butlerConfig}
        --register-dataset-types
-       --update-output-chain
+       {updateOutputChain}
+
+**updateOutputChain**
+    Additional argument(s) for the default ``command1`` to update the output
+    chain collection.  Set to empty string to turn off.
 
 **whenSetup**
     When during the submission process set up the final job.  Provided for

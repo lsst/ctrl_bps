@@ -112,6 +112,7 @@ executionButler:
   whenCreate: "NEVER"
 
 finalJob:
+  updateOutputChain: "--update-output-chain"
   whenSetup: "NEVER"
   whenRun: "ALWAYS"
   # Added for future flexibility, e.g., if prefer workflow instead of shell
@@ -124,7 +125,7 @@ finalJob:
     {fileDistributionEndPoint}{qgraphFile}
     {butlerConfig}
     --register-dataset-types
-    --update-output-chain
+    {updateOutputChain}
 
 # Set a global default memory limit (in MiB) for the automatic memory scaling
 # mechanism. The value, 480 GiB, picked based on the cluster specifications
