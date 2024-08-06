@@ -32,6 +32,7 @@
 # pylint: disable=invalid-name
 
 import os
+import shutil
 import tempfile
 import unittest
 from collections import Counter
@@ -108,9 +109,7 @@ class TestClusteredQuantumGraph(unittest.TestCase):
         self.qgraph, self.cqg1 = make_test_clustered_quantum_graph(self.tmpdir)
 
     def tearDown(self):
-        pass
-        # if self.tmpdir is not None and os.path.exists(self.tmpdir):
-        #    shutil.rmtree(self.tmppath, ignore_errors=True)
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
 
     def testName(self):
         self.assertEqual(self.cqg1.name, "cqg1")
@@ -118,9 +117,6 @@ class TestClusteredQuantumGraph(unittest.TestCase):
     def testQgraph(self):
         """Test qgraph method."""
         self.assertEqual(self.cqg1.qgraph, self.qgraph)
-
-    # def testAddClusterSingle(self):
-    #    """Test add_cluster method for single new cluster."""
 
     def testGetClusterExists(self):
         """Test get_cluster method where cluster exists."""
@@ -130,12 +126,6 @@ class TestClusteredQuantumGraph(unittest.TestCase):
         """Test get_cluster method where cluster doesn't exist."""
         with self.assertRaises(KeyError):
             _ = self.cqg1.get_cluster("Not_There")
-
-    # def testGetQuantumNodeExists(self):
-    #     """Test get_quantum_node method where node exists."""
-    #
-    # def testGetQuantumNodeMissing(self):
-    #     """Test get_quantum_node method where node doesn't exist."""
 
     def testClusters(self):
         """Test clusters method returns in correct order."""
@@ -157,8 +147,6 @@ class TestClusteredQuantumGraph(unittest.TestCase):
         """Test predecessors method handles no predecessors."""
         # check iterable and empty
         self.assertEqual(len(list(self.cqg1.predecessors("T1_1_2"))), 0)
-
-    # def testAddDependency(self):
 
     def testSaveAndLoad(self):
         path = Path(f"{self.tmpdir}/save_1.pickle")
