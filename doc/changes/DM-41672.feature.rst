@@ -1,0 +1,1 @@
+``bps submit`` and ``bps restart`` can make a softlink to the submit run directory.  The softlink is named after the WMS job id.  ``idLinkPath`` determines the parent directory for the link (defaults to ``${PWD}/bps_links``).  ``makeIdLink`` is a boolean used to turn on/off the creation of the link (defaults to ``False``).
