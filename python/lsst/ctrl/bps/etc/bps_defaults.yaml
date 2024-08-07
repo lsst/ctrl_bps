@@ -137,3 +137,8 @@ finalJob:
 # own defaults.  Currently, needs to be override in user's config
 # if a different limit needs to be used.
 memoryLimit: 491520
+
+# Default values for making id soft link to submit directory
+makeIdLink: False
+idLinkPath: "${PWD}/bps_links"
+

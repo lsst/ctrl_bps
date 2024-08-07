@@ -60,7 +60,7 @@ from lsst.utils.timer import time_this
 from lsst.utils.usage import get_peak_mem_usage
 
 from . import BPS_DEFAULTS, BPS_SEARCH_ORDER, DEFAULT_MEM_FMT, DEFAULT_MEM_UNIT, BpsConfig
-from .bps_utils import _dump_env_info, _dump_pkg_info
+from .bps_utils import _dump_env_info, _dump_pkg_info, _make_id_link
 from .cancel import cancel
 from .ping import ping
 from .pre_transform import acquire_quantum_graph, cluster_quanta
@@ -470,6 +470,8 @@ def submit_driver(config_file, **kwargs):
             *tuple(f"{val.to(DEFAULT_MEM_UNIT):{DEFAULT_MEM_FMT}}" for val in get_peak_mem_usage()),
         )
 
+    _make_id_link(wms_workflow_config, wms_workflow.run_id)
+
     print(f"Run Id: {wms_workflow.run_id}")
     print(f"Run Name: {wms_workflow.name}")
 
@@ -494,6 +496,9 @@ def restart_driver(wms_service, run_id):
         if path.exists():
             _dump_env_info(f"{run_id}/{run_name}.env.info.yaml")
             _dump_pkg_info(f"{run_id}/{run_name}.pkg.info.yaml")
+            config = BpsConfig(f"{run_id}/{run_name}_config.yaml")
+            _make_id_link(config, new_run_id)
+
         print(f"Run Id: {new_run_id}")
         print(f"Run Name: {run_name}")
     else:

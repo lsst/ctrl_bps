@@ -176,6 +176,17 @@ The following subset of ``pipetask`` options are also usable on ``bps submit`` c
 - ``-p, --pipeline FILE``
 - ``-g, --qgraph FILENAME``
 
+**Other Options**
+
+The following miscellaneous options are also usable on ``bps submit`` command lines.
+
+- ``--make-id-link``
+  Turns on the creation of an id-based softlink to the submit run directory.
+  Defaults to False.  Replaces variable ``makeIdLink``.
+- ``--id-link-path``
+  The parent directory for the id-based softlink.  Defaults to ``${PWD}/bps_links``.
+  Replaces variable ``idLinkPath``.
+
 .. _bps-report:
 
 Checking status
@@ -629,6 +640,14 @@ Supported settings
     It is recommended to use this option only when working with small
     graphs/workflows.  The plots will be practically illegible for graphs which
     number of nodes exceeds order of tens.
+
+**makeIdLink**
+    A boolean flag.  If set to true, ``bps submit`` will create a WMS-id softlink
+    to the submit run directory.  Defaults to ``False``.  (see :ref:`bps-softlink`)
+
+**idLinkPath**
+    The parent directory for the WMS-id link.  Defaults to ``${PWD}/bps_links``.
+    (see :ref:`bps-softlink`)
 
 .. _pickle: https://docs.python.org/3/library/pickle.html
 .. _ref: https://stackoverflow.com/a/38971446
@@ -1244,6 +1263,35 @@ Relevant Config Entries:
        equalDimensions: dim1:dim1a   # e.g., visit:exposure
        # requestCpus: N              # Overrides for jobs in this cluster
        # requestMemory: NNNN         # MB, Overrides for jobs in this cluster
+
+.. _bps-softlink:
+
+WMS-id softlink
+---------------
+
+``bps submit`` makes a directory in which to put submit-time files.  The
+location is based on the output run collection which normally ends in a
+timestamp.  WMS workflow ids are normally shorter and easier to remember.
+BPS can make a softlink, named with the WMS workflow id, to the submit
+run directory.  The following are the two values that control this:
+
+- ``idLinkPath`` determines the parent directory for the link (defaults to ``${PWD}/bps_links``).
+- ``makeIdLink`` is a boolean used to turn on/off the creation of the link (defaults to ``False``).
+
+Both of these values can also be set on the ``bps submit`` command-line.
+
+``bps restart`` will use the settings defined in the original submission.
+If the WMS restart returns a new id, bps will create a new softlink if
+``makeIdLink`` is true.
+
+BPS cannot make an id softlink if the WMS does not return an id (e.g.,
+Parsl).
+
+.. warning::
+
+    BPS does **NOT** manage the softlinks once created.  It is the user's
+    responsibility to remove them once no longer needed.  The removal
+    should be done regularly to avoid too many in single directory.
 
 .. _bps-troubleshooting:
 

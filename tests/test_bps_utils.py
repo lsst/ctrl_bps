@@ -24,37 +24,175 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-import os
+import logging
 import shutil
 import tempfile
 import unittest
+from pathlib import Path
 
-from lsst.ctrl.bps.bps_utils import chdir
-
-TESTDIR = os.path.abspath(os.path.dirname(__file__))
+from lsst.ctrl.bps import BpsConfig
+from lsst.ctrl.bps.bps_utils import _make_id_link, chdir
 
 
 class TestChdir(unittest.TestCase):
     """Test directory changing."""
 
     def setUp(self):
-        self.cwd = os.getcwd()
-        self.tmpdir = tempfile.mkdtemp(dir=TESTDIR)
+        self.tmpdir = Path(tempfile.mkdtemp())
 
     def tearDown(self):
         shutil.rmtree(self.tmpdir, ignore_errors=True)
 
     def testSuccessfulChdir(self):
-        self.assertNotEqual(os.getcwd(), self.tmpdir)
+        cwd = Path.cwd()
+        self.assertFalse(self.tmpdir.samefile(cwd))
         with chdir(self.tmpdir):
-            self.assertEqual(os.getcwd(), self.tmpdir)
-        self.assertNotEqual(os.getcwd(), self.tmpdir)
+            self.assertTrue(self.tmpdir.samefile(Path.cwd()))
+        self.assertTrue(cwd.samefile(Path.cwd()))
 
     def testFailingChdir(self):
-        dir_not_there = os.path.join(self.tmpdir, "notthere")
+        dir_not_there = self.tmpdir / "notthere"
         with self.assertRaises(FileNotFoundError):
             with chdir(dir_not_there):
                 pass  # should not get here
+
+
+class TestMakeIdLink(unittest.TestCase):
+    """Test _make_id_link function."""
+
+    def setUp(self):
+        self.tmpdir = Path(tempfile.mkdtemp())
+
+    def tearDown(self):
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def testMakeIdLinkFalse(self):
+        """Test skipping making link."""
+        config = BpsConfig({"makeIdLink": False})
+        submit_path = self.tmpdir / "test_submit/testrun/1"
+        submit_path.mkdir(parents=True)
+        config["submitPath"] = str(submit_path)
+
+        dir_of_links = self.tmpdir / "bps_links"
+        with self.assertLogs("lsst.ctrl.bps.bps_utils", level=logging.DEBUG) as cm:
+            _make_id_link(config, "100.0")
+            self.assertRegex(cm.records[-1].getMessage(), "Not asked to make id link")
+        self.assertFalse(dir_of_links.exists())
+
+    def testNoRunID(self):
+        """Test no link made if no run id."""
+        config = BpsConfig({"makeIdLink": True})
+        submit_path = self.tmpdir / "test_submit/testrun/2"
+        submit_path.mkdir(parents=True)
+        config["submitPath"] = str(submit_path)
+
+        dir_of_links = self.tmpdir / "bps_links"
+        with self.assertLogs("lsst.ctrl.bps.bps_utils", level=logging.DEBUG) as cm:
+            _make_id_link(config, None)
+            self.assertRegex(cm.records[-1].getMessage(), "Run ID is None.  Skipping making id link.")
+        self.assertFalse(dir_of_links.exists())
+
+    def testSuccessfulLink(self):
+        """Test successfully made id link."""
+        config = BpsConfig({"makeIdLink": True})
+
+        submit_path = self.tmpdir / "test_submit/testrun/3"
+        submit_path.mkdir(parents=True)
+        config["submitPath"] = str(submit_path)
+
+        # Make sure can make multiple dirs
+        dir_of_links = self.tmpdir / "test_bps/links"
+        config["idLinkPath"] = str(dir_of_links)
+
+        with self.assertLogs("lsst.ctrl.bps.bps_utils", level=logging.INFO) as cm:
+            _make_id_link(config, "100.0")
+            self.assertRegex(cm.records[-1].getMessage(), "Made id softlink:")
+
+        link_path = dir_of_links / "100.0"
+        self.assertTrue(link_path.is_symlink())
+        self.assertEqual(link_path.readlink(), submit_path)
+
+    def testSubmitDoesNotExist(self):
+        """Test checking that submit directory exists."""
+        config = BpsConfig({"makeIdLink": True})
+
+        submit_path = self.tmpdir / "test_submit/testrun/4"
+        submit_path.mkdir(parents=True)
+        config["submitPath"] = str(submit_path / "notthere")
+
+        dir_of_links = self.tmpdir / "test_bps_links"
+        config["idLinkPath"] = str(dir_of_links)
+
+        with self.assertLogs("lsst.ctrl.bps.bps_utils", level=logging.WARNING) as cm:
+            _make_id_link(config, "100.0")
+            self.assertRegex(
+                cm.records[-1].getMessage(), "Could not make id softlink: submitPath does not exist"
+            )
+        self.assertFalse(dir_of_links.exists())
+
+    def testLinkAlreadyExists(self):
+        """Test skipping if link already correctly exists
+        for example if a restart gives same id.
+        """
+        config = BpsConfig({"makeIdLink": True})
+
+        submit_path = self.tmpdir / "test_submit/testrun/5"
+        submit_path.mkdir(parents=True)
+        config["submitPath"] = str(submit_path)
+
+        dir_of_links = self.tmpdir / "test_bps_links"
+        config["idLinkPath"] = str(dir_of_links)
+
+        # Make the softlink
+        dir_of_links.mkdir(parents=True)
+        link_path = dir_of_links / "100.0"
+        link_path.symlink_to(submit_path)
+
+        with self.assertLogs("lsst.ctrl.bps.bps_utils", level=logging.DEBUG) as cm:
+            _make_id_link(config, "100.0")
+            self.assertRegex(cm.records[-1].getMessage(), "Correct softlink already exists")
+        self.assertTrue(link_path.is_symlink())
+        self.assertEqual(link_path.readlink(), submit_path)
+
+    def testFileExistsError(self):
+        """Test catching of FileExistsError."""
+        config = BpsConfig({"makeIdLink": True})
+
+        submit_path = self.tmpdir / "test_submit/testrun/6"
+        submit_path.mkdir(parents=True)
+        config["submitPath"] = str(submit_path)
+
+        dir_of_links = self.tmpdir / "test_bps_links"
+        config["idLinkPath"] = str(dir_of_links)
+
+        # Make a directory with the link path so
+        # that get FileExistsError
+        link_path = dir_of_links / "100.0"
+        link_path.mkdir(parents=True)
+
+        with self.assertLogs("lsst.ctrl.bps.bps_utils", level=logging.WARNING) as cm:
+            _make_id_link(config, "100.0")
+            self.assertRegex(cm.records[-1].getMessage(), "Could not make id softlink:.*File exists")
+        self.assertFalse(link_path.is_symlink())
+
+    def testPermissionError(self):
+        """Test catching of PermissionError."""
+        config = BpsConfig({"makeIdLink": True})
+
+        submit_path = self.tmpdir / "test_submit/testrun/7"
+        submit_path.mkdir(parents=True)
+        config["submitPath"] = str(submit_path)
+
+        dir_of_links = self.tmpdir / "test_bps_links"
+        # Create dir without write permissions to cause the error.
+        dir_of_links.mkdir(mode=0o555, parents=True)
+        config["idLinkPath"] = str(dir_of_links)
+
+        with self.assertLogs("lsst.ctrl.bps.bps_utils", level=logging.WARNING) as cm:
+            _make_id_link(config, "100.0")
+            self.assertRegex(cm.records[-1].getMessage(), "Could not make id softlink:.*Permission denied")
+        link_path = dir_of_links / "100.0"
+        self.assertFalse(link_path.is_symlink())
 
 
 if __name__ == "__main__":
