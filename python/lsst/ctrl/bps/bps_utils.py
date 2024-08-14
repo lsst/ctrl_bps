@@ -37,6 +37,7 @@ __all__ = [
     "parse_count_summary",
     "_dump_pkg_info",
     "_dump_env_info",
+    "_make_id_link",
 ]
 
 import contextlib
@@ -256,3 +257,48 @@ def _dump_env_info(filename):
         file = file.with_suffix(f"{file.suffix}.yaml")
     with open(file, "w", encoding="utf-8") as fh:
         yaml.dump(dict(os.environ), fh)
+
+
+def _make_id_link(config, run_id):
+    """Make id softlink to the submit run directory if makeIdLink
+    is true.
+
+    Parameters
+    ----------
+    config : `lsst.ctrl.bps.BpsConfig`
+        BPS configuration.
+    run_id : `str`
+        WMS run ID.
+    """
+    _, make_id_link = config.search("makeIdLink")
+    if make_id_link:
+        if run_id is None:
+            _LOG.info("Run ID is None.  Skipping making id link.")
+        else:
+            found, submit_path = config.search("submitPath")
+            # pathlib.Path.symlink_to() does not care if target exists
+            # so we check it ourselves.
+            if found and Path(submit_path).exists():
+                _, id_link_path = config.search("idLinkPath")
+                _LOG.debug("submit_path=%s, id_link_path=%s", submit_path, id_link_path)
+                id_link_path = Path(id_link_path)
+                id_link_path = id_link_path / f"{run_id}"
+                _LOG.debug("submit_path=%s, id_link_path=%s", submit_path, id_link_path)
+                if (
+                    id_link_path.exists()
+                    and id_link_path.is_symlink()
+                    and str(id_link_path.readlink()) == submit_path
+                ):
+                    _LOG.debug("Correct softlink already exists (%s)", id_link_path)
+                else:
+                    _LOG.debug("Softlink doesn't already exist (%s)", id_link_path)
+                    try:
+                        id_link_path.parent.mkdir(parents=True, exist_ok=True)
+                        id_link_path.symlink_to(submit_path)
+                        _LOG.info("Made id softlink: %s", id_link_path)
+                    except (OSError, FileExistsError, PermissionError) as exc:
+                        _LOG.warning("Could not make id softlink: %s", exc)
+            else:
+                _LOG.warning("Could not make id softlink: submitPath does not exist (%s)", submit_path)
+    else:
+        _LOG.debug("Not asked to make id link (makeIdLink=%s)", make_id_link)

@@ -34,6 +34,8 @@ __all__ = [
     "extra_run_quantum_option",
     "wms_service_option",
     "compute_site_option",
+    "make_id_link_option",
+    "id_link_path_option",
 ]
 
 from lsst.daf.butler.cli.utils import MWOptionDecorator
@@ -63,4 +65,18 @@ compute_site_option = MWOptionDecorator(
     "--compute-site",
     "compute_site",
     help="The compute site used to run the workflow.",
+)
+
+make_id_link_option = MWOptionDecorator(
+    "--make-id-link",
+    "make_id_link",
+    default=False,
+    is_flag=True,
+    help="Make a link to the submit directory using the workflow id.",
+)
+
+id_link_path_option = MWOptionDecorator(
+    "--id-link-path",
+    "id_link_path",
+    help="Location in which to make id soft link to the submit directory." "default ('${PWD}/bps_links')",
 )
