@@ -103,6 +103,9 @@ class WmsSpecificInfo:
         self._context: dict[str, Any] = {}
         self._templates: list[str] = []
 
+    def __bool__(self):
+        return bool(self._templates)
+
     @property
     def context(self) -> dict[str, Any]:
         """The context that will be used to render the information.
