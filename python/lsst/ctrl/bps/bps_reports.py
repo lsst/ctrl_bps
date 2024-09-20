@@ -183,6 +183,7 @@ class DetailedRunReport(BaseRunReport):
         # If run summary exists, use it to get the reference job counts.
         by_label_expected = {}
         if run_report.run_summary:
+            print("MMG: ", run_report.run_summary)
             for part in run_report.run_summary.split(";"):
                 label, count = part.split(":")
                 by_label_expected[label] = int(count)
