@@ -24,6 +24,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+import dataclasses
 import io
 import unittest
 from collections import Counter
@@ -246,6 +247,105 @@ class TestGenericWorkflow(unittest.TestCase):
         gwf.add_job_relationships(["job1", "job2"], "job3")
 
         self.assertListEqual([job3], gwf.get_jobs_by_label("label3"))
+
+    def testAddJobInvalidType(self):
+        @dataclasses.dataclass(slots=True)
+        class GenericWorkflowNodeNoInherit:
+            name: str
+            label: str
+
+            def __hash__(self):
+                return hash(self.name)
+
+            @property
+            def node_type(self):
+                return gw.GenericWorkflowNodeType.NOOP
+
+        job3 = GenericWorkflowNodeNoInherit("myname", "mylabel")
+
+        gwf = gw.GenericWorkflow("mytest")
+        gwf.add_job(self.job1)
+        gwf.add_job(self.job2)
+        with self.assertRaises(RuntimeError) as cm:
+            gwf.add_job(job3)
+        self.assertIn("Invalid type for job to be added to GenericWorkflowGraph", str(cm.exception))
+
+    def testAddSpecialJobOrderingBadType(self):
+        gwf = _make_3_label_workflow("test_sort")
+        with self.assertRaises(RuntimeError) as cm:
+            gwf.add_special_job_ordering(
+                {"order1": {"ordering_type": "badtype", "labels": "label2", "dimensions": "visit"}}
+            )
+        self.assertIn("Invalid ordering_type for", str(cm.exception))
+
+        with self.assertRaises(RuntimeError) as cm:
+            gwf.add_special_job_ordering(
+                {"order1": {"ordering_type": "badtype", "labels": "label2", "dimensions": "visit"}}
+            )
+        self.assertIn("Invalid ordering_type for", str(cm.exception))
+
+    def testAddSpecialJobOrderingBadLabel(self):
+        gwf = _make_3_label_workflow("test_bad_label")
+
+        with self.assertRaises(RuntimeError) as cm:
+            gwf.add_special_job_ordering(
+                {
+                    "order1": {"ordering_type": "sort", "labels": "label2", "dimensions": "visit"},
+                    "order2": {"ordering_type": "sort", "labels": "label2,label3", "dimensions": "visit"},
+                }
+            )
+        self.assertIn("Job label label2 appears in more than one job ordering group", str(cm.exception))
+
+    def testAddSpecialJobOrderingBadDim(self):
+        gwf = _make_3_label_workflow("test_bad_dim")
+
+        with self.assertRaises(KeyError) as cm:
+            gwf.add_special_job_ordering(
+                {"order1": {"ordering_type": "sort", "labels": "label2", "dimensions": "notthere"}}
+            )
+        self.assertIn(
+            "has label label2 but missing notthere for order group order1", cm.exception.__notes__[0]
+        )
+
+    def testAddSpecialJobOrderingSort(self):
+        gwf = _make_3_label_workflow("test_sort")
+        quanta_counts_before = gwf.quanta_counts
+
+        gwf.add_special_job_ordering(
+            {"order1": {"ordering_type": "sort", "labels": "label2", "dimensions": "visit"}}
+        )
+
+        quanta_counts_after = gwf.quanta_counts
+        self.assertEqual(quanta_counts_after, quanta_counts_before)
+
+        gwf.regenerate_labels()
+        quanta_counts_after = gwf.quanta_counts
+        self.assertEqual(quanta_counts_after, quanta_counts_before)
+
+        self.assertTrue(gwf.has_edge("label2_10001_10", "noop_order1_10001"))
+        self.assertTrue(gwf.has_edge("label2_10001_11", "noop_order1_10001"))
+        self.assertTrue(gwf.has_edge("noop_order1_10001", "label2_10002_10"))
+        self.assertTrue(gwf.has_edge("noop_order1_10001", "label2_10002_11"))
+        self.assertTrue(gwf.has_edge("label2_10002_10", "noop_order1_10002"))
+        self.assertTrue(gwf.has_edge("label2_10002_11", "noop_order1_10002"))
+        self.assertTrue(gwf.has_edge("noop_order1_10002", "label2_10003_10"))
+        self.assertTrue(gwf.has_edge("noop_order1_10002", "label2_10003_11"))
+
+
+
+def _make_3_label_workflow(workflow_name):
+    gwf = gw.GenericWorkflow("mytest")
+    job = gw.GenericWorkflowJob("pipetaskInit", label="pipetaskInit")
+    gwf.add_job(job)
+    for visit in [10001, 10002, 10003]:
+        for detector in [10, 11]:
+            prev_name = "pipetaskInit"
+            for label in ["label1", "label2", "label3"]:
+                name = f"{label}_{visit}_{detector}"
+                job = gw.GenericWorkflowJob(name, label=label, tags={"visit": visit, "detector": detector})
+                gwf.add_job(job, [prev_name], None)
+                prev_name = name
+    return gwf
 
 
 if __name__ == "__main__":

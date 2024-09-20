@@ -783,6 +783,10 @@ def create_generic_workflow(config, cqgraph, name, prefix):
     # Add final job
     add_final_job(config, generic_workflow, prefix)
 
+
+    if "ordering" in config:
+        generic_workflow.add_special_job_ordering(config["ordering"])
+
     return generic_workflow
 
 
