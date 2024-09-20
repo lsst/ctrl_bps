@@ -27,7 +27,13 @@
 
 """Class definitions for a Generic Workflow Graph."""
 
-__all__ = ["GenericWorkflow", "GenericWorkflowExec", "GenericWorkflowFile", "GenericWorkflowJob"]
+__all__ = [
+    "GenericWorkflow",
+    "GenericWorkflowFile",
+    "GenericWorkflowJob",
+    "GenericWorkflowExec",
+    "GenericWorkflowNodeType",
+]
 
 
 import dataclasses
@@ -36,6 +42,7 @@ import logging
 import pickle
 from collections import Counter, defaultdict
 from collections.abc import Iterable, Iterator
+from enum import IntEnum, auto
 from typing import IO, Any, BinaryIO, Literal, cast, overload
 
 from networkx import DiGraph, topological_sort
@@ -104,14 +111,49 @@ class GenericWorkflowExec:
         return hash(self.name)
 
 
+class GenericWorkflowNodeType(IntEnum):
+    """Type of valid types for nodes in the GenericWorkflow."""
+
+    NOOP = auto()
+    """Does nothing, but enforces special dependencies."""
+
+    PAYLOAD = auto()
+    """Typical workflow job."""
+
+
 @dataclasses.dataclass(slots=True)
-class GenericWorkflowJob:
-    """Information about a job that may be needed by various workflow
-    management services.
-    """
+class GenericWorkflowNode:
+    """Base class for nodes in the GenericWorkflow."""
 
     name: str
-    """Name of job.  Must be unique within workflow.
+    """Name of node.  Must be unique within workflow."""
+
+    def __hash__(self):
+        return hash(self.name)
+
+    @property
+    def node_type(self):
+        """Type of node."""
+        raise NotImplementedError(f"{type(self).__name__} needs to override node_type.")
+
+
+@dataclasses.dataclass(slots=True)
+class GenericWorkflowNoopJob(GenericWorkflowNode):
+    """Job that does no work.  Used for special dependencies."""
+
+    label: str
+    """Label used to group NOOP jobs."""
+
+    @property
+    def node_type(self):
+        """Indicate this is a noop job."""
+        return GenericWorkflowNodeType.NOOP
+
+
+@dataclasses.dataclass(slots=True)
+class GenericWorkflowJob(GenericWorkflowNode):
+    """Information about a job that may be needed by various workflow
+    management services.
     """
 
     label: str = "UNK"
@@ -250,8 +292,10 @@ class GenericWorkflowJob:
     """Key to look up cloud-specific information for running the job.
     """
 
-    def __hash__(self) -> int:
-        return hash(self.name)
+    @property
+    def node_type(self):
+        """Indicate this is a payload job."""
+        return GenericWorkflowNodeType.PAYLOAD
 
 
 class GenericWorkflow(DiGraph):
@@ -302,7 +346,7 @@ class GenericWorkflow(DiGraph):
         qcounts: Counter[str] = Counter()
         for job_name in self:
             gwjob = self.get_job(job_name)
-            if gwjob.quanta_counts is not None:
+            if gwjob.node_type != GenericWorkflowNodeType.NOOP and gwjob.quanta_counts is not None:
                 qcounts += gwjob.quanta_counts
         return qcounts
 
@@ -316,11 +360,12 @@ class GenericWorkflow(DiGraph):
         self._job_labels = GenericWorkflowLabels()
         for job_name in self:
             job = self.get_job(job_name)
-            self._job_labels.add_job(
-                job,
-                [self.get_job(p).label for p in self.predecessors(job.name)],
-                [self.get_job(p).label for p in self.successors(job.name)],
-            )
+            if job.node_type != GenericWorkflowNodeType.NOOP:
+                self._job_labels.add_job(
+                    job,
+                    [self.get_job(p).label for p in self.predecessors(job.name)],
+                    [self.get_job(p).label for p in self.successors(job.name)],
+                )
 
     @property
     def job_counts(self) -> Counter[str]:
@@ -398,14 +443,14 @@ class GenericWorkflow(DiGraph):
         _LOG.debug("job: %s (%s)", job.name, job.label)
         _LOG.debug("parent_names: %s", parent_names)
         _LOG.debug("child_names: %s", child_names)
-        if not isinstance(job, GenericWorkflowJob):
+        if not isinstance(job, GenericWorkflowNode):
             raise RuntimeError(f"Invalid type for job to be added to GenericWorkflowGraph ({type(job)}).")
         if self.has_node(job.name):
             raise RuntimeError(f"Job {job.name} already exists in GenericWorkflowGraph.")
         super().add_node(job.name, job=job)
         self.add_job_relationships(parent_names, job.name)
         self.add_job_relationships(job.name, child_names)
-        if job.executable is not None:
+        if job.node_type != GenericWorkflowNodeType.NOOP and job.executable is not None:
             self.add_executable(job.executable)
         self._job_labels.add_job(
             job,
@@ -876,6 +921,122 @@ class GenericWorkflow(DiGraph):
         """
         return self._job_labels.get_jobs_by_label(label)
 
+    def add_special_job_ordering(self, ordering):
+        """Add special nodes and dependencies to enforce given ordering.
+
+        Parameters
+        ----------
+        ordering : dict
+            Description of job ordering to enforce.
+        """
+        # New dicts to make lookup per job quicker
+        job_label_to_dimensions = {}
+        job_label_to_ordering = {}
+
+        for group, group_vals in ordering.items():
+            job_labels = [x.strip() for x in group_vals["labels"].split(",")]
+            dims = [x.strip() for x in group_vals["dimensions"].split(",")]
+            _LOG.debug("group %s: job_labels=%s", group, job_labels)
+            _LOG.debug("group %s: dims=%s", group, dims)
+            for job_label in job_labels:
+                if job_label in job_label_to_ordering:
+                    raise RuntimeError(
+                        f"Job label {job_label} appears in more than one job ordering group "
+                        f"({group} {job_label_to_ordering[job_label]})"
+                    )
+                else:
+                    job_label_to_ordering[job_label] = group
+                    job_label_to_dimensions[job_label] = dims
+
+                # Create job mapping of special sortable dimension key
+                # to job name.
+                jobs = self.get_jobs_by_label(job_label)
+                dims_to_jobs = {}
+                for job in jobs:
+                    job_dims = []
+                    for dim in dims:
+                        try:
+                            job_dims.append(job.tags[dim])
+                        except KeyError as e:
+                            e.add_note(
+                                f"Job {job.name} has label {job.label} but missing {dim} for "
+                                f"order group {group}"
+                            )
+                            raise
+                    dims_job_list = dims_to_jobs.setdefault(tuple(job_dims), [])
+                    dims_job_list.append(job)
+
+            # Update the workflow
+            if "ordering_type" not in group_vals or group_vals["ordering_type"] == "sort":
+                self._order_jobs_by_sort(group, dims_to_jobs)
+            else:
+                raise RuntimeError(f"Invalid ordering_type for {group}: {group_vals['ordering_type']}")
+
+    def _order_jobs_by_sort(self, group, dims_to_jobs):
+        """Update portion of workflow for special ordering of jobs using sort.
+
+        Parameters
+        ----------
+        group : `str`
+            Ordering group label used for job name and messages.
+        dims_to_jobs: `dict` [`str`, `list` [`GenericWorkflowJob`]]
+            Mapping of special dimension keys to workflow job names.
+            The sort for the special ordering is over the keys.
+        """
+        noop_names = []
+        prev_name = None
+        for dim_key in sorted(dims_to_jobs):
+            _LOG.debug("group %s: dim_key=%s", group, dim_key)
+            noop_name = f"noop_{group}_{'=='.join([str(dk) for dk in dim_key])}"
+            if noop_names:
+                prev_name = noop_names[-1]
+            noop_names.append(noop_name)
+
+            for job in dims_to_jobs[dim_key]:
+                self._order_job(job.name, noop_name, group, prev_name)
+
+        # As implemented, loop adds one last NOOP job with
+        # 0 children.  Remove it as not useful.
+        assert self.out_degree(noop_names[-1]) == 0
+        self.remove_node(noop_names[-1])
+
+    def _order_job(self, job_name, order_node_name, order_label, prev_order_name):
+        """Update the workflow around the single job making special NOOP
+        jobs when necessary.
+
+        Parameters
+        ----------
+        job_name : `str`
+            Current job involved in special ordering
+        order_node_name : `str`
+            Name for the order NOOP job.  If does not exist in workflow, a new
+            NOOP job with this name will be created and added.
+        order_label : `str`
+            Label for the order NOOP job.
+        prev_order_name: `str` or None
+            Name of the previous order NOOP job used to add edge as predecessor
+            of current job.
+        """
+        _LOG.debug(
+            "_ordering_handle_job: %s order: %s (%s) prev: %s)",
+            job_name,
+            order_node_name,
+            order_label,
+            prev_order_name,
+        )
+
+        if order_node_name not in self:
+            _LOG.debug("Adding new ordering node %s", order_node_name)
+            order_node = GenericWorkflowNoopJob(order_node_name, order_label)
+            self.add_job(order_node)
+
+        _LOG.debug("Adding edge %s to %s", job_name, order_node_name)
+        self.add_edge(job_name, order_node_name)
+
+        if prev_order_name:
+            _LOG.debug("Adding edge %s to %s", prev_order_name, job_name)
+            self.add_edge(prev_order_name, job_name)
+
 
 class GenericWorkflowLabels:
     """Label-oriented representation of the GenericWorkflow."""
@@ -926,12 +1087,13 @@ class GenericWorkflowLabels:
         _LOG.debug("job: %s (%s)", job.name, job.label)
         _LOG.debug("parent_labels: %s", parent_labels)
         _LOG.debug("child_labels: %s", child_labels)
-        self._label_to_jobs[job.label].append(job)
-        self._label_graph.add_node(job.label)
-        for parent in parent_labels:
-            self._label_graph.add_edge(parent, job.label)
-        for child in child_labels:
-            self._label_graph.add_edge(job.label, child)
+        if job.node_type != GenericWorkflowNodeType.NOOP:
+            self._label_to_jobs[job.label].append(job)
+            self._label_graph.add_node(job.label)
+            for parent in parent_labels:
+                self._label_graph.add_edge(parent, job.label)
+            for child in child_labels:
+                self._label_graph.add_edge(job.label, child)
 
     def add_job_relationships(self, parent_labels: list[str], children_labels: list[str]) -> None:
         """Add dependencies between parent and child job labels.
