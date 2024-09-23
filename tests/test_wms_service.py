@@ -65,7 +65,7 @@ class WmsSpecificInfoTestCase(unittest.TestCase):
             self.info.add_message("one: {one", {"one": 1})
 
     def testAddingInvalidMessageBadContext(self):
-        with self.assertRaises(ValueError):
+        with self.assertRaisesRegex(ValueError, "^Adding template.*failed"):
             self.info.add_message("one: {one}", {"two": 2})
 
     def testAddingInvalidMessageContextConflicts(self):
