@@ -99,12 +99,18 @@ class WmsSpecificInfo:
     information is being ingested to a database.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._context: dict[str, Any] = {}
         self._templates: list[str] = []
 
-    def __bool__(self):
+    def __bool__(self) -> bool:
         return bool(self._templates)
+
+    def __str__(self) -> str:
+        lines = []
+        for template in self._templates:
+            lines.append(template.format_map(self._context))
+        return "\n".join(lines)
 
     @property
     def context(self) -> dict[str, Any]:
@@ -151,28 +157,20 @@ class WmsSpecificInfo:
             Raised if the message can't be rendered due to errors in either
             the template, the context, or both.
         """
-        if context is None:
-            context = {}
+        ctx = {}
+        if context is not None:
+            ctx |= context
+        ctx.update(kwargs)
+
+        # Test that given context has all of the values needed for the given
+        # template.
         try:
-            context.update(kwargs)
-            template.format_map(context)
+            template.format_map(ctx)
         except Exception as exc:
-            raise ValueError(f"Adding template '{template}' with context '{context}' failed") from exc
-        self._context.update(context)
+            raise ValueError(f"Adding template '{template}' with context '{ctx}' failed") from exc
+
+        self._context.update(ctx)
         self._templates.append(template)
-
-    def render(self) -> str:
-        """Render the WMS information as a string.
-
-        Returns
-        -------
-        info : `str`
-            Rendered WMS information.
-        """
-        lines = []
-        for template in self._templates:
-            lines.append(template.format_map(self._context))
-        return "\n".join(lines)
 
 
 @dataclasses.dataclass(slots=True)

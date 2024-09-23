@@ -118,7 +118,7 @@ def display_report(
             print(f"Path: {run.path}", file=file)
             print(f"Global job id: {run.global_wms_id}", file=file)
             if run.specific_info:
-                print(run.specific_info.render(), file=file)
+                print(run.specific_info, file=file)
             print("\n", file=file)
             print(run_report, file=file)
 

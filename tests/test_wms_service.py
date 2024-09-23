@@ -70,13 +70,11 @@ class WmsSpecificInfoTestCase(unittest.TestCase):
 
     def testRenderingSingleMessage(self):
         self.info.add_message("one: {one}", {"one": 1})
-        result = self.info.render()
-        self.assertEqual(result, "one: 1")
+        self.assertEqual(str(self.info), "one: 1")
 
     def testRenderingMultipleMessages(self):
         self.info.add_message("one: {one}", {"one": 1})
         self.info.add_message("two: {two}", {"two": 2})
-        result = self.info.render()
         self.assertEqual(self.info.context, {"one": 1, "two": 2})
         self.assertEqual(self.info.templates, ["one: {one}", "two: {two}"])
-        self.assertEqual(result, "one: 1\ntwo: 2")
+        self.assertEqual(str(self.info), "one: 1\ntwo: 2")
