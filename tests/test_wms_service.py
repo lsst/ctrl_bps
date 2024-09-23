@@ -68,6 +68,11 @@ class WmsSpecificInfoTestCase(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.info.add_message("one: {one}", {"two": 2})
 
+    def testAddingInvalidMessageContextConflicts(self):
+        with self.assertRaisesRegex(ValueError, "^Adding template.*change of value detected"):
+            self.info.add_message("one: {one}", {"one": 1})
+            self.info.add_message("two: {one}", {"one": 2})
+
     def testRenderingSingleMessage(self):
         self.info.add_message("one: {one}", {"one": 1})
         self.assertEqual(str(self.info), "one: 1")

@@ -177,6 +177,16 @@ class WmsSpecificInfo:
         except Exception as exc:
             raise ValueError(f"Adding template '{template}' with context '{ctx}' failed") from exc
 
+        # Check if the given context does not change values of the already
+        # existing fields.
+        common_fields = set(self._context) & set(ctx)
+        conflicts = [field for field in common_fields if self._context[field] != ctx[field]]
+        if conflicts:
+            raise ValueError(
+                f"Adding template '{template}' with context '{ctx}' failed:"
+                f"change of value detected for field(s): {', '.join(conflicts)}"
+            )
+
         self._context.update(ctx)
         self._templates.append(template)
 
