@@ -217,6 +217,12 @@ example ::
 
 For more detailed information on a given submission, use ``bps report --id ID``.
 
+While the output of the command will be mostly the same for all of the BPS
+plugins that support it, slight variations may happen if a plugin includes some
+WMS-specific information in it.  For example, `ctrl_bps_htcondor`_ will include
+the status of the provisioning job if the automatic provisioning of the
+resources was enabled.
+
 Use ``bps report --help`` to see all currently supported options.
 
 .. _bps-cancel:
