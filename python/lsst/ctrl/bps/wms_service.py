@@ -119,10 +119,18 @@ class WmsSpecificInfo:
         Returns
         -------
         context : `dict` [`str`, `Any`]
-            The dictionary representing the mapping between *every* template
-            variable and its value.
+            A copy of the dictionary representing the mapping between
+            *every* template variable and its value.
+
+        Notes
+        -----
+        The property returns a *shallow* copy of the dictionary representing
+        the context as the intended purpose of the ``WmsSpecificInfo`` is to
+        pass a small number of brief messages from WMS to BPS reporting
+        subsystem. Hence, it is assumed that the dictionary will only contain
+        immutable objects (e.g. strings, numbers).
         """
-        return self._context
+        return self._context.copy()
 
     @property
     def templates(self) -> list[str]:
@@ -131,10 +139,10 @@ class WmsSpecificInfo:
         Returns
         -------
         templates : `list` [`str`]
-            The complete list of the message templates in order in which
-            the messages were added.
+            A copy of the complete list of the message templates in order
+            in which the messages were added.
         """
-        return self._templates
+        return self._templates.copy()
 
     def add_message(self, template: str, context: dict[str, Any] | None = None, **kwargs) -> None:
         """Add a message to the WMS information.
