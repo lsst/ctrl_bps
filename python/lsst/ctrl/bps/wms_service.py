@@ -90,8 +90,8 @@ class WmsSpecificInfo:
     Each piece of information is split into two parts: a template and
     a context. The template is a string that can contain literal text and/or
     *named* replacement fields delimited by braces ``{}``. The context is
-    a mapping between the variables that names correspond to the replacement
-    fields in the template and their values.
+    a mapping between the names, corresponding to the replacement fields
+    in the template, and their values.
 
     To produce a human-readable representation of the information, e.g., for
     logging purposes, it needs to be rendered first to combine these two parts.
