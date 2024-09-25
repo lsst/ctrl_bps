@@ -33,6 +33,7 @@ __all__ = [
     "BaseWmsWorkflow",
     "WmsJobReport",
     "WmsRunReport",
+    "WmsSpecificInfo",
     "WmsStates",
 ]
 
@@ -41,6 +42,7 @@ import dataclasses
 import logging
 from abc import ABCMeta
 from enum import Enum
+from typing import Any
 
 _LOG = logging.getLogger(__name__)
 
@@ -80,6 +82,113 @@ class WmsStates(Enum):
 
     PRUNED = 10
     """At least one of the parents failed or can't be run."""
+
+
+class WmsSpecificInfo:
+    """Class representing WMS specific information.
+
+    Each piece of information is split into two parts: a template and
+    a context. The template is a string that can contain literal text and/or
+    *named* replacement fields delimited by braces ``{}``. The context is
+    a mapping between the names, corresponding to the replacement fields
+    in the template, and their values.
+
+    To produce a human-readable representation of the information, e.g., for
+    logging purposes, it needs to be rendered first to combine these two parts.
+    On the other hand, the context alone might be sufficient if the provided
+    information is being ingested to a database.
+    """
+
+    def __init__(self) -> None:
+        self._context: dict[str, Any] = {}
+        self._templates: list[str] = []
+
+    def __bool__(self) -> bool:
+        return bool(self._templates)
+
+    def __str__(self) -> str:
+        lines = []
+        for template in self._templates:
+            lines.append(template.format_map(self._context))
+        return "\n".join(lines)
+
+    @property
+    def context(self) -> dict[str, Any]:
+        """The context that will be used to render the information.
+
+        Returns
+        -------
+        context : `dict` [`str`, `Any`]
+            A copy of the dictionary representing the mapping between
+            *every* template variable and its value.
+
+        Notes
+        -----
+        The property returns a *shallow* copy of the dictionary representing
+        the context as the intended purpose of the ``WmsSpecificInfo`` is to
+        pass a small number of brief messages from WMS to BPS reporting
+        subsystem. Hence, it is assumed that the dictionary will only contain
+        immutable objects (e.g. strings, numbers).
+        """
+        return self._context.copy()
+
+    @property
+    def templates(self) -> list[str]:
+        """The list of templates that will be used to render the information.
+
+        Returns
+        -------
+        templates : `list` [`str`]
+            A copy of the complete list of the message templates in order
+            in which the messages were added.
+        """
+        return self._templates.copy()
+
+    def add_message(self, template: str, context: dict[str, Any] | None = None, **kwargs) -> None:
+        """Add a message to the WMS information.
+
+        If keyword arguments are specified, the passed context is then updated
+        with those key/value pairs.
+
+        Parameters
+        ----------
+        template : `str`
+            A message template.
+        context : `dict` [`str`, `Any`], optional
+            A mapping between template variables and their values.
+        **kwargs
+            Additional keyword arguments.
+
+        Raises
+        ------
+        ValueError
+            Raised if the message can't be rendered due to errors in either
+            the template, the context, or both.
+        """
+        ctx = {}
+        if context is not None:
+            ctx |= context
+        ctx.update(kwargs)
+
+        # Test that given context has all of the values needed for the given
+        # template.
+        try:
+            template.format_map(ctx)
+        except Exception as exc:
+            raise ValueError(f"Adding template '{template}' with context '{ctx}' failed") from exc
+
+        # Check if the given context does not change values of the already
+        # existing fields.
+        common_fields = set(self._context) & set(ctx)
+        conflicts = [field for field in common_fields if self._context[field] != ctx[field]]
+        if conflicts:
+            raise ValueError(
+                f"Adding template '{template}' with context '{ctx}' failed:"
+                f"change of value detected for field(s): {', '.join(conflicts)}"
+            )
+
+        self._context.update(ctx)
+        self._templates.append(template)
 
 
 @dataclasses.dataclass(slots=True)
@@ -159,6 +268,9 @@ class WmsRunReport:
     Currently behavior for jobs that were canceled, held, etc. are plugin
     dependent.
     """
+
+    specific_info: WmsSpecificInfo = None
+    """Any additional WMS specific information."""
 
 
 class BaseWmsService:

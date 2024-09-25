@@ -1,0 +1,1 @@
+Let ``bps report`` display WMS specific information if any is available.
