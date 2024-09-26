@@ -1,1 +1,2 @@
 Fixed test_clustered_quantum_graph.testClusters.
+Moved validation of ClusteredQuantumGraph from tests to class definition.

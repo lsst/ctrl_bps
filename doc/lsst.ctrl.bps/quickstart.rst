@@ -619,6 +619,11 @@ Supported settings
     * TRANSFORM = Output QuantumGraph files after creating GenericWorkflow.
     * PREPARE = QuantumGraph files are output after creating WMS submission.
 
+**validateClusteredQgraph**
+    A boolean flag.  If set to true, BPS will run checks on the generated
+    ``ClusteredQuantumGraph`` raising a ``RuntimeError`` if it finds any
+    problems.  Defaults to ``False``.
+
 **saveClusteredQgraph**
     A boolean flag.  If set to true, BPS will save serialized clustered quantum
     graph to a file called ``bps_clustered_qgraph.pickle`` using Python's
@@ -1024,6 +1029,15 @@ where each compute job is assigned a subgraph of the full QuantumGraph.  This
 subgraph of Quanta is called a "cluster".  bps can be configured to use
 different clustering algorithms by setting ``clusterAlgorithm``.  The default
 is single Quantum per Job.
+
+Validate Generated ClusteredQuantumGraph
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+By default, BPS does not run checks on the generated ClusteredQuantumGraph
+as this adds more time to the submit process especially on large QuantumGraphs.
+If desired, the checking can be turned on in the submit yaml by setting
+``validateClusteredQgraph`` to ``True``.  If any problems are found, a
+``RuntimeError`` will be raised.
 
 Single Quantum per Job
 ^^^^^^^^^^^^^^^^^^^^^^
