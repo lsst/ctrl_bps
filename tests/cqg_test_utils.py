@@ -31,7 +31,6 @@ import uuid
 from copy import deepcopy
 
 from lsst.ctrl.bps import ClusteredQuantumGraph, QuantaCluster
-from networkx import is_directed_acyclic_graph
 from qg_test_utils import make_test_quantum_graph
 
 
@@ -46,24 +45,7 @@ def check_cqg(cqg, truth=None):
     truth : `dict` [`str`, `Any`], optional
         Information describing what this cluster should look like.
     """
-    # Checks independent of data
-
-    # Check no cycles, only one edge between same two nodes,
-    assert is_directed_acyclic_graph(cqg._cluster_graph)
-
-    # Check has all QGraph nodes (include message about duplicate node).
-    node_ids = set()
-    cl_by_label = {}
-    for cluster in cqg.clusters():
-        cl_by_label.setdefault(cluster.label, []).append(cluster)
-        for id_ in cluster.qgraph_node_ids:
-            qnode = cqg.get_quantum_node(id_)
-            assert id_ not in node_ids, (
-                f"Checking cluster {cluster.name}, id {id_} ({qnode.quantum.dataId}) appears more "
-                "than once in CQG."
-            )
-            node_ids.add(id_)
-    assert len(node_ids) == len(cqg._quantum_graph)
+    cqg.validate()
 
     # If given what should be there, check values.
     if truth:

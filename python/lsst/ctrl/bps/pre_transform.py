@@ -227,8 +227,17 @@ def cluster_quanta(config, qgraph, name):
 
     Returns
     -------
-    graph : `lsst.ctrl.bps.ClusteredQuantumGraph`
+    cqgraph : `lsst.ctrl.bps.ClusteredQuantumGraph`
         Generated ClusteredQuantumGraph.
+
+    Raises
+    ------
+    RuntimeError
+        If asked to validate and generated ClusteredQuantumGraph fails a test.
     """
     cluster_func = doImport(config["clusterAlgorithm"])
-    return cluster_func(config, qgraph, name)
+    cqgraph = cluster_func(config, qgraph, name)
+    _, validate = config.search("validateClusteredQgraph", opt={"default": False})
+    if validate:
+        cqgraph.validate()
+    return cqgraph
