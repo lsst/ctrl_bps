@@ -129,6 +129,16 @@ class TestClusteredQuantumGraph(unittest.TestCase):
 
     def testClusters(self):
         """Test clusters method returns in correct order."""
+        retval = list(self.cqg1.clusters())
+
+        # Save min and max locations of a label in retval for later comparison.
+        label_to_index = {}
+        for index, cluster in enumerate(retval):
+            minmax = label_to_index.setdefault(cluster.label, (len(retval) + 1, -1))
+            label_to_index[cluster.label] = (min(minmax[0], index), max(minmax[1], index))
+
+        # assert see all of T1 before see any of clusterT2T3
+        self.assertLess(label_to_index["T1"][1], label_to_index["clusterT2T3"][0])
 
     def testSuccessorsExisting(self):
         """Test successors method returns existing successors."""
