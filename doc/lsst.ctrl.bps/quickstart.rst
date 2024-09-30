@@ -861,199 +861,19 @@ To use full QuantumGraph file, the submit YAML must set ``whenSaveJobQgraph`` to
    If running on a system with a shared filesystem, you'll more than likely
    want to also set ``bpsUseShared`` to ``true``.
 
-.. _execution-butler:
-
-Execution Butler
-----------------
-
-.. warning::
-
-   Execution butler is being deprecated. BPS will now use the quantum-backed
-   butler by default.  Until ticket `DM-40342`__ is merged you can still use
-   the execution butler for your runs by adding
-   ``resource://lsst.ctrl.bps/etc/bps_eb.yaml`` in your existing submit YAML
-   with ``includeConfigs`` setting *after* other includes if any.
-
-.. __: https://jira.lsstcorp.org/browse/DM-40342
-
-Execution Butler is a behind-the-scenes mechanism to lessen the number
-of simultaneous connections to the Butler database.
-
-Command-line Changes
-^^^^^^^^^^^^^^^^^^^^
-
-There is no a single configuration option to enable/disable Execution butler.
-Pipetasks commands need to be modified manually in the BPS submit YAML file
-(modified for you when doing the above mentioned include of ``bps_eb.yaml``):
-
-.. code-block:: YAML
-
-   runQuantumCommand: >-
-     ${CTRL_MPEXEC_DIR}/bin/pipetask {runPreCmdOpts} run
-     --butler-config {butlerConfig}
-     {pipetaskInput}
-     {pipetaskOutput}
-     --output-run {outputRun}
-     --qgraph {fileDistributionEndPoint}{qgraphFile}
-     --qgraph-id {qgraphId}
-     --qgraph-node-id {qgraphNodeId}
-     --clobber-outputs
-     --skip-init-writes
-     --extend-run
-     {extraRunQuantumOptions}
-   pipetask:
-     pipetaskInit:
-       runQuantumCommand: >-
-         ${CTRL_MPEXEC_DIR}/bin/pipetask {initPreCmdOpts} run
-         --butler-config {butlerConfig}
-         {pipetaskInput}
-         {pipetaskOutput}
-         --output-run {outputRun}
-         --qgraph {fileDistributionEndPoint}{qgraphFile}
-         --qgraph-id {qgraphId}
-         --qgraph-node-id {qgraphNodeId}
-         --clobber-outputs
-         --init-only
-         --extend-run
-         {extraInitOptions}
-
-New YAML Section
-^^^^^^^^^^^^^^^^
-
-.. code-block:: YAML
-
-   executionButlerTemplate: "{submitPath}/EXEC_REPO-{uniqProcName}"
-   executionButler:
-       whenCreate: "SUBMIT"
-       #USER executionButlerDir: "/my/exec/butler/dir"  # if user provided, otherwise uses executionButlerTemplate
-       createCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask qgraph -b {butlerConfig} --input {inCollection} --output-run {outputRun} --save-execution-butler {executionButlerDir} -g {qgraphFile}"
-       whenMerge: "ALWAYS"
-       implementation: JOB  # JOB, WORKFLOW
-       concurrencyLimit: db_limit
-       command1: "${DAF_BUTLER_DIR}/bin/butler --log-level=VERBOSE transfer-datasets  {executionButlerDir} {butlerConfig} --collections {outputRun} --register-dataset-types"
-       command2: "${DAF_BUTLER_DIR}/bin/butler collection-chain {butlerConfig} {output} {outputRun} --mode=prepend"
-
-For ``--replace-run`` behavior, replace the one collection-chain command with these two:
-
-.. code-block:: YAML
-
-   command2: "${DAF_BUTLER_DIR}/bin/butler collection-chain {butlerConfig} {output} --mode=pop 1"
-   command3: "${DAF_BUTLER_DIR}/bin/butler collection-chain {butlerConfig} {output} --mode=prepend {outputRun}"
-
-**whenCreate**
-    When during the submission process that the Execution Butler is created.
-    whenCreate valid values: "NEVER", "ACQUIRE", "TRANSFORM", "PREPARE",
-    "SUBMIT".  The recommended setting is "SUBMIT" because the run collection
-    is stored in the Execution Butler and that should be set as late as
-    possible in the submission process.
-
-    * NEVER = Execution Butler is never created and the provided pipetask
-      commands must be appropriate for not using a Execution Butler.
-    * ACQUIRE = Execution Butler is created in the ACQUIRE submission stage
-      right after creating or reading the QuantumGraph.
-    * TRANSFORM = Execution Butler is created in the TRANSFORM submission
-      stage right before creating the Generic Workflow.
-    * PREPARE = Execution Butler is created in the PREPARE submission stage
-      right before calling the WMS plugin's ``prepare`` method.
-    * SUBMIT = Execution Butler is created in the SUBMIT stage right before
-      calling the WMS plugin's ``submit`` method.
-
-**whenMerge**
-    When the Execution Butler should be merged back to the central repository.
-    whenMerge valid values: "ALWAYS", "SUCCESS", "NEVER".  The recommended
-    setting is "ALWAYS" especially when jobs are writing to the central
-    Datastore.
-
-    * ALWAYS = Merge even if entire workflow was not executed successfully
-      or run was cancelled.
-    * SUCCESS = Only merge if entire workflow was executed successfully.
-    * NEVER = bps is not responsible for merging the Execution Butler back
-      to the central repository.
-
-**createCommand**
-    Command to create the Execution Butler.
-
-**implementation**
-    How to implement the mergeExecutionButler steps.
-
-    * JOB = Single bash script is written with sequence of commands
-      and is represented in the GenericWorkflow as a GenericWorkflowJob.
-    * WORKFLOW = (Not implemented yet) Instead of a bash script, make
-      a little workflow representing the sequence of commands.
-
-**concurrency_limit**
-    Name of the concurrency limit.  For butler repositories that need to
-    limit the number of simultaneous merges, this name tells the plugin to
-    limit the number of mergeExecutionButler jobs via some mechanism, e.g.,
-    a special queue.
-
-    * db_limit = special concurrency limit to be used when limiting number of
-      simultaneous butler database connections.
-
-**command1, command2, ...**
-    Commands executed in numerical order as part of the mergeExecutionButler
-    job.
-
-**executionButlerTemplate**
-    Template for Execution Butler directory name.
-
-
-You can include other job specific requirements in ``executionButler`` section
-as well.  For example, to ensure that the job running the Execution Butler will
-have 4 GB of memory at its disposal, use ``requestMemory`` option:
-
-.. code-block:: YAML
-
-   executionButler:
-     requestMemory: 4096
-     ...
-
-Automatic memory scaling (for a WMS plugin that supports it) can be enabled in
-a similar way, for example
-
-.. code-block:: YAML
-
-   executionButler:
-     requestMemory: 4096
-     requestMemoryMax: 16384
-     memoryMultiplier: 2.0
-     ...
-
-User-visible Changes
-^^^^^^^^^^^^^^^^^^^^
-
-The major differences visible to users are:
-
-    - ``bps report`` shows new job called mergeExecutionButler in detailed view.
-      This is what saves the run info into the central butler repository.
-      As with any job, it can succeed or fail.  Different from other jobs, it
-      will execute at the end of a run regardless of whether a job failed or
-      not.  It will even execute if the run is cancelled unless the
-      cancellation is while the merge is running.  Its output will go where
-      other jobs go (at NCSA in jobs/mergeExecutionButler directory).
-    - Extra files in submit directory:
-        - EXEC_REPO-<run>:  Execution Butler (YAML + initial SQLite file)
-        - execution_butler_creation.out: Output of command to create execution
-          butler.
-        - final_job.bash:  Script that is executed to do the merging of
-          the run info into the central repo.
-        - final_post_mergeExecutionButler.out: An internal file for debugging
-          incorrect reporting of final run status.
-
 .. _quantum-backed-butler:
 
 Quantum-backed Butler
 ---------------------
 
-.. warning::
+The quantum-backed butler is a mechanism for reducing access to the central
+butler registry when running LSST pipelines at scale. See `DMTN-177`_ for more
+details.
 
-   BPS now uses the quantum-backed butler by default and
-   ``resource://lsst.ctrl.bps/etc/bps_qbb.yaml`` was removed from the package.
-   If the include list in your config still contains it,  please remove it.
+.. note::
 
-Similarly to the execution butler, the quantum-backed butler is a mechanism for
-reducing access to the central butler registry when running LSST pipelines at
-scale. See `DMTN-177`_ for more details.
+   BPS now uses quantum-backed butler by default and no longer supports its
+   predecessor, the execution butler.
 
 Command-line Changes
 ^^^^^^^^^^^^^^^^^^^^
@@ -1175,11 +995,6 @@ User-visible Changes
 ^^^^^^^^^^^^^^^^^^^^
 
 The major differences to users are:
-
-* Quantum-backed Butler takes precedence over the execution Butler.
-  If the BPS configuration file contains *both* the ``executionButler`` and the
-  ``finalJob`` sections, the quantum-backed Butler will be used during the
-  workflow execution.
 
 * **bps report** shows a new job called **finalJob** in the detailed view.
   This job is responsible for transferring datasets from the quantum graph back
