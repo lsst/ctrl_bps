@@ -78,7 +78,7 @@ class TestCreateGenericWorkflow(unittest.TestCase):
                 },
                 # Needed because transform assumes they exist
                 "whenSaveJobQgraph": "NEVER",
-                "executionButler": {"whenCreate": "SUBMIT", "whenMerge": "ALWAYS"},
+                "finalJob": {"whenRun": "ALWAYS"},
             },
             BPS_SEARCH_ORDER,
         )
@@ -113,9 +113,9 @@ class TestCreateGenericWorkflow(unittest.TestCase):
         config[".cluster.cl1.computeCloud"] = "cloud2"
         config[".cluster.cl1.computeSite"] = "notthere"
         config[".cluster.cl2.computeSite"] = "site1"
-        config[".executionButler.queue"] = "special_final_queue"
-        config[".executionButler.computeSite"] = "special_site"
-        config[".executionButler.computeCloud"] = "special_cloud"
+        config[".finalJob.queue"] = "special_final_queue"
+        config[".finalJob.computeSite"] = "special_site"
+        config[".finalJob.computeCloud"] = "special_cloud"
         workflow = create_generic_workflow(config, self.cqg, "test_gw", self.tmpdir)
         for jname in workflow:
             gwjob = workflow.get_job(jname)
