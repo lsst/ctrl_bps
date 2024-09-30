@@ -54,7 +54,7 @@ import shutil
 from collections.abc import Iterable
 from pathlib import Path
 
-from lsst.pipe.base import Instrument
+from lsst.pipe.base import Instrument, QuantumGraph
 from lsst.utils import doImport
 from lsst.utils.timer import time_this
 from lsst.utils.usage import get_peak_mem_usage
@@ -175,7 +175,7 @@ def _init_submission_driver(config_file, **kwargs):
     return config
 
 
-def acquire_qgraph_driver(config_file, **kwargs):
+def acquire_qgraph_driver(config_file: str, **kwargs) -> tuple[BpsConfig, QuantumGraph]:
     """Read a quantum graph from a file or create one from pipeline definition.
 
     Parameters
@@ -220,24 +220,13 @@ def acquire_qgraph_driver(config_file, **kwargs):
         mem_unit=DEFAULT_MEM_UNIT,
         mem_fmt=DEFAULT_MEM_FMT,
     ):
-        qgraph_file, qgraph, execution_butler_dir = acquire_quantum_graph(config, out_prefix=submit_path)
+        qgraph_file, qgraph = acquire_quantum_graph(config, out_prefix=submit_path)
     if _LOG.isEnabledFor(logging.INFO):
         _LOG.info(
             "Peak memory usage for bps process %s (main), %s (largest child process)",
             *tuple(f"{val.to(DEFAULT_MEM_UNIT):{DEFAULT_MEM_FMT}}" for val in get_peak_mem_usage()),
         )
 
-    # When using QBB (and neither 'executionButlerTemplate' nor
-    # 'executionButlerDir' is set) acquire_quantum_graph() will set
-    # 'execution_butler_dir' to the submit directory.  This will trick
-    # 'ctrl_bps_parsl' to use a non-existent execution butler and the run will
-    # fail. See ParslJob.get_command_line() for details.
-    #
-    # This simple trick should keep 'ctrl_bps_parsl' working for the time being
-    # without making more complex changes in the logic which will be removed
-    # soon anyway (see DM-40342).
-    if os.path.normpath(execution_butler_dir) != os.path.normpath(submit_path):
-        config[".bps_defined.executionButlerDir"] = execution_butler_dir
     config[".bps_defined.runQgraphFile"] = qgraph_file
     return config, qgraph
 

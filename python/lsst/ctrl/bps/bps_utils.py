@@ -32,7 +32,6 @@ __all__ = [
     "chdir",
     "create_job_quantum_graph_filename",
     "save_qg_subgraph",
-    "_create_execution_butler",
     "create_count_summary",
     "parse_count_summary",
     "_dump_pkg_info",
@@ -44,8 +43,6 @@ import contextlib
 import dataclasses
 import logging
 import os
-import shlex
-import subprocess
 from collections import Counter
 from enum import Enum
 from pathlib import Path
@@ -137,52 +134,6 @@ def save_qg_subgraph(qgraph, out_filename, node_ids=None):
             qgraph.subset(qgraph.getQuantumNodeByNodeId(nid) for nid in node_ids).saveUri(out_filename)
     else:
         _LOG.debug("Skipping saving QuantumGraph to %s because already exists.", out_filename)
-
-
-def _create_execution_butler(config, qgraph_filename, execution_butler_dir, out_prefix):
-    """Create the execution butler for use by the compute jobs.
-
-    Parameters
-    ----------
-    config : `lsst.ctrl.bps.BpsConfig`
-        BPS configuration.
-    qgraph_filename : `str`
-        Run QuantumGraph filename.
-    execution_butler_dir : `str`
-        Directory in which to create the execution butler.
-    out_prefix : `str` or None
-        Prefix for output filename to contain both stdout and stderr.
-
-    Raises
-    ------
-    CalledProcessError
-        Raised if command to create execution butler exits with non-zero
-        exit code.
-    """
-    _, command = config.search(
-        ".executionButler.createCommand",
-        opt={
-            "curvals": {"executionButlerDir": execution_butler_dir, "qgraphFile": qgraph_filename},
-            "replaceVars": True,
-        },
-    )
-    out_filename = "execution_butler_creation.out"
-    if out_prefix is not None:
-        out_filename = os.path.join(out_prefix, out_filename)
-
-    # When creating the execution Butler, handle separately errors related
-    # to creating the log file and errors directly related to creating
-    # the execution Butler itself.
-    opening = "cannot create the execution Butler"
-    try:
-        with open(out_filename, "w", encoding="utf-8") as fh:
-            print(command, file=fh)
-            print("\n", file=fh)  # Note: want a blank line
-            subprocess.run(shlex.split(command), shell=False, check=True, stdout=fh, stderr=subprocess.STDOUT)
-    except OSError as exc:
-        raise type(exc)(f"{opening}: {exc.strerror}") from None
-    except subprocess.SubprocessError as exc:
-        raise RuntimeError(f"{opening}, see '{out_filename}' for details") from exc
 
 
 def create_count_summary(counts):

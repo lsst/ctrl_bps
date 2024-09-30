@@ -29,7 +29,7 @@
 """
 import logging
 
-from lsst.ctrl.bps.bps_utils import _create_execution_butler
+from lsst.ctrl.bps import BaseWmsService, BaseWmsWorkflow, BpsConfig
 from lsst.utils import doImport
 from lsst.utils.logging import VERBOSE
 from lsst.utils.timer import time_this, timeMethod
@@ -38,7 +38,9 @@ _LOG = logging.getLogger(__name__)
 
 
 @timeMethod(logger=_LOG, logLevel=VERBOSE)
-def submit(config, wms_workflow, wms_service=None, **kwargs):
+def submit(
+    config: BpsConfig, wms_workflow: BaseWmsWorkflow, wms_service: BaseWmsService | None = None, **kwargs
+) -> BaseWmsWorkflow:
     """Convert generic workflow to a workflow for a particular WMS.
 
     Parameters
@@ -62,20 +64,7 @@ def submit(config, wms_workflow, wms_service=None, **kwargs):
         wms_service_class = doImport(config["wmsServiceClass"])
         wms_service = wms_service_class(config)
 
-    remote_build = kwargs["remote_build"] if "remote_build" in kwargs else None
     kwargs["config"] = config
-
-    if not remote_build:
-        _, when_create = config.search(".executionButler.whenCreate")
-        if when_create.upper() == "SUBMIT":
-            _, execution_butler_dir = config.search(".bps_defined.executionButlerDir")
-            _LOG.info("Creating execution butler in '%s'", execution_butler_dir)
-            with time_this(
-                log=_LOG, level=logging.INFO, prefix=None, msg="Completed creating execution butler"
-            ):
-                _create_execution_butler(
-                    config, config["runQgraphFile"], execution_butler_dir, config["submitPath"]
-                )
 
     _LOG.info("Submitting run to a workflow management system for execution")
     with time_this(

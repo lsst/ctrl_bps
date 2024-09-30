@@ -30,22 +30,18 @@
 
 import logging
 
+from lsst.ctrl.bps import BaseWmsWorkflow, BpsConfig, GenericWorkflow
 from lsst.utils import doImport
 from lsst.utils.logging import VERBOSE
-from lsst.utils.timer import time_this, timeMethod
+from lsst.utils.timer import timeMethod
 
-from .bps_utils import (
-    WhenToSaveQuantumGraphs,
-    _create_execution_butler,
-    create_job_quantum_graph_filename,
-    save_qg_subgraph,
-)
+from .bps_utils import WhenToSaveQuantumGraphs, create_job_quantum_graph_filename, save_qg_subgraph
 
 _LOG = logging.getLogger(__name__)
 
 
 @timeMethod(logger=_LOG, logLevel=VERBOSE)
-def prepare(config, generic_workflow, out_prefix):
+def prepare(config: BpsConfig, generic_workflow: GenericWorkflow, out_prefix: str) -> BaseWmsWorkflow:
     """Convert generic workflow to a workflow for a particular WMS.
 
     Parameters
@@ -62,14 +58,6 @@ def prepare(config, generic_workflow, out_prefix):
     wms_workflow : `lsst.ctrl.bps.BaseWmsWorkflow`
         WMS-specific workflow.
     """
-    search_opt = {"searchobj": config["executionButler"]}
-    _, when_create = config.search("whenCreate", opt=search_opt)
-    if when_create.upper() == "PREPARE":
-        _, execution_butler_dir = config.search(".bps_defined.executionButlerDir", opt=search_opt)
-        _LOG.info("Creating execution butler in '%s'", execution_butler_dir)
-        with time_this(log=_LOG, level=logging.INFO, prefix=None, msg="Creating execution butler completed"):
-            _create_execution_butler(config, config["runQgraphFile"], execution_butler_dir, out_prefix)
-
     found, wms_class = config.search("wmsServiceClass")
     if not found:
         raise KeyError("Missing wmsServiceClass in bps config.  Aborting.")
