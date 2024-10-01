@@ -35,8 +35,10 @@ import math
 import os
 import re
 
+from lsst.ctrl.bps import ClusteredQuantumGraph
+from lsst.pipe.base import QuantumGraph
 from lsst.utils.logging import VERBOSE
-from lsst.utils.timer import time_this, timeMethod
+from lsst.utils.timer import timeMethod
 
 from . import (
     DEFAULT_MEM_RETRIES,
@@ -46,12 +48,7 @@ from . import (
     GenericWorkflowFile,
     GenericWorkflowJob,
 )
-from .bps_utils import (
-    WhenToSaveQuantumGraphs,
-    _create_execution_butler,
-    create_job_quantum_graph_filename,
-    save_qg_subgraph,
-)
+from .bps_utils import WhenToSaveQuantumGraphs, create_job_quantum_graph_filename, save_qg_subgraph
 
 # All available job attributes.
 _ATTRS_ALL = frozenset([field.name for field in dataclasses.fields(GenericWorkflowJob)])
@@ -92,7 +89,9 @@ _LOG = logging.getLogger(__name__)
 
 
 @timeMethod(logger=_LOG, logLevel=VERBOSE)
-def transform(config, cqgraph, prefix):
+def transform(
+    config: BpsConfig, cqgraph: ClusteredQuantumGraph, prefix: str
+) -> tuple[GenericWorkflow, BpsConfig]:
     """Transform a ClusteredQuantumGraph to a GenericWorkflow.
 
     Parameters
@@ -111,13 +110,6 @@ def transform(config, cqgraph, prefix):
     generic_workflow_config : `lsst.ctrl.bps.BpsConfig`
         Configuration to accompany GenericWorkflow.
     """
-    _, when_create = config.search(".executionButler.whenCreate")
-    if when_create.upper() == "TRANSFORM":
-        _, execution_butler_dir = config.search(".bps_defined.executionButlerDir")
-        _LOG.info("Creating execution butler in '%s'", execution_butler_dir)
-        with time_this(log=_LOG, level=logging.INFO, prefix=None, msg="Creating execution butler completed"):
-            _create_execution_butler(config, config["runQgraphFile"], execution_butler_dir, prefix)
-
     if cqgraph.name is not None:
         name = cqgraph.name
     else:
@@ -151,7 +143,9 @@ def add_workflow_init_nodes(config, qgraph, generic_workflow):
     generic_workflow.add_workflow_source(init_workflow)
 
 
-def create_init_workflow(config, qgraph, qgraph_gwfile):
+def create_init_workflow(
+    config: BpsConfig, qgraph: QuantumGraph, qgraph_gwfile: GenericWorkflowFile
+) -> GenericWorkflow:
     """Create workflow for running initialization job(s).
 
     Parameters
@@ -208,15 +202,7 @@ def create_init_workflow(config, qgraph, qgraph_gwfile):
     gwjob.cmdvals["qgraphNodeId"] = ",".join(sorted([f"{node_id}" for node_id in node_ids]))
 
     init_workflow.add_job(gwjob)
-
-    # Lookup butler values
-    _, when_create = config.search(".executionButler.whenCreate", opt=search_opt)
-    _, butler_config = config.search("butlerConfig", opt=search_opt)
-    _, execution_butler_dir = config.search(".bps_defined.executionButlerDir", opt=search_opt)
-    prefix = config["submitPath"]
-    butler_gwfile = _get_butler_gwfile(prefix, when_create, butler_config, execution_butler_dir)
-
-    init_workflow.add_job_inputs(gwjob.name, [qgraph_gwfile, butler_gwfile])
+    init_workflow.add_job_inputs(gwjob.name, [qgraph_gwfile])
     _enhance_command(config, init_workflow, gwjob, {})
 
     return init_workflow
@@ -351,49 +337,6 @@ def _fill_arguments(use_shared, generic_workflow, arguments, cmdvals):
     arguments = arguments.format(**cmdvals)
 
     return arguments
-
-
-def _get_butler_gwfile(prefix, when_create, butler_config, execution_butler_dir):
-    """Get butler location to be used by job.
-
-    Parameters
-    ----------
-    prefix : `str`
-        Root path for any output files.
-    when_create : `str`
-        When to create the execution butler used to determine whether job is
-        using execution butler or not.
-    butler_config : `str`
-        Location of central butler repositories config file.
-    execution_butler_dir : `str`
-        Location of execution butler repository.
-
-    Returns
-    -------
-    gwfile : `lsst.ctrl.bps.GenericWorkflowFile`
-        Representation of butler location.
-    """
-    if when_create.upper() == "NEVER":
-        wms_transfer = False
-        job_access_remote = True
-        job_shared = True
-    else:
-        butler_config = execution_butler_dir
-        if not butler_config.startswith("/"):
-            butler_config = f"{prefix}/{butler_config}"
-        wms_transfer = True
-        job_access_remote = False
-        job_shared = False
-
-    gwfile = GenericWorkflowFile(
-        "butlerConfig",
-        src_uri=butler_config,
-        wms_transfer=wms_transfer,
-        job_access_remote=job_access_remote,
-        job_shared=job_shared,
-    )
-
-    return gwfile
 
 
 def _get_qgraph_gwfile(config, save_qgraph_per_job, gwjob, run_qgraph_file, prefix):
@@ -617,7 +560,9 @@ def _handle_job_values_sum(quantum_job_values, gwjob, attributes=_ATTRS_SUM):
             setattr(gwjob, attr, current_value + quantum_job_values[attr])
 
 
-def create_generic_workflow(config, cqgraph, name, prefix):
+def create_generic_workflow(
+    config: BpsConfig, cqgraph: ClusteredQuantumGraph, name: str, prefix: str
+) -> GenericWorkflow:
     """Create a generic workflow from a ClusteredQuantumGraph such that it
     has information needed for WMS (e.g., command lines).
 
@@ -643,11 +588,6 @@ def create_generic_workflow(config, cqgraph, name, prefix):
     save_qgraph_per_job = WhenToSaveQuantumGraphs[when_save.upper()]
 
     search_opt = {"replaceVars": False, "expandEnvVars": False, "replaceEnvVars": True, "required": False}
-
-    # Lookup butler values once
-    _, when_create = config.search(".executionButler.whenCreate", opt=search_opt)
-    _, butler_config = config.search("butlerConfig", opt=search_opt)
-    _, execution_butler_dir = config.search(".bps_defined.executionButlerDir", opt=search_opt)
 
     generic_workflow = GenericWorkflow(name)
 
@@ -743,10 +683,9 @@ def create_generic_workflow(config, cqgraph, name, prefix):
         qgraph_gwfile = _get_qgraph_gwfile(
             config, save_qgraph_per_job, gwjob, generic_workflow.get_file("runQgraphFile"), prefix
         )
-        butler_gwfile = _get_butler_gwfile(prefix, when_create, butler_config, execution_butler_dir)
 
         generic_workflow.add_job(gwjob)
-        generic_workflow.add_job_inputs(gwjob.name, [qgraph_gwfile, butler_gwfile])
+        generic_workflow.add_job_inputs(gwjob.name, [qgraph_gwfile])
 
         gwjob.cmdvals["qgraphId"] = cqgraph.qgraph.graphID
         gwjob.cmdvals["qgraphNodeId"] = ",".join(
@@ -807,42 +746,8 @@ def create_generic_workflow_config(config, prefix):
     return generic_workflow_config
 
 
-def add_final_job(config, generic_workflow, prefix):
+def add_final_job(config: BpsConfig, generic_workflow: GenericWorkflow, prefix: str) -> None:
     """Add final workflow job depending upon configuration.
-
-    Parameters
-    ----------
-    config : `lsst.ctrl.bps.BpsConfig`
-        Bps configuration.
-    generic_workflow : `lsst.ctrl.bps.GenericWorkflow`
-        Generic workflow to which attributes should be added.
-    prefix : `str`
-        Directory in which to output final script.
-
-    Notes
-    -----
-    This dispatch function was introduced to preserve the existing code
-    responsible for dealing with the execution Butler (EB). Once there is
-    no need to support the EB any longer it can be replaced by the function
-    responsible for handling the final job.
-    """
-    # The order of the entries determines the priorities regarding what
-    # method will be used when adding the final job if the configuration
-    # provides conflicting specifications.
-    dispatcher = {
-        ".finalJob.whenRun": _add_final_job,
-        ".executionButler.whenCreate": _add_merge_job,
-    }
-    for name, func in dispatcher.items():
-        if name in config and config[name] != "NEVER":
-            break
-    else:
-        raise RuntimeError("Final job specification not found")
-    func(config, generic_workflow, prefix)
-
-
-def _add_final_job(config, generic_workflow, prefix):
-    """Add the final job.
 
     Depending on configuration, the final job will be added as a special job
     which will always run regardless of the exit status of the workflow or
@@ -860,7 +765,6 @@ def _add_final_job(config, generic_workflow, prefix):
     """
     _, when_run = config.search(".finalJob.whenRun")
     if when_run.upper() != "NEVER":
-        create_final_job = _make_final_job_creator("finalJob", _create_final_command)
         gwjob = create_final_job(config, generic_workflow, prefix)
         if when_run.upper() == "ALWAYS":
             generic_workflow.add_final(gwjob)
@@ -870,13 +774,8 @@ def _add_final_job(config, generic_workflow, prefix):
             raise ValueError(f"Invalid value for finalJob.whenRun: {when_run}")
 
 
-def _add_merge_job(config, generic_workflow, prefix):
-    """Add job responsible for merging back the execution Butler.
-
-    Depending on configuration, the merge job will be added as a special job
-    which will always run regardless of the exit status of the workflow or
-    a regular sink node which will only run if the workflow execution finished
-    with no errors.
+def create_final_job(config: BpsConfig, generic_workflow: GenericWorkflow, prefix: str) -> GenericWorkflowJob:
+    """Create the final workflow job.
 
     Parameters
     ----------
@@ -886,93 +785,47 @@ def _add_merge_job(config, generic_workflow, prefix):
         Generic workflow to which attributes should be added.
     prefix : `str`
         Directory in which to output final script.
-    """
-    _, when_create = config.search(".executionButler.whenCreate")
-    _, when_merge = config.search(".executionButler.whenMerge")
-    if when_create.upper() != "NEVER" and when_merge.upper() != "NEVER":
-        create_final_job = _make_final_job_creator("executionButler", _create_merge_command)
-        gwjob = create_final_job(config, generic_workflow, prefix)
-        if when_merge.upper() == "ALWAYS":
-            generic_workflow.add_final(gwjob)
-        elif when_merge.upper() == "SUCCESS":
-            add_final_job_as_sink(generic_workflow, gwjob)
-        else:
-            raise ValueError(f"Invalid value for executionButler.whenMerge: {when_merge}")
-
-
-def _make_final_job_creator(job_name, create_cmd):
-    """Construct a function that creates the final job.
-
-    Parameters
-    ----------
-    job_name : `str`
-        Name of the job. It will also be used as the job label.
-    create_cmd : callable
-        Function to use when creating the script for the final job. It takes
-        two positional arguments:
-
-        - `config`: run configuration (`BpsConfig`).
-        - `prefix`: directory in which to output final script (`str`).
 
     Returns
     -------
-    create_gwjob : callable
-        Function to use to create a generic workflow job. The function takes
-        three positional arguments:
-
-        - `config`: run configuration (`BpsConfig`).
-        - `generic_workflow`: generic workflow to which the final job should
-           be added.
-        - `prefix`: directory in which to output final script (`str`).
-
-    Notes
-    -----
-    Implemented as a closure in order to reduce code duplication and provide
-    an extra flexibility needed to support the creation of the final node for
-    both the execution and quantum backed Butler with minimal impact on
-    the existing code base.  Once all supported plugins are able to use
-    the quantum backed Butler the inner function could be merged with
-    the remaining function responsible for adding the final node and the
-    closure can be removed.
+    final_job : `lsst.ctrl.bps.GenericWorkflowJob`
+        Final workflow job.
     """
+    job_name = "finalJob"
+    gwjob = GenericWorkflowJob(job_name, label=job_name)
 
-    def create_final_job(config, generic_workflow, prefix):
-        gwjob = GenericWorkflowJob(job_name, label=job_name)
+    search_opt = {"searchobj": config[job_name], "curvals": {}, "default": None}
+    found, value = config.search("computeSite", opt=search_opt)
+    if found:
+        search_opt["curvals"]["curr_site"] = value
+    found, value = config.search("computeCloud", opt=search_opt)
+    if found:
+        search_opt["curvals"]["curr_cloud"] = value
 
-        search_opt = {"searchobj": config[job_name], "curvals": {}, "default": None}
-        found, value = config.search("computeSite", opt=search_opt)
-        if found:
-            search_opt["curvals"]["curr_site"] = value
-        found, value = config.search("computeCloud", opt=search_opt)
-        if found:
-            search_opt["curvals"]["curr_cloud"] = value
+    # Set job attributes based on the values find in the config excluding
+    # the ones in the _ATTRS_MISC group. The attributes in this group are
+    # somewhat "special":
+    #   * HTCondor plugin, which uses 'attrs' and 'profile', has its own
+    #   mechanism for setting them,
+    #   * 'cmdvals' is being set internally, not via config.
+    job_values = _get_job_values(config, search_opt, None)
+    for attr in _ATTRS_ALL - _ATTRS_MISC:
+        if not getattr(gwjob, attr) and job_values.get(attr, None):
+            setattr(gwjob, attr, job_values[attr])
 
-        # Set job attributes based on the values find in the config excluding
-        # the ones in the _ATTRS_MISC group. The attributes in this group are
-        # somewhat "special":
-        #   * HTCondor plugin, which uses 'attrs' and 'profile', has its own
-        #   mechanism for setting them,
-        #   * 'cmdvals' is being set internally, not via config.
-        job_values = _get_job_values(config, search_opt, None)
-        for attr in _ATTRS_ALL - _ATTRS_MISC:
-            if not getattr(gwjob, attr) and job_values.get(attr, None):
-                setattr(gwjob, attr, job_values[attr])
+    # Create script and add command line to job.
+    gwjob.executable, gwjob.arguments = create_final_command(config, prefix)
 
-        # Create script and add command line to job.
-        gwjob.executable, gwjob.arguments = create_cmd(config, prefix)
+    # Determine inputs from command line.
+    for file_key in re.findall(r"<FILE:([^>]+)>", gwjob.arguments):
+        gwfile = generic_workflow.get_file(file_key)
+        generic_workflow.add_job_inputs(gwjob.name, gwfile)
 
-        # Determine inputs from command line.
-        for file_key in re.findall(r"<FILE:([^>]+)>", gwjob.arguments):
-            gwfile = generic_workflow.get_file(file_key)
-            generic_workflow.add_job_inputs(gwjob.name, gwfile)
-
-        _enhance_command(config, generic_workflow, gwjob, {})
-        return gwjob
-
-    return create_final_job
+    _enhance_command(config, generic_workflow, gwjob, {})
+    return gwjob
 
 
-def _create_final_command(config, prefix):
+def create_final_command(config: BpsConfig, prefix: str) -> tuple[GenericWorkflowExec, str]:
     """Create the command and shell script for the final job.
 
     Parameters
@@ -1032,70 +885,6 @@ def _create_final_command(config, prefix):
 
     _, orig_butler = config.search("butlerConfig")
     return executable, f"<FILE:runQgraphFile> {orig_butler}"
-
-
-def _create_merge_command(config, prefix):
-    """Create the command and shell script for merging the execution Butler.
-
-    Parameters
-    ----------
-    config : `lsst.ctrl.bps.BpsConfig`
-        Bps configuration.
-    prefix : `str`
-        Directory in which to output final script.
-
-    Returns
-    -------
-    executable : `lsst.ctrl.bps.GenericWorkflowExec`
-        Executable object for the final script.
-    arguments : `str`
-        Command line needed to call the final script.
-    """
-    search_opt = {
-        "replaceVars": False,
-        "replaceEnvVars": False,
-        "expandEnvVars": False,
-        "searchobj": config["executionButler"],
-    }
-
-    script_file = os.path.join(prefix, "final_job.bash")
-    with open(script_file, "w", encoding="utf8") as fh:
-        print("#!/bin/bash\n", file=fh)
-        print("set -e", file=fh)
-        print("set -x", file=fh)
-
-        print("butlerConfig=$1", file=fh)
-        print("executionButlerDir=$2", file=fh)
-
-        i = 1
-        found, command = config.search(f"command{i}", opt=search_opt)
-        while found:
-            # Temporarily replace any env vars so formatter doesn't try to
-            # replace them.
-            command = re.sub(r"\${([^}]+)}", r"<BPSTMP:\1>", command)
-
-            # executionButlerDir and butlerConfig will be args to script and
-            # set to env vars
-            command = command.replace("{executionButlerDir}", "<BPSTMP:executionButlerDir>")
-            command = command.replace("{butlerConfig}", "<BPSTMP:butlerConfig>")
-
-            # Replace all other vars in command string
-            search_opt["replaceVars"] = True
-            command = config.formatter.format(command, config, search_opt)
-            search_opt["replaceVars"] = False
-
-            # Replace any temporary env placeholders.
-            command = re.sub(r"<BPSTMP:([^>]+)>", r"${\1}", command)
-
-            print(command, file=fh)
-            i += 1
-            found, command = config.search(f"command{i}", opt=search_opt)
-    os.chmod(script_file, 0o755)
-    executable = GenericWorkflowExec(os.path.basename(script_file), script_file, True)
-
-    _, orig_butler = config.search("butlerConfig")
-    # The execution butler was saved as butlerConfig in the workflow.
-    return executable, f"{orig_butler} <FILE:butlerConfig>"
 
 
 def add_final_job_as_sink(generic_workflow, final_job):
