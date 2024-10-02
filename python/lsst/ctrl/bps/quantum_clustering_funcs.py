@@ -30,15 +30,18 @@
 import logging
 import re
 from collections import defaultdict
+from typing import Any
+from uuid import UUID
 
+from lsst.pipe.base import QuantumGraph
 from networkx import DiGraph, is_directed_acyclic_graph, topological_sort
 
-from . import ClusteredQuantumGraph, QuantaCluster
+from . import BpsConfig, ClusteredQuantumGraph, QuantaCluster
 
 _LOG = logging.getLogger(__name__)
 
 
-def single_quantum_clustering(config, qgraph, name):
+def single_quantum_clustering(config: BpsConfig, qgraph: QuantumGraph, name: str) -> ClusteredQuantumGraph:
     """Create clusters with only single quantum.
 
     Parameters
@@ -99,7 +102,9 @@ def single_quantum_clustering(config, qgraph, name):
     return cqgraph
 
 
-def _check_clusters_tasks(cluster_config, task_graph):
+def _check_clusters_tasks(
+    cluster_config: BpsConfig, task_graph: DiGraph
+) -> tuple[list[str], dict[str, list[str]]]:
     """Check cluster definitions in terms of pipetask lists.
 
     Parameters
@@ -181,7 +186,7 @@ def _check_clusters_tasks(cluster_config, task_graph):
     return list(topological_sort(clustered_task_graph)), ordered_tasks
 
 
-def dimension_clustering(config, qgraph, name):
+def dimension_clustering(config: BpsConfig, qgraph: QuantumGraph, name: str) -> ClusteredQuantumGraph:
     """Follow config instructions to make clusters based upon dimensions.
 
     Parameters
@@ -205,7 +210,7 @@ def dimension_clustering(config, qgraph, name):
     )
 
     # save mapping in order to create dependencies later
-    quantum_to_cluster = {}
+    quantum_to_cluster: dict[UUID, str] = {}
 
     cluster_section = config["cluster"]
     cluster_labels, ordered_tasks = _check_clusters_tasks(
@@ -228,7 +233,13 @@ def dimension_clustering(config, qgraph, name):
     return cqgraph
 
 
-def add_clusters_per_quantum(config, label, qgraph, cqgraph, quantum_to_cluster):
+def add_clusters_per_quantum(
+    config: BpsConfig,
+    label: str,
+    qgraph: QuantumGraph,
+    cqgraph: ClusteredQuantumGraph,
+    quantum_to_cluster: dict[UUID, str],
+) -> None:
     """Add 1-quantum clusters for a task to a ClusteredQuantumGraph.
 
     Parameters
@@ -242,7 +253,7 @@ def add_clusters_per_quantum(config, label, qgraph, cqgraph, quantum_to_cluster)
     cqgraph : `lsst.ctrl.bps.ClusteredQuantumGraph`
         The ClusteredQuantumGraph to which the new 1-quantum
         clusters are added (modified in method).
-    quantum_to_cluster : `dict` [ `str`, `str` ]
+    quantum_to_cluster : `dict` [ `uuid.UUID`, `str` ]
         Mapping of quantum node id to which cluster it was added
         (modified in method).
     """
@@ -258,6 +269,7 @@ def add_clusters_per_quantum(config, label, qgraph, cqgraph, quantum_to_cluster)
     # Currently getQuantaForTask is currently a mapping taskDef to
     # Quanta, so quick enough to call repeatedly.
     task_def = qgraph.findTaskDefByLabel(label)
+    assert task_def is not None, f"Given taskDef label ({label}) not found in QuantumGraph"  # for mypy
     quantum_nodes = qgraph.getNodesForTask(task_def)
 
     for qnode in quantum_nodes:
@@ -267,7 +279,14 @@ def add_clusters_per_quantum(config, label, qgraph, cqgraph, quantum_to_cluster)
         add_cluster_dependencies(cqgraph, cluster, quantum_to_cluster)
 
 
-def add_dim_clusters(cluster_config, cluster_label, qgraph, ordered_tasks, cqgraph, quantum_to_cluster):
+def add_dim_clusters(
+    cluster_config: BpsConfig,
+    cluster_label: str,
+    qgraph: QuantumGraph,
+    ordered_tasks: dict[str, list[str]],
+    cqgraph: ClusteredQuantumGraph,
+    quantum_to_cluster: dict[UUID, str],
+) -> None:
     """Add clusters for a cluster label to a ClusteredQuantumGraph.
 
     Parameters
@@ -283,7 +302,7 @@ def add_dim_clusters(cluster_config, cluster_label, qgraph, ordered_tasks, cqgra
     cqgraph : `lsst.ctrl.bps.ClusteredQuantumGraph`
         The ClusteredQuantumGraph to which the new 1-quantum
         clusters are added (modified in method).
-    quantum_to_cluster : `dict` [ `str`, `str` ]
+    quantum_to_cluster : `dict` [ `uuid.UUID`, `str` ]
         Mapping of quantum node id to which cluster it was added
         (modified in method).
     """
@@ -306,9 +325,10 @@ def add_dim_clusters(cluster_config, cluster_label, qgraph, ordered_tasks, cqgra
         # Determine cluster for each node
         for uuid, quantum in qgraph.get_task_quanta(task_label).items():
             # Gather info for cluster name template into a dictionary.
-            info = {"node_number": uuid}
+            info: dict[str, Any] = {"node_number": uuid}
 
             missing_info = set()
+            assert quantum.dataId is not None, "Quantum DataId cannot be None"  # for mypy
             data_id_info = dict(quantum.dataId.mapping)
             for dim_name in cluster_dims:
                 _LOG.debug("dim_name = %s", dim_name)
@@ -362,7 +382,9 @@ def add_dim_clusters(cluster_config, cluster_label, qgraph, ordered_tasks, cqgra
         add_cluster_dependencies(cqgraph, cluster, quantum_to_cluster)
 
 
-def add_cluster_dependencies(cqgraph, cluster, quantum_to_cluster):
+def add_cluster_dependencies(
+    cqgraph: ClusteredQuantumGraph, cluster: QuantaCluster, quantum_to_cluster: dict[UUID, str]
+) -> None:
     """Add dependencies for a cluster within a ClusteredQuantumGraph.
 
     Parameters
@@ -372,7 +394,7 @@ def add_cluster_dependencies(cqgraph, cluster, quantum_to_cluster):
         clusters are added (modified in method).
     cluster : `lsst.ctrl.bps.QuantaCluster`
         The cluster for which to add dependencies.
-    quantum_to_cluster : `dict` [ `str`, `str` ]
+    quantum_to_cluster : `dict` [ `uuid.UUID`, `str` ]
         Mapping of quantum node id to which cluster it was added
         (modified in method).
 
