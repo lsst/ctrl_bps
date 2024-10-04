@@ -1,2 +1,3 @@
 Fixed test_clustered_quantum_graph.testClusters.
 Moved validation of ClusteredQuantumGraph from tests to class definition.
+Added following QuantumGraph dependencies to dimension clustering to enable clustering when dimension values aren't equal (e.g., group vs visit).
