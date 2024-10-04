@@ -25,15 +25,14 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-"""Functions that convert QuantumGraph into ClusteredQuantumGraph.
-"""
+"""Functions that convert QuantumGraph into ClusteredQuantumGraph."""
 import logging
 import re
 from collections import defaultdict
 from typing import Any
 from uuid import UUID
 
-from lsst.pipe.base import QuantumGraph
+from lsst.pipe.base import QuantumGraph, QuantumNode
 from networkx import DiGraph, is_directed_acyclic_graph, topological_sort
 
 from . import BpsConfig, ClusteredQuantumGraph, QuantaCluster
@@ -119,8 +118,8 @@ def _check_clusters_tasks(
     cluster_labels: `list` [`str`]
         Dependency ordered list of cluster labels (includes
         single quantum clusters).
-    ordered_tasks : `dict` [`str`, `list` [`str`]]
-        Mapping of cluster label to ordered list of task labels.
+    ordered_tasks : `dict` [`str`, `networkx.DiGraph`]
+        Mapping of cluster label to task subgraph.
 
     Raises
     ------
@@ -162,7 +161,7 @@ def _check_clusters_tasks(
         if cluster_tasks_in_qgraph:
             # Ensure have list of tasks in dependency order.
             quantum_subgraph = label_graph.subgraph(cluster_tasks_in_qgraph)
-            ordered_tasks[cluster_label] = list(topological_sort(quantum_subgraph))
+            ordered_tasks[cluster_label] = quantum_subgraph
 
             clustered_task_graph.add_node(cluster_label)
 
@@ -171,7 +170,7 @@ def _check_clusters_tasks(
         if label not in used_labels:
             task_to_cluster[label] = label
             clustered_task_graph.add_node(label)
-            ordered_tasks[label] = [label]
+            ordered_tasks[label] = label_graph.subgraph([label])
 
     # Create dependencies between clusters.
     for edge in task_graph.edges:
@@ -219,7 +218,12 @@ def dimension_clustering(config: BpsConfig, qgraph: QuantumGraph, name: str) -> 
     for cluster_label in cluster_labels:
         _LOG.debug("cluster = %s", cluster_label)
         if cluster_label in cluster_section:
-            add_dim_clusters(
+            if "findDependencyMethod" in cluster_section[cluster_label]:
+                add_func = add_dim_clusters_dependency
+            else:
+                add_func = add_dim_clusters
+
+            add_func(
                 cluster_section[cluster_label],
                 cluster_label,
                 qgraph,
@@ -283,7 +287,7 @@ def add_dim_clusters(
     cluster_config: BpsConfig,
     cluster_label: str,
     qgraph: QuantumGraph,
-    ordered_tasks: dict[str, list[str]],
+    ordered_tasks: dict[str, DiGraph],
     cqgraph: ClusteredQuantumGraph,
     quantum_to_cluster: dict[UUID, str],
 ) -> None:
@@ -297,8 +301,8 @@ def add_dim_clusters(
         Cluster label for which to add clusters.
     qgraph : `lsst.pipe.base.QuantumGraph`
         QuantumGraph providing quanta for the clusters.
-    ordered_tasks : `dict` [`str`, `list` [`str`]]
-        Mapping of cluster label to ordered list of task labels.
+    ordered_tasks : `dict` [`str`, `networkx.DiGraph`]
+        Mapping of cluster label to task label subgraph.
     cqgraph : `lsst.ctrl.bps.ClusteredQuantumGraph`
         The ClusteredQuantumGraph to which the new 1-quantum
         clusters are added (modified in method).
@@ -321,51 +325,17 @@ def add_dim_clusters(
     _LOG.debug("template = %s", template)
 
     new_clusters = []
-    for task_label in ordered_tasks[cluster_label]:
+    for task_label in topological_sort(ordered_tasks[cluster_label]):
         # Determine cluster for each node
-        for uuid, quantum in qgraph.get_task_quanta(task_label).items():
-            # Gather info for cluster name template into a dictionary.
-            info: dict[str, Any] = {"node_number": uuid}
-
-            missing_info = set()
-            assert quantum.dataId is not None, "Quantum DataId cannot be None"  # for mypy
-            data_id_info = dict(quantum.dataId.mapping)
-            for dim_name in cluster_dims:
-                _LOG.debug("dim_name = %s", dim_name)
-                if dim_name in data_id_info:
-                    info[dim_name] = data_id_info[dim_name]
-                else:
-                    missing_info.add(dim_name)
-            if equal_dims:
-                for pair in [pt.strip() for pt in equal_dims.split(",")]:
-                    dim1, dim2 = pair.strip().split(":")
-                    if dim1 in cluster_dims and dim2 in data_id_info:
-                        info[dim1] = data_id_info[dim2]
-                        missing_info.remove(dim1)
-                    elif dim2 in cluster_dims and dim1 in data_id_info:
-                        info[dim2] = data_id_info[dim1]
-                        missing_info.remove(dim2)
-
-            info["label"] = cluster_label
-            _LOG.debug("info for template = %s", info)
-
-            if missing_info:
-                raise RuntimeError(
-                    f"Quantum {uuid} ({data_id_info}) missing dimensions: {','.join(missing_info)}; "
-                    f"required for cluster {cluster_label}"
-                )
-
-            # Use dictionary plus template format string to create name.
-            # To avoid # key errors from generic patterns, use defaultdict.
-            cluster_name = template.format_map(defaultdict(lambda: "", info))
-            cluster_name = re.sub("_+", "_", cluster_name)
-
-            # Some dimensions contain slash which must be replaced.
-            cluster_name = re.sub("/", "_", cluster_name)
-            _LOG.debug("cluster_name = %s", cluster_name)
+        task_def = qgraph.findTaskDefByLabel(task_label)
+        assert task_def is not None  # for mypy
+        for node in qgraph.getNodesForTask(task_def):
+            cluster_name, info = get_cluster_name_from_node(
+                node, cluster_dims, "cluster1", template, equal_dims
+            )
 
             # Save mapping for use when creating dependencies.
-            quantum_to_cluster[uuid] = cluster_name
+            quantum_to_cluster[node.nodeId] = cluster_name
 
             # Add cluster to the ClusteredQuantumGraph.
             # Saving NodeId instead of number because QuantumGraph API
@@ -375,7 +345,7 @@ def add_dim_clusters(
             else:
                 cluster = QuantaCluster(cluster_name, cluster_label, info)
                 cqgraph.add_cluster(cluster)
-            cluster.add_quantum(uuid, task_label)
+            cluster.add_quantum(node.nodeId, task_label)
             new_clusters.append(cluster)
 
     for cluster in new_clusters:
@@ -421,3 +391,189 @@ def add_cluster_dependencies(
                     qnode.quantum.dataId,
                 )
                 raise
+
+
+def add_dim_clusters_dependency(
+    cluster_config: BpsConfig,
+    cluster_label: str,
+    qgraph: QuantumGraph,
+    ordered_tasks: dict[str, DiGraph],
+    cqgraph: ClusteredQuantumGraph,
+    quantum_to_cluster: dict[UUID, str],
+) -> None:
+    """Add clusters for a cluster label to a ClusteredQuantumGraph using
+       QuantumGraph dependencies as well as dimension values to help when
+       some do not have particular dimension value.
+
+    Parameters
+    ----------
+    cluster_config : `lsst.ctrl.bps.BpsConfig`
+        BPS configuration for specific cluster label.
+    cluster_label : `str`
+        Cluster label for which to add clusters.
+    qgraph : `lsst.pipe.base.QuantumGraph`
+        QuantumGraph providing quanta for the clusters.
+    ordered_tasks : `dict` [`str`, `networkx.DiGraph`]
+        Mapping of cluster label to task label subgraph.
+    cqgraph : `lsst.ctrl.bps.ClusteredQuantumGraph`
+        The ClusteredQuantumGraph to which the new
+        clusters are added (modified in method).
+    quantum_to_cluster : `dict` [ `str`, `str` ]
+        Mapping of quantum node id to which cluster it was added
+        (modified in method).
+    """
+    cluster_dims = []
+    if "dimensions" in cluster_config:
+        cluster_dims = [d.strip() for d in cluster_config["dimensions"].split(",")]
+    _LOG.debug("cluster_dims = %s", cluster_dims)
+    equal_dims = cluster_config.get("equalDimensions", None)
+
+    found, template = cluster_config.search("clusterTemplate", opt={"replaceVars": False})
+    if not found:
+        if cluster_dims:
+            template = f"{cluster_label}_" + "_".join(f"{{{dim}}}" for dim in cluster_dims)
+        else:
+            template = cluster_label
+    _LOG.debug("template = %s", template)
+
+    method = cluster_config["findDependencyMethod"]
+    match method:
+        case "source":
+            dim_labels = [
+                node for node, in_degree in ordered_tasks[cluster_label].in_degree() if in_degree == 0
+            ]
+            find_possible_nodes = qgraph.determineOutputsOfQuantumNode
+        case "sink":
+            dim_labels = [
+                node for node, out_degree in ordered_tasks[cluster_label].out_degree() if out_degree == 0
+            ]
+            find_possible_nodes = qgraph.determineInputsToQuantumNode
+        case _:
+            raise RuntimeError(f"Invalid findDependencyMethod ({method})")
+
+    new_clusters = []
+    for task_label in dim_labels:
+        task_def = qgraph.findTaskDefByLabel(task_label)
+        assert task_def is not None  # for mypy
+        for node in qgraph.getNodesForTask(task_def):
+            cluster_name, info = get_cluster_name_from_node(
+                node, cluster_dims, cluster_label, template, equal_dims
+            )
+
+            # Add cluster to the ClusteredQuantumGraph.
+            # Saving NodeId instead of number because QuantumGraph API
+            # requires it for creating per-job QuantumGraphs.
+            if cluster_name in cqgraph:
+                cluster = cqgraph.get_cluster(cluster_name)
+            else:
+                cluster = QuantaCluster(cluster_name, cluster_label, info)
+                cqgraph.add_cluster(cluster)
+            cluster.add_quantum(node.nodeId, task_label)
+
+            # Save mapping for use when creating dependencies.
+            quantum_to_cluster[node.nodeId] = cluster_name
+
+            # Use dependencies to find other quantum to add
+            # Note: in testing, using the following code was faster than
+            # using networkx descendants and ancestors functions
+            # While traversing the QuantumGraph, nodes may appear
+            # repeatedly in possible_nodes.
+            nodes_to_use = [node]
+            while nodes_to_use:
+                node_to_use = nodes_to_use.pop()
+                possible_nodes = find_possible_nodes(node_to_use)
+                for possible_node in possible_nodes:
+                    if possible_node.taskDef.label in ordered_tasks[cluster_label]:
+                        if possible_node.nodeId not in cluster.qgraph_node_ids:
+                            _LOG.debug(
+                                "Adding possible quantum %s (%s) to cluster %s",
+                                possible_node.nodeId,
+                                possible_node.taskDef.label,
+                                cluster_name,
+                            )
+                            cluster.add_quantum(possible_node.nodeId, possible_node.taskDef.label)
+                            quantum_to_cluster[possible_node.nodeId] = cluster_name
+                            nodes_to_use.append(possible_node)
+                    else:
+                        _LOG.debug(
+                            "label (%s) not in ordered_tasks. Not adding possible quantum %s",
+                            possible_node.taskDef.label,
+                            possible_node.nodeId,
+                        )
+
+        new_clusters.append(cluster)
+
+    for cluster in new_clusters:
+        add_cluster_dependencies(cqgraph, cluster, quantum_to_cluster)
+
+
+def get_cluster_name_from_node(
+    node: QuantumNode,
+    cluster_dims: list[str],
+    cluster_label: str,
+    template: str,
+    equal_dims: str,
+) -> tuple[str, dict[str, Any]]:
+    """Get the cluster name in which to add the given node.
+
+    Parameters
+    ----------
+    node : `lsst.pipe.base.QuantumNode`
+        QuantumNode from which to create the cluster.
+    cluster_dims : `list` [ `str` ]
+        List of dimension names to be used when clustering.
+    cluster_label : `str`
+        Cluster label.
+    template : `str`
+        Template for the cluster name.
+    equal_dims : `str`
+        Configuration describing any dimensions to be considered equal.
+
+    Returns
+    -------
+    cluster_name : `str`
+        Name of the cluster in which to add the given node.
+    info : dict [`str`, `Any`]
+        Information needed if creating a new node.
+    """
+    # Gather info for cluster name template into a dictionary.
+    info: dict[str, Any] = {"node_number": node.nodeId}
+
+    missing_info = set()
+    assert node.quantum.dataId is not None  # for mypy
+    data_id_info = dict(node.quantum.dataId.mapping)
+    for dim_name in cluster_dims:
+        _LOG.debug("dim_name = %s", dim_name)
+        if dim_name in data_id_info:
+            info[dim_name] = data_id_info[dim_name]
+        else:
+            missing_info.add(dim_name)
+    if equal_dims:
+        for pair in [pt.strip() for pt in equal_dims.split(",")]:
+            dim1, dim2 = pair.strip().split(":")
+            if dim1 in cluster_dims and dim2 in data_id_info:
+                info[dim1] = data_id_info[dim2]
+                missing_info.remove(dim1)
+            elif dim2 in cluster_dims and dim1 in data_id_info:
+                info[dim2] = data_id_info[dim1]
+                missing_info.remove(dim2)
+
+    info["label"] = cluster_label
+    _LOG.debug("info for template = %s", info)
+
+    if missing_info:
+        raise RuntimeError(
+            f"Quantum {node.nodeId} ({data_id_info}) missing dimensions: {','.join(missing_info)}; "
+            f"required for cluster {cluster_label}"
+        )
+
+    # Use dictionary plus template format string to create name.
+    # To avoid # key errors from generic patterns, use defaultdict.
+    cluster_name = template.format_map(defaultdict(lambda: "", info))
+    cluster_name = re.sub("_+", "_", cluster_name)
+
+    # Some dimensions contain slash which must be replaced.
+    cluster_name = re.sub("/", "_", cluster_name)
+    _LOG.debug("cluster_name = %s", cluster_name)
+
+    return cluster_name, info

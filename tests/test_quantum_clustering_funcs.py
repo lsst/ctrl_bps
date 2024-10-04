@@ -105,6 +105,11 @@ class TestDimensionClustering(unittest.TestCase):
                     "dims": {"D1": 1, "D2": 2},
                     "counts": {"T1": 1, "T2": 1, "T3": 1, "T4": 1},
                 },
+                "cl1_1_4": {
+                    "label": "cl1",
+                    "dims": {"D1": 1, "D2": 4},
+                    "counts": {"T1": 1, "T2": 1, "T3": 1, "T4": 1},
+                },
                 "cl1_3_4": {
                     "label": "cl1",
                     "dims": {"D1": 3, "D2": 4},
@@ -141,6 +146,11 @@ class TestDimensionClustering(unittest.TestCase):
                     "dims": {"D1": 1, "D2": 2},
                     "counts": {"T1": 1, "T2": 1, "T3": 1, "T4": 1},
                 },
+                "ct_1_4_": {
+                    "label": "cl1",
+                    "dims": {"D1": 1, "D2": 4},
+                    "counts": {"T1": 1, "T2": 1, "T3": 1, "T4": 1},
+                },
                 "ct_3_4_": {
                     "label": "cl1",
                     "dims": {"D1": 3, "D2": 4},
@@ -172,8 +182,8 @@ class TestDimensionClustering(unittest.TestCase):
         answer = {
             "name": name,
             "nodes": {
-                "cl1": {"label": "cl1", "dims": {}, "counts": {"T1": 2, "T2": 2}},
-                "cl2": {"label": "cl2", "dims": {}, "counts": {"T3": 2, "T4": 2}},
+                "cl1": {"label": "cl1", "dims": {}, "counts": {"T1": 3, "T2": 3}},
+                "cl2": {"label": "cl2", "dims": {}, "counts": {"T3": 3, "T4": 3}},
             },
             "edges": [("cl1", "cl2")],
         }
@@ -236,6 +246,11 @@ class TestDimensionClustering(unittest.TestCase):
                     "dims": {"D1": 1, "NotThere": 2},
                     "counts": {"T1": 1, "T2": 1, "T3": 1, "T4": 1},
                 },
+                "cl1_1_4": {
+                    "label": "cl1",
+                    "dims": {"D1": 1, "NotThere": 4},
+                    "counts": {"T1": 1, "T2": 1, "T3": 1, "T4": 1},
+                },
                 "cl1_3_4": {
                     "label": "cl1",
                     "dims": {"D1": 3, "NotThere": 4},
@@ -271,6 +286,11 @@ class TestDimensionClustering(unittest.TestCase):
                     "dims": {"D1": 1, "NotThere": 2},
                     "counts": {"T1": 1, "T2": 1, "T3": 1, "T4": 1},
                 },
+                "cl1_1_4": {
+                    "label": "cl1",
+                    "dims": {"D1": 1, "NotThere": 4},
+                    "counts": {"T1": 1, "T2": 1, "T3": 1, "T4": 1},
+                },
                 "cl1_3_4": {
                     "label": "cl1",
                     "dims": {"D1": 3, "NotThere": 4},
@@ -299,11 +319,13 @@ class TestDimensionClustering(unittest.TestCase):
             "name": name,
             "nodes": {
                 "cl1_1_2": {"label": "cl1", "dims": {"D1": 1, "D2": 2}, "counts": {"T1": 1, "T2": 1}},
+                "cl1_1_4": {"label": "cl1", "dims": {"D1": 1, "D2": 4}, "counts": {"T1": 1, "T2": 1}},
                 "cl1_3_4": {"label": "cl1", "dims": {"D1": 3, "D2": 4}, "counts": {"T1": 1, "T2": 1}},
                 "cl2_1_2": {"label": "cl2", "dims": {"D1": 1, "D2": 2}, "counts": {"T3": 1, "T4": 1}},
+                "cl2_1_4": {"label": "cl2", "dims": {"D1": 1, "D2": 4}, "counts": {"T3": 1, "T4": 1}},
                 "cl2_3_4": {"label": "cl2", "dims": {"D1": 3, "D2": 4}, "counts": {"T3": 1, "T4": 1}},
             },
-            "edges": [("cl1_3_4", "cl2_3_4"), ("cl1_1_2", "cl2_1_2")],
+            "edges": [("cl1_3_4", "cl2_3_4"), ("cl1_1_2", "cl2_1_2"), ("cl1_1_4", "cl2_1_4")],
         }
 
         cqg = dimension_clustering(config, self.qgraph, name)
@@ -324,13 +346,20 @@ class TestDimensionClustering(unittest.TestCase):
             "name": name,
             "nodes": {
                 "cl1_1_2": {"label": "cl1", "dims": {"D1": 1, "D2": 2}, "counts": {"T1": 1, "T2": 1}},
+                "cl1_1_4": {"label": "cl1", "dims": {"D1": 1, "D2": 4}, "counts": {"T1": 1, "T2": 1}},
                 "cl1_3_4": {"label": "cl1", "dims": {"D1": 3, "D2": 4}, "counts": {"T1": 1, "T2": 1}},
                 "NODENAME_T3_1_2_": {"label": "T3", "dims": {"D1": 1, "D2": 2}, "counts": {"T3": 1}},
+                "NODENAME_T3_1_4_": {"label": "T3", "dims": {"D1": 1, "D2": 4}, "counts": {"T3": 1}},
                 "NODENAME_T3_3_4_": {"label": "T3", "dims": {"D1": 3, "D2": 4}, "counts": {"T3": 1}},
                 "NODENAME_T4_1_2_": {"label": "T4", "dims": {"D1": 1, "D2": 2}, "counts": {"T4": 1}},
+                "NODENAME_T4_1_4_": {"label": "T4", "dims": {"D1": 1, "D2": 4}, "counts": {"T4": 1}},
                 "NODENAME_T4_3_4_": {"label": "T4", "dims": {"D1": 3, "D2": 4}, "counts": {"T4": 1}},
             },
-            "edges": [("cl1_1_2", "NODENAME_T3_1_2_"), ("cl1_3_4", "NODENAME_T3_3_4_")],
+            "edges": [
+                ("cl1_1_2", "NODENAME_T3_1_2_"),
+                ("cl1_3_4", "NODENAME_T3_3_4_"),
+                ("cl1_1_4", "NODENAME_T3_1_4_"),
+            ],
         }
 
         cqg = dimension_clustering(config, self.qgraph, name)
@@ -349,10 +378,15 @@ class TestDimensionClustering(unittest.TestCase):
         answer = {
             "name": name,
             "nodes": {
-                "cl1": {"label": "cl1", "dims": {}, "counts": {"T1": 2, "T2": 2}},
+                "cl1": {"label": "cl1", "dims": {}, "counts": {"T1": 3, "T2": 3}},
                 "NODEONLY_T3_{'D1': 1, 'D2': 2}": {
                     "label": "T3",
                     "dims": {"D1": 1, "D2": 2},
+                    "counts": {"T3": 1},
+                },
+                "NODEONLY_T3_{'D1': 1, 'D2': 4}": {
+                    "label": "T3",
+                    "dims": {"D1": 1, "D2": 4},
                     "counts": {"T3": 1},
                 },
                 "NODEONLY_T3_{'D1': 3, 'D2': 4}": {
@@ -365,13 +399,22 @@ class TestDimensionClustering(unittest.TestCase):
                     "dims": {"D1": 1, "D2": 2},
                     "counts": {"T4": 1},
                 },
+                "NODEONLY_T4_{'D1': 1, 'D2': 4}": {
+                    "label": "T4",
+                    "dims": {"D1": 1, "D2": 4},
+                    "counts": {"T4": 1},
+                },
                 "NODEONLY_T4_{'D1': 3, 'D2': 4}": {
                     "label": "T4",
                     "dims": {"D1": 3, "D2": 4},
                     "counts": {"T4": 1},
                 },
             },
-            "edges": [("cl1", "NODEONLY_T3_{'D1': 1, 'D2': 2}"), ("cl1", "NODEONLY_T3_{'D1': 3, 'D2': 4}")],
+            "edges": [
+                ("cl1", "NODEONLY_T3_{'D1': 1, 'D2': 2}"),
+                ("cl1", "NODEONLY_T3_{'D1': 1, 'D2': 4}"),
+                ("cl1", "NODEONLY_T3_{'D1': 3, 'D2': 4}"),
+            ],
         }
 
         cqg = dimension_clustering(config, self.qgraph, name)
@@ -396,6 +439,11 @@ class TestDimensionClustering(unittest.TestCase):
                 "cl1_1_2": {
                     "label": "cl1",
                     "dims": {"D1": 1, "D2": 2},
+                    "counts": {"T1": 1, "T2": 1, "T3": 1, "T4": 1},
+                },
+                "cl1_1_4": {
+                    "label": "cl1",
+                    "dims": {"D1": 1, "D2": 4},
                     "counts": {"T1": 1, "T2": 1, "T3": 1, "T4": 1},
                 },
                 "cl1_3_4": {
@@ -464,6 +512,202 @@ class TestDimensionClustering(unittest.TestCase):
                     f"clusters() returned {cluster.name} before its parent {parent.name}",
                 )
             processed.add(cluster.name)
+
+    def testAddClusterDependenciesSink(self):
+        name = "AddClusterDependenciesSink"
+        config = BpsConfig(
+            {
+                "templateDataId": "{D1}_{D2}_{D3}_{D4}",
+                "cluster": {
+                    "cl1": {
+                        "pipetasks": "T1, T2, T3",
+                        "dimensions": "D1, D2",
+                        "findDependencyMethod": "sink",
+                    },
+                },
+            }
+        )
+        answer = {
+            "name": name,
+            "nodes": {
+                "cl1_1_2": {
+                    "label": "cl1",
+                    "dims": {"D1": 1, "D2": 2},
+                    "counts": {"T1": 1, "T2": 1, "T3": 1},
+                },
+                "cl1_1_4": {
+                    "label": "cl1",
+                    "dims": {"D1": 1, "D2": 4},
+                    "counts": {"T1": 1, "T2": 1, "T3": 1},
+                },
+                "cl1_3_4": {
+                    "label": "cl1",
+                    "dims": {"D1": 3, "D2": 4},
+                    "counts": {"T1": 1, "T2": 1, "T3": 1},
+                },
+                "NODENAME_T4_1_2_": {"label": "T4", "dims": {"D1": 1, "D2": 2}, "counts": {"T4": 1}},
+                "NODENAME_T4_1_4_": {"label": "T4", "dims": {"D1": 1, "D2": 4}, "counts": {"T4": 1}},
+                "NODENAME_T4_3_4_": {"label": "T4", "dims": {"D1": 3, "D2": 4}, "counts": {"T4": 1}},
+            },
+            "edges": [],
+        }
+        cqg = dimension_clustering(config, self.qgraph, name)
+        check_cqg(cqg, answer)
+
+    def testAddClusterDependenciesSource(self):
+        name = "AddClusterDependenciesSource"
+        config = BpsConfig(
+            {
+                "templateDataId": "{D1}_{D2}_{D3}_{D4}",
+                "cluster": {
+                    "cl1": {
+                        "pipetasks": "T1, T2, T3",
+                        "dimensions": "D1, D2",
+                        "findDependencyMethod": "source",
+                    },
+                },
+            }
+        )
+        answer = {
+            "name": name,
+            "nodes": {
+                "cl1_1_2": {
+                    "label": "cl1",
+                    "dims": {"D1": 1, "D2": 2},
+                    "counts": {"T1": 1, "T2": 1, "T3": 1},
+                },
+                "cl1_1_4": {
+                    "label": "cl1",
+                    "dims": {"D1": 1, "D2": 4},
+                    "counts": {"T1": 1, "T2": 1, "T3": 1},
+                },
+                "cl1_3_4": {
+                    "label": "cl1",
+                    "dims": {"D1": 3, "D2": 4},
+                    "counts": {"T1": 1, "T2": 1, "T3": 1},
+                },
+                "NODENAME_T4_1_2_": {"label": "T4", "dims": {"D1": 1, "D2": 2}, "counts": {"T4": 1}},
+                "NODENAME_T4_1_4_": {"label": "T4", "dims": {"D1": 1, "D2": 4}, "counts": {"T4": 1}},
+                "NODENAME_T4_3_4_": {"label": "T4", "dims": {"D1": 3, "D2": 4}, "counts": {"T4": 1}},
+            },
+            "edges": [],
+        }
+        cqg = dimension_clustering(config, self.qgraph, name)
+        check_cqg(cqg, answer)
+
+    def testAddClusterDependenciesExtra(self):
+        # Test if dependencies return more than in cluster
+        name = "AddClusterDependenciesExtra"
+        config = BpsConfig(
+            {
+                "templateDataId": "{D1}_{D2}_{D3}_{D4}",
+                "cluster": {
+                    "cl1": {
+                        "pipetasks": "T1, T2",
+                        "dimensions": "D1, D2",
+                        "findDependencyMethod": "source",
+                    },
+                },
+            }
+        )
+        answer = {
+            "name": name,
+            "nodes": {
+                "cl1_1_2": {
+                    "label": "cl1",
+                    "dims": {"D1": 1, "D2": 2},
+                    "counts": {"T1": 1, "T2": 1},
+                },
+                "cl1_1_4": {
+                    "label": "cl1",
+                    "dims": {"D1": 1, "D2": 4},
+                    "counts": {"T1": 1, "T2": 1},
+                },
+                "cl1_3_4": {
+                    "label": "cl1",
+                    "dims": {"D1": 3, "D2": 4},
+                    "counts": {"T1": 1, "T2": 1},
+                },
+                "NODENAME_T3_1_2_": {"label": "T3", "dims": {"D1": 1, "D2": 2}, "counts": {"T3": 1}},
+                "NODENAME_T3_1_4_": {"label": "T3", "dims": {"D1": 1, "D2": 4}, "counts": {"T3": 1}},
+                "NODENAME_T3_3_4_": {"label": "T3", "dims": {"D1": 3, "D2": 4}, "counts": {"T3": 1}},
+                "NODENAME_T4_1_2_": {"label": "T4", "dims": {"D1": 1, "D2": 2}, "counts": {"T4": 1}},
+                "NODENAME_T4_1_4_": {"label": "T4", "dims": {"D1": 1, "D2": 4}, "counts": {"T4": 1}},
+                "NODENAME_T4_3_4_": {"label": "T4", "dims": {"D1": 3, "D2": 4}, "counts": {"T4": 1}},
+            },
+            "edges": [
+                ("cl1_1_2", "NODENAME_T3_1_2_"),
+                ("cl1_1_4", "NODENAME_T3_1_4_"),
+                ("cl1_3_4", "NODENAME_T3_3_4_"),
+            ],
+        }
+        cqg = dimension_clustering(config, self.qgraph, name)
+        check_cqg(cqg, answer)
+
+    def testAddClusterDependenciesSameCluster(self):
+        name = "AddClusterDependenciesSameCluster"
+        config = BpsConfig(
+            {
+                "cluster": {
+                    "cl1": {
+                        "pipetasks": "T1, T2, T3",
+                        "dimensions": "D1",
+                        "findDependencyMethod": "source",
+                        "clusterTemplate": "ct_{D1}_{D2}_{D3}_{D4}",
+                    },
+                },
+            }
+        )
+        answer = {
+            "name": name,
+            "nodes": {
+                "ct_1_": {
+                    "label": "cl1",
+                    "dims": {"D1": 1},
+                    "counts": {"T1": 2, "T2": 2, "T3": 2},
+                },
+                "ct_3_": {
+                    "label": "cl1",
+                    "dims": {"D1": 3},
+                    "counts": {"T1": 1, "T2": 1, "T3": 1},
+                },
+                "NODEONLY_T4_{'D1': 1, 'D2': 2}": {
+                    "label": "T4",
+                    "dims": {"D1": 1, "D2": 2},
+                    "counts": {"T4": 1},
+                },
+                "NODEONLY_T4_{'D1': 1, 'D2': 4}": {
+                    "label": "T4",
+                    "dims": {"D1": 1, "D2": 4},
+                    "counts": {"T4": 1},
+                },
+                "NODEONLY_T4_{'D1': 3, 'D2': 4}": {
+                    "label": "T4",
+                    "dims": {"D1": 3, "D2": 4},
+                    "counts": {"T4": 1},
+                },
+            },
+            "edges": [],
+        }
+        cqg = dimension_clustering(config, self.qgraph, name)
+        check_cqg(cqg, answer)
+
+    def testAddClusterDependenciesBadMethod(self):
+        name = "AddClusterDependenciesBadMethod"
+        config = BpsConfig(
+            {
+                "templateDataId": "{D1}_{D2}_{D3}_{D4}",
+                "cluster": {
+                    "cl1": {
+                        "pipetasks": "T1, T2, T3",
+                        "dimensions": "D1, D2",
+                        "findDependencyMethod": "bad",
+                    },
+                },
+            }
+        )
+        with self.assertRaises(RuntimeError):
+            _ = dimension_clustering(config, self.qgraph, name)
 
 
 if __name__ == "__main__":

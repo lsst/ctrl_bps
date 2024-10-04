@@ -152,11 +152,11 @@ def compare_cqg_dicts(truth, cqg):
     ), f"Mismatch edges: truth={truth['edges']}, cqg={cqg['edges']}"
 
 
-# T1(1,2)   T1(3,4)  T4(1,2)  T4(3,4)
-#   |         |
-# T2(1,2)   T2(3,4)
-#   |         |
-# T3(1,2)   T3(3,4)
+#  T1(1,2)   T1(1,4)   T1(3,4)  T4(1,2)  T4(3,4)
+#   |         |         |
+#  T2(1,2)   T2(1,4)   T2(3,4)
+#   |         |         |
+#  T3(1,2)   T3(1,4)   T3(3,4)
 def make_test_clustered_quantum_graph(outdir):
     """Make a ClusteredQuantumGraph for testing.
 
@@ -189,6 +189,8 @@ def make_test_clustered_quantum_graph(outdir):
     # Add orphans
     cluster = QuantaCluster.from_quantum_node(test_lookup["T4_1_2"], "T4_1_2")
     cqg.add_cluster(cluster)
+    cluster = QuantaCluster.from_quantum_node(test_lookup["T4_1_4"], "T4_1_4")
+    cqg.add_cluster(cluster)
     cluster = QuantaCluster.from_quantum_node(test_lookup["T4_3_4"], "T4_3_4")
     cqg.add_cluster(cluster)
 
@@ -196,7 +198,15 @@ def make_test_clustered_quantum_graph(outdir):
     qc1 = QuantaCluster.from_quantum_node(test_lookup["T1_1_2"], "T1_1_2")
     qc2 = QuantaCluster.from_quantum_node(test_lookup["T2_1_2"], "T23_1_2")
     qc2.add_quantum_node(test_lookup["T3_1_2"])
-    qc2.label = "clusterT2T3"    # update label so doesnt look like only T2
+    qc2.label = "clusterT2T3"  # update label so doesnt look like only T2
+    cqg.add_cluster([qc2, qc1])  # reversed to check order is corrected in tests
+    cqg.add_dependency(qc1, qc2)
+
+    # T1,T2,T3  Dim1 = 1, Dim2 = 4
+    qc1 = QuantaCluster.from_quantum_node(test_lookup["T1_1_4"], "T1_1_4")
+    qc2 = QuantaCluster.from_quantum_node(test_lookup["T2_1_4"], "T23_1_4")
+    qc2.add_quantum_node(test_lookup["T3_1_4"])
+    qc2.label = "clusterT2T3"  # update label so doesnt look like only T2
     cqg.add_cluster([qc2, qc1])  # reversed to check order is corrected in tests
     cqg.add_dependency(qc1, qc2)
 
@@ -204,7 +214,7 @@ def make_test_clustered_quantum_graph(outdir):
     qc1 = QuantaCluster.from_quantum_node(test_lookup["T1_3_4"], "T1_3_4")
     qc2 = QuantaCluster.from_quantum_node(test_lookup["T2_3_4"], "T23_3_4")
     qc2.add_quantum_node(test_lookup["T3_3_4"])
-    qc2.label = "clusterT2T3"    # update label so doesnt look like only T2
+    qc2.label = "clusterT2T3"  # update label so doesnt look like only T2
     cqg.add_cluster([qc2, qc1])  # reversed to check order is corrected in tests
     cqg.add_dependency(qc1, qc2)
 
