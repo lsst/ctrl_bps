@@ -179,6 +179,7 @@ checks = [
     "SS05",  # pydocstyle is better at finding infinitive verb.
 ]
 exclude = [
+    '^test_.*',  # Do not test docstrings in test code.
     '^__init__$',
     '^commands\.',  # Click docstrings, not numpydoc
     '\._[a-zA-Z_]+$',  # Private methods.

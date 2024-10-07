@@ -31,7 +31,6 @@ import uuid
 from copy import deepcopy
 
 from lsst.ctrl.bps import ClusteredQuantumGraph, QuantaCluster
-from networkx import is_directed_acyclic_graph
 from qg_test_utils import make_test_quantum_graph
 
 
@@ -46,24 +45,7 @@ def check_cqg(cqg, truth=None):
     truth : `dict` [`str`, `Any`], optional
         Information describing what this cluster should look like.
     """
-    # Checks independent of data
-
-    # Check no cycles, only one edge between same two nodes,
-    assert is_directed_acyclic_graph(cqg._cluster_graph)
-
-    # Check has all QGraph nodes (include message about duplicate node).
-    node_ids = set()
-    cl_by_label = {}
-    for cluster in cqg.clusters():
-        cl_by_label.setdefault(cluster.label, []).append(cluster)
-        for id_ in cluster.qgraph_node_ids:
-            qnode = cqg.get_quantum_node(id_)
-            assert id_ not in node_ids, (
-                f"Checking cluster {cluster.name}, id {id_} ({qnode.quantum.dataId}) appears more "
-                "than once in CQG."
-            )
-            node_ids.add(id_)
-    assert len(node_ids) == len(cqg._quantum_graph)
+    cqg.validate()
 
     # If given what should be there, check values.
     if truth:
@@ -170,11 +152,11 @@ def compare_cqg_dicts(truth, cqg):
     ), f"Mismatch edges: truth={truth['edges']}, cqg={cqg['edges']}"
 
 
-# T1(1,2)   T1(3,4)  T4(1,2)  T4(3,4)
-#   |         |
-# T2(1,2)   T2(3,4)
-#   |         |
-# T3(1,2)   T3(3,4)
+#  T1(1,2)   T1(1,4)   T1(3,4)  T4(1,2)  T4(3,4)
+#   |         |         |
+#  T2(1,2)   T2(1,4)   T2(3,4)
+#   |         |         |
+#  T3(1,2)   T3(1,4)   T3(3,4)
 def make_test_clustered_quantum_graph(outdir):
     """Make a ClusteredQuantumGraph for testing.
 
@@ -207,6 +189,8 @@ def make_test_clustered_quantum_graph(outdir):
     # Add orphans
     cluster = QuantaCluster.from_quantum_node(test_lookup["T4_1_2"], "T4_1_2")
     cqg.add_cluster(cluster)
+    cluster = QuantaCluster.from_quantum_node(test_lookup["T4_1_4"], "T4_1_4")
+    cqg.add_cluster(cluster)
     cluster = QuantaCluster.from_quantum_node(test_lookup["T4_3_4"], "T4_3_4")
     cqg.add_cluster(cluster)
 
@@ -214,6 +198,15 @@ def make_test_clustered_quantum_graph(outdir):
     qc1 = QuantaCluster.from_quantum_node(test_lookup["T1_1_2"], "T1_1_2")
     qc2 = QuantaCluster.from_quantum_node(test_lookup["T2_1_2"], "T23_1_2")
     qc2.add_quantum_node(test_lookup["T3_1_2"])
+    qc2.label = "clusterT2T3"  # update label so doesnt look like only T2
+    cqg.add_cluster([qc2, qc1])  # reversed to check order is corrected in tests
+    cqg.add_dependency(qc1, qc2)
+
+    # T1,T2,T3  Dim1 = 1, Dim2 = 4
+    qc1 = QuantaCluster.from_quantum_node(test_lookup["T1_1_4"], "T1_1_4")
+    qc2 = QuantaCluster.from_quantum_node(test_lookup["T2_1_4"], "T23_1_4")
+    qc2.add_quantum_node(test_lookup["T3_1_4"])
+    qc2.label = "clusterT2T3"  # update label so doesnt look like only T2
     cqg.add_cluster([qc2, qc1])  # reversed to check order is corrected in tests
     cqg.add_dependency(qc1, qc2)
 
@@ -221,6 +214,7 @@ def make_test_clustered_quantum_graph(outdir):
     qc1 = QuantaCluster.from_quantum_node(test_lookup["T1_3_4"], "T1_3_4")
     qc2 = QuantaCluster.from_quantum_node(test_lookup["T2_3_4"], "T23_3_4")
     qc2.add_quantum_node(test_lookup["T3_3_4"])
+    qc2.label = "clusterT2T3"  # update label so doesnt look like only T2
     cqg.add_cluster([qc2, qc1])  # reversed to check order is corrected in tests
     cqg.add_dependency(qc1, qc2)
 
