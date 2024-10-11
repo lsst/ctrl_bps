@@ -129,6 +129,16 @@ class TestClusteredQuantumGraph(unittest.TestCase):
 
     def testClusters(self):
         """Test clusters method returns in correct order."""
+        retval = list(self.cqg1.clusters())
+
+        # Save min and max locations of a label in retval for later comparison.
+        label_to_index = {}
+        for index, cluster in enumerate(retval):
+            minmax = label_to_index.setdefault(cluster.label, (len(retval) + 1, -1))
+            label_to_index[cluster.label] = (min(minmax[0], index), max(minmax[1], index))
+
+        # assert see all of T1 before see any of clusterT2T3
+        self.assertLess(label_to_index["T1"][1], label_to_index["clusterT2T3"][0])
 
     def testSuccessorsExisting(self):
         """Test successors method returns existing successors."""
@@ -154,6 +164,42 @@ class TestClusteredQuantumGraph(unittest.TestCase):
         self.assertTrue(path.is_file() and path.stat().st_size)
         test_cqg = ClusteredQuantumGraph.load(path)
         self.assertEqual(self.cqg1, test_cqg)
+
+    def testValidateOK(self):
+        # Test nothing raised on valid clustered quantum graph
+        self.cqg1.validate()
+
+    def testValidateNotDAG(self):
+        # Add bad edge to make not a DAG
+        qc1 = self.cqg1.get_cluster("T1_1_2")
+        qc2 = self.cqg1.get_cluster("T23_1_2")
+        self.cqg1.add_dependency(qc2, qc1)
+
+        with self.assertRaises(RuntimeError) as cm:
+            self.cqg1.validate()
+            self.assertIn("is not a directed acyclic graph", str(cm))
+
+    def testValidateMissingQuanta(self):
+        # Remove Quanta from cluster
+        qc2 = self.cqg1.get_cluster("T23_1_2")
+        qc2._qgraph_node_ids = qc2._qgraph_node_ids[:-1]
+
+        with self.assertRaises(RuntimeError) as cm:
+            self.cqg1.validate()
+            self.assertIn("does not equal number in quantum graph", str(cm))
+
+    def testValidateDuplicateId(self):
+        # Add new Quanta with duplicate Quantum
+        qc1 = self.cqg1.get_cluster("T1_1_2")
+        qnode = self.cqg1.get_quantum_node(next(iter(qc1.qgraph_node_ids)))
+        qc = QuantaCluster.from_quantum_node(qnode, "DuplicateId")
+        self.cqg1.add_cluster(qc)
+        qc2 = self.cqg1.get_cluster("T23_1_2")
+        self.cqg1.add_dependency(qc2, qc)
+
+        with self.assertRaises(RuntimeError) as cm:
+            self.cqg1.validate()
+            self.assertIn("occurs in at least 2 clusters", str(cm))
 
 
 if __name__ == "__main__":

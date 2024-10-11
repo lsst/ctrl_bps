@@ -40,7 +40,7 @@ from pathlib import Path
 
 from lsst.pipe.base import NodeId, QuantumGraph
 from lsst.utils.iteration import ensure_iterable
-from networkx import DiGraph, is_isomorphic, topological_sort
+from networkx import DiGraph, is_directed_acyclic_graph, is_isomorphic, topological_sort
 
 from .bps_draw import draw_networkx_dot
 
@@ -512,3 +512,35 @@ class ClusteredQuantumGraph:
                 cgraph._quantum_graph = QuantumGraph.loadUri(new_filename)
 
         return cgraph
+
+    def validate(self):
+        """Check correctness of completed ClusteredQuantumGraph.
+
+        Raises
+        ------
+        RuntimeError
+            If the ClusteredQuantumGraph is not valid.
+        """
+        # Check no cycles
+        if not is_directed_acyclic_graph(self._cluster_graph):
+            raise RuntimeError("ClusteredQuantumGraph is not a directed acyclic graph.")
+
+        # Check that Quantum only in 1 cluster
+        node_ids = set()
+        for cluster in self.clusters():
+            for node_id in cluster.qgraph_node_ids:
+                if node_id in node_ids:
+                    raise RuntimeError(
+                        f"Quantum {node_id} occurs in at least 2 clusters (one of which is {cluster.name})"
+                    )
+                else:
+                    node_ids.add(node_id)
+
+        # Check that have all Quanta
+        quanta_count_qgraph = len(self._quantum_graph)
+        quanta_count_cqgraph = len(node_ids)
+        if quanta_count_qgraph != quanta_count_cqgraph:
+            raise RuntimeError(
+                f"Number of Quanta in clustered qgraph ({quanta_count_cqgraph}) does not equal number in"
+                f" quantum graph ({quanta_count_qgraph})"
+            )

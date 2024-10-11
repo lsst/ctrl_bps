@@ -103,6 +103,9 @@ saveDot: False
 saveGenericWorkflow: False
 saveClusteredQgraph: False
 
+# Whether to run checks on generated ClusteredQuantumGraph
+validateClusteredQgraph: False
+
 # Temporary backward-compatibility settings
 useLazyCommands: True
 
@@ -141,4 +144,3 @@ memoryLimit: 491520
 # Default values for making id soft link to submit directory
 makeIdLink: False
 idLinkPath: "${PWD}/bps_links"
-

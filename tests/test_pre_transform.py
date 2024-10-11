@@ -29,8 +29,10 @@ import shutil
 import tempfile
 import unittest
 
-from lsst.ctrl.bps import BpsConfig
-from lsst.ctrl.bps.pre_transform import create_quantum_graph, execute
+from lsst.ctrl.bps import BpsConfig, ClusteredQuantumGraph
+from lsst.ctrl.bps.pre_transform import cluster_quanta, create_quantum_graph, execute
+from lsst.daf.butler import DimensionUniverse
+from lsst.pipe.base import QuantumGraph
 
 TESTDIR = os.path.abspath(os.path.dirname(__file__))
 
@@ -88,6 +90,40 @@ class TestCreatingQuantumGraph(unittest.TestCase):
         config = BpsConfig(settings, search_order=[])
         with self.assertRaises(RuntimeError):
             create_quantum_graph(config, self.tmpdir)
+
+
+class TestClusterQuanta(unittest.TestCase):
+    """Test cluster_quanta method.  Other tests cover functions
+    cluster_quanta calls so mocking them here.
+    """
+
+    @unittest.mock.patch.object(ClusteredQuantumGraph, "validate")
+    def testValidate(self, mock_validate):
+        """Test that actually calls validate per config."""
+        mock_validate.side_effect = RuntimeError("Fake error")
+        settings = {
+            "clusterAlgorithm": "lsst.ctrl.bps.quantum_clustering_funcs.single_quantum_clustering",
+            "uniqProcName": "my_test",
+            "validateClusteredQgraph": True,
+        }
+        config = BpsConfig(settings, search_order=[])
+        qgraph = QuantumGraph({}, universe=DimensionUniverse())
+        with self.assertRaises(RuntimeError) as cm:
+            _ = cluster_quanta(config, qgraph, "a_name")
+            self.assertIn("Fake error", str(cm))
+
+    @unittest.mock.patch.object(ClusteredQuantumGraph, "validate")
+    def testNoValidate(self, mock_validate):
+        """Test that doesn't call validate per config."""
+        mock_validate.side_effect = RuntimeError("Fake error")
+        settings = {
+            "clusterAlgorithm": "lsst.ctrl.bps.quantum_clustering_funcs.single_quantum_clustering",
+            "uniqProcName": "my_test",
+            "validateClusteredQgraph": False,
+        }
+        config = BpsConfig(settings, search_order=[])
+        qgraph = QuantumGraph({}, universe=DimensionUniverse())
+        _ = cluster_quanta(config, qgraph, "a_name")
 
 
 if __name__ == "__main__":

@@ -619,6 +619,11 @@ Supported settings
     * TRANSFORM = Output QuantumGraph files after creating GenericWorkflow.
     * PREPARE = QuantumGraph files are output after creating WMS submission.
 
+**validateClusteredQgraph**
+    A boolean flag.  If set to true, BPS will run checks on the generated
+    ``ClusteredQuantumGraph`` raising a ``RuntimeError`` if it finds any
+    problems.  Defaults to ``False``.
+
 **saveClusteredQgraph**
     A boolean flag.  If set to true, BPS will save serialized clustered quantum
     graph to a file called ``bps_clustered_qgraph.pickle`` using Python's
@@ -1025,6 +1030,15 @@ subgraph of Quanta is called a "cluster".  bps can be configured to use
 different clustering algorithms by setting ``clusterAlgorithm``.  The default
 is single Quantum per Job.
 
+Validate Generated ClusteredQuantumGraph
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+By default, BPS does not run checks on the generated ClusteredQuantumGraph
+as this adds more time to the submit process especially on large QuantumGraphs.
+If desired, the checking can be turned on in the submit yaml by setting
+``validateClusteredQgraph`` to ``True``.  If any problems are found, a
+``RuntimeError`` will be raised.
+
 Single Quantum per Job
 ^^^^^^^^^^^^^^^^^^^^^^
 
@@ -1082,6 +1096,43 @@ Relevant Config Entries:
        pipetasks: label1, label2     # comma-separated list of labels
        dimensions: dim1, dim2        # comma-separated list of dimensions
        equalDimensions: dim1:dim1a   # e.g., visit:exposure
+       # requestCpus: N              # Overrides for jobs in this cluster
+       # requestMemory: NNNN         # MB, Overrides for jobs in this cluster
+
+.. _bps-dimension_dependency:
+
+User-defined Dimension Clustering with QuantumGraph Dependencies
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+There are instances where the dimensions aren't the same for quanta
+that we want to put in the same cluster.  In many cases, we can use
+``equalDimensions`` to solve this problem.  However that only works if
+the values are equal, but just different dimension names (e.g., visit
+and exposure).  In the case of group and visit, the values aren't the
+same.  The QuantumGraph has dependencies between those quanta that
+can be used instead of comparing dimension values.
+
+Using the dependencies is an option per cluster definition.  To enable it,
+define ``findDependencyMethod``.  A subgraph of the pipeline graph is
+made (i.e., a directed graph of the pipeline task labels specified for
+the cluster).  A value of ``sink`` says to use the dimensions of the sink
+nodes in the subgraph and then find ancestors in the ``QuantumGraph`` to
+complete the cluster.  A value of ``source`` says to use the dimensions
+of the source nodes in the subgraph and then find descendants in the
+``QuantumGraph`` to complete the cluster.  Generally, it doesn't matter
+which direction is used, but the direction determines which dimension
+values appear in the cluster names and thus job names.
+
+.. code-block:: YAML
+
+   clusterAlgorithm: lsst.ctrl.bps.quantum_clustering_funcs.dimension_clustering
+   cluster:
+     # Repeat cluster subsection for however many clusters there are
+     # with or without findDependencyMethod
+     clusterLabel1:
+       dimensions: visit, detector
+       pipetasks: getRegionTimeFromVisit, loadDiaCatalogs, diaPipe
+       findDependencyMethod: sink
        # requestCpus: N              # Overrides for jobs in this cluster
        # requestMemory: NNNN         # MB, Overrides for jobs in this cluster
 
