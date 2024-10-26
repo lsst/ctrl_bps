@@ -35,6 +35,8 @@ import itertools
 import logging
 import pickle
 from collections import Counter, defaultdict
+from collections.abc import Iterable, Iterator
+from typing import IO, Any, BinaryIO, Literal, cast, overload
 
 from networkx import DiGraph, topological_sort
 from networkx.algorithms.dag import is_directed_acyclic_graph
@@ -74,7 +76,7 @@ class GenericWorkflowFile:
     """Whether job requires its own copy of this file.  Default is False.
     """
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(self.name)
 
 
@@ -89,7 +91,7 @@ class GenericWorkflowExec:
     within run.
     """
 
-    src_uri: str or None = None  # don't know that need ResourcePath
+    src_uri: str | None = None  # don't know that need ResourcePath
     """Original location of executable.
     """
 
@@ -98,7 +100,7 @@ class GenericWorkflowExec:
     location usable by job.
     """
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(self.name)
 
 
@@ -117,11 +119,11 @@ class GenericWorkflowJob:
     and may be used for summary reports.
     """
 
-    quanta_counts: Counter = dataclasses.field(default_factory=Counter)
+    quanta_counts: Counter[str] = dataclasses.field(default_factory=Counter)
     """Counts of quanta per task label in job.
     """
 
-    tags: dict = dataclasses.field(default_factory=dict)
+    tags: dict[str, Any] = dataclasses.field(default_factory=dict)
     """Other key/value pairs for job that user may want to use as a filter.
     """
 
@@ -133,7 +135,7 @@ class GenericWorkflowJob:
     """Command line arguments for job.
     """
 
-    cmdvals: dict = dataclasses.field(default_factory=dict)
+    cmdvals: dict[str, Any] = dataclasses.field(default_factory=dict)
     """Values for variables in cmdline when using lazy command line creation.
     """
 
@@ -230,17 +232,17 @@ class GenericWorkflowJob:
     """The flag indicating whether the job can be preempted.
     """
 
-    profile: dict = dataclasses.field(default_factory=dict)
+    profile: dict[str, Any] = dataclasses.field(default_factory=dict)
     """Nested dictionary of WMS-specific key/value pairs with primary key being
     WMS key (e.g., pegasus, condor, panda).
     """
 
-    attrs: dict = dataclasses.field(default_factory=dict)
+    attrs: dict[str, Any] = dataclasses.field(default_factory=dict)
     """Key/value pairs of job attributes (for WMS that have attributes in
     addition to commands).
     """
 
-    environment: dict = dataclasses.field(default_factory=dict)
+    environment: dict[str, Any] = dataclasses.field(default_factory=dict)
     """Environment variable names and values to be explicitly set inside job.
     """
 
@@ -248,7 +250,7 @@ class GenericWorkflowJob:
     """Key to look up cloud-specific information for running the job.
     """
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(self.name)
 
 
@@ -267,20 +269,24 @@ class GenericWorkflow(DiGraph):
         Keyword arguments passed through to DiGraph constructor.
     """
 
-    def __init__(self, name, incoming_graph_data=None, **attr):
+    def __init__(self, name: str, incoming_graph_data: Any | None = None, **attr: Any) -> None:
         super().__init__(incoming_graph_data, **attr)
         self._name = name
-        self.run_attrs = {}
+        self.run_attrs: dict[str, str] = {}
         self._job_labels = GenericWorkflowLabels()
-        self._files = {}
-        self._executables = {}
-        self._inputs = {}  # mapping job.names to list of GenericWorkflowFile
-        self._outputs = {}  # mapping job.names to list of GenericWorkflowFile
+        self._files: dict[str, GenericWorkflowFile] = {}
+        self._executables: dict[str, GenericWorkflowExec] = {}
+        self._inputs: dict[str, list[GenericWorkflowFile]] = (
+            {}
+        )  # mapping job.names to list of GenericWorkflowFile
+        self._outputs: dict[str, list[GenericWorkflowFile]] = (
+            {}
+        )  # mapping job.names to list of GenericWorkflowFile
         self.run_id = None
-        self._final = None
+        self._final: GenericWorkflowJob | GenericWorkflow | None = None
 
     @property
-    def name(self):
+    def name(self) -> str:
         """Retrieve name of generic workflow.
 
         Returns
@@ -291,9 +297,9 @@ class GenericWorkflow(DiGraph):
         return self._name
 
     @property
-    def quanta_counts(self):
+    def quanta_counts(self) -> Counter[str]:
         """Count of quanta per task label (`collections.Counter`)."""
-        qcounts = Counter()
+        qcounts: Counter[str] = Counter()
         for job_name in self:
             gwjob = self.get_job(job_name)
             if gwjob.quanta_counts is not None:
@@ -301,11 +307,11 @@ class GenericWorkflow(DiGraph):
         return qcounts
 
     @property
-    def labels(self):
+    def labels(self) -> list[str]:
         """Job labels (`list` [`str`], read-only)."""
         return self._job_labels.labels
 
-    def regenerate_labels(self):
+    def regenerate_labels(self) -> None:
         """Regenerate the list of job labels."""
         self._job_labels = GenericWorkflowLabels()
         for job_name in self:
@@ -317,7 +323,7 @@ class GenericWorkflow(DiGraph):
             )
 
     @property
-    def job_counts(self):
+    def job_counts(self) -> Counter[str]:
         """Count of jobs per job label (`collections.Counter`)."""
         jcounts = self._job_labels.job_counts
 
@@ -331,11 +337,19 @@ class GenericWorkflow(DiGraph):
 
         return jcounts
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[str]:
         """Return iterator of job names in topologically sorted order."""
         return topological_sort(self)
 
-    def get_files(self, data=False, transfer_only=True):
+    @overload
+    def get_files(self, data: Literal[False], transfer_only: bool = True) -> list[str]: ...
+
+    @overload
+    def get_files(self, data: Literal[True], transfer_only: bool = True) -> list[GenericWorkflowFile]: ...
+
+    def get_files(
+        self, data: bool = False, transfer_only: bool = True
+    ) -> list[GenericWorkflowFile] | list[str]:
         """Retrieve files from generic workflow.
 
         Need API in case change way files are stored (e.g., make
@@ -345,7 +359,7 @@ class GenericWorkflow(DiGraph):
         ----------
         data : `bool`, optional
             Whether to return the file data as well as the file object name
-            (The defaults is False).
+            (The default is False).
         transfer_only : `bool`, optional
             Whether to only return files for which a workflow management system
             would be responsible for transferring.
@@ -355,7 +369,7 @@ class GenericWorkflow(DiGraph):
         files : `list` [`lsst.ctrl.bps.GenericWorkflowFile`] or `list` [`str`]
             File names or objects from generic workflow meeting specifications.
         """
-        files = []
+        files: list[Any] = []  # Any for mypy to allow the different append lines.
         for filename, file in self._files.items():
             if not transfer_only or file.wms_transfer:
                 if not data:
@@ -364,16 +378,21 @@ class GenericWorkflow(DiGraph):
                     files.append(file)
         return files
 
-    def add_job(self, job, parent_names=None, child_names=None):
+    def add_job(
+        self,
+        job: GenericWorkflowJob,
+        parent_names: str | list[str] | None = None,
+        child_names: str | list[str] | None = None,
+    ) -> None:
         """Add job to generic workflow.
 
         Parameters
         ----------
         job : `lsst.ctrl.bps.GenericWorkflowJob`
             Job to add to the generic workflow.
-        parent_names : `list` [`str`], optional
+        parent_names : `str` | `list` [`str`], optional
             Names of jobs that are parents of given job.
-        child_names : `list` [`str`], optional
+        child_names : `str` | `list` [`str`], optional
             Names of jobs that are children of given job.
         """
         _LOG.debug("job: %s (%s)", job.name, job.label)
@@ -386,14 +405,15 @@ class GenericWorkflow(DiGraph):
         super().add_node(job.name, job=job)
         self.add_job_relationships(parent_names, job.name)
         self.add_job_relationships(job.name, child_names)
-        self.add_executable(job.executable)
+        if job.executable is not None:
+            self.add_executable(job.executable)
         self._job_labels.add_job(
             job,
             [self.get_job(p).label for p in self.predecessors(job.name)],
             [self.get_job(p).label for p in self.successors(job.name)],
         )
 
-    def add_node(self, node_for_adding, **attr):
+    def add_node(self, node_for_adding: GenericWorkflowJob, **attr: Any) -> None:
         """Override networkx function to call more specific add_job function.
 
         Parameters
@@ -405,17 +425,20 @@ class GenericWorkflow(DiGraph):
         """
         self.add_job(node_for_adding)
 
-    def add_job_relationships(self, parents, children):
+    def add_job_relationships(
+        self, parents: str | list[str] | None, children: str | list[str] | None
+    ) -> None:
         """Add dependencies between parent and child jobs.  All parents will
         be connected to all children.
 
         Parameters
         ----------
-        parents : `list` [`str`]
+        parents : `list` [`str`], optional
             Parent job names.
-        children : `list` [`str`]
+        children : `list` [`str`], optional
             Children job names.
         """
+        # Allow this to be a noop if no parents or no children
         if parents is not None and children is not None:
             self.add_edges_from(itertools.product(ensure_iterable(parents), ensure_iterable(children)))
             self._job_labels.add_job_relationships(
@@ -423,12 +446,12 @@ class GenericWorkflow(DiGraph):
                 [self.get_job(n).label for n in ensure_iterable(children)],
             )
 
-    def add_edges_from(self, ebunch_to_add, **attr):
+    def add_edges_from(self, ebunch_to_add: Iterable[tuple[str, str]], **attr: Any) -> None:
         """Add several edges between jobs in the generic workflow.
 
         Parameters
         ----------
-        ebunch_to_add : Iterable [`tuple`]
+        ebunch_to_add : Iterable [`tuple` [`str`, `str`]]
             Iterable of job name pairs between which a dependency should be
             saved.
         **attr : keyword arguments, optional
@@ -437,7 +460,7 @@ class GenericWorkflow(DiGraph):
         for edge_to_add in ebunch_to_add:
             self.add_edge(edge_to_add[0], edge_to_add[1], **attr)
 
-    def add_edge(self, u_of_edge: str, v_of_edge: str, **attr):
+    def add_edge(self, u_of_edge: str, v_of_edge: str, **attr: Any) -> None:
         """Add edge connecting jobs in workflow.
 
         Parameters
@@ -455,7 +478,7 @@ class GenericWorkflow(DiGraph):
             raise RuntimeError(f"{v_of_edge} not in GenericWorkflow")
         super().add_edge(u_of_edge, v_of_edge, **attr)
 
-    def get_job(self, job_name: str):
+    def get_job(self, job_name: str) -> GenericWorkflowJob:
         """Retrieve job by name from workflow.
 
         Parameters
@@ -470,7 +493,7 @@ class GenericWorkflow(DiGraph):
         """
         return self.nodes[job_name]["job"]
 
-    def del_job(self, job_name: str):
+    def del_job(self, job_name: str) -> None:
         """Delete job from generic workflow leaving connected graph.
 
         Parameters
@@ -491,7 +514,7 @@ class GenericWorkflow(DiGraph):
         # Delete job node (which deletes edges).
         self.remove_node(job_name)
 
-    def add_job_inputs(self, job_name, files):
+    def add_job_inputs(self, job_name: str, files: GenericWorkflowFile | list[GenericWorkflowFile]) -> None:
         """Add files as inputs to specified job.
 
         Parameters
@@ -511,7 +534,7 @@ class GenericWorkflow(DiGraph):
             # Save the job reference to the file
             self._inputs[job_name].append(file)
 
-    def get_file(self, name):
+    def get_file(self, name: str) -> GenericWorkflowFile:
         """Retrieve a file object by name.
 
         Parameters
@@ -526,7 +549,7 @@ class GenericWorkflow(DiGraph):
         """
         return self._files[name]
 
-    def add_file(self, gwfile):
+    def add_file(self, gwfile: GenericWorkflowFile) -> None:
         """Add file object.
 
         Parameters
@@ -539,7 +562,19 @@ class GenericWorkflow(DiGraph):
         else:
             _LOG.debug("Skipped add_file for existing file %s", gwfile.name)
 
-    def get_job_inputs(self, job_name, data=True, transfer_only=False):
+    @overload
+    def get_job_inputs(
+        self, job_name: str, data: Literal[False], transfer_only: bool = False
+    ) -> list[str]: ...
+
+    @overload
+    def get_job_inputs(
+        self, job_name: str, data: Literal[True], transfer_only: bool = False
+    ) -> list[GenericWorkflowFile]: ...
+
+    def get_job_inputs(
+        self, job_name: str, data: bool = True, transfer_only: bool = False
+    ) -> list[GenericWorkflowFile] | list[str]:
         """Return the input files for the given job.
 
         Parameters
@@ -554,11 +589,11 @@ class GenericWorkflow(DiGraph):
 
         Returns
         -------
-        inputs : `list` [`lsst.ctrl.bps.GenericWorkflowFile`]
+        inputs : `list` [`lsst.ctrl.bps.GenericWorkflowFile`] or `list` [`str`]
             Input files for the given job.  If no input files for the job,
             returns an empty list.
         """
-        inputs = []
+        inputs: list[Any] = []  # Any for mypy to allow the different append lines.
         if job_name in self._inputs:
             for gwfile in self._inputs[job_name]:
                 if not transfer_only or gwfile.wms_transfer:
@@ -568,7 +603,7 @@ class GenericWorkflow(DiGraph):
                         inputs.append(gwfile)
         return inputs
 
-    def add_job_outputs(self, job_name, files):
+    def add_job_outputs(self, job_name: str, files: list[GenericWorkflowFile]) -> None:
         """Add output files to a job.
 
         Parameters
@@ -588,7 +623,19 @@ class GenericWorkflow(DiGraph):
             # Save the job reference to the file
             self._outputs[job_name].append(file_)
 
-    def get_job_outputs(self, job_name, data=True, transfer_only=False):
+    @overload
+    def get_job_outputs(
+        self, job_name: str, data: Literal[False], transfer_only: bool = False
+    ) -> list[str]: ...
+
+    @overload
+    def get_job_outputs(
+        self, job_name: str, data: Literal[True], transfer_only: bool = False
+    ) -> list[GenericWorkflowFile]: ...
+
+    def get_job_outputs(
+        self, job_name: str, data: bool = True, transfer_only: bool = False
+    ) -> list[GenericWorkflowFile] | list[str]:
         """Return the output files for the given job.
 
         Parameters
@@ -605,23 +652,27 @@ class GenericWorkflow(DiGraph):
 
         Returns
         -------
-        outputs : `list` [`lsst.ctrl.bps.GenericWorkflowFile`]
+        outputs : `list` [`lsst.ctrl.bps.GenericWorkflowFile`] or \
+                  `list` [`str`]
             Output files for the given job. If no output files for the job,
             returns an empty list.
         """
-        outputs = []
+        outputs: list[Any] = []  # Any for mypy to allow the different append lines.
+        if not data:
+            outputs = cast(list[str], outputs)
+        else:
+            outputs = cast(list[GenericWorkflowFile], outputs)
 
         if job_name in self._outputs:
-            for file_name in self._outputs[job_name]:
-                file = self._files[file_name]
-                if not transfer_only or file.wms_transfer:
+            for gwfile in self._outputs[job_name]:
+                if not transfer_only or gwfile.wms_transfer:
                     if not data:
-                        outputs.append(file_name)
+                        outputs.append(gwfile.name)
                     else:
-                        outputs.append(self._files[file_name])
+                        outputs.append(gwfile)
         return outputs
 
-    def draw(self, stream, format_="dot"):
+    def draw(self, stream: str | IO[str], format_: str = "dot") -> None:
         """Output generic workflow in a visualization format.
 
         Parameters
@@ -638,7 +689,7 @@ class GenericWorkflow(DiGraph):
         else:
             raise RuntimeError(f"Unknown draw format ({format_}")
 
-    def save(self, stream, format_="pickle"):
+    def save(self, stream: str | IO[bytes], format_: str = "pickle") -> None:
         """Save the generic workflow in a format that is loadable.
 
         Parameters
@@ -650,12 +701,13 @@ class GenericWorkflow(DiGraph):
             Format in which to write the data. It defaults to pickle format.
         """
         if format_ == "pickle":
+            stream = cast(BinaryIO, stream)
             pickle.dump(self, stream)
         else:
             raise RuntimeError(f"Unknown format ({format_})")
 
     @classmethod
-    def load(cls, stream, format_="pickle"):
+    def load(cls, stream: str | IO[bytes], format_: str = "pickle") -> "GenericWorkflow":
         """Load a GenericWorkflow from the given stream.
 
         Parameters
@@ -673,16 +725,19 @@ class GenericWorkflow(DiGraph):
             Generic workflow loaded from the given stream.
         """
         if format_ == "pickle":
-            return pickle.load(stream)
+            stream = cast(BinaryIO, stream)
+            object_ = pickle.load(stream)
+            assert isinstance(object_, GenericWorkflow)  # for mypy
+            return object_
 
         raise RuntimeError(f"Unknown format ({format_})")
 
-    def validate(self):
+    def validate(self) -> None:
         """Run checks to ensure that the generic workflow graph is valid."""
         # Make sure a directed acyclic graph
         assert is_directed_acyclic_graph(self)
 
-    def add_workflow_source(self, workflow):
+    def add_workflow_source(self, workflow: "GenericWorkflow") -> None:
         """Add given workflow as new source to this workflow.
 
         Parameters
@@ -720,7 +775,7 @@ class GenericWorkflow(DiGraph):
             # Executables are stored separately so copy them.
             self.add_executable(workflow.get_job(job_name).executable)
 
-    def add_final(self, final):
+    def add_final(self, final: "GenericWorkflowJob | GenericWorkflow") -> None:
         """Add special final job/workflow to the generic workflow.
 
         Parameters
@@ -739,7 +794,7 @@ class GenericWorkflow(DiGraph):
         if isinstance(final, GenericWorkflowJob):
             self.add_executable(final.executable)
 
-    def get_final(self):
+    def get_final(self) -> "GenericWorkflowJob | GenericWorkflow | None":
         """Return job/workflow to be executed after all jobs that can be
         executed have been executed regardless of exit status of any of
         the jobs.
@@ -752,7 +807,7 @@ class GenericWorkflow(DiGraph):
         """
         return self._final
 
-    def add_executable(self, executable):
+    def add_executable(self, executable: GenericWorkflowExec | None) -> None:
         """Add executable to workflow's list of executables.
 
         Parameters
@@ -765,7 +820,17 @@ class GenericWorkflow(DiGraph):
         else:
             _LOG.warning("executable not specified (None); cannot add to the workflow's list of executables")
 
-    def get_executables(self, data=False, transfer_only=True):
+    @overload
+    def get_executables(self, data: Literal[False], transfer_only: bool = False) -> list[str]: ...
+
+    @overload
+    def get_executables(
+        self, data: Literal[True], transfer_only: bool = False
+    ) -> list[GenericWorkflowExec]: ...
+
+    def get_executables(
+        self, data: bool = False, transfer_only: bool = True
+    ) -> list[GenericWorkflowExec] | list[str]:
         """Retrieve executables from generic workflow.
 
         Parameters
@@ -782,7 +847,12 @@ class GenericWorkflow(DiGraph):
         execs : `list` [`lsst.ctrl.bps.GenericWorkflowExec`] or `list` [`str`]
             Filtered executable names or objects from generic workflow.
         """
-        execs = []
+        execs: list[Any] = []  # This and cast lines for mypy
+        if not data:
+            execs = cast(list[str], execs)
+        else:
+            execs = cast(list[GenericWorkflowExec], execs)
+
         for name, executable in self._executables.items():
             if not transfer_only or executable.transfer_executable:
                 if not data:
@@ -791,7 +861,7 @@ class GenericWorkflow(DiGraph):
                     execs.append(executable)
         return execs
 
-    def get_jobs_by_label(self, label: str):
+    def get_jobs_by_label(self, label: str) -> list[GenericWorkflowJob]:
         """Retrieve jobs by label from workflow.
 
         Parameters
@@ -810,21 +880,23 @@ class GenericWorkflow(DiGraph):
 class GenericWorkflowLabels:
     """Label-oriented representation of the GenericWorkflow."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._label_graph = DiGraph()  # Dependency graph of job labels
-        self._label_to_jobs = defaultdict(list)  # mapping job label to list of GenericWorkflowJob
+        self._label_to_jobs: defaultdict[str, list[GenericWorkflowJob]] = defaultdict(
+            list
+        )  # mapping job label to list of GenericWorkflowJob
 
     @property
-    def labels(self):
+    def labels(self) -> list[str]:
         """List of job labels (`list` [`str`], read-only)."""
         return list(topological_sort(self._label_graph))
 
     @property
-    def job_counts(self):
+    def job_counts(self) -> Counter[str]:
         """Count of jobs per job label (`collections.Counter`)."""
         return Counter({label: len(self._label_to_jobs[label]) for label in self.labels})
 
-    def get_jobs_by_label(self, label: str):
+    def get_jobs_by_label(self, label: str) -> list[GenericWorkflowJob]:
         """Retrieve jobs by label from workflow.
 
         Parameters
@@ -839,7 +911,7 @@ class GenericWorkflowLabels:
         """
         return self._label_to_jobs[label]
 
-    def add_job(self, job, parent_labels, child_labels):
+    def add_job(self, job: GenericWorkflowJob, parent_labels: list[str], child_labels: list[str]) -> None:
         """Add job's label to labels.
 
         Parameters
@@ -861,7 +933,7 @@ class GenericWorkflowLabels:
         for child in child_labels:
             self._label_graph.add_edge(job.label, child)
 
-    def add_job_relationships(self, parent_labels, children_labels):
+    def add_job_relationships(self, parent_labels: list[str], children_labels: list[str]) -> None:
         """Add dependencies between parent and child job labels.
         All parents will be connected to all children.
 
@@ -882,7 +954,7 @@ class GenericWorkflowLabels:
 
             self._label_graph.add_edges_from(edges)
 
-    def del_job(self, job):
+    def del_job(self, job: GenericWorkflowJob) -> None:
         """Delete job and its label from job labels.
 
         Parameters
