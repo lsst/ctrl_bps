@@ -45,22 +45,18 @@ __all__ = [
 ]
 
 
-import getpass
 import logging
 import os
-import re
-import shutil
-from collections.abc import Iterable
 from pathlib import Path
 
-from lsst.pipe.base import Instrument, QuantumGraph
-from lsst.utils import doImport
+from lsst.pipe.base import QuantumGraph
 from lsst.utils.timer import time_this
 from lsst.utils.usage import get_peak_mem_usage
 
 from . import BPS_DEFAULTS, BPS_SEARCH_ORDER, DEFAULT_MEM_FMT, DEFAULT_MEM_UNIT, BpsConfig
-from .bps_utils import _dump_env_info, _dump_pkg_info, _make_id_link, mkdir
+from .bps_utils import _dump_env_info, _dump_pkg_info, _make_id_link
 from .cancel import cancel
+from .initialize import init_submission
 from .ping import ping
 from .pre_transform import acquire_quantum_graph, cluster_quanta
 from .prepare import prepare
@@ -72,97 +68,40 @@ from .transform import transform
 _LOG = logging.getLogger(__name__)
 
 
-def _init_submission_driver(config_file, **kwargs):
+def _init_submission_driver(config_file: str, **kwargs) -> BpsConfig:
     """Initialize runtime environment.
 
     Parameters
     ----------
     config_file : `str`
         Name of the configuration file.
+    **kwargs : `~typing.Any`
+        Additional modifiers to the configuration.
 
     Returns
     -------
     config : `lsst.ctrl.bps.BpsConfig`
         Batch Processing Service configuration.
     """
-    config = BpsConfig(
-        config_file,
-        search_order=BPS_SEARCH_ORDER,
-        defaults=BPS_DEFAULTS,
-        wms_service_class_fqn=kwargs.get("wms_service"),
-    )
+    _LOG.info("Initializing execution environment")
+    with time_this(
+        log=_LOG,
+        level=logging.INFO,
+        prefix=None,
+        msg="Initializing execution environment completed",
+        mem_usage=True,
+        mem_unit=DEFAULT_MEM_UNIT,
+        mem_fmt=DEFAULT_MEM_FMT,
+    ):
+        config = init_submission(config_file, **kwargs)
+    if _LOG.isEnabledFor(logging.INFO):
+        _LOG.info(
+            "Peak memory usage for bps process %s (main), %s (largest child process)",
+            *tuple(f"{val.to(DEFAULT_MEM_UNIT):{DEFAULT_MEM_FMT}}" for val in get_peak_mem_usage()),
+        )
 
-    # Override config with command-line values.
-    # Handle diffs between pipetask argument names vs bps yaml
-    translation = {
-        "input": "inCollection",
-        "output_run": "outputRun",
-        "qgraph": "qgraphFile",
-        "pipeline": "pipelineYaml",
-        "wms_service": "wmsServiceClass",
-        "compute_site": "computeSite",
-    }
-    for key, value in kwargs.items():
-        # Don't want to override config with None or empty string values.
-        if value:
-            # pipetask argument parser converts some values to list,
-            # but bps will want string.
-            if not isinstance(value, str) and isinstance(value, Iterable):
-                value = ",".join(value)
-            new_key = translation.get(key, re.sub(r"_(\S)", lambda match: match.group(1).upper(), key))
-            config[f".bps_cmdline.{new_key}"] = value
-
-    # Set some initial values
-    config[".bps_defined.timestamp"] = Instrument.makeCollectionTimestamp()
-    if "operator" not in config:
-        config[".bps_defined.operator"] = getpass.getuser()
-
-    if "outCollection" in config:
-        raise KeyError("outCollection is deprecated.  Replace all outCollection references with outputRun.")
-
-    if "outputRun" not in config:
-        raise KeyError("Must specify the output run collection using outputRun")
-
-    if "uniqProcName" not in config:
-        config[".bps_defined.uniqProcName"] = config["outputRun"].replace("/", "_")
-
-    if "submitPath" not in config:
-        raise KeyError("Must specify the submit-side run directory using submitPath")
-
-    # If requested, run WMS plugin checks early in submission process to
-    # ensure WMS has what it will need for prepare() or submit().
-    if kwargs.get("runWmsSubmissionChecks", False):
-        found, wms_class = config.search("wmsServiceClass")
-        if not found:
-            raise KeyError("Missing wmsServiceClass in bps config.  Aborting.")
-
-        # Check that can import wms service class.
-        wms_service_class = doImport(wms_class)
-        wms_service = wms_service_class(config)
-
-        try:
-            wms_service.run_submission_checks()
-        except NotImplementedError:
-            # Allow various plugins to implement only when needed to do extra
-            # checks.
-            _LOG.debug("run_submission_checks is not implemented in %s.", wms_class)
-    else:
-        _LOG.debug("Skipping submission checks.")
-
-    # Make submit directory to contain all outputs.
-    submit_path = mkdir(config["submitPath"])
-    config[".bps_defined.submitPath"] = str(submit_path)
+    submit_path = config[".bps_defined.submitPath"]
     print(f"Submit dir: {submit_path}")
-
-    # save copy of configs (orig and expanded config)
-    shutil.copy2(config_file, submit_path)
-    with open(f"{submit_path}/{config['uniqProcName']}_config.yaml", "w") as fh:
-        config.dump(fh)
-
-    # Dump information about runtime environment and software versions in use.
-    _dump_env_info(f"{submit_path}/{config['uniqProcName']}.env.info.yaml")
-    _dump_pkg_info(f"{submit_path}/{config['uniqProcName']}.pkg.info.yaml")
-
     return config
 
 
@@ -183,25 +122,10 @@ def acquire_qgraph_driver(config_file: str, **kwargs) -> tuple[BpsConfig, Quantu
     qgraph : `lsst.pipe.base.graph.QuantumGraph`
         A graph representing quanta.
     """
-    _LOG.info("Initializing execution environment")
-    with time_this(
-        log=_LOG,
-        level=logging.INFO,
-        prefix=None,
-        msg="Initializing execution environment completed",
-        mem_usage=True,
-        mem_unit=DEFAULT_MEM_UNIT,
-        mem_fmt=DEFAULT_MEM_FMT,
-    ):
-        config = _init_submission_driver(config_file, **kwargs)
-        submit_path = config[".bps_defined.submitPath"]
-    if _LOG.isEnabledFor(logging.INFO):
-        _LOG.info(
-            "Peak memory usage for bps process %s (main), %s (largest child process)",
-            *tuple(f"{val.to(DEFAULT_MEM_UNIT):{DEFAULT_MEM_FMT}}" for val in get_peak_mem_usage()),
-        )
+    config = _init_submission_driver(config_file, **kwargs)
 
     _LOG.info("Starting acquire stage (generating and/or reading quantum graph)")
+    submit_path = config[".bps_defined.submitPath"]
     with time_this(
         log=_LOG,
         level=logging.INFO,
