@@ -45,7 +45,6 @@ __all__ = [
 ]
 
 
-import errno
 import getpass
 import logging
 import os
@@ -60,7 +59,7 @@ from lsst.utils.timer import time_this
 from lsst.utils.usage import get_peak_mem_usage
 
 from . import BPS_DEFAULTS, BPS_SEARCH_ORDER, DEFAULT_MEM_FMT, DEFAULT_MEM_UNIT, BpsConfig
-from .bps_utils import _dump_env_info, _dump_pkg_info, _make_id_link
+from .bps_utils import _dump_env_info, _dump_pkg_info, _make_id_link, mkdir
 from .cancel import cancel
 from .ping import ping
 from .pre_transform import acquire_quantum_graph, cluster_quanta
@@ -151,15 +150,7 @@ def _init_submission_driver(config_file, **kwargs):
         _LOG.debug("Skipping submission checks.")
 
     # Make submit directory to contain all outputs.
-    submit_path = Path(config["submitPath"])
-    try:
-        submit_path.mkdir(parents=True, exist_ok=False)
-    except OSError as exc:
-        if exc.errno == errno.EEXIST:
-            reason = "Directory already exists"
-        else:
-            reason = exc.strerror
-        raise type(exc)(f"cannot create submit directory '{submit_path}': {reason}") from None
+    submit_path = mkdir(config["submitPath"])
     config[".bps_defined.submitPath"] = str(submit_path)
     print(f"Submit dir: {submit_path}")
 
