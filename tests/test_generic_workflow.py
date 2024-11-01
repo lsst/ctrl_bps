@@ -25,6 +25,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import io
+import logging
 import unittest
 from collections import Counter
 
@@ -71,6 +72,13 @@ class TestGenericWorkflow(unittest.TestCase):
         self.assertListEqual(["job1"], list(gwf))
         getjob = gwf.get_job("job1")
         self.assertEqual(self.job1, getjob)
+
+    def testAddNode(self):
+        gwf = gw.GenericWorkflow("mytest")
+        gwf.add_node(self.job1)
+        self.assertEqual(1, gwf.number_of_nodes())
+        self.assertListEqual(["job1"], list(gwf))
+        self.assertEqual(self.job1, gwf.get_job("job1"))
 
     def testAddJobRelationshipsSingle(self):
         gwf = gw.GenericWorkflow("mytest")
@@ -124,13 +132,103 @@ class TestGenericWorkflow(unittest.TestCase):
         with self.assertRaises(KeyError):
             _ = gwf.get_job("job_not_there")
 
+    def testAddEdgeBadParent(self):
+        gwf = gw.GenericWorkflow("mytest")
+        gwf.add_job(self.job1)
+        gwf.add_job(self.job2)
+        with self.assertRaises(RuntimeError) as cm:
+            gwf.add_edge("notthere", "job2")
+            self.assertRegex(cm.records[-1].getMessage(), "notthere not in GenericWorkflow")
+
+    def testAddEdgeBadChild(self):
+        gwf = gw.GenericWorkflow("mytest")
+        gwf.add_job(self.job1)
+        gwf.add_job(self.job2)
+        with self.assertRaises(RuntimeError) as cm:
+            gwf.add_edge("job1", "notthere2")
+            self.assertRegex(cm.records[-1].getMessage(), "notthere2 not in GenericWorkflow")
+
+    def testGetExecutablesNames(self):
+        gwf = gw.GenericWorkflow("mytest")
+        self.job1.executable = gw.GenericWorkflowExec("exec1")
+        gwf.add_job(self.job1)
+        self.assertEqual(gwf._executables["exec1"], self.job1.executable)
+        results = gwf.get_executables(data=False, transfer_only=False)
+        self.assertEqual(results, ["exec1"])
+
+    def testGetExecutablesData(self):
+        gwf = gw.GenericWorkflow("mytest")
+        self.job1.executable = gw.GenericWorkflowExec("exec1")
+        gwf.add_job(self.job1)
+        results = gwf.get_executables(data=True, transfer_only=False)
+        self.assertEqual(results, [self.job1.executable])
+        self.assertEqual(hash(self.job1.executable), hash(results[0]))
+
+    def testAddFileTwice(self):
+        gwf = gw.GenericWorkflow("mytest")
+        gwfile = gw.GenericWorkflowFile("file1")
+        gwf.add_file(gwfile)
+        with self.assertLogs("lsst.ctrl.bps.generic_workflow", level=logging.DEBUG) as cm:
+            gwf.add_file(gwfile)
+            self.assertRegex(cm.records[-1].getMessage(), "Skipped add_file for existing file file1")
+
+    def testGetFilesNames(self):
+        gwf = gw.GenericWorkflow("mytest")
+        gwfile1 = gw.GenericWorkflowFile("file1", wms_transfer=True)
+        gwf.add_file(gwfile1)
+        gwfile2 = gw.GenericWorkflowFile("file2", wms_transfer=False)
+        gwf.add_file(gwfile2)
+        results = gwf.get_files(data=False, transfer_only=False)
+        self.assertEqual(results, ["file1", "file2"])
+
+    def testGetFilesData(self):
+        gwf = gw.GenericWorkflow("mytest")
+        gwfile1 = gw.GenericWorkflowFile("file1", wms_transfer=True)
+        gwf.add_file(gwfile1)
+        gwfile2 = gw.GenericWorkflowFile("file2", wms_transfer=False)
+        gwf.add_file(gwfile2)
+        results = gwf.get_files(data=True, transfer_only=True)
+        self.assertEqual(results, [gwfile1])
+        self.assertEqual(hash(gwfile1), hash(results[0]))
+
+    def testJobInputs(self):
+        # test add + get
+        gwf = gw.GenericWorkflow("mytest")
+        gwf.add_job(self.job1)
+        gwfile1 = gw.GenericWorkflowFile("file1", wms_transfer=True)
+        gwf.add_job_inputs("job1", gwfile1)
+        gwfile2 = gw.GenericWorkflowFile("file2", wms_transfer=False)
+        gwf.add_job_inputs("job2", gwfile2)
+        self.assertIn("file1", gwf.get_files())
+        self.assertEqual(["file1"], gwf.get_job_inputs("job1", data=False))
+        self.assertEqual([gwfile1], gwf.get_job_inputs("job1"))
+        self.assertEqual([], gwf.get_job_inputs("job2", data=False, transfer_only=True))
+
     def testSaveInvalidFormat(self):
         gwf = gw.GenericWorkflow("mytest")
         stream = io.BytesIO()
-        with self.assertRaises(RuntimeError):
-            gwf.save(stream, "badformat")
+        with self.assertRaises(RuntimeError) as cm:
+            gwf.save(stream, "bad_format")
+            self.assertRegex(cm.records[-1].getMessage(), "Unknown format (bad_format)")
+
+    def testLoadInvalidFormat(self):
+        stream = io.BytesIO()
+        with self.assertRaises(RuntimeError) as cm:
+            _ = gw.GenericWorkflow.load(stream, "bad_format")
+            self.assertRegex(cm.records[-1].getMessage(), "Unknown format (bad_format)")
+
+    def testValidate(self):
+        gwf = gw.GenericWorkflow("mytest")
+        gwf.add_job(self.job1)
+        gwf.add_job(self.job2)
+        job3 = gw.GenericWorkflowJob("job3", label="label2")
+        gwf.add_job(job3)
+        gwf.add_job_relationships(["job1", "job2"], "job3")
+        # No exception should be raised
+        gwf.validate()
 
     def testSavePickle(self):
+        # test save and load
         gwf = gw.GenericWorkflow("mytest")
         gwf.add_job(self.job1)
         gwf.add_job(self.job2)
@@ -142,6 +240,14 @@ class TestGenericWorkflow(unittest.TestCase):
         self.assertTrue(
             networkx.is_isomorphic(gwf, gwf2, node_match=iso.categorical_node_match("data", None))
         )
+
+    def testDrawBadFormat(self):
+        gwf = gw.GenericWorkflow("mytest")
+        gwf.add_job(self.job1)
+        stream = io.BytesIO()
+        with self.assertRaises(RuntimeError) as cm:
+            gwf.draw(stream, "bad_format")
+            self.assertRegex(cm.records[-1].getMessage(), "Unknown draw format (bad_format)")
 
     def testLabels(self):
         job3 = gw.GenericWorkflowJob("job3")
@@ -174,6 +280,14 @@ class TestGenericWorkflow(unittest.TestCase):
         gwf.add_job(job3)
         gwf.add_job_relationships(["job1", "job2"], "job3")
         self.assertEqual(Counter({"label1": 1, "label2": 2}), gwf.job_counts)
+
+    def testJobCountsFinal(self):
+        gwf = gw.GenericWorkflow("mytest")
+        gwf.add_job(self.job1)
+        gwf.add_job(self.job2)
+        job3 = gw.GenericWorkflowJob("finalJob", label="finalJob")
+        gwf.add_final(job3)
+        self.assertEqual(Counter({"label1": 1, "label2": 1, "finalJob": 1}), gwf.job_counts)
 
     def testDelJob(self):
         job3 = gw.GenericWorkflowJob("job3", label="label2")
@@ -247,6 +361,104 @@ class TestGenericWorkflow(unittest.TestCase):
         gwf.add_job_relationships(["job1", "job2"], "job3")
 
         self.assertListEqual([job3], gwf.get_jobs_by_label("label3"))
+
+    def testAddJobInvalidType(self):
+        @dataclasses.dataclass(slots=True)
+        class GenericWorkflowMyNode:
+            name: str
+            label: str
+
+            def __hash__(self):
+                return hash(self.name)
+
+        job3 = GenericWorkflowNodeMyNode("myname", "mylabel")
+
+        gwf = gw.GenericWorkflow("mytest")
+        gwf.add_job(self.job1)
+        gwf.add_job(self.job2)
+        with self.assertRaises(RuntimeError) as cm:
+            gwf.add_job(job3)
+            self.assertIn("Invalid type for job to be added to GenericWorkflowGraph", str(cm.exception))
+
+
+class TestGenericWorkflowLabels(unittest.TestCase):
+    """Tests for GenericWorkflowLabels"""
+
+    def testEmptyLabels(self):
+        gwlabels = gw.GenericWorkflowLabels()
+        self.assertFalse(len(gwlabels.labels))
+
+    def testEmptyJobCounts(self):
+        gwlabels = gw.GenericWorkflowLabels()
+        self.assertFalse(len(gwlabels.job_counts))
+
+    def testEmptyGetJobsByLabel(self):
+        gwlabels = gw.GenericWorkflowLabels()
+        self.assertFalse(len(gwlabels.get_jobs_by_label("label1")))
+
+    def testAddJobFirst(self):
+        gwlabels = gw.GenericWorkflowLabels()
+        job = gw.GenericWorkflowJob("job1", "label1")
+        gwlabels.add_job(job, [], [])
+        self.assertEqual(gwlabels._label_to_jobs["label1"], [job])
+        self.assertIn("label1", gwlabels._label_graph)
+
+    def testAddJobMult(self):
+        gwlabels = gw.GenericWorkflowLabels()
+        job1 = gw.GenericWorkflowJob("job1", "label1")
+        job2 = gw.GenericWorkflowJob("job2", "label2")
+        job3 = gw.GenericWorkflowJob("job3", "label2")
+        job4 = gw.GenericWorkflowJob("job4", "label3")
+        gwlabels.add_job(job1, [], [])
+        gwlabels.add_job(job2, ["label1"], [])
+        gwlabels.add_job(job3, ["label1"], [])
+        gwlabels.add_job(job4, ["label2"], [])
+        self.assertListEqual(gwlabels._label_to_jobs["label1"], [job1])
+        self.assertListEqual(gwlabels._label_to_jobs["label2"], [job2, job3])
+        self.assertListEqual(gwlabels._label_to_jobs["label3"], [job4])
+        self.assertIn("label1", gwlabels._label_graph)
+        self.assertIn("label2", gwlabels._label_graph)
+        self.assertIn("label3", gwlabels._label_graph)
+        self.assertEqual(list(gwlabels._label_graph.successors("label1")), ["label2"])
+        self.assertEqual(list(gwlabels._label_graph.successors("label2")), ["label3"])
+
+    def testDelJobRemain(self):
+        # Test that can delete one of multiple jobs with same label
+        gwlabels = gw.GenericWorkflowLabels()
+        job1 = gw.GenericWorkflowJob("job1", "label1")
+        gwlabels.add_job(job1, [], [])
+        job2 = gw.GenericWorkflowJob("job2", "label2")
+        gwlabels.add_job(job2, ["label1"], [])
+        job3 = gw.GenericWorkflowJob("job3", "label2")
+        gwlabels.add_job(job3, ["label1"], [])
+        job4 = gw.GenericWorkflowJob("job4", "label3")
+        gwlabels.add_job(job4, ["label2"], [])
+
+        gwlabels.del_job(job2)
+        self.assertListEqual(gwlabels._label_to_jobs["label2"], [job3])
+        self.assertIn("label2", gwlabels._label_graph)
+        self.assertEqual(list(gwlabels._label_graph.successors("label1")), ["label2"])
+        self.assertEqual(list(gwlabels._label_graph.successors("label2")), ["label3"])
+
+    def testDelJobLast(self):
+        # Test when removing only job with a label
+        gwlabels = gw.GenericWorkflowLabels()
+        job1 = gw.GenericWorkflowJob("job1", "label1")
+        gwlabels.add_job(job1, [], [])
+        job2 = gw.GenericWorkflowJob("job2", "label2")
+        gwlabels.add_job(job2, [], [])
+        job3 = gw.GenericWorkflowJob("job3", "label3")
+        gwlabels.add_job(job3, ["label1", "label2"], [])
+        job4 = gw.GenericWorkflowJob("job4", "label4")
+        gwlabels.add_job(job4, ["label3"], [])
+        job5 = gw.GenericWorkflowJob("job5", "label5")
+        gwlabels.add_job(job5, ["label3"], [])
+
+        gwlabels.del_job(job3)
+        self.assertNotIn("label3", gwlabels._label_to_jobs)
+        self.assertNotIn("label3", gwlabels._label_graph)
+        self.assertEqual(list(gwlabels._label_graph.successors("label1")), ["label4", "label5"])
+        self.assertEqual(list(gwlabels._label_graph.successors("label2")), ["label4", "label5"])
 
 
 if __name__ == "__main__":
