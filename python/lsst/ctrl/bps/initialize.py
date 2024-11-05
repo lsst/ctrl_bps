@@ -25,13 +25,18 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-__all__ = ["init_submission"]
+__all__ = [
+    "init_submission",
+    "out_collection_validator",
+    "output_run_validator",
+    "submit_path_validator",
+]
 
 import getpass
 import logging
 import re
 import shutil
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 
 from lsst.ctrl.bps import BPS_DEFAULTS, BPS_SEARCH_ORDER, BpsConfig
 from lsst.ctrl.bps.bps_utils import _dump_env_info, _dump_pkg_info, mkdir
@@ -41,13 +46,19 @@ from lsst.utils import doImport
 _LOG = logging.getLogger(__name__)
 
 
-def init_submission(config_file: str, **kwargs) -> BpsConfig:
+def init_submission(
+    config_file: str, validators: Iterable[Callable[[BpsConfig], None]] = (), **kwargs
+) -> BpsConfig:
     """Initialize runtime environment.
 
     Parameters
     ----------
     config_file : `str`
         Name of the configuration file.
+    validators : `Iterable[Callable[[BpsConfig], None]]`, optional
+        A list of functions performing checks on the given configuration.
+        Each function should take a single argument, a BpsConfig object, and
+        raise if the check fails. By default, no checks are performed.
     **kwargs : `~typing.Any`
         Additional modifiers to the configuration.
 
@@ -83,22 +94,18 @@ def init_submission(config_file: str, **kwargs) -> BpsConfig:
             new_key = translation.get(key, re.sub(r"_(\S)", lambda match: match.group(1).upper(), key))
             config[f".bps_cmdline.{new_key}"] = value
 
+    # Run validation tests on the given config if any.
+    for validator in validators:
+        validator(config)
+
     # Set some initial values
     config[".bps_defined.timestamp"] = Instrument.makeCollectionTimestamp()
+
     if "operator" not in config:
         config[".bps_defined.operator"] = getpass.getuser()
 
-    if "outCollection" in config:
-        raise KeyError("outCollection is deprecated.  Replace all outCollection references with outputRun.")
-
-    if "outputRun" not in config:
-        raise KeyError("Must specify the output run collection using outputRun")
-
     if "uniqProcName" not in config:
         config[".bps_defined.uniqProcName"] = config["outputRun"].replace("/", "_")
-
-    if "submitPath" not in config:
-        raise KeyError("Must specify the submit-side run directory using submitPath")
 
     # If requested, run WMS plugin checks early in submission process to
     # ensure WMS has what it will need for prepare() or submit().
@@ -134,3 +141,54 @@ def init_submission(config_file: str, **kwargs) -> BpsConfig:
     _dump_pkg_info(f"{submit_path}/{config['uniqProcName']}.pkg.info.yaml")
 
     return config
+
+
+def output_run_validator(config: BpsConfig) -> None:
+    """Check if 'outputRun' is specified in BPS config.
+
+    Parameters
+    ----------
+    config : `BpsConfig`
+        BPS configuration that needs to be validated.
+
+    Raises
+    ------
+    KeyError
+        Raised if 'outputRun' is not specified in the BPS configuration.
+    """
+    if "outputRun" not in config:
+        raise KeyError("Must specify the output run collection using 'outputRun'")
+
+
+def submit_path_validator(config: BpsConfig) -> None:
+    """Check if 'submitPath' is specified in BPS config.
+
+    Parameters
+    ----------
+    config : `BpsConfig`
+        BPS configuration that needs to be validated.
+
+    Raises
+    ------
+    KeyError
+        Raised if 'submitPath' is not specified in the BPS configuration.
+    """
+    if "submitPath" not in config:
+        raise KeyError("Must specify the submit-side run directory using 'submitPath'")
+
+
+def out_collection_validator(config: BpsConfig) -> None:
+    """Check if 'outCollection' is *not* specified in BPS config.
+
+    Parameters
+    ----------
+    config : `BpsConfig`
+        BPS configuration that needs to be validated.
+
+    Raises
+    ------
+    KeyError
+        Raised if 'submitPath' *is* specified in the BPS configuration.
+    """
+    if "outCollection" in config:
+        raise KeyError("'outCollection' is deprecated. Replace all references to it with 'outputRun'.")

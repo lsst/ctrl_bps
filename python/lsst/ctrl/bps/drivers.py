@@ -56,7 +56,7 @@ from lsst.utils.usage import get_peak_mem_usage
 from . import BPS_DEFAULTS, BPS_SEARCH_ORDER, DEFAULT_MEM_FMT, DEFAULT_MEM_UNIT, BpsConfig
 from .bps_utils import _dump_env_info, _dump_pkg_info, _make_id_link
 from .cancel import cancel
-from .initialize import init_submission
+from .initialize import init_submission, out_collection_validator, output_run_validator, submit_path_validator
 from .ping import ping
 from .pre_transform import acquire_quantum_graph, cluster_quanta
 from .prepare import prepare
@@ -83,6 +83,7 @@ def _init_submission_driver(config_file: str, **kwargs) -> BpsConfig:
     config : `lsst.ctrl.bps.BpsConfig`
         Batch Processing Service configuration.
     """
+    validators = [submit_path_validator, output_run_validator, out_collection_validator]
     _LOG.info("Initializing execution environment")
     with time_this(
         log=_LOG,
@@ -93,7 +94,7 @@ def _init_submission_driver(config_file: str, **kwargs) -> BpsConfig:
         mem_unit=DEFAULT_MEM_UNIT,
         mem_fmt=DEFAULT_MEM_FMT,
     ):
-        config = init_submission(config_file, **kwargs)
+        config = init_submission(config_file, validators=validators, **kwargs)
     if _LOG.isEnabledFor(logging.INFO):
         _LOG.info(
             "Peak memory usage for bps process %s (main), %s (largest child process)",
