@@ -42,6 +42,7 @@ __all__ = [
     "restart_driver",
     "cancel_driver",
     "ping_driver",
+    "subcmd_driver",
 ]
 
 
@@ -56,6 +57,7 @@ from lsst.utils.usage import get_peak_mem_usage
 from . import BPS_DEFAULTS, BPS_SEARCH_ORDER, DEFAULT_MEM_FMT, DEFAULT_MEM_UNIT, BpsConfig
 from .bps_utils import _dump_env_info, _dump_pkg_info, _make_id_link
 from .cancel import cancel
+from .construct import construct
 from .initialize import init_submission, out_collection_validator, output_run_validator, submit_path_validator
 from .ping import ping
 from .pre_transform import acquire_quantum_graph, cluster_quanta
@@ -551,3 +553,99 @@ def ping_driver(wms_service=None, pass_thru=None):
         _LOG.error("Ping failed (%d).", status)
 
     return status
+
+
+def subcmd_driver(config_file: str, **kwargs) -> None:
+    """Submit a command for execution.
+
+    Parameters
+    ----------
+    config_file : `lsst.ctrl.bps.BpsConfig`
+        Name of the configuration file.
+    **kwargs : `~typing.Any`
+        Additional modifiers to the configuration.
+    """
+    validators = [submit_path_validator]
+    _LOG.info("Initializing execution environment")
+    with time_this(
+        log=_LOG,
+        level=logging.INFO,
+        prefix=None,
+        msg="Initializing execution environment completed",
+        mem_usage=True,
+        mem_unit=DEFAULT_MEM_UNIT,
+        mem_fmt=DEFAULT_MEM_FMT,
+    ):
+        config = init_submission(config_file, validators=validators, **kwargs)
+    if _LOG.isEnabledFor(logging.INFO):
+        _LOG.info(
+            "Peak memory usage for bps process %s (main), %s (largest child process)",
+            *tuple(f"{val.to(DEFAULT_MEM_UNIT):{DEFAULT_MEM_FMT}}" for val in get_peak_mem_usage()),
+        )
+    submit_path = config[".bps_defined.submitPath"]
+
+    _LOG.info("Starting construction stage (creating generic workflow)")
+    with time_this(
+        log=_LOG,
+        level=logging.INFO,
+        prefix=None,
+        msg="Constructing stage completed",
+        mem_usage=True,
+        mem_unit=DEFAULT_MEM_UNIT,
+        mem_fmt=DEFAULT_MEM_FMT,
+    ):
+        generic_workflow, generic_workflow_config = construct(config)
+        _LOG.info("Generic workflow name '%s'", generic_workflow.name)
+    if _LOG.isEnabledFor(logging.INFO):
+        _LOG.info(
+            "Peak memory usage for bps process %s (main), %s (largest child process)",
+            *tuple(f"{val.to(DEFAULT_MEM_UNIT):{DEFAULT_MEM_FMT}}" for val in get_peak_mem_usage()),
+        )
+    _, save_workflow = config.search("saveGenericWorkflow", opt={"default": False})
+    if save_workflow:
+        with open(os.path.join(submit_path, "bps_generic_workflow.pickle"), "wb") as outfh:
+            generic_workflow.save(outfh, "pickle")
+    _, save_dot = config.search("saveDot", opt={"default": False})
+    if save_dot:
+        with open(os.path.join(submit_path, "bps_generic_workflow.dot"), "w") as outfh:
+            generic_workflow.draw(outfh, "dot")
+
+    _LOG.info("Starting prepare stage (creating specific implementation of workflow)")
+    with time_this(
+        log=_LOG,
+        level=logging.INFO,
+        prefix=None,
+        msg="Prepare stage completed",
+        mem_usage=True,
+        mem_unit=DEFAULT_MEM_UNIT,
+        mem_fmt=DEFAULT_MEM_FMT,
+    ):
+        wms_workflow = prepare(generic_workflow_config, generic_workflow, submit_path)
+    if _LOG.isEnabledFor(logging.INFO):
+        _LOG.info(
+            "Peak memory usage for bps process %s (main), %s (largest child process)",
+            *tuple(f"{val.to(DEFAULT_MEM_UNIT):{DEFAULT_MEM_FMT}}" for val in get_peak_mem_usage()),
+        )
+    wms_workflow_config = generic_workflow_config
+
+    if kwargs.get("dry_run", False):
+        return
+
+    _LOG.info("Starting submit stage")
+    with time_this(
+        log=_LOG,
+        level=logging.INFO,
+        prefix=None,
+        msg="Completed submit stage",
+        mem_usage=True,
+        mem_unit=DEFAULT_MEM_UNIT,
+        mem_fmt=DEFAULT_MEM_FMT,
+    ):
+        submit(wms_workflow_config, wms_workflow, **kwargs)
+    if _LOG.isEnabledFor(logging.INFO):
+        _LOG.info(
+            "Peak memory usage for bps process %s (main), %s (largest child process)",
+            *tuple(f"{val.to(DEFAULT_MEM_UNIT):{DEFAULT_MEM_FMT}}" for val in get_peak_mem_usage()),
+        )
+    print(f"Run Id: {wms_workflow.run_id}")
+    print(f"Run Name: {wms_workflow.name}")
