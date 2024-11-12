@@ -30,6 +30,7 @@ __all__ = [
     "out_collection_validator",
     "output_run_validator",
     "submit_path_validator",
+    "custom_job_validator",
 ]
 
 import getpass
@@ -192,3 +193,20 @@ def out_collection_validator(config: BpsConfig) -> None:
     """
     if "outCollection" in config:
         raise KeyError("'outCollection' is deprecated. Replace all references to it with 'outputRun'.")
+
+
+def custom_job_validator(config: BpsConfig) -> None:
+    """Check if 'customJob' is specified in BPS config.
+
+    Parameters
+    ----------
+    config : `BpsConfig`
+        BPS configuration that needs to be validated.
+
+    Raises
+    ------
+    KeyError
+        Raised if 'customJob' is not specified in the BPS configuration.
+    """
+    if "customJob" not in config:
+        raise KeyError("Must specify the details of the script to execute using 'customJob'.")

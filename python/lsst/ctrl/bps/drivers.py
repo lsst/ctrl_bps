@@ -58,7 +58,13 @@ from . import BPS_DEFAULTS, BPS_SEARCH_ORDER, DEFAULT_MEM_FMT, DEFAULT_MEM_UNIT,
 from .bps_utils import _dump_env_info, _dump_pkg_info, _make_id_link
 from .cancel import cancel
 from .construct import construct
-from .initialize import init_submission, out_collection_validator, output_run_validator, submit_path_validator
+from .initialize import (
+    custom_job_validator,
+    init_submission,
+    out_collection_validator,
+    output_run_validator,
+    submit_path_validator,
+)
 from .ping import ping
 from .pre_transform import acquire_quantum_graph, cluster_quanta
 from .prepare import prepare
@@ -565,7 +571,7 @@ def subcmd_driver(config_file: str, **kwargs) -> None:
     **kwargs : `~typing.Any`
         Additional modifiers to the configuration.
     """
-    validators = [submit_path_validator]
+    validators = [submit_path_validator, custom_job_validator]
     _LOG.info("Initializing execution environment")
     with time_this(
         log=_LOG,
