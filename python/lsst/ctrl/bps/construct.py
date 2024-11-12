@@ -73,6 +73,7 @@ def create_custom_workflow(config: BpsConfig) -> tuple[GenericWorkflow, BpsConfi
     generic_workflow.run_attrs.update(
         {
             "bps_isjob": "True",
+            "bps_iscustom": "True",
             "bps_project": config["project"],
             "bps_campaign": config["campaign"],
             "bps_run": generic_workflow.name,
