@@ -39,10 +39,10 @@ In principle any number of plugins can exist as long as the interfaces
 of ``ctrl_bps`` are satisfied.
 However, at this time there are well-known and actively used plugins available:
 
-- :py:mod:`lsst.ctrl.bps.htcondor`: uses an HTCondor cluster as the back end;
-- :py:mod:`lsst.ctrl.bps.panda`: uses the HEP-created PanDA workflow management system
+- ``lsst.ctrl.bps.htcondor``: uses an HTCondor cluster as the back end;
+- ``lsst.ctrl.bps.panda``: uses the HEP-created PanDA workflow management system
   as the back end;
-- :py:mod:`lsst.ctrl.bps.parsl`: uses the Python workflow system Parsl as the back end,
+- ``lsst.ctrl.bps.parsl``: uses the Python workflow system Parsl as the back end,
   frequently configured as an interface to a ``slurm`` cluster.
 
 The first two are maintained by the Rubin Observatory project itself.
