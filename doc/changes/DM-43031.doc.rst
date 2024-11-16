@@ -1,0 +1,1 @@
+Added brief description of the three well-known available BPS plugins.

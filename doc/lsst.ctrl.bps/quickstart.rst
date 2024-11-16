@@ -7,22 +7,46 @@ environments.
 
 .. _bps-wmsclass:
 
-Specifying WMS plugin
----------------------
+Workflow Management System (WMS) Plugins
+----------------------------------------
 
 Many `ctrl_bps`_ subcommands described in this document delegate responsibility
-to perform actual operations to the specific WMS plugin and thus need to know
-how to find it.
+to perform actual operations to a specific "WMS plugin".
+The plugins provide interfaces to concrete back ends supplying services.
+Typically a given production site will have a specific back end that is the
+primary one for processing at that site.
+
+Specifying the WMS plugin
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+In a given environment, the BPS software must be configured with the identity
+of the plugin to use.
 
 The location of the plugin can be specified as listed below (in the increasing
 order of priority):
 
 #. by setting ``BPS_WMS_SERVICE_CLASS`` environment variable,
-#. in the config file *via* ``wmsServiceClass`` setting,
+#. in the config file *via* ``wmsServiceClass`` setting (described below, see :ref:`bps-configuration-file`),
 #. using command-line option ``--wms-service-class``.
 
 If plugin location is not specified explicitly using one of the methods above,
 a default value, ``lsst.ctrl.bps.htcondor.HTCondorService``, will be used.
+
+Available plugins
+^^^^^^^^^^^^^^^^^
+
+In principle any number of plugins can exist as long as the interfaces
+of ``ctrl_bps`` are satisfied.
+However, at this time there are well-known and actively used plugins available:
+
+- ``lsst.ctrl.bps.htcondor``: uses an HTCondor cluster as the back end;
+- ``lsst.ctrl.bps.panda``: uses the HEP-created PanDA workflow management system
+  as the back end;
+- ``lsst.ctrl.bps.parsl``: uses the Python workflow system Parsl as the back end,
+  frequently configured as an interface to a ``slurm`` cluster.
+
+The first two are maintained by the Rubin Observatory project itself.
+The Parsl plugin is currently maintained by the larger Rubin community.
 
 .. _bps-ping:
 
