@@ -331,7 +331,7 @@ def add_dim_clusters(
         assert task_def is not None  # for mypy
         for node in qgraph.getNodesForTask(task_def):
             cluster_name, info = get_cluster_name_from_node(
-                node, cluster_dims, "cluster1", template, equal_dims
+                node, cluster_dims, cluster_label, template, equal_dims
             )
 
             # Save mapping for use when creating dependencies.
