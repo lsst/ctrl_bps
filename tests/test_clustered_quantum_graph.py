@@ -24,8 +24,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Unit tests for the clustering methods.
-"""
+"""Unit tests for the clustering methods."""
 
 # Turn off "doesn't conform to snake_case naming style" because matching
 # the unittest casing.
@@ -169,24 +168,29 @@ class TestClusteredQuantumGraph(unittest.TestCase):
         # Test nothing raised on valid clustered quantum graph
         self.cqg1.validate()
 
+    def testValidateBadTagLabel(self):
+        # Test nothing raised on valid clustered quantum graph
+        qc2 = self.cqg1.get_cluster("T23_1_2")
+        qc2.label = "T23"
+        with self.assertRaisesRegex(RuntimeError, "Label mismatch in cluster T23_1_2"):
+            self.cqg1.validate()
+
     def testValidateNotDAG(self):
         # Add bad edge to make not a DAG
         qc1 = self.cqg1.get_cluster("T1_1_2")
         qc2 = self.cqg1.get_cluster("T23_1_2")
         self.cqg1.add_dependency(qc2, qc1)
 
-        with self.assertRaises(RuntimeError) as cm:
+        with self.assertRaisesRegex(RuntimeError, "is not a directed acyclic graph"):
             self.cqg1.validate()
-            self.assertIn("is not a directed acyclic graph", str(cm))
 
     def testValidateMissingQuanta(self):
         # Remove Quanta from cluster
         qc2 = self.cqg1.get_cluster("T23_1_2")
         qc2._qgraph_node_ids = qc2._qgraph_node_ids[:-1]
 
-        with self.assertRaises(RuntimeError) as cm:
+        with self.assertRaisesRegex(RuntimeError, "does not equal number in quantum graph"):
             self.cqg1.validate()
-            self.assertIn("does not equal number in quantum graph", str(cm))
 
     def testValidateDuplicateId(self):
         # Add new Quanta with duplicate Quantum
@@ -197,9 +201,8 @@ class TestClusteredQuantumGraph(unittest.TestCase):
         qc2 = self.cqg1.get_cluster("T23_1_2")
         self.cqg1.add_dependency(qc2, qc)
 
-        with self.assertRaises(RuntimeError) as cm:
+        with self.assertRaisesRegex(RuntimeError, "occurs in at least 2 clusters"):
             self.cqg1.validate()
-            self.assertIn("occurs in at least 2 clusters", str(cm))
 
 
 if __name__ == "__main__":

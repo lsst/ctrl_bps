@@ -24,8 +24,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""ClusteredQuantumGraph-related utilities to support ctrl_bps testing.
-"""
+"""ClusteredQuantumGraph-related utilities to support ctrl_bps testing."""
 
 import uuid
 from copy import deepcopy
@@ -102,7 +101,9 @@ def dump_cqg(cqg):
     for cluster in cqg.clusters():
         dims = {}
         for key, value in cluster.tags.items():
-            if key not in ["label", "node_number"]:
+            if key == "label":
+                info["tags_label"] = value
+            elif key != "node_number":
                 dims[key] = value
         name = replace_node_name(cluster.name, cluster.label, dims)
         orig_to_new[cluster.name] = name
@@ -199,6 +200,7 @@ def make_test_clustered_quantum_graph(outdir):
     qc2 = QuantaCluster.from_quantum_node(test_lookup["T2_1_2"], "T23_1_2")
     qc2.add_quantum_node(test_lookup["T3_1_2"])
     qc2.label = "clusterT2T3"  # update label so doesnt look like only T2
+    qc2.tags["label"] = "clusterT2T3"
     cqg.add_cluster([qc2, qc1])  # reversed to check order is corrected in tests
     cqg.add_dependency(qc1, qc2)
 
@@ -207,6 +209,7 @@ def make_test_clustered_quantum_graph(outdir):
     qc2 = QuantaCluster.from_quantum_node(test_lookup["T2_1_4"], "T23_1_4")
     qc2.add_quantum_node(test_lookup["T3_1_4"])
     qc2.label = "clusterT2T3"  # update label so doesnt look like only T2
+    qc2.tags["label"] = "clusterT2T3"
     cqg.add_cluster([qc2, qc1])  # reversed to check order is corrected in tests
     cqg.add_dependency(qc1, qc2)
 
@@ -215,6 +218,7 @@ def make_test_clustered_quantum_graph(outdir):
     qc2 = QuantaCluster.from_quantum_node(test_lookup["T2_3_4"], "T23_3_4")
     qc2.add_quantum_node(test_lookup["T3_3_4"])
     qc2.label = "clusterT2T3"  # update label so doesnt look like only T2
+    qc2.tags["label"] = "clusterT2T3"
     cqg.add_cluster([qc2, qc1])  # reversed to check order is corrected in tests
     cqg.add_dependency(qc1, qc2)
 

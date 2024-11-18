@@ -526,8 +526,15 @@ class ClusteredQuantumGraph:
             raise RuntimeError("ClusteredQuantumGraph is not a directed acyclic graph.")
 
         # Check that Quantum only in 1 cluster
+        # Check cluster tags label matches cluster label
         node_ids = set()
         for cluster in self.clusters():
+            if "label" in cluster.tags and cluster.tags["label"] != cluster.label:
+                raise RuntimeError(
+                    f"Label mismatch in cluster {cluster.name}: "
+                    f"cluster={cluster.label} tags={cluster.tags['label']}"
+                )
+
             for node_id in cluster.qgraph_node_ids:
                 if node_id in node_ids:
                     raise RuntimeError(
