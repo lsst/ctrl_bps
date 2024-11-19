@@ -37,8 +37,8 @@ from ...drivers import (
     prepare_driver,
     report_driver,
     restart_driver,
-    subcmd_driver,
     submit_driver,
+    submitcmd_driver,
     transform_driver,
 )
 from .. import opt
@@ -162,6 +162,6 @@ def ping(*args, **kwargs):
 @opt.config_file_argument(required=True)
 @opt.wms_service_option()
 @click.option("--dry-run", "dry_run", is_flag=True, help="Prepare workflow but don't submit")
-def subcmd(*args, **kwargs):
+def submitcmd(*args, **kwargs):
     """Submit a command for execution."""
-    subcmd_driver(*args, **kwargs)
+    submitcmd_driver(*args, **kwargs)

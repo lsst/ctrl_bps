@@ -38,11 +38,11 @@ __all__ = [
     "transform_driver",
     "prepare_driver",
     "submit_driver",
+    "submitcmd_driver",
     "report_driver",
     "restart_driver",
     "cancel_driver",
     "ping_driver",
-    "subcmd_driver",
 ]
 
 
@@ -561,7 +561,7 @@ def ping_driver(wms_service=None, pass_thru=None):
     return status
 
 
-def subcmd_driver(config_file: str, **kwargs) -> None:
+def submitcmd_driver(config_file: str, **kwargs) -> None:
     """Submit a command for execution.
 
     Parameters

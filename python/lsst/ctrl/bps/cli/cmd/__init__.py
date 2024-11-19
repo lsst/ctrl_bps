@@ -35,7 +35,7 @@ __all__ = [
     "report",
     "cancel",
     "ping",
-    "subcmd",
+    "submitcmd",
 ]
 
-from .commands import acquire, cancel, cluster, ping, prepare, report, restart, subcmd, submit, transform
+from .commands import acquire, cancel, cluster, ping, prepare, report, restart, submit, submitcmd, transform
