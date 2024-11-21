@@ -1,1 +1,0 @@
-Created a dedicated section gathering all the information how to use the automatic memory scaling in BPS.

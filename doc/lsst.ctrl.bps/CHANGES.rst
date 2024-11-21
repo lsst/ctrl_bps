@@ -1,3 +1,52 @@
+lsst-ctrl-bps v28.0.0 (2024-11-21)
+==================================
+
+New Features
+------------
+
+- Modified ``bps submit`` and ``bps restart`` to enable them to make a softlink to the submit run directory.
+  The softlink is named after the WMS job id.
+  ``idLinkPath`` determines the parent directory for the link (defaults to ``${PWD}/bps_links``).
+  ``makeIdLink`` is a boolean used to turn on/off the creation of the link (defaults to `False`). (`DM-41672 <https://rubinobs.atlassian.net/browse/DM-41672>`_)
+
+
+API Changes
+-----------
+
+- * Modified the name of the function responsible for displaying BPS run report from ``report()`` to ``display_report()``.
+  * Added a new function, ``retrieve_report()`` which should be used for retrieving the run report from the BPS plugin in use. (`DM-43985 <https://rubinobs.atlassian.net/browse/DM-43985>`_)
+
+
+Bug Fixes
+---------
+
+- Stopped ``BpsConfig.__init__()`` from including ``wmsServiceClass`` setting in every instance when the environment variable ``BPS_WMS_SERVICE_CLASS`` is set. (`DM-44833 <https://rubinobs.atlassian.net/browse/DM-44833>`_)
+
+
+Other Changes and Additions
+---------------------------
+
+- Modified ``bps report`` to display WMS specific information if any is available. (`DM-42579 <https://rubinobs.atlassian.net/browse/DM-42579>`_)
+- Created YAML variable for updating output chain to make it simpler for advanced tooling to disable. (`DM-42900 <https://rubinobs.atlassian.net/browse/DM-42900>`_)
+- Added a mechanism allowing BPS plugins to provide their own defaults (either WMS-specific values or overriding BPS defaults) so they can, for example, provide their own value for parameters like ``memoryLimit``. (`DM-44110 <https://rubinobs.atlassian.net/browse/DM-44110>`_)
+- Added a global default value for ``memoryLimit`` to let the users use the BPS automatic memory scaling mechanism. (`DM-44156 <https://rubinobs.atlassian.net/browse/DM-44156>`_)
+- Changed BPS internals to use ``pipeline_graph`` instead of ``taskGraph``. (`DM-44168 <https://rubinobs.atlassian.net/browse/DM-44168>`_)
+- In flag column in summary report, made (F)ailed lower precedence than (D)eleted and (H)eld. (`DM-44457 <https://rubinobs.atlassian.net/browse/DM-44457>`_)
+- Updated ``retryUnlessExit`` to allow multiple exit codes and add to documentation.
+  Added bps defaults for ``numberOfRetries``, ``memoryMultiplier``, and ``retryUnlessExit``. (`DM-44668 <https://rubinobs.atlassian.net/browse/DM-44668>`_)
+- Fixed to remove tmp directories created in ``TestClusteredQuantumGraph``. (`DM-45635 <https://rubinobs.atlassian.net/browse/DM-45635>`_)
+- Fixed ``test_clustered_quantum_graph.testClusters``.
+  Moved validation of ``ClusteredQuantumGraph`` from tests to class definition.
+  Added following ``QuantumGraph`` dependencies to dimension clustering to enable clustering when dimension values aren't equal (e.g., group vs visit). (`DM-46513 <https://rubinobs.atlassian.net/browse/DM-46513>`_)
+- Created a dedicated section gathering all the information how to use the automatic memory scaling in BPS. (`DM-44200 <https://rubinobs.atlassian.net/browse/DM-44200>`_)
+
+An API Removal or Deprecation
+-----------------------------
+
+- Quantum-backed butler is now de facto standard Rubin mechanism for reducing access to the central butler registry when running LSST pipelines at scale.
+  As a result the support for its predecessor, the execution butler, was removed from ``ctrl_bps``. (`DM-40342 <https://rubinobs.atlassian.net/browse/DM-40342>`_)
+
+
 lsst-ctrl-bps 27.0.0 (2024-05-29)
 =================================
 
