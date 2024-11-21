@@ -1,1 +1,0 @@
-Added a mechanism allowing BPS plugins to provide their own defaults (either WMS-specific values or overriding BPS defaults) so they can, for example, provide their own value for parameters like ``memoryLimit``.

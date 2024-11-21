@@ -1,1 +1,0 @@
-Added a global default values for ``memoryLimit`` to let the users use the BPS automatic memory scaling mechanism.

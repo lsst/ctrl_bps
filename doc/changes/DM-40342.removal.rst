@@ -1,1 +1,0 @@
-Quantum-backed butler is now de facto standard LSST mechanism to for reducing access to the central butler registry when running LSST pipelines at scale. As a result the support for its predecessor, the execution butler, was removed from **ctrl_bps**.
