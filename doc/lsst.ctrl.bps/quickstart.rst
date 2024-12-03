@@ -232,7 +232,7 @@ arguments, e.g.:
      executable: "${HOME}/scripts/sleep.sh"
      arguments: "2"
 
-   # Uncomment settings below to disable automatic memory scaling and retires
+   # Uncomment settings below to disable automatic memory scaling and retries
    # which BPS enables by default.
    #
    # memoryMultiplier: 1
@@ -251,9 +251,9 @@ This config file will instruct BPS to create a special single-job *workflow* to
 run your script.  That workflow will be submitted for execution as any other
 workflow.
 
-As a result, the submission process for a custom script looks quite similarly
+As a result, the submission process for a custom script looks quite similar
 to the submission process of regular payload jobs (i.e. jobs running
-``pipetask``) submitted for execution.  You can specified job requirements
+``pipetask``) submitted for execution.  You can specify job requirements
 (e.g. ``computeSite``, ``requestMemory``, etc.) as for any other payload job
 providing that they are supported by the WMS plugin you are using.
 
@@ -262,10 +262,12 @@ There are few things you need to keep in mind though:
 #. The script is run "as-is". As a result, the user is responsible for:
 
    * setting the correct permissions on the script file,
-   * including the appropriate shebang interpreter directive at the begining
+   * including the appropriate shebang interpreter directive at the beginning
      of the script.
 
-#. The execution environment is expected to be set by the script itself.
+#. ``bps submitcmd`` will *not* create a ``QuantumGraph`` even if the
+   instructions exist in the submit YAML.  If you need the quantum graph, use
+   ``bps submit``.
 
 #. At the moment, the mechanism does not support transferring files other than
    executable.
@@ -274,13 +276,17 @@ There are few things you need to keep in mind though:
    submit directory and this copy (not the original script) is being submitted
    for execution.  As a result, making any changes to the original script after
    the run has been submitted will have no effect even if the run is still in
-   the WMS work queue awaiting for execution.
+   the WMS work queue waiting for execution.
 
 #. Some BPS plugins may require inclusion of plugin-specific settings for this
    mechanism to work.  Consult the documentation of the plugin you use for
    details.
 
-.. _bps-report:
+#. Since the script is submitted for execution as a regular workflow the stdout
+   and stderr of the job can be found same way as payload job. You also can use
+   ``bps report`` to check its status, ``bps cancel`` to cancel it, etc.
+
+_bps-report:
 
 Checking status
 ---------------

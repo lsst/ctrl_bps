@@ -1,1 +1,1 @@
-Added a new command, ``submitcmd``, that allows the user to execute some light-weighted, ancillary scripts at a given compute site by submitting a dedicated, single-job workflow to that site.
+Added a new command, ``submitcmd``, that allows the user to execute some lightweight, ancillary scripts at a given compute site by submitting a dedicated, single-job workflow to that site.
