@@ -103,11 +103,7 @@ def _init_submission_driver(config_file: str, **kwargs) -> BpsConfig:
         mem_fmt=DEFAULT_MEM_FMT,
     ):
         config = init_submission(config_file, validators=validators, **kwargs)
-    if _LOG.isEnabledFor(logging.INFO):
-        _LOG.info(
-            "Peak memory usage for bps process %s (main), %s (largest child process)",
-            *tuple(f"{val.to(DEFAULT_MEM_UNIT):{DEFAULT_MEM_FMT}}" for val in get_peak_mem_usage()),
-        )
+    _log_mem_usage()
 
     submit_path = config[".bps_defined.submitPath"]
     print(f"Submit dir: {submit_path}")
@@ -145,11 +141,7 @@ def acquire_qgraph_driver(config_file: str, **kwargs) -> tuple[BpsConfig, Quantu
         mem_fmt=DEFAULT_MEM_FMT,
     ):
         qgraph_file, qgraph = acquire_quantum_graph(config, out_prefix=submit_path)
-    if _LOG.isEnabledFor(logging.INFO):
-        _LOG.info(
-            "Peak memory usage for bps process %s (main), %s (largest child process)",
-            *tuple(f"{val.to(DEFAULT_MEM_UNIT):{DEFAULT_MEM_FMT}}" for val in get_peak_mem_usage()),
-        )
+    _log_mem_usage()
 
     config[".bps_defined.runQgraphFile"] = qgraph_file
     return config, qgraph
@@ -185,11 +177,8 @@ def cluster_qgraph_driver(config_file, **kwargs):
         mem_fmt=DEFAULT_MEM_FMT,
     ):
         clustered_qgraph = cluster_quanta(config, qgraph, config["uniqProcName"])
-    if _LOG.isEnabledFor(logging.INFO):
-        _LOG.info(
-            "Peak memory usage for bps process %s (main), %s (largest child process)",
-            *tuple(f"{val.to(DEFAULT_MEM_UNIT):{DEFAULT_MEM_FMT}}" for val in get_peak_mem_usage()),
-        )
+    _log_mem_usage()
+
     _LOG.info("ClusteredQuantumGraph contains %d cluster(s)", len(clustered_qgraph))
 
     submit_path = config[".bps_defined.submitPath"]
@@ -235,11 +224,8 @@ def transform_driver(config_file, **kwargs):
     ):
         generic_workflow, generic_workflow_config = transform(config, clustered_qgraph, submit_path)
         _LOG.info("Generic workflow name '%s'", generic_workflow.name)
-    if _LOG.isEnabledFor(logging.INFO):
-        _LOG.info(
-            "Peak memory usage for bps process %s (main), %s (largest child process)",
-            *tuple(f"{val.to(DEFAULT_MEM_UNIT):{DEFAULT_MEM_FMT}}" for val in get_peak_mem_usage()),
-        )
+    _log_mem_usage()
+
     num_jobs = sum(generic_workflow.job_counts.values())
     _LOG.info("GenericWorkflow contains %d job(s) (including final)", num_jobs)
 
@@ -287,11 +273,7 @@ def prepare_driver(config_file, **kwargs):
         mem_fmt=DEFAULT_MEM_FMT,
     ):
         wms_workflow = prepare(generic_workflow_config, generic_workflow, submit_path)
-    if _LOG.isEnabledFor(logging.INFO):
-        _LOG.info(
-            "Peak memory usage for bps process %s (main), %s (largest child process)",
-            *tuple(f"{val.to(DEFAULT_MEM_UNIT):{DEFAULT_MEM_FMT}}" for val in get_peak_mem_usage()),
-        )
+    _log_mem_usage()
 
     wms_workflow_config = generic_workflow_config
     return wms_workflow_config, wms_workflow
@@ -377,11 +359,7 @@ def submit_driver(config_file, **kwargs):
             if not wms_workflow:
                 wms_workflow = workflow
             _LOG.info("Run '%s' submitted for execution with id '%s'", wms_workflow.name, wms_workflow.run_id)
-    if _LOG.isEnabledFor(logging.INFO):
-        _LOG.info(
-            "Peak memory usage for bps process %s (main), %s (largest child process)",
-            *tuple(f"{val.to(DEFAULT_MEM_UNIT):{DEFAULT_MEM_FMT}}" for val in get_peak_mem_usage()),
-        )
+    _log_mem_usage()
 
     _make_id_link(wms_workflow_config, wms_workflow.run_id)
 
@@ -583,11 +561,8 @@ def submitcmd_driver(config_file: str, **kwargs) -> None:
         mem_fmt=DEFAULT_MEM_FMT,
     ):
         config = init_submission(config_file, validators=validators, **kwargs)
-    if _LOG.isEnabledFor(logging.INFO):
-        _LOG.info(
-            "Peak memory usage for bps process %s (main), %s (largest child process)",
-            *tuple(f"{val.to(DEFAULT_MEM_UNIT):{DEFAULT_MEM_FMT}}" for val in get_peak_mem_usage()),
-        )
+    _log_mem_usage()
+
     submit_path = config[".bps_defined.submitPath"]
 
     _LOG.info("Starting construction stage (creating generic workflow)")
@@ -602,11 +577,8 @@ def submitcmd_driver(config_file: str, **kwargs) -> None:
     ):
         generic_workflow, generic_workflow_config = construct(config)
         _LOG.info("Generic workflow name '%s'", generic_workflow.name)
-    if _LOG.isEnabledFor(logging.INFO):
-        _LOG.info(
-            "Peak memory usage for bps process %s (main), %s (largest child process)",
-            *tuple(f"{val.to(DEFAULT_MEM_UNIT):{DEFAULT_MEM_FMT}}" for val in get_peak_mem_usage()),
-        )
+    _log_mem_usage()
+
     _, save_workflow = config.search("saveGenericWorkflow", opt={"default": False})
     if save_workflow:
         with open(os.path.join(submit_path, "bps_generic_workflow.pickle"), "wb") as outfh:
@@ -627,11 +599,8 @@ def submitcmd_driver(config_file: str, **kwargs) -> None:
         mem_fmt=DEFAULT_MEM_FMT,
     ):
         wms_workflow = prepare(generic_workflow_config, generic_workflow, submit_path)
-    if _LOG.isEnabledFor(logging.INFO):
-        _LOG.info(
-            "Peak memory usage for bps process %s (main), %s (largest child process)",
-            *tuple(f"{val.to(DEFAULT_MEM_UNIT):{DEFAULT_MEM_FMT}}" for val in get_peak_mem_usage()),
-        )
+    _log_mem_usage()
+
     wms_workflow_config = generic_workflow_config
 
     if kwargs.get("dry_run", False):
@@ -648,10 +617,15 @@ def submitcmd_driver(config_file: str, **kwargs) -> None:
         mem_fmt=DEFAULT_MEM_FMT,
     ):
         submit(wms_workflow_config, wms_workflow, **kwargs)
+    _log_mem_usage()
+    print(f"Run Id: {wms_workflow.run_id}")
+    print(f"Run Name: {wms_workflow.name}")
+
+
+def _log_mem_usage() -> None:
+    """Log memory usage."""
     if _LOG.isEnabledFor(logging.INFO):
         _LOG.info(
             "Peak memory usage for bps process %s (main), %s (largest child process)",
             *tuple(f"{val.to(DEFAULT_MEM_UNIT):{DEFAULT_MEM_FMT}}" for val in get_peak_mem_usage()),
         )
-    print(f"Run Id: {wms_workflow.run_id}")
-    print(f"Run Name: {wms_workflow.name}")
