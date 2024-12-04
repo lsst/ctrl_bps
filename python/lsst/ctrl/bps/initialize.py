@@ -211,5 +211,5 @@ def custom_job_validator(config: BpsConfig) -> None:
     KeyError
         Raised if 'customJob' is not specified in the BPS configuration.
     """
-    if "customJob" not in config:
+    if "customJob" not in config and "executable" not in config["customJob"]:
         raise KeyError("Must specify the details of the script to execute using 'customJob'.")
