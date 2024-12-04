@@ -25,7 +25,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-"""Driver for submitting a prepared WMS-specific workflow.
+"""Driver for constructing a generic workflow running a custom job.
 """
 
 __all__ = ["construct"]
@@ -41,19 +41,26 @@ _LOG = logging.getLogger(__name__)
 
 
 def construct(config: BpsConfig) -> tuple[GenericWorkflow, BpsConfig]:
-    """Create a workflow for running a command.
+    """Create a workflow for running a custom job.
 
     Parameters
     ----------
     config : `lsst.ctrl.bps.BpsConfig`
         Configuration values to be used by submission.
+
+    Returns
+    -------
+    generic_workflow : `lsst.ctrl.bps.GenericWorkflow`
+        Generic workflow for running a standalone job.
+    generic_workflow_config : `lsst.ctrl.BpsConfig`
+        Configuration to accompany created generic workflow.
     """
     generic_workflow, generic_workflow_config = create_custom_workflow(config)
     return generic_workflow, generic_workflow_config
 
 
 def create_custom_workflow(config: BpsConfig) -> tuple[GenericWorkflow, BpsConfig]:
-    """Create a workflow that will run the standalone job.
+    """Create a workflow that will run a custom job.
 
     Parameters
     ----------
@@ -63,7 +70,9 @@ def create_custom_workflow(config: BpsConfig) -> tuple[GenericWorkflow, BpsConfi
     Returns
     -------
     generic_workflow : `lsst.ctrl.bps.GenericWorkflow`
-        Generic workflow for running a standalone job.
+        Generic workflow for running a custom job.
+    generic_workflow_config : `lsst.ctrl.BpsConfig`
+        Configuration to accompany created generic workflow.
     """
     gwjob = create_custom_job(config)
 
@@ -91,7 +100,7 @@ def create_custom_workflow(config: BpsConfig) -> tuple[GenericWorkflow, BpsConfi
 
 
 def create_custom_job(config: BpsConfig) -> GenericWorkflowJob:
-    """Create a job that will run a command.
+    """Create a job that will run a custom command or script.
 
     Parameters
     ----------
@@ -101,7 +110,7 @@ def create_custom_job(config: BpsConfig) -> GenericWorkflowJob:
     Returns
     -------
     job : `lsst.ctrl.bps.GenericWorkflowJob`
-        A standalone job responsible for running the command.
+        A custom job responsible for running the command.
     """
     prefix = Path(config["submitPath"])
     job_label = "customJob"

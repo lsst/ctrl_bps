@@ -566,7 +566,7 @@ def submitcmd_driver(config_file: str, **kwargs) -> None:
 
     Parameters
     ----------
-    config_file : `lsst.ctrl.bps.BpsConfig`
+    config_file : `str`
         Name of the configuration file.
     **kwargs : `~typing.Any`
         Additional modifiers to the configuration.

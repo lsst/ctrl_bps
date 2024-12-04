@@ -25,6 +25,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+"""Driver for initializing a BPS submission.
+"""
+
 __all__ = [
     "init_submission",
     "out_collection_validator",
@@ -50,7 +53,7 @@ _LOG = logging.getLogger(__name__)
 def init_submission(
     config_file: str, validators: Iterable[Callable[[BpsConfig], None]] = (), **kwargs
 ) -> BpsConfig:
-    """Initialize runtime environment.
+    """Initialize BPS configuration and create submit directory.
 
     Parameters
     ----------
@@ -189,7 +192,7 @@ def out_collection_validator(config: BpsConfig) -> None:
     Raises
     ------
     KeyError
-        Raised if 'submitPath' *is* specified in the BPS configuration.
+        Raised if 'outCollection' *is* specified in the BPS configuration.
     """
     if "outCollection" in config:
         raise KeyError("'outCollection' is deprecated. Replace all references to it with 'outputRun'.")

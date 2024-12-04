@@ -85,7 +85,7 @@ def chdir(path):
 
 
 def mkdir(path: str) -> Path:
-    """Crate a new directory at this given path.
+    """Create a new directory at this given path.
 
     Parameters
     ----------
@@ -100,7 +100,11 @@ def mkdir(path: str) -> Path:
     Raises
     ------
     OSError
-        Raised if the path already exists or cannot be created.
+        Raised if any issues were encountered during the attempt to create the
+        directory. Depending on the system error code a specific subclass of
+        ``OSError`` will get raised. For example, the function will raise
+        ``PermissionError`` when trying to create a directory at the location
+        it has no adequate access rights.
     """
     path = Path(path)
     try:
