@@ -92,12 +92,12 @@ def _init_submission_driver(config_file: str, **kwargs) -> BpsConfig:
         Batch Processing Service configuration.
     """
     validators = [submit_path_validator, output_run_validator, out_collection_validator]
-    _LOG.info("Initializing execution environment")
+    _LOG.info("Initializing BPS configuration and creating submit directory")
     with time_this(
         log=_LOG,
         level=logging.INFO,
         prefix=None,
-        msg="Initializing execution environment completed",
+        msg="BPS configuration initialized and submit directory created",
         mem_usage=True,
         mem_unit=DEFAULT_MEM_UNIT,
         mem_fmt=DEFAULT_MEM_FMT,
@@ -353,7 +353,7 @@ def submit_driver(config_file, **kwargs):
         log=_LOG,
         level=logging.INFO,
         prefix=None,
-        msg="Completed entire submission process",
+        msg="Submission process completed",
         mem_usage=True,
         mem_unit=DEFAULT_MEM_UNIT,
         mem_fmt=DEFAULT_MEM_FMT,
@@ -368,7 +368,7 @@ def submit_driver(config_file, **kwargs):
             log=_LOG,
             level=logging.INFO,
             prefix=None,
-            msg="Completed submit stage",
+            msg="Submit stage completed",
             mem_usage=True,
             mem_unit=DEFAULT_MEM_UNIT,
             mem_fmt=DEFAULT_MEM_FMT,
@@ -572,12 +572,12 @@ def submitcmd_driver(config_file: str, **kwargs) -> None:
         Additional modifiers to the configuration.
     """
     validators = [submit_path_validator, custom_job_validator]
-    _LOG.info("Initializing execution environment")
+    _LOG.info("Initializing BPS configuration and creating submit directory")
     with time_this(
         log=_LOG,
         level=logging.INFO,
         prefix=None,
-        msg="Initializing execution environment completed",
+        msg="BPS configuration initialized and submit directory created",
         mem_usage=True,
         mem_unit=DEFAULT_MEM_UNIT,
         mem_fmt=DEFAULT_MEM_FMT,
@@ -595,7 +595,7 @@ def submitcmd_driver(config_file: str, **kwargs) -> None:
         log=_LOG,
         level=logging.INFO,
         prefix=None,
-        msg="Constructing stage completed",
+        msg="Construction stage completed",
         mem_usage=True,
         mem_unit=DEFAULT_MEM_UNIT,
         mem_fmt=DEFAULT_MEM_FMT,
@@ -642,7 +642,7 @@ def submitcmd_driver(config_file: str, **kwargs) -> None:
         log=_LOG,
         level=logging.INFO,
         prefix=None,
-        msg="Completed submit stage",
+        msg="Submit stage completed",
         mem_usage=True,
         mem_unit=DEFAULT_MEM_UNIT,
         mem_fmt=DEFAULT_MEM_FMT,
