@@ -161,6 +161,7 @@ def ping(*args, **kwargs):
 @click.command(cls=BpsCommand)
 @opt.config_file_argument(required=True)
 @opt.wms_service_option()
+@opt.compute_site_option()
 @click.option("--dry-run", "dry_run", is_flag=True, help="Prepare workflow but don't submit")
 def submitcmd(*args, **kwargs):
     """Submit a command for execution."""
