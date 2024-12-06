@@ -31,7 +31,37 @@ import unittest
 from pathlib import Path
 
 from lsst.ctrl.bps import BpsConfig
-from lsst.ctrl.bps.bps_utils import _make_id_link, chdir
+from lsst.ctrl.bps.bps_utils import _make_id_link, chdir, mkdir
+
+
+class TestMkdir(unittest.TestCase):
+    """Test directory creation."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.TemporaryDirectory()
+
+    def tearDown(self):
+        self.tmpdir.cleanup()
+
+    def testSuccess(self):
+        path = self.tmpdir.name + "/foo/bar"
+        mkdir(path)
+        self.assertTrue(Path(path).exists())
+
+    def testFailureDirectoryExists(self):
+        path = Path(self.tmpdir.name) / "foo/bar"
+        path.mkdir(parents=True, exist_ok=True)
+        with self.assertRaises(OSError) as cm:
+            mkdir(str(path))
+        self.assertRegex(cm.exception.args[0], "directory.*exists")
+
+    def testFailureOther(self):
+        # Not checking the error message because it depends on the OS on which
+        # the test is run ("Permission denied" on linux, "Read-only file
+        # system" in MacOS).
+        path = Path("/foo/bar")
+        with self.assertRaises(OSError):
+            mkdir(str(path))
 
 
 class TestChdir(unittest.TestCase):

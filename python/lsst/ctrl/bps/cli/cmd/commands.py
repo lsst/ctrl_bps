@@ -38,6 +38,7 @@ from ...drivers import (
     report_driver,
     restart_driver,
     submit_driver,
+    submitcmd_driver,
     transform_driver,
 )
 from .. import opt
@@ -155,3 +156,13 @@ def ping(*args, **kwargs):
     # Note: Using return statement doesn't actually return the value
     # to the shell.  Using click function instead.
     click.get_current_context().exit(ping_driver(*args, **kwargs))
+
+
+@click.command(cls=BpsCommand)
+@opt.config_file_argument(required=True)
+@opt.wms_service_option()
+@opt.compute_site_option()
+@click.option("--dry-run", "dry_run", is_flag=True, help="Prepare workflow but don't submit")
+def submitcmd(*args, **kwargs):
+    """Submit a command for execution."""
+    submitcmd_driver(*args, **kwargs)
