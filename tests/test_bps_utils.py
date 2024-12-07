@@ -31,7 +31,7 @@ import unittest
 from pathlib import Path
 
 from lsst.ctrl.bps import BpsConfig
-from lsst.ctrl.bps.bps_utils import _make_id_link, chdir, mkdir
+from lsst.ctrl.bps.bps_utils import _make_id_link, chdir, mkdir, subset_dimension_values
 
 
 class TestMkdir(unittest.TestCase):
@@ -223,6 +223,34 @@ class TestMakeIdLink(unittest.TestCase):
             self.assertRegex(cm.records[-1].getMessage(), "Could not make id softlink:.*Permission denied")
         link_path = dir_of_links / "100.0"
         self.assertFalse(link_path.is_symlink())
+
+
+class TestSubsetDimensionValues(unittest.TestCase):
+    """Test subset_dimension_values method."""
+
+    def testMissingDimensions(self):
+        with self.assertRaisesRegex(
+            KeyError, r"obj1 missing dimensions \(miss1, miss2\) required for mytest"
+        ):
+            subset_dimension_values(
+                "obj1",
+                "mytest",
+                "visit,miss1,detector,miss2",
+                {"visit": 301, "detector": 10},
+                "miss1:notthere",
+            )
+
+    def testEqualDim1(self):
+        results = subset_dimension_values(
+            "obj1", "mytest", "visit,detector", {"exposure": 301, "detector": 10}, "visit:exposure"
+        )
+        self.assertEqual(results, {"visit": 301, "detector": 10})
+
+    def testEqualDim2(self):
+        results = subset_dimension_values(
+            "obj1", "mytest", "visit,detector", {"exposure": 301, "detector": 10}, "exposure:visit"
+        )
+        self.assertEqual(results, {"visit": 301, "detector": 10})
 
 
 if __name__ == "__main__":
