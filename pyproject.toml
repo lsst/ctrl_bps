@@ -123,6 +123,16 @@ convention = "numpy"
 # We do not require docstrings in __init__ files (D104).
 add-ignore = ["D107", "D105", "D102", "D100", "D200", "D205", "D400", "D104"]
 
+[tool.coverage.report]
+show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
+
 [tool.ruff]
 line-length = 110
 target-version = "py311"

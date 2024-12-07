@@ -181,7 +181,7 @@ def create_init_workflow(
     init_workflow.add_file(qgraph_gwfile)
 
     # create job for executing --init-only
-    gwjob = GenericWorkflowJob("pipetaskInit", label="pipetaskInit")
+    gwjob = GenericWorkflowJob("pipetaskInit", "pipetaskInit")
 
     job_values = _get_job_values(config, search_opt, "runQuantumCommand")
     job_values["name"] = "pipetaskInit"
@@ -394,7 +394,7 @@ def _get_job_values(config, search_opt, cmd_line_key):
     _LOG.debug("cmd_line_key=%s, search_opt=%s", cmd_line_key, search_opt)
 
     # Create a dummy job to easily access the default values.
-    default_gwjob = GenericWorkflowJob("default_job")
+    default_gwjob = GenericWorkflowJob("default_job", "default_label")
 
     job_values = {}
     for attr in _ATTRS_ALL:
@@ -636,7 +636,7 @@ def create_generic_workflow(
             cluster.qgraph_node_ids,
         )
 
-        gwjob = GenericWorkflowJob(cluster.name, label=cluster.label)
+        gwjob = GenericWorkflowJob(cluster.name, cluster.label)
 
         # First get job values from cluster or cluster config
         search_opt["curvals"] = {"curr_cluster": cluster.label}
@@ -813,7 +813,7 @@ def create_final_job(config: BpsConfig, generic_workflow: GenericWorkflow, prefi
         Final workflow job.
     """
     job_name = "finalJob"
-    gwjob = GenericWorkflowJob(job_name, label=job_name)
+    gwjob = GenericWorkflowJob(job_name, job_name)
 
     search_opt = {"searchobj": config[job_name], "curvals": {}, "default": None}
     found, value = config.search("computeSite", opt=search_opt)

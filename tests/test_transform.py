@@ -149,7 +149,7 @@ class TestGetJobValues(unittest.TestCase):
     """Tests of _get_job_values."""
 
     def setUp(self):
-        self.default_job = GenericWorkflowJob("default_job")
+        self.default_job = GenericWorkflowJob("default_job", "default_label")
 
     def testGettingDefaults(self):
         """Test retrieving default values."""
