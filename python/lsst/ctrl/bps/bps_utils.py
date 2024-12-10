@@ -30,6 +30,7 @@
 
 __all__ = [
     "chdir",
+    "mkdir",
     "create_job_quantum_graph_filename",
     "save_qg_subgraph",
     "create_count_summary",
@@ -41,6 +42,7 @@ __all__ = [
 
 import contextlib
 import dataclasses
+import errno
 import logging
 import os
 from collections import Counter
@@ -80,6 +82,40 @@ def chdir(path):
         yield
     finally:
         os.chdir(cur_dir)
+
+
+def mkdir(path: str) -> Path:
+    """Create a new directory at this given path.
+
+    Parameters
+    ----------
+    path : `str`
+        A string representing the path to create.
+
+    Returns
+    -------
+    path: `pathlib.Path`
+        The object representing the created directory.
+
+    Raises
+    ------
+    OSError
+        Raised if any issues were encountered during the attempt to create the
+        directory. Depending on the system error code a specific subclass of
+        ``OSError`` will get raised. For example, the function will raise
+        ``PermissionError`` when trying to create a directory at the location
+        it has no adequate access rights.
+    """
+    path = Path(path)
+    try:
+        path.mkdir(parents=True, exist_ok=False)
+    except OSError as exc:
+        if exc.errno == errno.EEXIST:
+            reason = "directory already exists"
+        else:
+            reason = exc.strerror
+        raise type(exc)(f"cannot create directory '{path}': {reason}") from None
+    return path
 
 
 def create_job_quantum_graph_filename(config, job, out_prefix=None):

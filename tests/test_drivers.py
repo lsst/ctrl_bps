@@ -31,6 +31,7 @@ import shutil
 import tempfile
 import unittest
 
+import yaml
 from lsst.ctrl.bps.drivers import _init_submission_driver, ping_driver
 
 TESTDIR = os.path.abspath(os.path.dirname(__file__))
@@ -46,20 +47,35 @@ class TestInitSubmissionDriver(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.tmpdir, ignore_errors=True)
 
-    @unittest.mock.patch("lsst.ctrl.bps.drivers.BPS_DEFAULTS", {})
+    @unittest.mock.patch("lsst.ctrl.bps.initialize.BPS_DEFAULTS", {})
     def testDeprecatedOutCollection(self):
-        with self.assertRaisesRegex(KeyError, "outCollection"):
-            _init_submission_driver({"payload": {"outCollection": "bad"}})
+        config = {
+            "submitPath": "bad",
+            "payload": {
+                "outCollection": "bad",
+                "outputRun": "bad",
+            },
+        }
+        with tempfile.NamedTemporaryFile(mode="w+", suffix=".yaml") as file:
+            yaml.dump(config, stream=file)
+            with self.assertRaisesRegex(KeyError, "outCollection"):
+                _init_submission_driver(file.name)
 
-    @unittest.mock.patch("lsst.ctrl.bps.drivers.BPS_DEFAULTS", {})
+    @unittest.mock.patch("lsst.ctrl.bps.initialize.BPS_DEFAULTS", {})
     def testMissingOutputRun(self):
-        with self.assertRaisesRegex(KeyError, "outputRun"):
-            _init_submission_driver({"payload": {"inCollection": "bad"}})
+        config = {"submitPath": "bad"}
+        with tempfile.NamedTemporaryFile(mode="w+", suffix=".yaml") as file:
+            yaml.dump(config, stream=file)
+            with self.assertRaisesRegex(KeyError, "outputRun"):
+                _init_submission_driver(file.name)
 
-    @unittest.mock.patch("lsst.ctrl.bps.drivers.BPS_DEFAULTS", {})
+    @unittest.mock.patch("lsst.ctrl.bps.initialize.BPS_DEFAULTS", {})
     def testMissingSubmitPath(self):
-        with self.assertRaisesRegex(KeyError, "submitPath"):
-            _init_submission_driver({"payload": {"outputRun": "bad"}})
+        config = {"payload": {"outputRun": "bad"}}
+        with tempfile.NamedTemporaryFile(mode="w+", suffix=".yaml") as file:
+            yaml.dump(config, stream=file)
+            with self.assertRaisesRegex(KeyError, "submitPath"):
+                _init_submission_driver(file.name)
 
 
 class TestPingDriver(unittest.TestCase):
