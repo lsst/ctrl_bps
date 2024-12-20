@@ -1,0 +1,1 @@
+Fixed saving of environment values from submit yaml into GenericWorkflowJob.

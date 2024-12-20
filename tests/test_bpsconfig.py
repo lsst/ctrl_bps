@@ -231,6 +231,21 @@ class TestBpsConfigSearch(unittest.TestCase):
         self.assertEqual(found, True)
         self.assertEqual(value, 4)
 
+    def testReplaceVars(self):
+        """Test replaceVars method."""
+        test_opt = {"default": 555}
+        orig_str = "<ENV:GARPLY>/waldo/{qux:03}/{notthere}"
+        value = self.config.replace_vars(orig_str, opt=test_opt)
+        self.assertEqual(value, "<ENV:GARPLY>/waldo/002/")
+        self.assertEqual(test_opt["default"], 555)
+
+    def testReplaceVarsSkipNames(self):
+        test_opt = {"default": 555, "skipNames": ["qgraphFile", "butlerConfig"]}
+        orig_str = "<ENV:GARPLY>/waldo/{qux:03} {qgraphFile} {butlerConfig}"
+        value = self.config.replace_vars(orig_str, opt=test_opt)
+        self.assertEqual(value, "<ENV:GARPLY>/waldo/002 {qgraphFile} {butlerConfig}")
+        self.assertEqual(test_opt["default"], 555)
+
     def testVariables(self):
         """Test combinations of expandEnvVars, replaceEnvVars,
         and replaceVars.

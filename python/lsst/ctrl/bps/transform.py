@@ -407,6 +407,23 @@ def _get_job_values(config, search_opt, cmd_line_key):
         else:
             job_values[attr] = getattr(default_gwjob, attr)
 
+    # Need to replace all config variables in environment values
+    if job_values["environment"]:
+        old_searchobj = search_opt.get("searchobj", None)
+        old_replace_vars = search_opt.get("replaceVars", None)
+        search_opt["searchobj"] = job_values["environment"]
+        search_opt["replaceVars"] = True
+        for name in job_values["environment"]:
+            job_values["environment"][name] = config.search(name, search_opt)[1]
+        if old_searchobj is None:
+            del search_opt["searchobj"]
+        else:
+            search_opt["searchobj"] = old_searchobj
+        if old_replace_vars is None:
+            del search_opt["replaceVars"]
+        else:
+            search_opt["replaceVars"] = old_replace_vars
+
     # If the automatic memory scaling is enabled (i.e. the memory multiplier
     # is set and it is a positive number greater than 1.0), adjust number
     # of retries when necessary.  If the memory multiplier is invalid, disable
@@ -676,7 +693,6 @@ def create_generic_workflow(
                 cached_pipetask_values[qnode.taskDef.label] = _get_job_values(
                     config, search_opt, "runQuantumCommand"
                 )
-
             _handle_job_values(cached_pipetask_values[qnode.taskDef.label], gwjob, unset_attributes)
 
         # Update job with workflow attribute and profile values.
@@ -843,7 +859,8 @@ def create_final_command(config: BpsConfig, prefix: str) -> tuple[GenericWorkflo
         Command line needed to call the final script.
     """
     search_opt = {
-        "replaceVars": False,
+        "replaceVars": True,
+        "skipNames": ["butlerConfig", "qgraphFile"],
         "replaceEnvVars": False,
         "expandEnvVars": False,
         "searchobj": config["finalJob"],
@@ -861,23 +878,6 @@ def create_final_command(config: BpsConfig, prefix: str) -> tuple[GenericWorkflo
         i = 1
         found, command = config.search(f"command{i}", opt=search_opt)
         while found:
-            # Temporarily replace any env vars so formatter doesn't try to
-            # replace them.
-            command = re.sub(r"\${([^}]+)}", r"<BPSTMP:\1>", command)
-
-            # butlerConfig will be args to script and set to env vars
-            command = command.replace("{qgraphFile}", "<BPSTMP:qgraphFile>")
-            command = command.replace("{butlerConfig}", "<BPSTMP:butlerConfig>")
-
-            # Replace all other vars in command string
-            search_opt["replaceVars"] = True
-            command = config.formatter.format(command, config, search_opt)
-            search_opt["replaceVars"] = False
-
-            # Replace any temporary env placeholders.
-            command = re.sub(r"<BPSTMP:([^>]+)>", r"${\1}", command)
-
-            print(command, file=fh)
             i += 1
             found, command = config.search(f"command{i}", opt=search_opt)
     os.chmod(script_file, 0o755)
