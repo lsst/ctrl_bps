@@ -38,6 +38,7 @@ import os
 import re
 import string
 from os.path import expandvars
+from typing import Any
 
 from lsst.daf.butler import Config
 from lsst.resources import ResourcePath
@@ -372,24 +373,7 @@ class BpsConfig(Config):
                 value = re.sub(r"\$(\S+)", r"<ENV:\1>", value)
 
             if opt.get("replaceVars", True):
-                # default only applies to original search key
-                # Instead of doing deep copies of opt (especially with
-                # the recursive calls), temporarily remove default value
-                # and put it back.
-                default = opt.pop("default", _NO_SEARCH_DEFAULT_VALUE)
-
-                # Temporarily replace any env vars so formatter doesn't try to
-                # replace them.
-                value = re.sub(r"\${([^}]+)}", r"<BPSTMP:\1>", value)
-
-                value = self.formatter.format(value, self, opt)
-
-                # Replace any temporary env place holders.
-                value = re.sub(r"<BPSTMP:([^>]+)>", r"${\1}", value)
-
-                # if default was originally in opt
-                if default != _NO_SEARCH_DEFAULT_VALUE:
-                    opt["default"] = default
+                value = self.replace_vars(value, opt)
 
             _LOG.debug("after format=%s", value)
 
@@ -397,3 +381,40 @@ class BpsConfig(Config):
             value = BpsConfig(value, search_order=[])
 
         return found, value
+
+    def replace_vars(self, value: str, opt: dict[str, Any]) -> str:
+        """Replace variables in string with values except those
+        in opt['skipNames'].
+
+        Parameters
+        ----------
+        value : `str`
+            Value in which to replace variables.
+        opt : `dict` [`str`, Any]
+            Options to be used when searching and replacing values.
+            In particular "skipNames" lists variable names to
+            not replace.
+        """
+        # default only applies to original search key
+        # Instead of doing deep copies of opt (especially with
+        # the recursive calls), temporarily remove default value
+        # and put it back.
+        default = opt.pop("default", _NO_SEARCH_DEFAULT_VALUE)
+
+        # Temporarily replace any env vars so formatter doesn't try to
+        # replace them.
+        value = re.sub(r"\${([^}]+)}", r"<BPSTMP:\1>", value)
+        for name in opt.get("skipNames", {}):
+            value = value.replace(f"{{{name}}}", f"<BPSTMP2:{name}>")
+
+        value = self.formatter.format(value, self, opt)
+
+        # Replace any temporary place holders.
+        value = re.sub(r"<BPSTMP:([^>]+)>", r"${\1}", value)
+        value = re.sub(r"<BPSTMP2:([^>]+)>", r"{\1}", value)
+
+        # if default was originally in opt
+        if default != _NO_SEARCH_DEFAULT_VALUE:
+            opt["default"] = default
+
+        return value

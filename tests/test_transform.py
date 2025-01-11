@@ -33,7 +33,12 @@ import unittest
 
 from cqg_test_utils import make_test_clustered_quantum_graph
 from lsst.ctrl.bps import BPS_SEARCH_ORDER, BpsConfig, GenericWorkflowJob
-from lsst.ctrl.bps.transform import _get_job_values, create_generic_workflow, create_generic_workflow_config
+from lsst.ctrl.bps.transform import (
+    _get_job_values,
+    create_final_command,
+    create_generic_workflow,
+    create_generic_workflow_config,
+)
 
 TESTDIR = os.path.abspath(os.path.dirname(__file__))
 
@@ -78,7 +83,7 @@ class TestCreateGenericWorkflow(unittest.TestCase):
                 },
                 # Needed because transform assumes they exist
                 "whenSaveJobQgraph": "NEVER",
-                "finalJob": {"whenRun": "ALWAYS"},
+                "finalJob": {"whenRun": "ALWAYS", "command1": "/usr/bin/env"},
             },
             BPS_SEARCH_ORDER,
         )
@@ -176,6 +181,155 @@ class TestGetJobValues(unittest.TestCase):
         self.assertEqual(job_values["executable"].name, "foo")
         self.assertEqual(job_values["executable"].src_uri, "/path/to/foo")
         self.assertEqual(job_values["arguments"], "bar.txt")
+
+    def testEnvironment(self):
+        config = BpsConfig(
+            {
+                "var1": "two",
+                "environment": {"TEST_INT": 1, "TEST_SPACES": "one {var1} three"},
+            }
+        )
+        job_values = _get_job_values(config, {}, None)
+        truth = BpsConfig({"TEST_INT": 1, "TEST_SPACES": "one two three"}, {}, None)
+        self.assertEqual(truth, job_values["environment"])
+
+    def testEnvironmentOptions(self):
+        config = BpsConfig(
+            {
+                "var1": "two",
+                "environment": {"TEST_INT": 1, "TEST_SPACES": "one {var1} three"},
+                "finalJob": {"requestMemory": 8096, "command1": "/usr/bin/env"},
+            }
+        )
+        search_obj = config["finalJob"]
+        search_opts = {"replaceVars": False, "searchobj": search_obj}
+        job_values = _get_job_values(config, search_opts, None)
+        truth = {"TEST_INT": 1, "TEST_SPACES": "one two three"}
+        self.assertEqual(truth, job_values["environment"])
+        self.assertEqual(search_opts["replaceVars"], False)
+        self.assertEqual(search_opts["searchobj"]["requestMemory"], 8096)
+        self.assertEqual(job_values["request_memory"], 8096)
+
+
+class TestCreateFinalCommand(unittest.TestCase):
+    """Tests for the create_final_command function."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.TemporaryDirectory()
+        self.script_beginning = [
+            "#!/bin/bash\n",
+            "\n",
+            "set -e\n",
+            "set -x\n",
+            "qgraphFile=$1\n",
+            "butlerConfig=$2\n",
+        ]
+
+    def tearDown(self):
+        self.tmpdir.cleanup()
+
+    def testSingleCommand(self):
+        """Test with single final job command."""
+        config_butler = f"{self.tmpdir.name}/test_repo"
+        config = BpsConfig(
+            {
+                "var1": "42a",
+                "var2": "42b",
+                "var3": "42c",
+                "butlerConfig": config_butler,
+                "finalJob": {"command1": "/usr/bin/echo {var1} {qgraphFile} {var2} {butlerConfig} {var3}"},
+            }
+        )
+        gwf_exec, args = create_final_command(config, self.tmpdir.name)
+        self.assertEqual(args, f"<FILE:runQgraphFile> {config_butler}")
+        final_script = f"{self.tmpdir.name}/final_job.bash"
+        self.assertEqual(gwf_exec.src_uri, final_script)
+        with open(final_script) as infh:
+            lines = infh.readlines()
+        self.assertEqual(
+            lines, self.script_beginning + ["/usr/bin/echo 42a ${qgraphFile} 42b ${butlerConfig} 42c\n"]
+        )
+
+    def testMultipleCommands(self):
+        config_butler = f"{self.tmpdir.name}/test_repo"
+        config = BpsConfig(
+            {
+                "var1": "42a",
+                "var2": "42b",
+                "var3": "42c",
+                "butlerConfig": config_butler,
+                "finalJob": {
+                    "command1": "/usr/bin/echo {var1} {qgraphFile} {var2} {butlerConfig} {var3}",
+                    "command2": "/usr/bin/uptime",
+                },
+            }
+        )
+        gwf_exec, args = create_final_command(config, self.tmpdir.name)
+        self.assertEqual(args, f"<FILE:runQgraphFile> {config_butler}")
+        final_script = f"{self.tmpdir.name}/final_job.bash"
+        self.assertEqual(gwf_exec.src_uri, final_script)
+        with open(final_script) as infh:
+            lines = infh.readlines()
+        self.assertEqual(
+            lines,
+            self.script_beginning
+            + ["/usr/bin/echo 42a ${qgraphFile} 42b ${butlerConfig} 42c\n", "/usr/bin/uptime\n"],
+        )
+
+    def testZeroCommands(self):
+        config_butler = f"{self.tmpdir.name}/test_repo"
+        config = BpsConfig(
+            {
+                "var1": "42a",
+                "var2": "42b",
+                "var3": "42c",
+                "butlerConfig": config_butler,
+                "finalJob": {
+                    "cmd1": "/usr/bin/echo {var1} {qgraphFile} {var2} {butlerConfig} {var3}",
+                    "cmd2": "/usr/bin/uptime",
+                },
+            }
+        )
+        with self.assertRaisesRegex(RuntimeError, "finalJob.whenRun"):
+            _, _ = create_final_command(config, self.tmpdir.name)
+
+    def testWhiteSpaceOnlyCommand(self):
+        config_butler = f"{self.tmpdir.name}/test_repo"
+        config = BpsConfig(
+            {
+                "butlerConfig": config_butler,
+                "finalJob": {"command1": "", "command2": "\t \n"},
+            }
+        )
+        with self.assertRaisesRegex(RuntimeError, "finalJob.whenRun"):
+            _, _ = create_final_command(config, self.tmpdir.name)
+
+    def testSkipCommandUsingWhiteSpace(self):
+        config_butler = f"{self.tmpdir.name}/test_repo"
+        config = BpsConfig(
+            {
+                "var1": "42a",
+                "var2": "42b",
+                "var3": "42c",
+                "butlerConfig": config_butler,
+                "finalJob": {
+                    "command1": "/usr/bin/echo {var1} {qgraphFile} {var2} {butlerConfig} {var3}",
+                    "command2": "",  # test skipping a command (i.e., overriding a default)
+                    "command3": "/usr/bin/uptime",
+                },
+            }
+        )
+        gwf_exec, args = create_final_command(config, self.tmpdir.name)
+        self.assertEqual(args, f"<FILE:runQgraphFile> {config_butler}")
+        final_script = f"{self.tmpdir.name}/final_job.bash"
+        self.assertEqual(gwf_exec.src_uri, final_script)
+        with open(final_script) as infh:
+            lines = infh.readlines()
+        self.assertEqual(
+            lines,
+            self.script_beginning
+            + ["/usr/bin/echo 42a ${qgraphFile} 42b ${butlerConfig} 42c\n", "\n", "/usr/bin/uptime\n"],
+        )
 
 
 if __name__ == "__main__":

@@ -1,0 +1,1 @@
+Updated GenericWorkflowJob creation code to handle variables and pre-existing environment variables in submit yaml's environment section.
