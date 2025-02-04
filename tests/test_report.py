@@ -156,7 +156,7 @@ class SummaryRunReportTestCase(unittest.TestCase):
 
     def testAddWithNoFlag(self):
         """Test adding a report for a run with no issues."""
-        print("\n".join(self.expected.pformat_all()), file=self.expected_output)
+        print("\n".join(self.expected.pformat()), file=self.expected_output)
 
         self.report.add(self.run)
         print(self.report, file=self.actual_output)
@@ -166,7 +166,7 @@ class SummaryRunReportTestCase(unittest.TestCase):
     def testAddWithFailedFlag(self):
         """Test adding a run with a failed job."""
         self.expected["X"][0] = "F"
-        print("\n".join(self.expected.pformat_all()), file=self.expected_output)
+        print("\n".join(self.expected.pformat()), file=self.expected_output)
 
         # Alter the run report to include a failed job.
         self.run.job_state_counts = {
@@ -180,7 +180,7 @@ class SummaryRunReportTestCase(unittest.TestCase):
     def testAddWithHeldFlag(self):
         """Test adding a run with a held job."""
         self.expected["X"][0] = "H"
-        print("\n".join(self.expected.pformat_all()), file=self.expected_output)
+        print("\n".join(self.expected.pformat()), file=self.expected_output)
 
         # Alter the run report to include a held job.
         self.run.job_state_counts = {
@@ -194,7 +194,7 @@ class SummaryRunReportTestCase(unittest.TestCase):
     def testAddWithDeletedFlag(self):
         """Test adding a run with a deleted job."""
         self.expected["X"][0] = "D"
-        print("\n".join(self.expected.pformat_all()), file=self.expected_output)
+        print("\n".join(self.expected.pformat()), file=self.expected_output)
 
         # Alter the run report to include a deleted job.
         self.run.job_state_counts = {
