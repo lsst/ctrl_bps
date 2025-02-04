@@ -25,8 +25,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-"""API for cancelling runs submitted to a WMS.
-"""
+"""API for cancelling runs submitted to a WMS."""
 
 import logging
 

@@ -25,8 +25,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-"""Driver for the transformation of a QuantumGraph into a generic workflow.
-"""
+"""Driver for the transformation of a QuantumGraph into a generic workflow."""
 
 import copy
 import dataclasses

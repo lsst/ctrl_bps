@@ -25,8 +25,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-"""Class definitions for a Generic Workflow Graph.
-"""
+"""Class definitions for a Generic Workflow Graph."""
 
 __all__ = ["GenericWorkflow", "GenericWorkflowFile", "GenericWorkflowJob", "GenericWorkflowExec"]
 

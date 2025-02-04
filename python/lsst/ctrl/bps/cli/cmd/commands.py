@@ -24,8 +24,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Subcommand definitions.
-"""
+"""Subcommand definitions."""
 import click
 from lsst.daf.butler.cli.utils import MWCommand
 

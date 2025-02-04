@@ -24,8 +24,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Unit tests for the clustering methods.
-"""
+"""Unit tests for the clustering methods."""
 
 # Turn off "doesn't conform to snake_case naming style" because matching
 # the unittest casing.

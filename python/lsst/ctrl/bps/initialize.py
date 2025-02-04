@@ -25,8 +25,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-"""Driver for initializing a BPS submission.
-"""
+"""Driver for initializing a BPS submission."""
 
 __all__ = [
     "init_submission",

@@ -24,8 +24,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""QuantumGraph-related utilities to support ctrl_bps testing.
-"""
+"""QuantumGraph-related utilities to support ctrl_bps testing."""
 
 # Not actually running Quantum so do not need to override 'run' Method
 # pylint: disable=abstract-method
