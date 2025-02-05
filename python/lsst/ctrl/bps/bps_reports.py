@@ -25,8 +25,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-"""Classes and functions used in reporting run status.
-"""
+"""Classes and functions used in reporting run status."""
 
 __all__ = ["BaseRunReport", "DetailedRunReport", "SummaryRunReport", "ExitCodesReport", "compile_job_summary"]
 

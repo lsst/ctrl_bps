@@ -24,8 +24,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Definition of Batch Production Service command-line interface.
-"""
+"""Definition of Batch Production Service command-line interface."""
 import click
 from lsst.daf.butler.cli.butler import LoaderCLI
 from lsst.daf.butler.cli.opt import (

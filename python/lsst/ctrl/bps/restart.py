@@ -25,8 +25,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-"""Driver for submitting a prepared WMS-specific workflow.
-"""
+"""Driver for submitting a prepared WMS-specific workflow."""
 import logging
 
 from lsst.utils import doImport

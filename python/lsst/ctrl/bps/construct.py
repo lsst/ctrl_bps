@@ -25,8 +25,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-"""Driver for constructing a generic workflow running a custom job.
-"""
+"""Driver for constructing a generic workflow running a custom job."""
 
 __all__ = ["construct"]
 
