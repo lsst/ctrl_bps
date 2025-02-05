@@ -63,7 +63,7 @@ class BaseRunReport(abc.ABC):
         return len(self._table)
 
     def __str__(self):
-        lines = list(self._table.pformat_all())
+        lines = list(self._table.pformat())
         return "\n".join(lines)
 
     @property
@@ -221,7 +221,7 @@ class DetailedRunReport(BaseRunReport):
 
     def __str__(self):
         alignments = ["<"] + [">"] * (len(self._table.colnames) - 1)
-        lines = list(self._table.pformat_all(align=alignments))
+        lines = list(self._table.pformat(align=alignments))
         lines.insert(3, lines[1])
         return str("\n".join(lines))
 
@@ -272,7 +272,7 @@ class ExitCodesReport(BaseRunReport):
 
     def __str__(self):
         alignments = ["<"] + [">"] * (len(self._table.colnames) - 1)
-        lines = list(self._table.pformat_all(align=alignments))
+        lines = list(self._table.pformat(align=alignments))
         return str("\n".join(lines))
 
 
