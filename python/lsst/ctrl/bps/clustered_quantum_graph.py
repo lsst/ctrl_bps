@@ -29,7 +29,7 @@
 a QuantumGraph.
 """
 
-__all__ = ["QuantaCluster", "ClusteredQuantumGraph"]
+__all__ = ["ClusteredQuantumGraph", "QuantaCluster"]
 
 
 import logging

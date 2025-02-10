@@ -27,7 +27,7 @@
 
 """Classes and functions used in reporting run status."""
 
-__all__ = ["BaseRunReport", "DetailedRunReport", "SummaryRunReport", "ExitCodesReport", "compile_job_summary"]
+__all__ = ["BaseRunReport", "DetailedRunReport", "ExitCodesReport", "SummaryRunReport", "compile_job_summary"]
 
 import abc
 import logging

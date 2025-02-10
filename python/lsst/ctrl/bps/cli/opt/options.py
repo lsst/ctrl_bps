@@ -27,14 +27,14 @@
 """The bps-specific command-line options."""
 
 __all__ = [
-    "extra_qgraph_option",
-    "extra_update_qgraph_option",
-    "extra_init_option",
-    "extra_run_quantum_option",
-    "wms_service_option",
     "compute_site_option",
-    "make_id_link_option",
+    "extra_init_option",
+    "extra_qgraph_option",
+    "extra_run_quantum_option",
+    "extra_update_qgraph_option",
     "id_link_path_option",
+    "make_id_link_option",
+    "wms_service_option",
 ]
 
 from lsst.daf.butler.cli.utils import MWOptionDecorator

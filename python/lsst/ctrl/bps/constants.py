@@ -30,9 +30,9 @@
 from astropy import units as u
 
 __all__ = [
+    "DEFAULT_MEM_FMT",
     "DEFAULT_MEM_RETRIES",
     "DEFAULT_MEM_UNIT",
-    "DEFAULT_MEM_FMT",
 ]
 
 

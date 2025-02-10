@@ -27,7 +27,7 @@
 
 """Class definitions for a Generic Workflow Graph."""
 
-__all__ = ["GenericWorkflow", "GenericWorkflowFile", "GenericWorkflowJob", "GenericWorkflowExec"]
+__all__ = ["GenericWorkflow", "GenericWorkflowExec", "GenericWorkflowFile", "GenericWorkflowJob"]
 
 
 import dataclasses
