@@ -27,7 +27,6 @@
 
 """Base classes for working with a specific WMS."""
 
-
 __all__ = [
     "BaseWmsService",
     "BaseWmsWorkflow",

@@ -77,5 +77,5 @@ make_id_link_option = MWOptionDecorator(
 id_link_path_option = MWOptionDecorator(
     "--id-link-path",
     "id_link_path",
-    help="Location in which to make id soft link to the submit directory." "default ('${PWD}/bps_links')",
+    help="Location in which to make id soft link to the submit directory.default ('${PWD}/bps_links')",
 )

@@ -172,6 +172,10 @@ max-doc-length = 79
 [tool.ruff.lint.pydocstyle]
 convention = "numpy"
 
+[tool.ruff.format]
+docstring-code-format = true
+docstring-code-line-length = 79
+
 [tool.numpydoc_validation]
 checks = [
     "all",  # All except the rules listed below.

@@ -31,7 +31,6 @@ Driver functions ensure that ensure all setup work is done before running
 the subcommand method.
 """
 
-
 __all__ = [
     "acquire_qgraph_driver",
     "cancel_driver",

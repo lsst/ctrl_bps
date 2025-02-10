@@ -26,6 +26,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """Functions that convert QuantumGraph into ClusteredQuantumGraph."""
+
 import logging
 import re
 from collections import defaultdict
