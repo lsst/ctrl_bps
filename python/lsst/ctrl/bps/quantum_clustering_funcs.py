@@ -26,14 +26,16 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """Functions that convert QuantumGraph into ClusteredQuantumGraph."""
+
 import logging
 import re
 from collections import defaultdict
 from typing import Any
 from uuid import UUID
 
-from lsst.pipe.base import QuantumGraph, QuantumNode
 from networkx import DiGraph, is_directed_acyclic_graph, topological_sort
+
+from lsst.pipe.base import QuantumGraph, QuantumNode
 
 from . import BpsConfig, ClusteredQuantumGraph, QuantaCluster
 

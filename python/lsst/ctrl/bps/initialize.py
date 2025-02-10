@@ -28,11 +28,11 @@
 """Driver for initializing a BPS submission."""
 
 __all__ = [
+    "custom_job_validator",
     "init_submission",
     "out_collection_validator",
     "output_run_validator",
     "submit_path_validator",
-    "custom_job_validator",
 ]
 
 import getpass

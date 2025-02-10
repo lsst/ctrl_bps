@@ -207,8 +207,7 @@ def update_quantum_graph(config, qgraph_filename, out_prefix="", inplace=False):
     status = execute(cmd, out)
     if status != 0:
         raise RuntimeError(
-            f"Updating quantum graph failed with non-zero exit code ({status})\n"
-            f"Check {out} for more details."
+            f"Updating quantum graph failed with non-zero exit code ({status})\nCheck {out} for more details."
         )
 
 

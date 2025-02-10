@@ -27,7 +27,6 @@
 
 """Base classes for working with a specific WMS."""
 
-
 __all__ = [
     "BaseWmsService",
     "BaseWmsWorkflow",
@@ -40,7 +39,7 @@ __all__ = [
 
 import dataclasses
 import logging
-from abc import ABCMeta
+from abc import ABCMeta, abstractmethod
 from enum import Enum
 from typing import Any
 
@@ -528,6 +527,7 @@ class BaseWmsWorkflow(metaclass=ABCMeta):
         """
         raise NotImplementedError
 
+    @abstractmethod
     def write(self, out_prefix):
         """Write WMS files for this particular workflow.
 

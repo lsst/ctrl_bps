@@ -34,9 +34,10 @@ import os
 import unittest
 
 from cqg_test_utils import check_cqg
+from qg_test_utils import make_test_quantum_graph
+
 from lsst.ctrl.bps import BpsConfig
 from lsst.ctrl.bps.quantum_clustering_funcs import dimension_clustering, single_quantum_clustering
-from qg_test_utils import make_test_quantum_graph
 
 TESTDIR = os.path.abspath(os.path.dirname(__file__))
 

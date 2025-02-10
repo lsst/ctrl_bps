@@ -25,6 +25,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Unit tests of transform.py."""
+
 import dataclasses
 import os
 import shutil
@@ -32,6 +33,7 @@ import tempfile
 import unittest
 
 from cqg_test_utils import make_test_clustered_quantum_graph
+
 from lsst.ctrl.bps import BPS_SEARCH_ORDER, BpsConfig, GenericWorkflowJob
 from lsst.ctrl.bps.transform import (
     _get_job_values,

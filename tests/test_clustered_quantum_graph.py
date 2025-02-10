@@ -38,8 +38,9 @@ from collections import Counter
 from pathlib import Path
 
 from cqg_test_utils import make_test_clustered_quantum_graph
-from lsst.ctrl.bps import ClusteredQuantumGraph, QuantaCluster
 from qg_test_utils import make_test_quantum_graph
+
+from lsst.ctrl.bps import ClusteredQuantumGraph, QuantaCluster
 
 TESTDIR = os.path.abspath(os.path.dirname(__file__))
 

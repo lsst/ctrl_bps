@@ -27,7 +27,7 @@
 
 """Class definitions for a Generic Workflow Graph."""
 
-__all__ = ["GenericWorkflow", "GenericWorkflowFile", "GenericWorkflowJob", "GenericWorkflowExec"]
+__all__ = ["GenericWorkflow", "GenericWorkflowExec", "GenericWorkflowFile", "GenericWorkflowJob"]
 
 
 import dataclasses
@@ -36,9 +36,10 @@ import logging
 import pickle
 from collections import Counter, defaultdict
 
-from lsst.utils.iteration import ensure_iterable
 from networkx import DiGraph, topological_sort
 from networkx.algorithms.dag import is_directed_acyclic_graph
+
+from lsst.utils.iteration import ensure_iterable
 
 from .bps_draw import draw_networkx_dot
 

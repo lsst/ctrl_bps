@@ -29,8 +29,9 @@
 import uuid
 from copy import deepcopy
 
-from lsst.ctrl.bps import ClusteredQuantumGraph, QuantaCluster
 from qg_test_utils import make_test_quantum_graph
+
+from lsst.ctrl.bps import ClusteredQuantumGraph, QuantaCluster
 
 
 def check_cqg(cqg, truth=None):
@@ -132,25 +133,25 @@ def compare_cqg_dicts(truth, cqg):
         Whenever discover discrepancy between dicts.
     """
     assert truth["name"] == cqg["name"], f"Mismatch name: truth={truth['name']}, cqg={cqg['name']}"
-    assert len(truth["nodes"]) == len(
-        cqg["nodes"]
-    ), f"Mismatch number of nodes: truth={len(truth['nodes'])}, cqg={len(cqg['nodes'])}"
+    assert len(truth["nodes"]) == len(cqg["nodes"]), (
+        f"Mismatch number of nodes: truth={len(truth['nodes'])}, cqg={len(cqg['nodes'])}"
+    )
     for tkey in truth["nodes"]:
         assert tkey in cqg["nodes"], f"Could not find {tkey} in cqg"
         tnode = truth["nodes"][tkey]
         cnode = cqg["nodes"][tkey]
-        assert (
-            tnode["label"] == cnode["label"]
-        ), f"Mismatch cluster label: truth={tnode['label']}, cqg={cnode['label']}"
-        assert (
-            tnode["dims"] == cnode["dims"]
-        ), f"Mismatch cluster dims: truth={tnode['dims']}, cqg={cnode['dims']}"
-        assert (
-            tnode["counts"] == cnode["counts"]
-        ), f"Mismatch cluster quanta counts: truth={tnode['counts']}, cqg={cnode['counts']}"
-    assert set(truth["edges"]) == set(
-        cqg["edges"]
-    ), f"Mismatch edges: truth={truth['edges']}, cqg={cqg['edges']}"
+        assert tnode["label"] == cnode["label"], (
+            f"Mismatch cluster label: truth={tnode['label']}, cqg={cnode['label']}"
+        )
+        assert tnode["dims"] == cnode["dims"], (
+            f"Mismatch cluster dims: truth={tnode['dims']}, cqg={cnode['dims']}"
+        )
+        assert tnode["counts"] == cnode["counts"], (
+            f"Mismatch cluster quanta counts: truth={tnode['counts']}, cqg={cnode['counts']}"
+        )
+    assert set(truth["edges"]) == set(cqg["edges"]), (
+        f"Mismatch edges: truth={truth['edges']}, cqg={cqg['edges']}"
+    )
 
 
 #  T1(1,2)   T1(1,4)   T1(3,4)  T4(1,2)  T4(3,4)

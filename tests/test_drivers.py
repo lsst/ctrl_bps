@@ -25,6 +25,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Unit tests for drivers.py."""
+
 import logging
 import os
 import shutil
@@ -32,6 +33,7 @@ import tempfile
 import unittest
 
 import yaml
+
 from lsst.ctrl.bps.drivers import _init_submission_driver, ping_driver
 
 TESTDIR = os.path.abspath(os.path.dirname(__file__))

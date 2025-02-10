@@ -26,6 +26,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """Functions used to draw BPS graphs."""
+
 import logging
 
 import networkx

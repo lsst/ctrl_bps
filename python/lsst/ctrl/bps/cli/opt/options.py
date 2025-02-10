@@ -27,14 +27,14 @@
 """The bps-specific command-line options."""
 
 __all__ = [
-    "extra_qgraph_option",
-    "extra_update_qgraph_option",
-    "extra_init_option",
-    "extra_run_quantum_option",
-    "wms_service_option",
     "compute_site_option",
-    "make_id_link_option",
+    "extra_init_option",
+    "extra_qgraph_option",
+    "extra_run_quantum_option",
+    "extra_update_qgraph_option",
     "id_link_path_option",
+    "make_id_link_option",
+    "wms_service_option",
 ]
 
 from lsst.daf.butler.cli.utils import MWOptionDecorator
@@ -77,5 +77,5 @@ make_id_link_option = MWOptionDecorator(
 id_link_path_option = MWOptionDecorator(
     "--id-link-path",
     "id_link_path",
-    help="Location in which to make id soft link to the submit directory." "default ('${PWD}/bps_links')",
+    help="Location in which to make id soft link to the submit directory.default ('${PWD}/bps_links')",
 )
