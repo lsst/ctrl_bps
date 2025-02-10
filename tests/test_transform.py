@@ -32,6 +32,7 @@ import tempfile
 import unittest
 
 from cqg_test_utils import make_test_clustered_quantum_graph
+
 from lsst.ctrl.bps import BPS_SEARCH_ORDER, BpsConfig, GenericWorkflowJob
 from lsst.ctrl.bps.transform import (
     _get_job_values,

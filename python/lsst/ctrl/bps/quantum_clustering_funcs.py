@@ -32,8 +32,9 @@ from collections import defaultdict
 from typing import Any
 from uuid import UUID
 
-from lsst.pipe.base import QuantumGraph, QuantumNode
 from networkx import DiGraph, is_directed_acyclic_graph, topological_sort
+
+from lsst.pipe.base import QuantumGraph, QuantumNode
 
 from . import BpsConfig, ClusteredQuantumGraph, QuantaCluster
 

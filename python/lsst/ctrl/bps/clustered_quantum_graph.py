@@ -38,9 +38,10 @@ import re
 from collections import Counter, defaultdict
 from pathlib import Path
 
+from networkx import DiGraph, is_directed_acyclic_graph, is_isomorphic, topological_sort
+
 from lsst.pipe.base import NodeId, QuantumGraph
 from lsst.utils.iteration import ensure_iterable
-from networkx import DiGraph, is_directed_acyclic_graph, is_isomorphic, topological_sort
 
 from .bps_draw import draw_networkx_dot
 

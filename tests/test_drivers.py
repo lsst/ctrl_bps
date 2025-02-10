@@ -32,6 +32,7 @@ import tempfile
 import unittest
 
 import yaml
+
 from lsst.ctrl.bps.drivers import _init_submission_driver, ping_driver
 
 TESTDIR = os.path.abspath(os.path.dirname(__file__))

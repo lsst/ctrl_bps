@@ -32,6 +32,8 @@ import io
 import unittest
 
 from astropy.table import Table
+from wms_test_utils import TEST_REPORT
+
 from lsst.ctrl.bps import (
     BaseRunReport,
     DetailedRunReport,
@@ -43,7 +45,6 @@ from lsst.ctrl.bps import (
     compile_job_summary,
 )
 from lsst.ctrl.bps.report import retrieve_report
-from wms_test_utils import TEST_REPORT
 
 
 class FakeRunReport(BaseRunReport):

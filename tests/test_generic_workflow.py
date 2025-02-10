@@ -28,9 +28,10 @@ import io
 import unittest
 from collections import Counter
 
-import lsst.ctrl.bps.generic_workflow as gw
 import networkx
 import networkx.algorithms.isomorphism as iso
+
+import lsst.ctrl.bps.generic_workflow as gw
 
 
 class TestGenericWorkflowJob(unittest.TestCase):

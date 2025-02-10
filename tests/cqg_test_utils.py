@@ -29,8 +29,9 @@
 import uuid
 from copy import deepcopy
 
-from lsst.ctrl.bps import ClusteredQuantumGraph, QuantaCluster
 from qg_test_utils import make_test_quantum_graph
+
+from lsst.ctrl.bps import ClusteredQuantumGraph, QuantaCluster
 
 
 def check_cqg(cqg, truth=None):

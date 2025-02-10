@@ -28,6 +28,7 @@ import os
 import unittest
 
 import yaml
+
 from lsst.ctrl.bps import BPS_SEARCH_ORDER, BpsConfig
 from lsst.daf.butler import Config
 
