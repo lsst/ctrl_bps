@@ -379,7 +379,8 @@ def add_cluster_dependencies(
     """
     qgraph = cqgraph.qgraph
     for node_id in cluster.qgraph_node_ids:
-        parents = qgraph.determineInputsToQuantumNode(qgraph.getQuantumNodeByNodeId(node_id))
+        cluster_node = qgraph.getQuantumNodeByNodeId(node_id)
+        parents = qgraph.determineInputsToQuantumNode(cluster_node)
         for parent in parents:
             try:
                 if quantum_to_cluster[parent.nodeId] != quantum_to_cluster[node_id]:
@@ -388,10 +389,13 @@ def add_cluster_dependencies(
                 # For debugging a problem internal to method
                 qnode = qgraph.getQuantumNodeByNodeId(e.args[0])
                 _LOG.error(
-                    "Quanta missing when clustering: %s, %s",
+                    "Quanta missing when clustering: cluster node = %s, %s; missing = %s, %s",
+                    cluster_node.taskDef.label,
+                    cluster_node.quantum.dataId,
                     qnode.taskDef.label,
                     qnode.quantum.dataId,
                 )
+                _LOG.error(quantum_to_cluster)
                 raise
 
 
@@ -438,26 +442,30 @@ def add_dim_clusters_dependency(
             template = cluster_label
     _LOG.debug("template = %s", template)
 
+    # Note:  Can't use just source/sink labels in case some quanta for those
+    #        aren't in the QuantumGraph (e.g., a rescue QuantumGraph)
+    label_search_order = list(topological_sort(ordered_tasks[cluster_label]))
     method = cluster_config["findDependencyMethod"]
     match method:
         case "source":
-            dim_labels = [
-                node for node, in_degree in ordered_tasks[cluster_label].in_degree() if in_degree == 0
-            ]
             find_possible_nodes = qgraph.determineOutputsOfQuantumNode
         case "sink":
-            dim_labels = [
-                node for node, out_degree in ordered_tasks[cluster_label].out_degree() if out_degree == 0
-            ]
             find_possible_nodes = qgraph.determineInputsToQuantumNode
+            label_search_order.reverse()
         case _:
             raise RuntimeError(f"Invalid findDependencyMethod ({method})")
+    _LOG.info("label_search_order = %s", label_search_order)
 
     new_clusters = []
-    for task_label in dim_labels:
+    for task_label in label_search_order:
         task_def = qgraph.findTaskDefByLabel(task_label)
         assert task_def is not None  # for mypy
         for node in qgraph.getNodesForTask(task_def):
+            # Since not only using source/sink labels, might look at
+            # node more than once.
+            if node.nodeId in quantum_to_cluster:
+                continue
+
             cluster_name, info = get_cluster_name_from_node(
                 node, cluster_dims, cluster_label, template, equal_dims
             )
@@ -470,6 +478,7 @@ def add_dim_clusters_dependency(
             else:
                 cluster = QuantaCluster(cluster_name, cluster_label, info)
                 cqgraph.add_cluster(cluster)
+                new_clusters.append(cluster)
             cluster.add_quantum(node.nodeId, task_label)
 
             # Save mapping for use when creating dependencies.
@@ -502,8 +511,6 @@ def add_dim_clusters_dependency(
                             possible_node.taskDef.label,
                             possible_node.nodeId,
                         )
-
-        new_clusters.append(cluster)
 
     for cluster in new_clusters:
         add_cluster_dependencies(cqgraph, cluster, quantum_to_cluster)

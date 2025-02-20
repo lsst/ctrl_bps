@@ -147,7 +147,7 @@ class TestClusteredQuantumGraph(unittest.TestCase):
     def testSuccessorsNone(self):
         """Test successors method handles no successors."""
         # check iterable and empty
-        self.assertEqual(len(list(self.cqg1.successors("T4_1_2"))), 0)
+        self.assertEqual(len(list(self.cqg1.successors("T5_1_2"))), 0)
 
     def testPredecessorsExisting(self):
         """Test predecessors method returns existing predecessors."""

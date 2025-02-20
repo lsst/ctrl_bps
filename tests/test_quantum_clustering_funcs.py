@@ -57,17 +57,54 @@ class TestSingleQuantumClustering(unittest.TestCase):
         config = BpsConfig(
             {
                 "templateDataId": "{D1}_{D2}_{D3}_{D4}",
-                "cluster": {"cl1": {"pipetasks": "T1, T2, T3, T4", "dimensions": "D1, D2"}},
+                "cluster": {"cl1": {"pipetasks": "T1, T2, T2b, T3, T4", "dimensions": "D1, D2"}},
             }
         )
 
-        cqg = single_quantum_clustering(config, self.qgraph, "single")
-        self.assertIsNotNone(cqg)
-        self.assertIn(cqg.name, "single")
-        self.assertEqual(len(cqg), len(self.qgraph))
+        name = "single"
+        cqg = single_quantum_clustering(config, self.qgraph, name)
+        answer = {
+            "name": name,
+            "nodes": {
+                "NODENAME_T1_1_2_": {"label": "T1", "dims": {"D1": 1, "D2": 2}, "counts": {"T1": 1}},
+                "NODENAME_T1_1_4_": {"label": "T1", "dims": {"D1": 1, "D2": 4}, "counts": {"T1": 1}},
+                "NODENAME_T1_3_4_": {"label": "T1", "dims": {"D1": 3, "D2": 4}, "counts": {"T1": 1}},
+                "NODENAME_T2_1_2_": {"label": "T2", "dims": {"D1": 1, "D2": 2}, "counts": {"T2": 1}},
+                "NODENAME_T2_1_4_": {"label": "T2", "dims": {"D1": 1, "D2": 4}, "counts": {"T2": 1}},
+                "NODENAME_T2_3_4_": {"label": "T2", "dims": {"D1": 3, "D2": 4}, "counts": {"T2": 1}},
+                "NODENAME_T2b_1_2_": {"label": "T2b", "dims": {"D1": 1, "D2": 2}, "counts": {"T2b": 1}},
+                "NODENAME_T2b_1_4_": {"label": "T2b", "dims": {"D1": 1, "D2": 4}, "counts": {"T2b": 1}},
+                "NODENAME_T2b_3_4_": {"label": "T2b", "dims": {"D1": 3, "D2": 4}, "counts": {"T2b": 1}},
+                "NODENAME_T3_1_2_": {"label": "T3", "dims": {"D1": 1, "D2": 2}, "counts": {"T3": 1}},
+                "NODENAME_T3_1_4_": {"label": "T3", "dims": {"D1": 1, "D2": 4}, "counts": {"T3": 1}},
+                "NODENAME_T3_3_4_": {"label": "T3", "dims": {"D1": 3, "D2": 4}, "counts": {"T3": 1}},
+                "NODENAME_T4_1_2_": {"label": "T4", "dims": {"D1": 1, "D2": 2}, "counts": {"T4": 1}},
+                "NODENAME_T4_1_4_": {"label": "T4", "dims": {"D1": 1, "D2": 4}, "counts": {"T4": 1}},
+                "NODENAME_T4_3_4_": {"label": "T4", "dims": {"D1": 3, "D2": 4}, "counts": {"T4": 1}},
+                "NODENAME_T5_1_2_": {"label": "T5", "dims": {"D1": 1, "D2": 2}, "counts": {"T5": 1}},
+                "NODENAME_T5_1_4_": {"label": "T5", "dims": {"D1": 1, "D2": 4}, "counts": {"T5": 1}},
+                "NODENAME_T5_3_4_": {"label": "T5", "dims": {"D1": 3, "D2": 4}, "counts": {"T5": 1}},
+            },
+            "edges": [
+                ("NODENAME_T1_1_2_", "NODENAME_T2_1_2_"),
+                ("NODENAME_T1_1_4_", "NODENAME_T2_1_4_"),
+                ("NODENAME_T1_3_4_", "NODENAME_T2_3_4_"),
+                ("NODENAME_T2_1_2_", "NODENAME_T2b_1_2_"),
+                ("NODENAME_T2_1_4_", "NODENAME_T2b_1_4_"),
+                ("NODENAME_T2_3_4_", "NODENAME_T2b_3_4_"),
+                ("NODENAME_T2_1_2_", "NODENAME_T3_1_2_"),
+                ("NODENAME_T2_1_4_", "NODENAME_T3_1_4_"),
+                ("NODENAME_T2_3_4_", "NODENAME_T3_3_4_"),
+                ("NODENAME_T3_1_2_", "NODENAME_T4_1_2_"),
+                ("NODENAME_T3_1_4_", "NODENAME_T4_1_4_"),
+                ("NODENAME_T3_3_4_", "NODENAME_T4_3_4_"),
+            ],
+        }
+
+        check_cqg(cqg, answer)
 
     def testClusteringNoTemplate(self):
-        """Test valid single quantum clustering wihtout a template for the
+        """Test valid single quantum clustering without a template for the
         cluster names.
         """
         # Note: the cluster config should be ignored.
@@ -94,7 +131,7 @@ class TestDimensionClustering(unittest.TestCase):
         config = BpsConfig(
             {
                 "templateDataId": "{D1}_{D2}_{D3}_{D4}",
-                "cluster": {"cl1": {"pipetasks": "T1, T2, T3, T4", "dimensions": "D1, D2"}},
+                "cluster": {"cl1": {"pipetasks": "T1, T2, T2b, T3, T4, T5", "dimensions": "D1, D2"}},
             }
         )
         answer = {
@@ -103,17 +140,17 @@ class TestDimensionClustering(unittest.TestCase):
                 "cl1_1_2": {
                     "label": "cl1",
                     "dims": {"D1": 1, "D2": 2},
-                    "counts": {"T1": 1, "T2": 1, "T3": 1, "T4": 1},
+                    "counts": {"T1": 1, "T2": 1, "T2b": 1, "T3": 1, "T4": 1, "T5": 1},
                 },
                 "cl1_1_4": {
                     "label": "cl1",
                     "dims": {"D1": 1, "D2": 4},
-                    "counts": {"T1": 1, "T2": 1, "T3": 1, "T4": 1},
+                    "counts": {"T1": 1, "T2": 1, "T2b": 1, "T3": 1, "T4": 1, "T5": 1},
                 },
                 "cl1_3_4": {
                     "label": "cl1",
                     "dims": {"D1": 3, "D2": 4},
-                    "counts": {"T1": 1, "T2": 1, "T3": 1, "T4": 1},
+                    "counts": {"T1": 1, "T2": 1, "T2b": 1, "T3": 1, "T4": 1, "T5": 1},
                 },
             },
             "edges": [],
@@ -131,7 +168,7 @@ class TestDimensionClustering(unittest.TestCase):
                 "cluster": {
                     "cl1": {
                         "clusterTemplate": "ct_{D1}_{D2}_{D3}_{D4}",
-                        "pipetasks": "T1, T2, T3, T4",
+                        "pipetasks": "T1, T2, T2b, T3, T4, T5",
                         "dimensions": "D1, D2",
                     }
                 },
@@ -144,17 +181,17 @@ class TestDimensionClustering(unittest.TestCase):
                 "ct_1_2_": {
                     "label": "cl1",
                     "dims": {"D1": 1, "D2": 2},
-                    "counts": {"T1": 1, "T2": 1, "T3": 1, "T4": 1},
+                    "counts": {"T1": 1, "T2": 1, "T2b": 1, "T3": 1, "T4": 1, "T5": 1},
                 },
                 "ct_1_4_": {
                     "label": "cl1",
                     "dims": {"D1": 1, "D2": 4},
-                    "counts": {"T1": 1, "T2": 1, "T3": 1, "T4": 1},
+                    "counts": {"T1": 1, "T2": 1, "T2b": 1, "T3": 1, "T4": 1, "T5": 1},
                 },
                 "ct_3_4_": {
                     "label": "cl1",
                     "dims": {"D1": 3, "D2": 4},
-                    "counts": {"T1": 1, "T2": 1, "T3": 1, "T4": 1},
+                    "counts": {"T1": 1, "T2": 1, "T2b": 1, "T3": 1, "T4": 1, "T5": 1},
                 },
             },
             "edges": [],
@@ -183,9 +220,20 @@ class TestDimensionClustering(unittest.TestCase):
             "name": name,
             "nodes": {
                 "cl1": {"label": "cl1", "dims": {}, "counts": {"T1": 3, "T2": 3}},
+                "NODENAME_T2b_tdid_1_2_": {"label": "T2b", "dims": {"D1": 1, "D2": 2}, "counts": {"T2b": 1}},
+                "NODENAME_T2b_tdid_1_4_": {"label": "T2b", "dims": {"D1": 1, "D2": 4}, "counts": {"T2b": 1}},
+                "NODENAME_T2b_tdid_3_4_": {"label": "T2b", "dims": {"D1": 3, "D2": 4}, "counts": {"T2b": 1}},
                 "cl2": {"label": "cl2", "dims": {}, "counts": {"T3": 3, "T4": 3}},
+                "NODENAME_T5_tdid_1_2_": {"label": "T5", "dims": {"D1": 1, "D2": 2}, "counts": {"T5": 1}},
+                "NODENAME_T5_tdid_1_4_": {"label": "T5", "dims": {"D1": 1, "D2": 4}, "counts": {"T5": 1}},
+                "NODENAME_T5_tdid_3_4_": {"label": "T5", "dims": {"D1": 3, "D2": 4}, "counts": {"T5": 1}},
             },
-            "edges": [("cl1", "cl2")],
+            "edges": [
+                ("cl1", "cl2"),
+                ("cl1", "NODENAME_T2b_tdid_1_2_"),
+                ("cl1", "NODENAME_T2b_tdid_1_4_"),
+                ("cl1", "NODENAME_T2b_tdid_3_4_"),
+            ],
         }
 
         cqg = dimension_clustering(config, self.qgraph, name)
@@ -256,8 +304,18 @@ class TestDimensionClustering(unittest.TestCase):
                     "dims": {"D1": 3, "NotThere": 4},
                     "counts": {"T1": 1, "T2": 1, "T3": 1, "T4": 1},
                 },
+                "NODENAME_T2b_1_2_": {"label": "T2b", "dims": {"D1": 1, "D2": 2}, "counts": {"T2b": 1}},
+                "NODENAME_T2b_1_4_": {"label": "T2b", "dims": {"D1": 1, "D2": 4}, "counts": {"T2b": 1}},
+                "NODENAME_T2b_3_4_": {"label": "T2b", "dims": {"D1": 3, "D2": 4}, "counts": {"T2b": 1}},
+                "NODENAME_T5_1_2_": {"label": "T5", "dims": {"D1": 1, "D2": 2}, "counts": {"T5": 1}},
+                "NODENAME_T5_1_4_": {"label": "T5", "dims": {"D1": 1, "D2": 4}, "counts": {"T5": 1}},
+                "NODENAME_T5_3_4_": {"label": "T5", "dims": {"D1": 3, "D2": 4}, "counts": {"T5": 1}},
             },
-            "edges": [],
+            "edges": [
+                ("cl1_1_2", "NODENAME_T2b_1_2_"),
+                ("cl1_1_4", "NODENAME_T2b_1_4_"),
+                ("cl1_3_4", "NODENAME_T2b_3_4_"),
+            ],
         }
 
         cqg = dimension_clustering(config, self.qgraph, name)
@@ -271,7 +329,7 @@ class TestDimensionClustering(unittest.TestCase):
                 "templateDataId": "{D1}_{D2}_{D3}_{D4}",
                 "cluster": {
                     "cl1": {
-                        "pipetasks": "T1, T2, T3, T4",
+                        "pipetasks": "T1, T2, T2b, T3, T4",
                         "dimensions": "D1, NotThere",
                         "equalDimensions": "D2:NotThere",
                     }
@@ -284,18 +342,21 @@ class TestDimensionClustering(unittest.TestCase):
                 "cl1_1_2": {
                     "label": "cl1",
                     "dims": {"D1": 1, "NotThere": 2},
-                    "counts": {"T1": 1, "T2": 1, "T3": 1, "T4": 1},
+                    "counts": {"T1": 1, "T2": 1, "T2b": 1, "T3": 1, "T4": 1},
                 },
                 "cl1_1_4": {
                     "label": "cl1",
                     "dims": {"D1": 1, "NotThere": 4},
-                    "counts": {"T1": 1, "T2": 1, "T3": 1, "T4": 1},
+                    "counts": {"T1": 1, "T2": 1, "T2b": 1, "T3": 1, "T4": 1},
                 },
                 "cl1_3_4": {
                     "label": "cl1",
                     "dims": {"D1": 3, "NotThere": 4},
-                    "counts": {"T1": 1, "T2": 1, "T3": 1, "T4": 1},
+                    "counts": {"T1": 1, "T2": 1, "T2b": 1, "T3": 1, "T4": 1},
                 },
+                "NODENAME_T5_1_2_": {"label": "T5", "dims": {"D1": 1, "D2": 2}, "counts": {"T5": 1}},
+                "NODENAME_T5_1_4_": {"label": "T5", "dims": {"D1": 1, "D2": 4}, "counts": {"T5": 1}},
+                "NODENAME_T5_3_4_": {"label": "T5", "dims": {"D1": 3, "D2": 4}, "counts": {"T5": 1}},
             },
             "edges": [],
         }
@@ -324,8 +385,21 @@ class TestDimensionClustering(unittest.TestCase):
                 "cl2_1_2": {"label": "cl2", "dims": {"D1": 1, "D2": 2}, "counts": {"T3": 1, "T4": 1}},
                 "cl2_1_4": {"label": "cl2", "dims": {"D1": 1, "D2": 4}, "counts": {"T3": 1, "T4": 1}},
                 "cl2_3_4": {"label": "cl2", "dims": {"D1": 3, "D2": 4}, "counts": {"T3": 1, "T4": 1}},
+                "NODENAME_T2b_1_2_": {"label": "T2b", "dims": {"D1": 1, "D2": 2}, "counts": {"T2b": 1}},
+                "NODENAME_T2b_1_4_": {"label": "T2b", "dims": {"D1": 1, "D2": 4}, "counts": {"T2b": 1}},
+                "NODENAME_T2b_3_4_": {"label": "T2b", "dims": {"D1": 3, "D2": 4}, "counts": {"T2b": 1}},
+                "NODENAME_T5_1_2_": {"label": "T5", "dims": {"D1": 1, "D2": 2}, "counts": {"T5": 1}},
+                "NODENAME_T5_1_4_": {"label": "T5", "dims": {"D1": 1, "D2": 4}, "counts": {"T5": 1}},
+                "NODENAME_T5_3_4_": {"label": "T5", "dims": {"D1": 3, "D2": 4}, "counts": {"T5": 1}},
             },
-            "edges": [("cl1_3_4", "cl2_3_4"), ("cl1_1_2", "cl2_1_2"), ("cl1_1_4", "cl2_1_4")],
+            "edges": [
+                ("cl1_1_2", "NODENAME_T2b_1_2_"),
+                ("cl1_1_4", "NODENAME_T2b_1_4_"),
+                ("cl1_3_4", "NODENAME_T2b_3_4_"),
+                ("cl1_1_2", "cl2_1_2"),
+                ("cl1_1_4", "cl2_1_4"),
+                ("cl1_3_4", "cl2_3_4"),
+            ],
         }
 
         cqg = dimension_clustering(config, self.qgraph, name)
@@ -348,17 +422,29 @@ class TestDimensionClustering(unittest.TestCase):
                 "cl1_1_2": {"label": "cl1", "dims": {"D1": 1, "D2": 2}, "counts": {"T1": 1, "T2": 1}},
                 "cl1_1_4": {"label": "cl1", "dims": {"D1": 1, "D2": 4}, "counts": {"T1": 1, "T2": 1}},
                 "cl1_3_4": {"label": "cl1", "dims": {"D1": 3, "D2": 4}, "counts": {"T1": 1, "T2": 1}},
+                "NODENAME_T2b_1_2_": {"label": "T2b", "dims": {"D1": 1, "D2": 2}, "counts": {"T2b": 1}},
+                "NODENAME_T2b_1_4_": {"label": "T2b", "dims": {"D1": 1, "D2": 4}, "counts": {"T2b": 1}},
+                "NODENAME_T2b_3_4_": {"label": "T2b", "dims": {"D1": 3, "D2": 4}, "counts": {"T2b": 1}},
                 "NODENAME_T3_1_2_": {"label": "T3", "dims": {"D1": 1, "D2": 2}, "counts": {"T3": 1}},
                 "NODENAME_T3_1_4_": {"label": "T3", "dims": {"D1": 1, "D2": 4}, "counts": {"T3": 1}},
                 "NODENAME_T3_3_4_": {"label": "T3", "dims": {"D1": 3, "D2": 4}, "counts": {"T3": 1}},
                 "NODENAME_T4_1_2_": {"label": "T4", "dims": {"D1": 1, "D2": 2}, "counts": {"T4": 1}},
                 "NODENAME_T4_1_4_": {"label": "T4", "dims": {"D1": 1, "D2": 4}, "counts": {"T4": 1}},
                 "NODENAME_T4_3_4_": {"label": "T4", "dims": {"D1": 3, "D2": 4}, "counts": {"T4": 1}},
+                "NODENAME_T5_1_2_": {"label": "T5", "dims": {"D1": 1, "D2": 2}, "counts": {"T5": 1}},
+                "NODENAME_T5_1_4_": {"label": "T5", "dims": {"D1": 1, "D2": 4}, "counts": {"T5": 1}},
+                "NODENAME_T5_3_4_": {"label": "T5", "dims": {"D1": 3, "D2": 4}, "counts": {"T5": 1}},
             },
             "edges": [
+                ("cl1_1_2", "NODENAME_T2b_1_2_"),
+                ("cl1_3_4", "NODENAME_T2b_3_4_"),
+                ("cl1_1_4", "NODENAME_T2b_1_4_"),
                 ("cl1_1_2", "NODENAME_T3_1_2_"),
                 ("cl1_3_4", "NODENAME_T3_3_4_"),
                 ("cl1_1_4", "NODENAME_T3_1_4_"),
+                ("NODENAME_T3_1_2_", "NODENAME_T4_1_2_"),
+                ("NODENAME_T3_3_4_", "NODENAME_T4_3_4_"),
+                ("NODENAME_T3_1_4_", "NODENAME_T4_1_4_"),
             ],
         }
 
@@ -379,6 +465,21 @@ class TestDimensionClustering(unittest.TestCase):
             "name": name,
             "nodes": {
                 "cl1": {"label": "cl1", "dims": {}, "counts": {"T1": 3, "T2": 3}},
+                "NODEONLY_T2b_{'D1': 1, 'D2': 2}": {
+                    "label": "T2b",
+                    "dims": {"D1": 1, "D2": 2},
+                    "counts": {"T2b": 1},
+                },
+                "NODEONLY_T2b_{'D1': 1, 'D2': 4}": {
+                    "label": "T2b",
+                    "dims": {"D1": 1, "D2": 4},
+                    "counts": {"T2b": 1},
+                },
+                "NODEONLY_T2b_{'D1': 3, 'D2': 4}": {
+                    "label": "T2b",
+                    "dims": {"D1": 3, "D2": 4},
+                    "counts": {"T2b": 1},
+                },
                 "NODEONLY_T3_{'D1': 1, 'D2': 2}": {
                     "label": "T3",
                     "dims": {"D1": 1, "D2": 2},
@@ -409,11 +510,32 @@ class TestDimensionClustering(unittest.TestCase):
                     "dims": {"D1": 3, "D2": 4},
                     "counts": {"T4": 1},
                 },
+                "NODEONLY_T5_{'D1': 1, 'D2': 2}": {
+                    "label": "T5",
+                    "dims": {"D1": 1, "D2": 2},
+                    "counts": {"T5": 1},
+                },
+                "NODEONLY_T5_{'D1': 1, 'D2': 4}": {
+                    "label": "T5",
+                    "dims": {"D1": 1, "D2": 4},
+                    "counts": {"T5": 1},
+                },
+                "NODEONLY_T5_{'D1': 3, 'D2': 4}": {
+                    "label": "T5",
+                    "dims": {"D1": 3, "D2": 4},
+                    "counts": {"T5": 1},
+                },
             },
             "edges": [
+                ("cl1", "NODEONLY_T2b_{'D1': 1, 'D2': 2}"),
+                ("cl1", "NODEONLY_T2b_{'D1': 1, 'D2': 4}"),
+                ("cl1", "NODEONLY_T2b_{'D1': 3, 'D2': 4}"),
                 ("cl1", "NODEONLY_T3_{'D1': 1, 'D2': 2}"),
                 ("cl1", "NODEONLY_T3_{'D1': 1, 'D2': 4}"),
                 ("cl1", "NODEONLY_T3_{'D1': 3, 'D2': 4}"),
+                ("NODEONLY_T3_{'D1': 1, 'D2': 2}", "NODEONLY_T4_{'D1': 1, 'D2': 2}"),
+                ("NODEONLY_T3_{'D1': 1, 'D2': 4}", "NODEONLY_T4_{'D1': 1, 'D2': 4}"),
+                ("NODEONLY_T3_{'D1': 3, 'D2': 4}", "NODEONLY_T4_{'D1': 3, 'D2': 4}"),
             ],
         }
 
@@ -451,8 +573,18 @@ class TestDimensionClustering(unittest.TestCase):
                     "dims": {"D1": 3, "D2": 4},
                     "counts": {"T1": 1, "T2": 1, "T3": 1, "T4": 1},
                 },
+                "NODENAME_T2b_1_2_": {"label": "T2b", "dims": {"D1": 1, "D2": 2}, "counts": {"T2b": 1}},
+                "NODENAME_T2b_1_4_": {"label": "T2b", "dims": {"D1": 1, "D2": 4}, "counts": {"T2b": 1}},
+                "NODENAME_T2b_3_4_": {"label": "T2b", "dims": {"D1": 3, "D2": 4}, "counts": {"T2b": 1}},
+                "NODENAME_T5_1_2_": {"label": "T5", "dims": {"D1": 1, "D2": 2}, "counts": {"T5": 1}},
+                "NODENAME_T5_1_4_": {"label": "T5", "dims": {"D1": 1, "D2": 4}, "counts": {"T5": 1}},
+                "NODENAME_T5_3_4_": {"label": "T5", "dims": {"D1": 3, "D2": 4}, "counts": {"T5": 1}},
             },
-            "edges": [],
+            "edges": [
+                ("cl1_1_2", "NODENAME_T2b_1_2_"),
+                ("cl1_3_4", "NODENAME_T2b_3_4_"),
+                ("cl1_1_4", "NODENAME_T2b_1_4_"),
+            ],
         }
 
         cqg = dimension_clustering(config, self.qgraph, name)
@@ -513,14 +645,14 @@ class TestDimensionClustering(unittest.TestCase):
                 )
             processed.add(cluster.name)
 
-    def testAddClusterDependenciesSink(self):
-        name = "AddClusterDependenciesSink"
+    def testDependenciesSink(self):
+        name = "DependenciesSink"
         config = BpsConfig(
             {
                 "templateDataId": "{D1}_{D2}_{D3}_{D4}",
                 "cluster": {
                     "cl1": {
-                        "pipetasks": "T1, T2, T3",
+                        "pipetasks": "T2, T3",
                         "dimensions": "D1, D2",
                         "findDependencyMethod": "sink",
                     },
@@ -530,32 +662,131 @@ class TestDimensionClustering(unittest.TestCase):
         answer = {
             "name": name,
             "nodes": {
-                "cl1_1_2": {
-                    "label": "cl1",
-                    "dims": {"D1": 1, "D2": 2},
-                    "counts": {"T1": 1, "T2": 1, "T3": 1},
-                },
-                "cl1_1_4": {
-                    "label": "cl1",
-                    "dims": {"D1": 1, "D2": 4},
-                    "counts": {"T1": 1, "T2": 1, "T3": 1},
-                },
-                "cl1_3_4": {
-                    "label": "cl1",
-                    "dims": {"D1": 3, "D2": 4},
-                    "counts": {"T1": 1, "T2": 1, "T3": 1},
-                },
+                "NODENAME_T1_1_2_": {"label": "T1", "dims": {"D1": 1, "D2": 2}, "counts": {"T1": 1}},
+                "NODENAME_T1_1_4_": {"label": "T1", "dims": {"D1": 1, "D2": 4}, "counts": {"T1": 1}},
+                "NODENAME_T1_3_4_": {"label": "T1", "dims": {"D1": 3, "D2": 4}, "counts": {"T1": 1}},
+                "cl1_1_2": {"label": "cl1", "dims": {"D1": 1, "D2": 2}, "counts": {"T2": 1, "T3": 1}},
+                "cl1_1_4": {"label": "cl1", "dims": {"D1": 1, "D2": 4}, "counts": {"T2": 1, "T3": 1}},
+                "cl1_3_4": {"label": "cl1", "dims": {"D1": 3, "D2": 4}, "counts": {"T2": 1, "T3": 1}},
+                "NODENAME_T2b_1_2_": {"label": "T2b", "dims": {"D1": 1, "D2": 2}, "counts": {"T2b": 1}},
+                "NODENAME_T2b_1_4_": {"label": "T2b", "dims": {"D1": 1, "D2": 4}, "counts": {"T2b": 1}},
+                "NODENAME_T2b_3_4_": {"label": "T2b", "dims": {"D1": 3, "D2": 4}, "counts": {"T2b": 1}},
                 "NODENAME_T4_1_2_": {"label": "T4", "dims": {"D1": 1, "D2": 2}, "counts": {"T4": 1}},
                 "NODENAME_T4_1_4_": {"label": "T4", "dims": {"D1": 1, "D2": 4}, "counts": {"T4": 1}},
                 "NODENAME_T4_3_4_": {"label": "T4", "dims": {"D1": 3, "D2": 4}, "counts": {"T4": 1}},
+                "NODENAME_T5_1_2_": {"label": "T5", "dims": {"D1": 1, "D2": 2}, "counts": {"T5": 1}},
+                "NODENAME_T5_1_4_": {"label": "T5", "dims": {"D1": 1, "D2": 4}, "counts": {"T5": 1}},
+                "NODENAME_T5_3_4_": {"label": "T5", "dims": {"D1": 3, "D2": 4}, "counts": {"T5": 1}},
             },
-            "edges": [],
+            "edges": [
+                ("NODENAME_T1_1_2_", "cl1_1_2"),
+                ("NODENAME_T1_1_4_", "cl1_1_4"),
+                ("NODENAME_T1_3_4_", "cl1_3_4"),
+                ("cl1_1_2", "NODENAME_T2b_1_2_"),
+                ("cl1_1_4", "NODENAME_T2b_1_4_"),
+                ("cl1_3_4", "NODENAME_T2b_3_4_"),
+                ("cl1_1_2", "NODENAME_T4_1_2_"),
+                ("cl1_1_4", "NODENAME_T4_1_4_"),
+                ("cl1_3_4", "NODENAME_T4_3_4_"),
+            ],
         }
         cqg = dimension_clustering(config, self.qgraph, name)
         check_cqg(cqg, answer)
 
-    def testAddClusterDependenciesSource(self):
-        name = "AddClusterDependenciesSource"
+    def testDependenciesSink2Clusters(self):
+        name = "DependenciesSink2Clusters"
+        config = BpsConfig(
+            {
+                "templateDataId": "{D1}_{D2}_{D3}_{D4}",
+                "cluster": {
+                    "cl1": {
+                        "pipetasks": "T1, T2",
+                        "dimensions": "D1, D2",
+                        "findDependencyMethod": "sink",
+                    },
+                    "cl2": {
+                        "pipetasks": "T3, T4",
+                        "dimensions": "D1, D2",
+                        "findDependencyMethod": "sink",
+                    },
+                },
+            }
+        )
+        answer = {
+            "name": name,
+            "nodes": {
+                "cl1_1_2": {"label": "cl1", "dims": {"D1": 1, "D2": 2}, "counts": {"T1": 1, "T2": 1}},
+                "cl1_1_4": {"label": "cl1", "dims": {"D1": 1, "D2": 4}, "counts": {"T1": 1, "T2": 1}},
+                "cl1_3_4": {"label": "cl1", "dims": {"D1": 3, "D2": 4}, "counts": {"T1": 1, "T2": 1}},
+                "NODENAME_T2b_1_2_": {"label": "T2b", "dims": {"D1": 1, "D2": 2}, "counts": {"T2b": 1}},
+                "NODENAME_T2b_1_4_": {"label": "T2b", "dims": {"D1": 1, "D2": 4}, "counts": {"T2b": 1}},
+                "NODENAME_T2b_3_4_": {"label": "T2b", "dims": {"D1": 3, "D2": 4}, "counts": {"T2b": 1}},
+                "cl2_1_2": {"label": "cl2", "dims": {"D1": 1, "D2": 2}, "counts": {"T3": 1, "T4": 1}},
+                "cl2_1_4": {"label": "cl2", "dims": {"D1": 1, "D2": 4}, "counts": {"T3": 1, "T4": 1}},
+                "cl2_3_4": {"label": "cl2", "dims": {"D1": 3, "D2": 4}, "counts": {"T3": 1, "T4": 1}},
+                "NODENAME_T5_1_2_": {"label": "T5", "dims": {"D1": 1, "D2": 2}, "counts": {"T5": 1}},
+                "NODENAME_T5_1_4_": {"label": "T5", "dims": {"D1": 1, "D2": 4}, "counts": {"T5": 1}},
+                "NODENAME_T5_3_4_": {"label": "T5", "dims": {"D1": 3, "D2": 4}, "counts": {"T5": 1}},
+            },
+            "edges": [
+                ("cl1_1_2", "cl2_1_2"),
+                ("cl1_1_4", "cl2_1_4"),
+                ("cl1_3_4", "cl2_3_4"),
+                ("cl1_1_2", "NODENAME_T2b_1_2_"),
+                ("cl1_1_4", "NODENAME_T2b_1_4_"),
+                ("cl1_3_4", "NODENAME_T2b_3_4_"),
+            ],
+        }
+        cqg = dimension_clustering(config, self.qgraph, name)
+        check_cqg(cqg, answer)
+
+    def testDependenciesSinkMultDepends(self):
+        name = "DependenciesSinkMultClusters"
+        config = BpsConfig(
+            {
+                "templateDataId": "{D1}_{D2}_{D3}_{D4}",
+                "cluster": {
+                    "cl1": {
+                        "pipetasks": "T2, T3",
+                        "findDependencyMethod": "sink",
+                    },
+                },
+            }
+        )
+        answer = {
+            "name": name,
+            "nodes": {
+                "NODENAME_T1_1_2_": {"label": "T1", "dims": {"D1": 1, "D2": 2}, "counts": {"T1": 1}},
+                "NODENAME_T1_1_4_": {"label": "T1", "dims": {"D1": 1, "D2": 4}, "counts": {"T1": 1}},
+                "NODENAME_T1_3_4_": {"label": "T1", "dims": {"D1": 3, "D2": 4}, "counts": {"T1": 1}},
+                "cl1": {"label": "cl1", "dims": {}, "counts": {"T2": 3, "T3": 3}},
+                "NODENAME_T2b_1_2_": {"label": "T2b", "dims": {"D1": 1, "D2": 2}, "counts": {"T2b": 1}},
+                "NODENAME_T2b_1_4_": {"label": "T2b", "dims": {"D1": 1, "D2": 4}, "counts": {"T2b": 1}},
+                "NODENAME_T2b_3_4_": {"label": "T2b", "dims": {"D1": 3, "D2": 4}, "counts": {"T2b": 1}},
+                "NODENAME_T4_1_2_": {"label": "T4", "dims": {"D1": 1, "D2": 2}, "counts": {"T4": 1}},
+                "NODENAME_T4_1_4_": {"label": "T4", "dims": {"D1": 1, "D2": 4}, "counts": {"T4": 1}},
+                "NODENAME_T4_3_4_": {"label": "T4", "dims": {"D1": 3, "D2": 4}, "counts": {"T4": 1}},
+                "NODENAME_T5_1_2_": {"label": "T5", "dims": {"D1": 1, "D2": 2}, "counts": {"T5": 1}},
+                "NODENAME_T5_1_4_": {"label": "T5", "dims": {"D1": 1, "D2": 4}, "counts": {"T5": 1}},
+                "NODENAME_T5_3_4_": {"label": "T5", "dims": {"D1": 3, "D2": 4}, "counts": {"T5": 1}},
+            },
+            "edges": [
+                ("NODENAME_T1_1_2_", "cl1"),
+                ("NODENAME_T1_1_4_", "cl1"),
+                ("NODENAME_T1_3_4_", "cl1"),
+                ("cl1", "NODENAME_T2b_1_2_"),
+                ("cl1", "NODENAME_T2b_1_4_"),
+                ("cl1", "NODENAME_T2b_3_4_"),
+                ("cl1", "NODENAME_T4_1_2_"),
+                ("cl1", "NODENAME_T4_1_4_"),
+                ("cl1", "NODENAME_T4_3_4_"),
+            ],
+        }
+        cqg = dimension_clustering(config, self.qgraph, name)
+        check_cqg(cqg, answer)
+
+    def testDependenciesSource(self):
+        name = "DependenciesSource"
         config = BpsConfig(
             {
                 "templateDataId": "{D1}_{D2}_{D3}_{D4}",
@@ -586,18 +817,123 @@ class TestDimensionClustering(unittest.TestCase):
                     "dims": {"D1": 3, "D2": 4},
                     "counts": {"T1": 1, "T2": 1, "T3": 1},
                 },
+                "NODENAME_T2b_1_2_": {"label": "T2b", "dims": {"D1": 1, "D2": 2}, "counts": {"T2b": 1}},
+                "NODENAME_T2b_1_4_": {"label": "T2b", "dims": {"D1": 1, "D2": 4}, "counts": {"T2b": 1}},
+                "NODENAME_T2b_3_4_": {"label": "T2b", "dims": {"D1": 3, "D2": 4}, "counts": {"T2b": 1}},
                 "NODENAME_T4_1_2_": {"label": "T4", "dims": {"D1": 1, "D2": 2}, "counts": {"T4": 1}},
                 "NODENAME_T4_1_4_": {"label": "T4", "dims": {"D1": 1, "D2": 4}, "counts": {"T4": 1}},
                 "NODENAME_T4_3_4_": {"label": "T4", "dims": {"D1": 3, "D2": 4}, "counts": {"T4": 1}},
+                "NODENAME_T5_1_2_": {"label": "T5", "dims": {"D1": 1, "D2": 2}, "counts": {"T5": 1}},
+                "NODENAME_T5_1_4_": {"label": "T5", "dims": {"D1": 1, "D2": 4}, "counts": {"T5": 1}},
+                "NODENAME_T5_3_4_": {"label": "T5", "dims": {"D1": 3, "D2": 4}, "counts": {"T5": 1}},
             },
-            "edges": [],
+            "edges": [
+                ("cl1_1_2", "NODENAME_T2b_1_2_"),
+                ("cl1_1_4", "NODENAME_T2b_1_4_"),
+                ("cl1_3_4", "NODENAME_T2b_3_4_"),
+                ("cl1_1_2", "NODENAME_T4_1_2_"),
+                ("cl1_1_4", "NODENAME_T4_1_4_"),
+                ("cl1_3_4", "NODENAME_T4_3_4_"),
+            ],
         }
         cqg = dimension_clustering(config, self.qgraph, name)
         check_cqg(cqg, answer)
 
-    def testAddClusterDependenciesExtra(self):
+    def testDependenciesSource2Clusters(self):
+        name = "DependenciesSource2Clusters"
+        config = BpsConfig(
+            {
+                "templateDataId": "{D1}_{D2}_{D3}_{D4}",
+                "cluster": {
+                    "cl1": {
+                        "pipetasks": "T1, T2",
+                        "dimensions": "D1, D2",
+                        "findDependencyMethod": "source",
+                    },
+                    "cl2": {
+                        "pipetasks": "T3, T4",
+                        "dimensions": "D1, D2",
+                        "findDependencyMethod": "source",
+                    },
+                },
+            }
+        )
+        answer = {
+            "name": name,
+            "nodes": {
+                "cl1_1_2": {"label": "cl1", "dims": {"D1": 1, "D2": 2}, "counts": {"T1": 1, "T2": 1}},
+                "cl1_1_4": {"label": "cl1", "dims": {"D1": 1, "D2": 4}, "counts": {"T1": 1, "T2": 1}},
+                "cl1_3_4": {"label": "cl1", "dims": {"D1": 3, "D2": 4}, "counts": {"T1": 1, "T2": 1}},
+                "NODENAME_T2b_1_2_": {"label": "T2b", "dims": {"D1": 1, "D2": 2}, "counts": {"T2b": 1}},
+                "NODENAME_T2b_1_4_": {"label": "T2b", "dims": {"D1": 1, "D2": 4}, "counts": {"T2b": 1}},
+                "NODENAME_T2b_3_4_": {"label": "T2b", "dims": {"D1": 3, "D2": 4}, "counts": {"T2b": 1}},
+                "cl2_1_2": {"label": "cl2", "dims": {"D1": 1, "D2": 2}, "counts": {"T3": 1, "T4": 1}},
+                "cl2_1_4": {"label": "cl2", "dims": {"D1": 1, "D2": 4}, "counts": {"T3": 1, "T4": 1}},
+                "cl2_3_4": {"label": "cl2", "dims": {"D1": 3, "D2": 4}, "counts": {"T3": 1, "T4": 1}},
+                "NODENAME_T5_1_2_": {"label": "T5", "dims": {"D1": 1, "D2": 2}, "counts": {"T5": 1}},
+                "NODENAME_T5_1_4_": {"label": "T5", "dims": {"D1": 1, "D2": 4}, "counts": {"T5": 1}},
+                "NODENAME_T5_3_4_": {"label": "T5", "dims": {"D1": 3, "D2": 4}, "counts": {"T5": 1}},
+            },
+            "edges": [
+                ("cl1_1_2", "NODENAME_T2b_1_2_"),
+                ("cl1_1_4", "NODENAME_T2b_1_4_"),
+                ("cl1_3_4", "NODENAME_T2b_3_4_"),
+                ("cl1_1_2", "cl2_1_2"),
+                ("cl1_1_4", "cl2_1_4"),
+                ("cl1_3_4", "cl2_3_4"),
+            ],
+        }
+        cqg = dimension_clustering(config, self.qgraph, name)
+        check_cqg(cqg, answer)
+
+    def testDependenciesSourceMultDepends(self):
+        name = "DependenciesSourceMultClusters"
+        config = BpsConfig(
+            {
+                "templateDataId": "{D1}_{D2}_{D3}_{D4}",
+                "cluster": {
+                    "cl1": {
+                        "pipetasks": "T2, T3",
+                        "findDependencyMethod": "source",
+                    },
+                },
+            }
+        )
+        answer = {
+            "name": name,
+            "nodes": {
+                "NODENAME_T1_1_2_": {"label": "T1", "dims": {"D1": 1, "D2": 2}, "counts": {"T1": 1}},
+                "NODENAME_T1_1_4_": {"label": "T1", "dims": {"D1": 1, "D2": 4}, "counts": {"T1": 1}},
+                "NODENAME_T1_3_4_": {"label": "T1", "dims": {"D1": 3, "D2": 4}, "counts": {"T1": 1}},
+                "cl1": {"label": "cl1", "dims": {}, "counts": {"T2": 3, "T3": 3}},
+                "NODENAME_T2b_1_2_": {"label": "T2b", "dims": {"D1": 1, "D2": 2}, "counts": {"T2b": 1}},
+                "NODENAME_T2b_1_4_": {"label": "T2b", "dims": {"D1": 1, "D2": 4}, "counts": {"T2b": 1}},
+                "NODENAME_T2b_3_4_": {"label": "T2b", "dims": {"D1": 3, "D2": 4}, "counts": {"T2b": 1}},
+                "NODENAME_T4_1_2_": {"label": "T4", "dims": {"D1": 1, "D2": 2}, "counts": {"T4": 1}},
+                "NODENAME_T4_1_4_": {"label": "T4", "dims": {"D1": 1, "D2": 4}, "counts": {"T4": 1}},
+                "NODENAME_T4_3_4_": {"label": "T4", "dims": {"D1": 3, "D2": 4}, "counts": {"T4": 1}},
+                "NODENAME_T5_1_2_": {"label": "T5", "dims": {"D1": 1, "D2": 2}, "counts": {"T5": 1}},
+                "NODENAME_T5_1_4_": {"label": "T5", "dims": {"D1": 1, "D2": 4}, "counts": {"T5": 1}},
+                "NODENAME_T5_3_4_": {"label": "T5", "dims": {"D1": 3, "D2": 4}, "counts": {"T5": 1}},
+            },
+            "edges": [
+                ("NODENAME_T1_1_2_", "cl1"),
+                ("NODENAME_T1_1_4_", "cl1"),
+                ("NODENAME_T1_3_4_", "cl1"),
+                ("cl1", "NODENAME_T2b_1_2_"),
+                ("cl1", "NODENAME_T2b_1_4_"),
+                ("cl1", "NODENAME_T2b_3_4_"),
+                ("cl1", "NODENAME_T4_1_2_"),
+                ("cl1", "NODENAME_T4_1_4_"),
+                ("cl1", "NODENAME_T4_3_4_"),
+            ],
+        }
+        cqg = dimension_clustering(config, self.qgraph, name)
+        check_cqg(cqg, answer)
+
+    def testDependenciesExtra(self):
         # Test if dependencies return more than in cluster
-        name = "AddClusterDependenciesExtra"
+        name = "DependenciesExtra"
         config = BpsConfig(
             {
                 "templateDataId": "{D1}_{D2}_{D3}_{D4}",
@@ -613,39 +949,39 @@ class TestDimensionClustering(unittest.TestCase):
         answer = {
             "name": name,
             "nodes": {
-                "cl1_1_2": {
-                    "label": "cl1",
-                    "dims": {"D1": 1, "D2": 2},
-                    "counts": {"T1": 1, "T2": 1},
-                },
-                "cl1_1_4": {
-                    "label": "cl1",
-                    "dims": {"D1": 1, "D2": 4},
-                    "counts": {"T1": 1, "T2": 1},
-                },
-                "cl1_3_4": {
-                    "label": "cl1",
-                    "dims": {"D1": 3, "D2": 4},
-                    "counts": {"T1": 1, "T2": 1},
-                },
+                "cl1_1_2": {"label": "cl1", "dims": {"D1": 1, "D2": 2}, "counts": {"T1": 1, "T2": 1}},
+                "cl1_1_4": {"label": "cl1", "dims": {"D1": 1, "D2": 4}, "counts": {"T1": 1, "T2": 1}},
+                "cl1_3_4": {"label": "cl1", "dims": {"D1": 3, "D2": 4}, "counts": {"T1": 1, "T2": 1}},
+                "NODENAME_T2b_1_2_": {"label": "T2b", "dims": {"D1": 1, "D2": 2}, "counts": {"T2b": 1}},
+                "NODENAME_T2b_1_4_": {"label": "T2b", "dims": {"D1": 1, "D2": 4}, "counts": {"T2b": 1}},
+                "NODENAME_T2b_3_4_": {"label": "T2b", "dims": {"D1": 3, "D2": 4}, "counts": {"T2b": 1}},
                 "NODENAME_T3_1_2_": {"label": "T3", "dims": {"D1": 1, "D2": 2}, "counts": {"T3": 1}},
                 "NODENAME_T3_1_4_": {"label": "T3", "dims": {"D1": 1, "D2": 4}, "counts": {"T3": 1}},
                 "NODENAME_T3_3_4_": {"label": "T3", "dims": {"D1": 3, "D2": 4}, "counts": {"T3": 1}},
                 "NODENAME_T4_1_2_": {"label": "T4", "dims": {"D1": 1, "D2": 2}, "counts": {"T4": 1}},
                 "NODENAME_T4_1_4_": {"label": "T4", "dims": {"D1": 1, "D2": 4}, "counts": {"T4": 1}},
                 "NODENAME_T4_3_4_": {"label": "T4", "dims": {"D1": 3, "D2": 4}, "counts": {"T4": 1}},
+                "NODENAME_T5_1_2_": {"label": "T5", "dims": {"D1": 1, "D2": 2}, "counts": {"T5": 1}},
+                "NODENAME_T5_1_4_": {"label": "T5", "dims": {"D1": 1, "D2": 4}, "counts": {"T5": 1}},
+                "NODENAME_T5_3_4_": {"label": "T5", "dims": {"D1": 3, "D2": 4}, "counts": {"T5": 1}},
             },
             "edges": [
                 ("cl1_1_2", "NODENAME_T3_1_2_"),
                 ("cl1_1_4", "NODENAME_T3_1_4_"),
                 ("cl1_3_4", "NODENAME_T3_3_4_"),
+                ("cl1_1_2", "NODENAME_T2b_1_2_"),
+                ("cl1_1_4", "NODENAME_T2b_1_4_"),
+                ("cl1_3_4", "NODENAME_T2b_3_4_"),
+                ("NODENAME_T3_1_2_", "NODENAME_T4_1_2_"),
+                ("NODENAME_T3_1_4_", "NODENAME_T4_1_4_"),
+                ("NODENAME_T3_3_4_", "NODENAME_T4_3_4_"),
             ],
         }
         cqg = dimension_clustering(config, self.qgraph, name)
         check_cqg(cqg, answer)
 
-    def testAddClusterDependenciesSameCluster(self):
-        name = "AddClusterDependenciesSameCluster"
+    def testDependenciesSameCluster(self):
+        name = "DependenciesSameCluster"
         config = BpsConfig(
             {
                 "cluster": {
@@ -671,6 +1007,21 @@ class TestDimensionClustering(unittest.TestCase):
                     "dims": {"D1": 3},
                     "counts": {"T1": 1, "T2": 1, "T3": 1},
                 },
+                "NODEONLY_T2b_{'D1': 1, 'D2': 2}": {
+                    "label": "T2b",
+                    "dims": {"D1": 1, "D2": 2},
+                    "counts": {"T2b": 1},
+                },
+                "NODEONLY_T2b_{'D1': 1, 'D2': 4}": {
+                    "label": "T2b",
+                    "dims": {"D1": 1, "D2": 4},
+                    "counts": {"T2b": 1},
+                },
+                "NODEONLY_T2b_{'D1': 3, 'D2': 4}": {
+                    "label": "T2b",
+                    "dims": {"D1": 3, "D2": 4},
+                    "counts": {"T2b": 1},
+                },
                 "NODEONLY_T4_{'D1': 1, 'D2': 2}": {
                     "label": "T4",
                     "dims": {"D1": 1, "D2": 2},
@@ -686,14 +1037,83 @@ class TestDimensionClustering(unittest.TestCase):
                     "dims": {"D1": 3, "D2": 4},
                     "counts": {"T4": 1},
                 },
+                "NODEONLY_T5_{'D1': 1, 'D2': 2}": {
+                    "label": "T5",
+                    "dims": {"D1": 1, "D2": 2},
+                    "counts": {"T5": 1},
+                },
+                "NODEONLY_T5_{'D1': 1, 'D2': 4}": {
+                    "label": "T5",
+                    "dims": {"D1": 1, "D2": 4},
+                    "counts": {"T5": 1},
+                },
+                "NODEONLY_T5_{'D1': 3, 'D2': 4}": {
+                    "label": "T5",
+                    "dims": {"D1": 3, "D2": 4},
+                    "counts": {"T5": 1},
+                },
             },
-            "edges": [],
+            "edges": [
+                ("ct_1_", "NODEONLY_T2b_{'D1': 1, 'D2': 2}"),
+                ("ct_1_", "NODEONLY_T2b_{'D1': 1, 'D2': 4}"),
+                ("ct_3_", "NODEONLY_T2b_{'D1': 3, 'D2': 4}"),
+                ("ct_1_", "NODEONLY_T4_{'D1': 1, 'D2': 2}"),
+                ("ct_1_", "NODEONLY_T4_{'D1': 1, 'D2': 4}"),
+                ("ct_3_", "NODEONLY_T4_{'D1': 3, 'D2': 4}"),
+            ],
         }
         cqg = dimension_clustering(config, self.qgraph, name)
         check_cqg(cqg, answer)
 
-    def testAddClusterDependenciesBadMethod(self):
-        name = "AddClusterDependenciesBadMethod"
+    def testDependenciesBoth2Clusters(self):
+        name = "DependenciesBoth2Clusters"
+        config = BpsConfig(
+            {
+                "templateDataId": "{D1}_{D2}_{D3}_{D4}",
+                "cluster": {
+                    "cl1": {
+                        "pipetasks": "T1, T2",
+                        "dimensions": "D1, D2",
+                        "findDependencyMethod": "sink",
+                    },
+                    "cl2": {
+                        "pipetasks": "T3, T4",
+                        "dimensions": "D1, D2",
+                        "findDependencyMethod": "source",
+                    },
+                },
+            }
+        )
+        answer = {
+            "name": name,
+            "nodes": {
+                "cl1_1_2": {"label": "cl1", "dims": {"D1": 1, "D2": 2}, "counts": {"T1": 1, "T2": 1}},
+                "cl1_1_4": {"label": "cl1", "dims": {"D1": 1, "D2": 4}, "counts": {"T1": 1, "T2": 1}},
+                "cl1_3_4": {"label": "cl1", "dims": {"D1": 3, "D2": 4}, "counts": {"T1": 1, "T2": 1}},
+                "NODENAME_T2b_1_2_": {"label": "T2b", "dims": {"D1": 1, "D2": 2}, "counts": {"T2b": 1}},
+                "NODENAME_T2b_1_4_": {"label": "T2b", "dims": {"D1": 1, "D2": 4}, "counts": {"T2b": 1}},
+                "NODENAME_T2b_3_4_": {"label": "T2b", "dims": {"D1": 3, "D2": 4}, "counts": {"T2b": 1}},
+                "cl2_1_2": {"label": "cl2", "dims": {"D1": 1, "D2": 2}, "counts": {"T3": 1, "T4": 1}},
+                "cl2_1_4": {"label": "cl2", "dims": {"D1": 1, "D2": 4}, "counts": {"T3": 1, "T4": 1}},
+                "cl2_3_4": {"label": "cl2", "dims": {"D1": 3, "D2": 4}, "counts": {"T3": 1, "T4": 1}},
+                "NODENAME_T5_1_2_": {"label": "T5", "dims": {"D1": 1, "D2": 2}, "counts": {"T5": 1}},
+                "NODENAME_T5_1_4_": {"label": "T5", "dims": {"D1": 1, "D2": 4}, "counts": {"T5": 1}},
+                "NODENAME_T5_3_4_": {"label": "T5", "dims": {"D1": 3, "D2": 4}, "counts": {"T5": 1}},
+            },
+            "edges": [
+                ("cl1_1_2", "NODENAME_T2b_1_2_"),
+                ("cl1_1_4", "NODENAME_T2b_1_4_"),
+                ("cl1_3_4", "NODENAME_T2b_3_4_"),
+                ("cl1_1_2", "cl2_1_2"),
+                ("cl1_1_4", "cl2_1_4"),
+                ("cl1_3_4", "cl2_3_4"),
+            ],
+        }
+        cqg = dimension_clustering(config, self.qgraph, name)
+        check_cqg(cqg, answer)
+
+    def testDependenciesBadMethod(self):
+        name = "DependenciesBadMethod"
         config = BpsConfig(
             {
                 "templateDataId": "{D1}_{D2}_{D3}_{D4}",
@@ -708,6 +1128,114 @@ class TestDimensionClustering(unittest.TestCase):
         )
         with self.assertRaises(RuntimeError):
             _ = dimension_clustering(config, self.qgraph, name)
+
+    def testDependenciesSinkUneven(self):
+        name = "DependenciesSinkUneven"
+        config = BpsConfig(
+            {
+                "templateDataId": "{D1}_{D2}_{D3}_{D4}",
+                "cluster": {
+                    "cl1": {
+                        "pipetasks": "T1, T2, T3",
+                        "dimensions": "D1, D2",
+                        "findDependencyMethod": "sink",
+                    },
+                },
+            }
+        )
+        answer = {
+            "name": name,
+            "nodes": {
+                "cl1_1_2": {
+                    "label": "cl1",
+                    "dims": {"D1": 1, "D2": 2},
+                    "counts": {"T3": 1},
+                },
+                "cl1_1_4": {
+                    "label": "cl1",
+                    "dims": {"D1": 1, "D2": 4},
+                    "counts": {"T2": 1, "T3": 1},
+                },
+                "cl1_3_4": {
+                    "label": "cl1",
+                    "dims": {"D1": 3, "D2": 4},
+                    "counts": {"T1": 1, "T2": 1, "T3": 1},
+                },
+                "NODENAME_T2b_1_2_": {"label": "T2b", "dims": {"D1": 1, "D2": 2}, "counts": {"T2b": 1}},
+                "NODENAME_T2b_1_4_": {"label": "T2b", "dims": {"D1": 1, "D2": 4}, "counts": {"T2b": 1}},
+                "NODENAME_T2b_3_4_": {"label": "T2b", "dims": {"D1": 3, "D2": 4}, "counts": {"T2b": 1}},
+                "NODENAME_T4_1_2_": {"label": "T4", "dims": {"D1": 1, "D2": 2}, "counts": {"T4": 1}},
+                "NODENAME_T4_1_4_": {"label": "T4", "dims": {"D1": 1, "D2": 4}, "counts": {"T4": 1}},
+                "NODENAME_T4_3_4_": {"label": "T4", "dims": {"D1": 3, "D2": 4}, "counts": {"T4": 1}},
+                "NODENAME_T5_1_2_": {"label": "T5", "dims": {"D1": 1, "D2": 2}, "counts": {"T5": 1}},
+                "NODENAME_T5_1_4_": {"label": "T5", "dims": {"D1": 1, "D2": 4}, "counts": {"T5": 1}},
+                "NODENAME_T5_3_4_": {"label": "T5", "dims": {"D1": 3, "D2": 4}, "counts": {"T5": 1}},
+            },
+            "edges": [
+                ("cl1_1_4", "NODENAME_T2b_1_4_"),
+                ("cl1_3_4", "NODENAME_T2b_3_4_"),
+                ("cl1_1_2", "NODENAME_T4_1_2_"),
+                ("cl1_1_4", "NODENAME_T4_1_4_"),
+                ("cl1_3_4", "NODENAME_T4_3_4_"),
+            ],
+        }
+        qgraph = make_test_quantum_graph(uneven=True)
+        cqg = dimension_clustering(config, qgraph, name)
+        check_cqg(cqg, answer)
+
+    def testDependenciesSourceUneven(self):
+        name = "DependenciesSourceUneven"
+        config = BpsConfig(
+            {
+                "templateDataId": "{D1}_{D2}_{D3}_{D4}",
+                "cluster": {
+                    "cl1": {
+                        "pipetasks": "T1, T2, T3",
+                        "dimensions": "D1, D2",
+                        "findDependencyMethod": "source",
+                    },
+                },
+            }
+        )
+        answer = {
+            "name": name,
+            "nodes": {
+                "cl1_1_2": {
+                    "label": "cl1",
+                    "dims": {"D1": 1, "D2": 2},
+                    "counts": {"T3": 1},
+                },
+                "cl1_1_4": {
+                    "label": "cl1",
+                    "dims": {"D1": 1, "D2": 4},
+                    "counts": {"T2": 1, "T3": 1},
+                },
+                "cl1_3_4": {
+                    "label": "cl1",
+                    "dims": {"D1": 3, "D2": 4},
+                    "counts": {"T1": 1, "T2": 1, "T3": 1},
+                },
+                "NODENAME_T2b_1_2_": {"label": "T2b", "dims": {"D1": 1, "D2": 2}, "counts": {"T2b": 1}},
+                "NODENAME_T2b_1_4_": {"label": "T2b", "dims": {"D1": 1, "D2": 4}, "counts": {"T2b": 1}},
+                "NODENAME_T2b_3_4_": {"label": "T2b", "dims": {"D1": 3, "D2": 4}, "counts": {"T2b": 1}},
+                "NODENAME_T4_1_2_": {"label": "T4", "dims": {"D1": 1, "D2": 2}, "counts": {"T4": 1}},
+                "NODENAME_T4_1_4_": {"label": "T4", "dims": {"D1": 1, "D2": 4}, "counts": {"T4": 1}},
+                "NODENAME_T4_3_4_": {"label": "T4", "dims": {"D1": 3, "D2": 4}, "counts": {"T4": 1}},
+                "NODENAME_T5_1_2_": {"label": "T5", "dims": {"D1": 1, "D2": 2}, "counts": {"T5": 1}},
+                "NODENAME_T5_1_4_": {"label": "T5", "dims": {"D1": 1, "D2": 4}, "counts": {"T5": 1}},
+                "NODENAME_T5_3_4_": {"label": "T5", "dims": {"D1": 3, "D2": 4}, "counts": {"T5": 1}},
+            },
+            "edges": [
+                ("cl1_1_4", "NODENAME_T2b_1_4_"),
+                ("cl1_3_4", "NODENAME_T2b_3_4_"),
+                ("cl1_1_2", "NODENAME_T4_1_2_"),
+                ("cl1_1_4", "NODENAME_T4_1_4_"),
+                ("cl1_3_4", "NODENAME_T4_3_4_"),
+            ],
+        }
+        qgraph = make_test_quantum_graph(uneven=True)
+        cqg = dimension_clustering(config, qgraph, name)
+        check_cqg(cqg, answer)
 
 
 if __name__ == "__main__":

@@ -85,6 +85,27 @@ class Dummy2PipelineTask(PipelineTask):
     ConfigClass = Dummy2Config
 
 
+class Dummy2bConnections(PipelineTaskConnections, dimensions=("D1", "D2")):
+    """A connections class used for testing mid-pipeline leaf node."""
+
+    initInput = cT.InitInput(name="Dummy2InitOutput", storageClass="ExposureF", doc="n/a")
+    initOutput = cT.InitOutput(name="Dummy2bInitOutput", storageClass="ExposureF", doc="n/a")
+    input = cT.Input(name="Dummy2Output", storageClass="ExposureF", doc="n/a", dimensions=("D1", "D2"))
+    output = cT.Output(name="Dummy2bOutput", storageClass="ExposureF", doc="n/a", dimensions=("D1", "D2"))
+
+
+class Dummy2bConfig(PipelineTaskConfig, pipelineConnections=Dummy2bConnections):
+    """Config used for testing dummy2b."""
+
+    conf1 = Field(dtype=int, default=1, doc="dummy config")
+
+
+class Dummy2bPipelineTask(PipelineTask):
+    """PipelineTask for dummy2b."""
+
+    ConfigClass = Dummy2bConfig
+
+
 class Dummy3Connections(PipelineTaskConnections, dimensions=("D1", "D2")):
     """Third connections class used for testing."""
 
@@ -106,12 +127,12 @@ class Dummy3PipelineTask(PipelineTask):
     ConfigClass = Dummy3Config
 
 
-# Test if a Task that does not interact with the other Tasks works fine in
-# the graph.
 class Dummy4Connections(PipelineTaskConnections, dimensions=("D1", "D2")):
     """Fourth connections class used for testing."""
 
-    input = cT.Input(name="Dummy4Input", storageClass="ExposureF", doc="n/a", dimensions=("D1", "D2"))
+    initInput = cT.InitInput(name="Dummy3InitOutput", storageClass="ExposureF", doc="n/a")
+    initOutput = cT.InitOutput(name="Dummy4InitOutput", storageClass="ExposureF", doc="n/a")
+    input = cT.Input(name="Dummy3Output", storageClass="ExposureF", doc="n/a", dimensions=("D1", "D2"))
     output = cT.Output(name="Dummy4Output", storageClass="ExposureF", doc="n/a", dimensions=("D1", "D2"))
 
 
@@ -125,6 +146,27 @@ class Dummy4PipelineTask(PipelineTask):
     """Fourth test PipelineTask."""
 
     ConfigClass = Dummy4Config
+
+
+# Test if a Task that does not interact with the other Tasks works fine in
+# the graph.
+class Dummy5Connections(PipelineTaskConnections, dimensions=("D1", "D2")):
+    """Fifth connections class used for testing."""
+
+    input = cT.Input(name="Dummy5Input", storageClass="ExposureF", doc="n/a", dimensions=("D1", "D2"))
+    output = cT.Output(name="Dummy5Output", storageClass="ExposureF", doc="n/a", dimensions=("D1", "D2"))
+
+
+class Dummy5Config(PipelineTaskConfig, pipelineConnections=Dummy5Connections):
+    """Fifth config used for testing."""
+
+    conf1 = Field(dtype=int, default=1, doc="dummy config")
+
+
+class Dummy5PipelineTask(PipelineTask):
+    """Fifth test PipelineTask."""
+
+    ConfigClass = Dummy5Config
 
 
 def _make_quantum(run, universe, task, task_def, dim1, dim2, intermediate_refs):
@@ -169,13 +211,16 @@ def _make_quantum(run, universe, task, task_def, dim1, dim2, intermediate_refs):
     return quantum
 
 
-def make_test_quantum_graph(run: str = "run"):
+def make_test_quantum_graph(run: str = "run", uneven=False):
     """Create a QuantumGraph for unit tests.
 
     Parameters
     ----------
     run : `str`, optional
         Name of the RUN collection for output datasets.
+    uneven : `bool`, optional
+        Whether some of the quanta for initial tasks are
+        not included as if finished in previous run.
 
     Returns
     -------
@@ -186,12 +231,15 @@ def make_test_quantum_graph(run: str = "run"):
         Numbers in parens are the values for the two dimensions (D1, D2).
 
         .. code-block::
-
-          T1(1,2)   T1(1,4)   T1(3,4)  T4(1,2)  T4(3,4)
-           |         |         |
-          T2(1,2)   T2(1,4)   T2(3,4)
-           |         |         |
-          T3(1,2)   T3(1,4)   T3(3,4)
+           T1(1,2)    T1(1,4)     T1(3,4)  T5(1,2)  T5(1,4)  T5(3,4)
+            |          |           |
+           T2(1,2)    T2(1,4)     T2(3,4)
+            |   |      |   |       |   |
+            | T2b(1,2) | T2b(1,4)  | T2b(3,4)
+            |          |           |
+           T3(1,2)    T3(1,4)     T3(3,4)
+            |          |           |
+           T4(1,2)    T4(1,4)     T4(3,4)
     """
     config = Config(
         {
@@ -237,16 +285,28 @@ def make_test_quantum_graph(run: str = "run"):
     tasks = []
     # Map to keep output/intermediate refs.
     intermediate_refs: dict[tuple[DatasetType, DataCoordinate], DatasetRef] = {}
-    for task, label in (
-        (Dummy1PipelineTask, "T1"),
-        (Dummy2PipelineTask, "T2"),
-        (Dummy3PipelineTask, "T3"),
-        (Dummy4PipelineTask, "T4"),
-    ):
+
+    # control quanta to put in quantum graph:
+    default_dims = [(1, 2), (1, 4), (3, 4)]
+    info = {
+        "T2b": {"task": Dummy2bPipelineTask, "dims": default_dims},
+        "T3": {"task": Dummy3PipelineTask, "dims": default_dims},
+        "T4": {"task": Dummy4PipelineTask, "dims": default_dims},
+        "T5": {"task": Dummy5PipelineTask, "dims": default_dims},
+    }
+    if uneven:
+        info["T1"] = {"task": Dummy1PipelineTask, "dims": [(3, 4)]}
+        info["T2"] = {"task": Dummy2PipelineTask, "dims": [(1, 4), (3, 4)]}
+    else:
+        info["T1"] = {"task": Dummy1PipelineTask, "dims": default_dims}
+        info["T2"] = {"task": Dummy2PipelineTask, "dims": default_dims}
+
+    for label in sorted(info):
+        task = info[label]["task"]
         task_def = TaskDef(get_full_type_name(task), task.ConfigClass(), task, label)
         tasks.append(task_def)
         quantum_set = set()
-        for dim1, dim2 in ((1, 2), (1, 4), (3, 4)):
+        for dim1, dim2 in info[label]["dims"]:
             quantum = _make_quantum(run, universe, task, task_def, dim1, dim2, intermediate_refs)
             quantum_set.add(quantum)
         quantum_map[task_def] = quantum_set
