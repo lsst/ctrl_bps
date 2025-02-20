@@ -33,7 +33,7 @@ from collections import defaultdict
 from typing import Any
 from uuid import UUID
 
-from networkx import DiGraph, is_directed_acyclic_graph, topological_sort
+from networkx import DiGraph, NetworkXNoCycle, find_cycle, topological_sort
 
 from lsst.pipe.base import QuantumGraph, QuantumNode
 
@@ -181,7 +181,17 @@ def _check_clusters_tasks(
 
     _LOG.debug("clustered_task_graph.edges = %s", list(clustered_task_graph.edges))
 
-    if not is_directed_acyclic_graph(clustered_task_graph):
+    # Check if DAG:  DiGraph enforces direction, so need to check for cycles
+    try:
+        cycle = find_cycle(clustered_task_graph)
+    except NetworkXNoCycle:
+        _LOG.debug("Did not find a cycle in the clustered_task_graph")
+    else:
+        _LOG.error(
+            "Found cycle when making clusters: %s.  Typically this means a PipelineTask needs to be added to"
+            " a cluster or removed from a cluster.",
+            cycle,
+        )
         raise RuntimeError("Cluster pipetasks do not create a DAG")
 
     return list(topological_sort(clustered_task_graph)), ordered_tasks

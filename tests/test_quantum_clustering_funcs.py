@@ -30,6 +30,7 @@
 # the unittest casing.
 # pylint: disable=invalid-name
 
+import logging
 import os
 import unittest
 
@@ -590,20 +591,22 @@ class TestDimensionClustering(unittest.TestCase):
         cqg = dimension_clustering(config, self.qgraph, name)
         check_cqg(cqg, answer)
 
-    def testClusterRepeat(self):
-        """A PipelineTask appears in more than one cluster definition."""
+    def testClusterCycle(self):
+        """The clustering produces a cycle."""
         config = BpsConfig(
             {
                 "templateDataId": "{D1}_{D2}_{D3}_{D4}",
                 "cluster": {
-                    "cl1": {"pipetasks": "T1, T2, T3, T4", "dimensions": "D1, D2"},
+                    "cl1": {"pipetasks": "T1, T3, T4", "dimensions": "D1, D2"},
                     "cl2": {"pipetasks": "T2", "dimensions": "D1, D2"},
                 },
             }
         )
 
-        with self.assertRaises(RuntimeError):
-            _ = dimension_clustering(config, self.qgraph, "repeat-task")
+        with self.assertLogs("lsst.ctrl.bps.quantum_clustering_funcs", level=logging.ERROR) as cm:
+            with self.assertRaisesRegex(RuntimeError, "Cluster pipetasks do not create a DAG"):
+                _ = dimension_clustering(config, self.qgraph, "cycle")
+            self.assertRegex(cm.records[-1].getMessage(), "Found cycle when making clusters: .*")
 
     def testClusterDepends(self):
         """Part of a chain of PipelineTask appears in different cluster."""
