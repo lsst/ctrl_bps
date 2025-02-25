@@ -28,8 +28,8 @@
 
 __all__ = [
     "make_3_label_workflow",
-    "make_3_label_workflow_noop_sort",
     "make_3_label_workflow_groups_sort",
+    "make_3_label_workflow_noop_sort",
 ]
 
 from collections import Counter

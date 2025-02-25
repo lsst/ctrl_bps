@@ -29,13 +29,13 @@
 
 __all__ = [
     "GenericWorkflow",
-    "GenericWorkflowFile",
-    "GenericWorkflowJob",
     "GenericWorkflowExec",
+    "GenericWorkflowFile",
+    "GenericWorkflowGroup",
+    "GenericWorkflowJob",
     "GenericWorkflowNode",
     "GenericWorkflowNodeType",
     "GenericWorkflowNoopJob",
-    "GenericWorkflowGroup",
 ]
 
 

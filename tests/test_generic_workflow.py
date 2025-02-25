@@ -32,6 +32,8 @@ from collections import Counter
 
 import networkx
 import networkx.algorithms.isomorphism as iso
+
+import lsst.ctrl.bps.generic_workflow as gw
 from lsst.ctrl.bps.tests.gw_test_utils import (
     make_3_label_workflow,
     make_3_label_workflow_groups_sort,
@@ -57,8 +59,6 @@ class TestGenericWorkflowNode(unittest.TestCase):
         job3 = gw.GenericWorkflowNode("myname", "mylabel2")
         self.assertNotEqual(hash(job), hash(job2))
         self.assertEqual(hash(job), hash(job3))
-
-import lsst.ctrl.bps.generic_workflow as gw
 
 
 class TestGenericWorkflowJob(unittest.TestCase):
