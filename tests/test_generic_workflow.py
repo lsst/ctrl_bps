@@ -135,17 +135,15 @@ class TestGenericWorkflow(unittest.TestCase):
         gwf = gw.GenericWorkflow("mytest")
         gwf.add_job(self.job1)
         gwf.add_job(self.job2)
-        with self.assertRaises(RuntimeError) as cm:
+        with self.assertRaisesRegex(RuntimeError, "notthere not in GenericWorkflow"):
             gwf.add_edge("notthere", "job2")
-            self.assertRegex(cm.records[-1].getMessage(), "notthere not in GenericWorkflow")
 
     def testAddEdgeBadChild(self):
         gwf = gw.GenericWorkflow("mytest")
         gwf.add_job(self.job1)
         gwf.add_job(self.job2)
-        with self.assertRaises(RuntimeError) as cm:
+        with self.assertRaisesRegex(RuntimeError, "notthere2 not in GenericWorkflow"):
             gwf.add_edge("job1", "notthere2")
-            self.assertRegex(cm.records[-1].getMessage(), "notthere2 not in GenericWorkflow")
 
     def testGetExecutablesNames(self):
         gwf = gw.GenericWorkflow("mytest")
@@ -206,15 +204,13 @@ class TestGenericWorkflow(unittest.TestCase):
     def testSaveInvalidFormat(self):
         gwf = gw.GenericWorkflow("mytest")
         stream = io.BytesIO()
-        with self.assertRaises(RuntimeError) as cm:
+        with self.assertRaisesRegex(RuntimeError, r"Unknown format \(bad_format\)"):
             gwf.save(stream, "bad_format")
-            self.assertRegex(cm.records[-1].getMessage(), "Unknown format (bad_format)")
 
     def testLoadInvalidFormat(self):
         stream = io.BytesIO()
-        with self.assertRaises(RuntimeError) as cm:
+        with self.assertRaisesRegex(RuntimeError, r"Unknown format \(bad_format\)"):
             _ = gw.GenericWorkflow.load(stream, "bad_format")
-            self.assertRegex(cm.records[-1].getMessage(), "Unknown format (bad_format)")
 
     def testValidate(self):
         gwf = gw.GenericWorkflow("mytest")
@@ -244,9 +240,8 @@ class TestGenericWorkflow(unittest.TestCase):
         gwf = gw.GenericWorkflow("mytest")
         gwf.add_job(self.job1)
         stream = io.BytesIO()
-        with self.assertRaises(RuntimeError) as cm:
+        with self.assertRaisesRegex(RuntimeError, r"Unknown draw format \(bad_format\)"):
             gwf.draw(stream, "bad_format")
-            self.assertRegex(cm.records[-1].getMessage(), "Unknown draw format (bad_format)")
 
     def testLabels(self):
         job3 = gw.GenericWorkflowJob("job3", "label2")
@@ -371,9 +366,8 @@ class TestGenericWorkflow(unittest.TestCase):
         gwf = gw.GenericWorkflow("mytest")
         gwf.add_job(self.job1)
         gwf.add_job(self.job2)
-        with self.assertRaises(RuntimeError) as cm:
+        with self.assertRaisesRegex(RuntimeError, "Invalid type for job to be added to GenericWorkflowGraph"):
             gwf.add_job(job3)
-            self.assertIn("Invalid type for job to be added to GenericWorkflowGraph", str(cm.exception))
 
 
 class TestGenericWorkflowLabels(unittest.TestCase):
@@ -457,34 +451,33 @@ class TestGenericWorkflowLabels(unittest.TestCase):
 
     def testAddSpecialJobOrderingBadType(self):
         gwf = _make_3_label_workflow("test_sort")
-        with self.assertRaises(RuntimeError) as cm:
+        with self.assertRaisesRegex(RuntimeError, "Invalid ordering_type for"):
             gwf.add_special_job_ordering(
                 {"order1": {"ordering_type": "badtype", "labels": "label2", "dimensions": "visit"}}
             )
-        self.assertIn("Invalid ordering_type for", str(cm.exception))
 
-        with self.assertRaises(RuntimeError) as cm:
+        with self.assertRaisesRegex(RuntimeError, "Invalid ordering_type for"):
             gwf.add_special_job_ordering(
                 {"order1": {"ordering_type": "badtype", "labels": "label2", "dimensions": "visit"}}
             )
-        self.assertIn("Invalid ordering_type for", str(cm.exception))
 
     def testAddSpecialJobOrderingBadLabel(self):
         gwf = _make_3_label_workflow("test_bad_label")
 
-        with self.assertRaises(RuntimeError) as cm:
+        with self.assertRaisesRegex(
+            RuntimeError, "Job label label2 appears in more than one job ordering group"
+        ):
             gwf.add_special_job_ordering(
                 {
                     "order1": {"ordering_type": "sort", "labels": "label2", "dimensions": "visit"},
                     "order2": {"ordering_type": "sort", "labels": "label2,label3", "dimensions": "visit"},
                 }
             )
-        self.assertIn("Job label label2 appears in more than one job ordering group", str(cm.exception))
 
     def testAddSpecialJobOrderingBadDim(self):
         gwf = _make_3_label_workflow("test_bad_dim")
 
-        with self.assertRaises(KeyError) as cm:
+        with self.assertRaisesRegex(KeyError, "notthere") as cm:
             gwf.add_special_job_ordering(
                 {"order1": {"ordering_type": "sort", "labels": "label2", "dimensions": "notthere"}}
             )

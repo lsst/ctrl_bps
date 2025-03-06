@@ -470,7 +470,7 @@ class ClusteredQuantumGraph:
         if format_ in draw_funcs:
             draw_funcs[format_](self._cluster_graph, filename)
         else:
-            raise RuntimeError(f"Unknown draw format ({format_}")
+            raise RuntimeError(f"Unknown draw format ({format_})")
 
     @classmethod
     def load(cls, filename, format_=None):

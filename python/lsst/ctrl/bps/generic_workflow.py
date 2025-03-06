@@ -738,7 +738,7 @@ class GenericWorkflow(DiGraph):
         if format_ in draw_funcs:
             draw_funcs[format_](self, stream)
         else:
-            raise RuntimeError(f"Unknown draw format ({format_}")
+            raise RuntimeError(f"Unknown draw format ({format_})")
 
     def save(self, stream: str | IO[bytes], format_: str = "pickle") -> None:
         """Save the generic workflow in a format that is loadable.
