@@ -610,15 +610,10 @@ class GenericWorkflow(DiGraph):
             returns an empty list.
         """
         outputs = []
-
         if job_name in self._outputs:
-            for file_name in self._outputs[job_name]:
-                file = self._files[file_name]
-                if not transfer_only or file.wms_transfer:
-                    if not data:
-                        outputs.append(file_name)
-                    else:
-                        outputs.append(self._files[file_name])
+            for gwfile in self._outputs[job_name]:
+                if not transfer_only or gwfile.wms_transfer:
+                    outputs.append(gwfile if data else gwfile.name)
         return outputs
 
     def draw(self, stream, format_="dot"):
