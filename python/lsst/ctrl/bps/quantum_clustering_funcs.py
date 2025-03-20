@@ -81,7 +81,17 @@ def single_quantum_clustering(config: BpsConfig, qgraph: QuantumGraph, name: str
                 opt={"curvals": {"curr_pipetask": qnode.taskDef.label}, "replaceVars": False},
             )
             if found:
-                template = "{node_number}_{label}_" + template_data_id
+                template = "{label}_" + template_data_id
+                _, use_node_number = config.search(
+                    "useNodeIdInClusterName",
+                    opt={
+                        "curvals": {"curr_pipetask": qnode.taskDef.label},
+                        "replaceVars": False,
+                        "default": True,
+                    },
+                )
+                if use_node_number:
+                    template = "{node_number}_" + template
             else:
                 template = "{node_number}"
             cached_template[qnode.taskDef.label] = template

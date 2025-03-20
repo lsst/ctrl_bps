@@ -34,6 +34,27 @@ import networkx
 import networkx.algorithms.isomorphism as iso
 
 import lsst.ctrl.bps.generic_workflow as gw
+import lsst.ctrl.bps.tests.gw_test_utils as gtu
+
+
+class TestGenericWorkflowNode(unittest.TestCase):
+    """Test of generic workflow node base class."""
+
+    def testNoNodeType(self):
+        @dataclasses.dataclass(slots=True)
+        class GenericWorkflowNoNodeType(gw.GenericWorkflowNode):
+            dummy_val: int
+
+        job = GenericWorkflowNoNodeType("myname", "mylabel", 3)
+        with self.assertRaises(NotImplementedError):
+            _ = job.node_type
+
+    def testHash(self):
+        job = gw.GenericWorkflowNode("myname", "mylabel")
+        job2 = gw.GenericWorkflowNode("myname2", "mylabel")
+        job3 = gw.GenericWorkflowNode("myname", "mylabel2")
+        self.assertNotEqual(hash(job), hash(job2))
+        self.assertEqual(hash(job), hash(job3))
 
 
 class TestGenericWorkflowJob(unittest.TestCase):
@@ -145,6 +166,11 @@ class TestGenericWorkflow(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "notthere2 not in GenericWorkflow"):
             gwf.add_edge("job1", "notthere2")
 
+    def testQuantaCounts(self):
+        gwf = gtu.make_3_label_workflow("test1", final=True)
+        truth = Counter({"label1": 6, "label2": 6, "label3": 6})
+        self.assertEqual(gwf.quanta_counts, truth)
+
     def testGetExecutablesNames(self):
         gwf = gw.GenericWorkflow("mytest")
         self.job1.executable = gw.GenericWorkflowExec("exec1")
@@ -222,6 +248,10 @@ class TestGenericWorkflow(unittest.TestCase):
         # No exception should be raised
         gwf.validate()
 
+    def testValidateGroups(self):
+        gwf = gtu.make_3_label_workflow_groups_sort("test_validate", final=True)
+        gwf.validate()
+
     def testSavePickle(self):
         # test save and load
         gwf = gw.GenericWorkflow("mytest")
@@ -266,21 +296,14 @@ class TestGenericWorkflow(unittest.TestCase):
         self.assertListEqual(["label1b", "label2b"], gwf.labels)
 
     def testJobCounts(self):
-        job3 = gw.GenericWorkflowJob("job3", "label2")
-        gwf = gw.GenericWorkflow("mytest")
-        gwf.add_job(self.job1)
-        gwf.add_job(self.job2)
-        gwf.add_job(job3)
-        gwf.add_job_relationships(["job1", "job2"], "job3")
-        self.assertEqual(Counter({"label1": 1, "label2": 2}), gwf.job_counts)
+        gwf = gtu.make_3_label_workflow("test1", final=False)
+        truth = Counter({"pipetaskInit": 1, "label1": 6, "label2": 6, "label3": 6})
+        self.assertEqual(gwf.job_counts, truth)
 
     def testJobCountsFinal(self):
-        gwf = gw.GenericWorkflow("mytest")
-        gwf.add_job(self.job1)
-        gwf.add_job(self.job2)
-        job3 = gw.GenericWorkflowJob("finalJob", "finalJob")
-        gwf.add_final(job3)
-        self.assertEqual(Counter({"label1": 1, "label2": 1, "finalJob": 1}), gwf.job_counts)
+        gwf = gtu.make_3_label_workflow("test1", final=True)
+        truth = Counter({"pipetaskInit": 1, "label1": 6, "label2": 6, "label3": 6, "finalJob": 1})
+        self.assertEqual(gwf.job_counts, truth)
 
     def testDelJob(self):
         job3 = gw.GenericWorkflowJob("job3", "label2")
@@ -369,6 +392,343 @@ class TestGenericWorkflow(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "Invalid type for job to be added to GenericWorkflowGraph"):
             gwf.add_job(job3)
 
+    def testGroupJobsByDependencies(self):
+        gwf = gtu.make_3_label_workflow("test1", final=True)
+        group_config = {"labels": "label2, label3", "dimensions": "visit", "findDependencyMethod": "sink"}
+        group_to_label_subgraph = gwf._check_job_ordering_config({"order1": group_config})
+        job_groups = gwf._group_jobs_by_dependencies(
+            "order1", group_config, group_to_label_subgraph["order1"]
+        )
+        self.assertEqual(sorted(job_groups.keys()), sorted([(10001,), (10002,), (301,)]))
+
+    def testGroupJobsByDependenciesSource(self):
+        gwf = gtu.make_3_label_workflow("test1", final=True)
+        group_config = {"labels": "label2, label3", "dimensions": "visit", "findDependencyMethod": "source"}
+        group_to_label_subgraph = gwf._check_job_ordering_config({"order1": group_config})
+        job_groups = gwf._group_jobs_by_dependencies(
+            "order1", group_config, group_to_label_subgraph["order1"]
+        )
+        self.assertEqual(sorted(job_groups.keys()), sorted([(10001,), (10002,), (301,)]))
+
+    def testGroupJobsByDependenciesBadMethod(self):
+        gwf = gtu.make_3_label_workflow("test1", final=True)
+
+        group_config = {
+            "labels": "label2, label3",
+            "dimensions": "visit",
+            "findDependencyMethod": "bad_method",
+        }
+        group_to_label_subgraph = gwf._check_job_ordering_config({"order1": group_config})
+
+        with self.assertRaisesRegex(RuntimeError, r"Invalid findDependencyMethod \(bad_method\)"):
+            _ = gwf._group_jobs_by_dependencies("order1", group_config, group_to_label_subgraph["order1"])
+
+    def testCheckJobOrderingConfigBadImplementation(self):
+        gwf = gtu.make_3_label_workflow("test1", final=True)
+        with self.assertRaisesRegex(RuntimeError, "Invalid implementation for"):
+            gwf._check_job_ordering_config(
+                {"order1": {"implementation": "bad", "labels": "label2", "dimensions": "visit"}}
+            )
+
+    def testCheckJobOrderingConfigBadType(self):
+        gwf = gtu.make_3_label_workflow("test1", final=True)
+        with self.assertRaisesRegex(RuntimeError, "Invalid ordering_type for"):
+            gwf._check_job_ordering_config(
+                {"order1": {"ordering_type": "badtype", "labels": "label2", "dimensions": "visit"}}
+            )
+
+    def testCheckJobOrderingConfigBadLabel(self):
+        gwf = gtu.make_3_label_workflow("test_bad_label", final=True)
+        with self.assertRaisesRegex(
+            RuntimeError, "Job label label2 appears in more than one job ordering group"
+        ):
+            gwf._check_job_ordering_config(
+                {
+                    "order1": {"ordering_type": "sort", "labels": "label2", "dimensions": "visit"},
+                    "order2": {"ordering_type": "sort", "labels": "label2,label3", "dimensions": "visit"},
+                }
+            )
+
+    def testCheckJobOrderingConfigMissingDim(self):
+        gwf = gtu.make_3_label_workflow("test_missing_dim", final=True)
+        with self.assertRaisesRegex(KeyError, "Missing dimensions entry in ordering group order1"):
+            gwf._check_job_ordering_config({"order1": {"ordering_type": "sort", "labels": "label2"}})
+
+    def testCheckJobOrderingConfigSort(self):
+        gwf = gtu.make_3_label_workflow("test_bad_dim", final=True)
+        results = gwf._check_job_ordering_config(
+            {"order1": {"ordering_type": "sort", "labels": "label1,label2", "dimensions": "visit"}}
+        )
+        self.assertEqual(len(results), 1)
+
+        graph = networkx.DiGraph()
+        graph.add_nodes_from(["label1", "label2"])
+        graph.add_edges_from([("label1", "label2")])
+        self.assertTrue(
+            networkx.is_isomorphic(
+                results["order1"], graph, node_match=iso.categorical_node_match("data", None)
+            )
+        )
+
+    def testAddSpecialJobOrderingNoopSortBadDim(self):
+        gwf = gtu.make_3_label_workflow("test_bad_dim", final=True)
+        with self.assertRaisesRegex(
+            KeyError, r"Job label2_10001_10 missing dimensions \(notthere\) required for order group order1"
+        ):
+            gwf.add_special_job_ordering(
+                {"order1": {"ordering_type": "sort", "labels": "label2", "dimensions": "notthere"}}
+            )
+
+    def testAddSpecialJobOrderingNoopSort(self):
+        gwf = gtu.make_3_label_workflow("test_noop_sort", final=True)
+        quanta_counts_before = gwf.quanta_counts
+
+        gwf.add_special_job_ordering(
+            {"order1": {"ordering_type": "sort", "labels": "label1,label2", "dimensions": "visit"}}
+        )
+
+        quanta_counts_after = gwf.quanta_counts
+        self.assertEqual(quanta_counts_after, quanta_counts_before)
+
+        gwf.regenerate_labels()
+        quanta_counts_after = gwf.quanta_counts
+        self.assertEqual(quanta_counts_after, quanta_counts_before)
+
+        gwf_noop = gtu.make_3_label_workflow_noop_sort("test_noop_sort", final=True)
+        self.assertTrue(
+            networkx.is_isomorphic(gwf, gwf_noop, node_match=iso.categorical_node_match("data", None)),
+            "Results of add_special_job_ordering with noop do not match expected GenericWorkflow",
+        )
+
+    def testAddSpecialJobOrderingGroupSort(self):
+        gwf = gtu.make_3_label_workflow("test_group_sort", final=True)
+        gwf.add_special_job_ordering(
+            {
+                "order1": {
+                    "implementation": "group",
+                    "ordering_type": "sort",
+                    "labels": "label1,label2",
+                    "dimensions": "visit",
+                }
+            }
+        )
+
+        gwf_groups = gtu.make_3_label_workflow_groups_sort("test_group_sort", final=True)
+        self.assertTrue(
+            networkx.is_isomorphic(gwf, gwf_groups, node_match=iso.categorical_node_match("data", None)),
+            "Results of add_special_job_ordering with groups do not match expected GenericWorkflow",
+        )
+
+    def testAddSpecialJobOrderingGroupSortSource(self):
+        gwf = gtu.make_3_label_workflow("test_group_sort", final=True)
+        gwf.add_special_job_ordering(
+            {
+                "order1": {
+                    "implementation": "group",
+                    "ordering_type": "sort",
+                    "findDependencyMethod": "source",
+                    "labels": "label1,label2",
+                    "dimensions": "group",
+                }
+            }
+        )
+
+        gwf_groups = gtu.make_3_label_workflow_groups_sort("test_group_sort", final=True)
+        self.assertTrue(
+            networkx.is_isomorphic(gwf, gwf_groups, node_match=iso.categorical_node_match("data", None)),
+            "Results of add_special_job_ordering with groups do not match expected GenericWorkflow",
+        )
+
+    def testAddSpecialJobOrderingGroupSortSink(self):
+        gwf = gtu.make_3_label_workflow("test_group_sort", final=True)
+        gwf.add_special_job_ordering(
+            {
+                "order1": {
+                    "implementation": "group",
+                    "ordering_type": "sort",
+                    "findDependencyMethod": "sink",
+                    "labels": "label1,label2",
+                    "dimensions": "visit",
+                }
+            }
+        )
+
+        gwf_groups = gtu.make_3_label_workflow_groups_sort("test_group_sort", final=True)
+        self.assertTrue(
+            networkx.is_isomorphic(gwf, gwf_groups, node_match=iso.categorical_node_match("data", None)),
+            "Results of add_special_job_ordering do not match expected GenericWorkflow",
+        )
+
+    def testMiddleGroupValues(self):
+        gwf = gtu.make_5_label_workflow("mid_group_even_values", True, False, True)
+        gwf.add_special_job_ordering(
+            {
+                "mid": {
+                    "implementation": "group",
+                    "ordering_type": "sort",
+                    "labels": "T2, T2b, T3",
+                    "dimensions": "visit",
+                }
+            }
+        )
+        gwf_groups = gtu.make_5_label_workflow_middle_groups("mid_group_even_values", True, False, True)
+        self.assertTrue(
+            networkx.is_isomorphic(gwf, gwf_groups, node_match=iso.categorical_node_match("data", None)),
+            "Results of add_special_job_ordering do not match expected GenericWorkflow",
+        )
+
+    def testMiddleGroupSink(self):
+        gwf = gtu.make_5_label_workflow("mid_group_even_sink", True, False, True)
+        gwf.add_special_job_ordering(
+            {
+                "mid": {
+                    "implementation": "group",
+                    "ordering_type": "sort",
+                    "findDependencyMethod": "sink",
+                    "labels": "T2, T2b, T3",
+                    "dimensions": "visit",
+                }
+            }
+        )
+        gwf_groups = gtu.make_5_label_workflow_middle_groups("mid_group_even_sink", True, False, True)
+        self.assertTrue(
+            networkx.is_isomorphic(gwf, gwf_groups, node_match=iso.categorical_node_match("data", None)),
+            "Results of add_special_job_ordering do not match expected GenericWorkflow",
+        )
+
+    def testMiddleGroupSource(self):
+        gwf = gtu.make_5_label_workflow("mid_group_even_source", True, False, True)
+        gwf.add_special_job_ordering(
+            {
+                "mid": {
+                    "implementation": "group",
+                    "ordering_type": "sort",
+                    "findDependencyMethod": "source",
+                    "labels": "T2, T2b, T3",
+                    "dimensions": "visit",
+                }
+            }
+        )
+        gwf_groups = gtu.make_5_label_workflow_middle_groups("mid_group_even_sink", True, False, True)
+        self.assertTrue(
+            networkx.is_isomorphic(gwf, gwf_groups, node_match=iso.categorical_node_match("data", None)),
+            "Results of add_special_job_ordering do not match expected GenericWorkflow",
+        )
+
+    def testMiddleGroupValuesUneven(self):
+        gwf = gtu.make_5_label_workflow("mid_group_uneven_values", True, True, True)
+        gwf.add_special_job_ordering(
+            {
+                "mid": {
+                    "implementation": "group",
+                    "ordering_type": "sort",
+                    "labels": "T2, T2b, T3",
+                    "dimensions": "visit",
+                }
+            }
+        )
+        gwf_groups = gtu.make_5_label_workflow_middle_groups("mid_group_uneven_values", True, True, True)
+        self.assertTrue(
+            networkx.is_isomorphic(gwf, gwf_groups, node_match=iso.categorical_node_match("data", None)),
+            "Results of add_special_job_ordering do not match expected GenericWorkflow",
+        )
+
+    def testMiddleGroupSinkUneven(self):
+        gwf = gtu.make_5_label_workflow("mid_group_uneven_sink", True, True, True)
+        gwf.add_special_job_ordering(
+            {
+                "mid": {
+                    "implementation": "group",
+                    "ordering_type": "sort",
+                    "findDependencyMethod": "sink",
+                    "labels": "T2, T2b, T3",
+                    "dimensions": "visit",
+                }
+            }
+        )
+        gwf_groups = gtu.make_5_label_workflow_middle_groups("mid_group_uneven_sink", True, True, True)
+        self.assertTrue(
+            networkx.is_isomorphic(gwf, gwf_groups, node_match=iso.categorical_node_match("data", None)),
+            "Results of add_special_job_ordering do not match expected GenericWorkflow",
+        )
+
+    def testMiddleGroupSourceUneven(self):
+        gwf = gtu.make_5_label_workflow("mid_group_uneven_source", True, True, True)
+        gwf.add_special_job_ordering(
+            {
+                "mid": {
+                    "implementation": "group",
+                    "ordering_type": "sort",
+                    "findDependencyMethod": "source",
+                    "labels": "T2, T2b, T3",
+                    "dimensions": "visit",
+                }
+            }
+        )
+        gwf_groups = gtu.make_5_label_workflow_middle_groups("mid_group_even_sink", True, True, True)
+        self.assertTrue(
+            networkx.is_isomorphic(gwf, gwf_groups, node_match=iso.categorical_node_match("data", None)),
+            "Results of add_special_job_ordering do not match expected GenericWorkflow",
+        )
+
+    def test2GroupsEven(self):
+        gwf = gtu.make_5_label_workflow("two_groups_even", True, False, True)
+        gwf.add_special_job_ordering(
+            {
+                "order1": {
+                    "implementation": "group",
+                    "ordering_type": "sort",
+                    "findDependencyMethod": "sink",
+                    "labels": "T1, T2",
+                    "dimensions": "visit",
+                    "equalDimensions": "visit:group",
+                },
+                "order2": {
+                    "implementation": "group",
+                    "ordering_type": "sort",
+                    "findDependencyMethod": "source",
+                    "labels": "T3, T4",
+                    "dimensions": "visit",
+                },
+            }
+        )
+
+        gwf_groups = gtu.make_5_label_workflow_2_groups("two_groups", True, False, True)
+
+        self.assertTrue(
+            networkx.is_isomorphic(gwf, gwf_groups, node_match=iso.categorical_node_match("data", None)),
+            "Results of add_special_job_ordering do not match expected GenericWorkflow",
+        )
+
+    def test2GroupsUneven(self):
+        gwf = gtu.make_5_label_workflow("two_groups_uneven", True, True, True)
+        gwf.add_special_job_ordering(
+            {
+                "order1": {
+                    "implementation": "group",
+                    "ordering_type": "sort",
+                    "findDependencyMethod": "sink",
+                    "labels": "T1, T2",
+                    "dimensions": "visit",
+                    "equalDimensions": "visit:group",
+                },
+                "order2": {
+                    "implementation": "group",
+                    "ordering_type": "sort",
+                    "findDependencyMethod": "source",
+                    "labels": "T3, T4",
+                    "dimensions": "visit",
+                },
+            }
+        )
+
+        gwf_groups = gtu.make_5_label_workflow_2_groups("two_groups", True, True, True)
+
+        self.assertTrue(
+            networkx.is_isomorphic(gwf, gwf_groups, node_match=iso.categorical_node_match("data", None)),
+            "Results of add_special_job_ordering do not match expected GenericWorkflow",
+        )
+
 
 class TestGenericWorkflowLabels(unittest.TestCase):
     """Tests for GenericWorkflowLabels"""
@@ -450,7 +810,7 @@ class TestGenericWorkflowLabels(unittest.TestCase):
         self.assertEqual(list(gwlabels._label_graph.successors("label2")), ["label4", "label5"])
 
     def testAddSpecialJobOrderingBadType(self):
-        gwf = _make_3_label_workflow("test_sort")
+        gwf = gtu.make_3_label_workflow("test_sort", final=True)
         with self.assertRaisesRegex(RuntimeError, "Invalid ordering_type for"):
             gwf.add_special_job_ordering(
                 {"order1": {"ordering_type": "badtype", "labels": "label2", "dimensions": "visit"}}
@@ -462,7 +822,7 @@ class TestGenericWorkflowLabels(unittest.TestCase):
             )
 
     def testAddSpecialJobOrderingBadLabel(self):
-        gwf = _make_3_label_workflow("test_bad_label")
+        gwf = gtu.make_3_label_workflow("test_bad_label", final=True)
 
         with self.assertRaisesRegex(
             RuntimeError, "Job label label2 appears in more than one job ordering group"
@@ -475,18 +835,17 @@ class TestGenericWorkflowLabels(unittest.TestCase):
             )
 
     def testAddSpecialJobOrderingBadDim(self):
-        gwf = _make_3_label_workflow("test_bad_dim")
+        gwf = gtu.make_3_label_workflow("test_bad_dim", final=True)
 
-        with self.assertRaisesRegex(KeyError, "notthere") as cm:
+        with self.assertRaisesRegex(
+            KeyError, r"Job label2_10001_10 missing dimensions \(notthere\) required for order group order1"
+        ):
             gwf.add_special_job_ordering(
                 {"order1": {"ordering_type": "sort", "labels": "label2", "dimensions": "notthere"}}
             )
-        self.assertIn(
-            "has label label2 but missing notthere for order group order1", cm.exception.__notes__[0]
-        )
 
     def testAddSpecialJobOrderingSort(self):
-        gwf = _make_3_label_workflow("test_sort")
+        gwf = gtu.make_3_label_workflow("test_sort", final=True)
         quanta_counts_before = gwf.quanta_counts
 
         gwf.add_special_job_ordering(
@@ -512,21 +871,6 @@ class TestGenericWorkflowLabels(unittest.TestCase):
             ("noop_order1_10001", "label2_10002_11"),
         ]:
             self.assertIn(edge, gwf_edges, f"Missing edge from {edge[0]} to {edge[1]}")
-
-
-def _make_3_label_workflow(workflow_name):
-    gwf = gw.GenericWorkflow("mytest")
-    job = gw.GenericWorkflowJob("pipetaskInit", label="pipetaskInit")
-    gwf.add_job(job)
-    for visit in [10001, 10002, 301]:  # 301 is to ensure numeric sorting
-        for detector in [10, 11]:
-            prev_name = "pipetaskInit"
-            for label in ["label1", "label2", "label3"]:
-                name = f"{label}_{visit}_{detector}"
-                job = gw.GenericWorkflowJob(name, label=label, tags={"visit": visit, "detector": detector})
-                gwf.add_job(job, [prev_name], None)
-                prev_name = name
-    return gwf
 
 
 if __name__ == "__main__":

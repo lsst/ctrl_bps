@@ -37,6 +37,7 @@ __all__ = [
     "mkdir",
     "parse_count_summary",
     "save_qg_subgraph",
+    "subset_dimension_values",
 ]
 
 import contextlib
@@ -47,6 +48,7 @@ import os
 from collections import Counter
 from enum import Enum
 from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -289,3 +291,65 @@ def _make_id_link(config, run_id):
                 _LOG.warning("Could not make id softlink: submitPath does not exist (%s)", submit_path)
     else:
         _LOG.debug("Not asked to make id link (makeIdLink=%s)", make_id_link)
+
+
+def subset_dimension_values(
+    desc_what: str,
+    desc_for: str,
+    subset_dim_names: str,
+    dimension_values: dict[str, Any],
+    equal_dims: str | None,
+) -> dict[str, Any]:
+    """Return subset of given dimension_values and handle any equal dimensions.
+
+    Parameters
+    ----------
+    desc_what : `str`
+        Description of what has the dimensions values to be used in debugging
+        or error messages.
+    desc_for : `str`
+        Description of what the subset is for to be used in debugging or
+        error messages.
+    subset_dim_names : `str`
+        Comma-separated list of dimension names used to make subset.
+    dimension_values : `dict` [`str`, Any]
+        Superset of dimension values from which to make subset.
+    equal_dims : `str`, optional
+        Description of any dimensions to be considered equal,
+        e.g., "dim1:dim2,dim3:dim4".
+
+    Returns
+    -------
+    dim_values_subset : `dict` [`str`, Any]
+        Subset of given dimension values.
+
+    Raises
+    ------
+    KeyError
+        If any wanted dimensions aren't in given values.
+    """
+    dim_names = [d.strip() for d in subset_dim_names.split(",")]
+
+    missing_dims = set()
+    dim_values = {}
+    for dim_name in dim_names:
+        _LOG.debug("%s, %s: dim_name = %s", desc_what, desc_for, dim_name)
+        if dim_name in dimension_values:
+            dim_values[dim_name] = dimension_values[dim_name]
+        else:
+            missing_dims.add(dim_name)
+    if equal_dims:
+        for pair in [pt.strip() for pt in equal_dims.split(",")]:
+            dim1, dim2 = pair.strip().split(":")
+            if dim1 in dim_names and dim2 in dimension_values:
+                dim_values[dim1] = dimension_values[dim2]
+                missing_dims.remove(dim1)
+            elif dim2 in dim_names and dim1 in dimension_values:
+                dim_values[dim2] = dimension_values[dim1]
+                missing_dims.remove(dim2)
+
+    if missing_dims:
+        raise KeyError(
+            f"{desc_what} missing dimensions ({', '.join(sorted(missing_dims))}) required for {desc_for}"
+        )
+    return dim_values

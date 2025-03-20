@@ -124,6 +124,7 @@ class TestCreateGenericWorkflow(unittest.TestCase):
         config[".finalJob.computeSite"] = "special_site"
         config[".finalJob.computeCloud"] = "special_cloud"
         workflow = create_generic_workflow(config, self.cqg, "test_gw", self.tmpdir)
+        self.assertEqual(len(workflow) - 1, len(self.cqg))  # Don't count pipetaskInit
         for jname in workflow:
             gwjob = workflow.get_job(jname)
             print(gwjob)
