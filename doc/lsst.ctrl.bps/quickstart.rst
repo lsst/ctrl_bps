@@ -1235,6 +1235,99 @@ values appear in the cluster names and thus job names.
        # requestCpus: N              # Overrides for jobs in this cluster
        # requestMemory: NNNN         # MB, Overrides for jobs in this cluster
 
+.. _ordering:
+
+Job Ordering
+------------
+
+.. warning::
+
+   This is not implemented in all WMS-plugins.  Check the WMS-specific
+   documentation before trying.
+
+In rare cases, some jobs with the same label may need to be executed in
+an order that is not defined in the QuantumGraph.  These jobs can be
+regular pipetask jobs or cluster jobs.  For example, let's say there
+are some PipelineTasks (task_label_1 - task_label_3) that we need to run
+1 visit at a time.  Quantas for detectors of the same visit can run
+at the same time, but they all must finish before running quantas
+for another visit.
+
+The syntax for specifying ordering is similar to clustering.
+Example submit yaml:
+
+.. code-block:: YAML
+
+   ordering:
+       # Repeat ordering subsection for however many separate sets
+       # of job ordering needed.
+       order_1:   # just some meaningful name for this set of jobs
+           labels: task_label_1, task_label_2, task_label_3
+           dimensions: visit
+           equalDimensions: visit:exposure
+           findDependencyMethod: sink
+
+Alternatively, one could have made clusters of those PipelineTasks and
+put the cluster label in the ``labels`` section.
+
+Job Ordering Key Descriptions
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+**dimensions**
+    comma-separated list of dimensions to be used for grouping.
+
+**equalDimensions**, optional
+    comma-separated list of dimension pairs (colon separated) that should
+    be considered representing same values (e.g., ``visit:exposure``).
+
+**labels**
+    comma-separated list of job labels to include in group.
+    These will be PipelineTask labels or cluster labels.
+
+**findDependencyMethod**, optional: ``source`` or ``sink``
+    Tells the ordering function to use job dependencies when
+    cannot do grouping based on dimension values alone.  A subgraph of the
+    GenericWorkflow is made (i.e., a directed graph of the jobs).
+
+    **source**
+        A value of ``source`` says to use the dimensions of the source nodes
+        in the subgraph and then find descendants in the ``GenericWorkflow``
+        to complete the cluster.
+
+    **sink**
+        A value of ``sink`` says to use the dimensions of the sink
+        nodes in the subgraph and then find ancestors in the ``GenericWorkflow``
+        to complete the job ordering group.
+
+    Generally, it doesn't matter which direction is used, but the direction
+    determines which dimension values appear in the group names and thus
+    job names.
+
+**blocking**, optional: ``True`` or ``False``
+    Determines whether a failure in a job group blocks running of other job
+    groups.  By default it is set to ``False``.
+
+**implementation**, optional: ``group`` or ``noop``
+    How the ordering is represented in the GenericWorkflow.  By default,
+    implementation is set to ``group``.
+
+    **group**
+        Uses a sub-workflow for each job group in the ordering.
+        Dependencies between sub-workflows determine the job group order of
+        execution.  ``group`` ordering will ignore a failure in one group to
+        start the next group.  However, the failure in a group will prune
+        all downstream jobs dependent on that group (even if one job is
+        successful in the group so normally that job's descendants would run).
+
+    **noop**
+        Uses a job that does nothing, but job dependencies to/from it
+        provide the job ordering.  However, typical workflow executions would
+        not run the next job group if one job group contained a failure.
+
+When using ``bps`` commands, the WMS-specific implementations should be
+invisible to the user.  ``bps report`` will still show same labels and
+total counts as without ordering.  ``cancel`` and ``restart`` will still
+work the same.
+
 .. _bps-softlink:
 
 WMS-id softlink
