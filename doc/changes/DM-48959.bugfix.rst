@@ -1,3 +1,0 @@
-Fixed bugs when clustering with findDependencyMethod:
-* Most clusters were missing edges in ClusteredQuantumGraph.
-* Problems if the QuantumGraph didn't have all the corresponding quanta for the tasks in a cluster (e.g., a rescue QuantumGraph)
