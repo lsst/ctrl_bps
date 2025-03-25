@@ -1,3 +1,31 @@
+lsst-ctrl-bps v29.0.0 (2025-03-25)
+==================================
+
+New Features
+------------
+
+- Added a new command, ``submitcmd``, that allows the user to execute some lightweight, ancillary scripts at a given compute site by submitting a dedicated, single-job workflow to that site. (`DM-46307 <https://rubinobs.atlassian.net/browse/DM-46307>`_)
+- Updated ``GenericWorkflowJob`` creation code to handle variables and pre-existing environment variables in submit yaml's environment section. (`DM-48245 <https://rubinobs.atlassian.net/browse/DM-48245>`_)
+
+
+Bug Fixes
+---------
+
+- Fixed clustering bug which caused ``ctrl_bps_htcondor`` to report negative one for cluster counts. (`DM-47625 <https://rubinobs.atlassian.net/browse/DM-47625>`_)
+- Fixed bugs when clustering with ``findDependencyMethod``:
+
+  * Most clusters were missing edges in ``ClusteredQuantumGraph``.
+  * Problems if the ``QuantumGraph`` didn't have all the corresponding quanta for the tasks in a cluster (e.g., a rescue ``QuantumGraph``) (`DM-48959 <https://rubinobs.atlassian.net/browse/DM-48959>`_)
+
+
+Other Changes and Additions
+---------------------------
+
+- Replaced all calls to ``Table.pformat_all()`` with ``Table.pformat()`` as the former is being deprecated in Astropy version 7.0. (`DM-48768 <https://rubinobs.atlassian.net/browse/DM-48768>`_)
+- Adjusted options in calls of ``Table.pformat()`` so the lines exceeding user's display size are wrapped instead of being truncated when using Astropy version 6. (`DM-48872 <https://rubinobs.atlassian.net/browse/DM-48872>`_)
+- Modified code to print ``PipelineTask`` cycle if one is found when clustering. (`DM-48948 <https://rubinobs.atlassian.net/browse/DM-48948>`_)
+- Added a brief description of the three well-known available BPS plugins to the documentation. (`DM-43031 <https://rubinobs.atlassian.net/browse/DM-43031>`_)
+
 lsst-ctrl-bps v28.0.0 (2024-11-21)
 ==================================
 

@@ -1,1 +1,0 @@
-Fixed clustering bug which caused ctrl_bps_htcondor to report negative one for cluster counts.
