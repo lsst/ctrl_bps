@@ -1,1 +1,0 @@
-Replaced all calls to ``Table.pformat_all()`` in **ctrl_bps** with ``Table.pformat()`` as the former is being deprecated in **astropy** version 7.0.
