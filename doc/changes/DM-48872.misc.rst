@@ -1,1 +1,0 @@
-Adjusted options in BPS calls of ``Table.pformat()`` so the lines exceeding user's display size are wrapped instead of being truncated when using ``Astropy`` version 6.
