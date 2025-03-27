@@ -18,7 +18,7 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering :: Astronomy",
 ]
 keywords = ["lsst"]
@@ -123,6 +123,15 @@ convention = "numpy"
 # We do not require docstrings in __init__ files (D104).
 add-ignore = ["D107", "D105", "D102", "D100", "D200", "D205", "D400", "D104"]
 
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
+
 [tool.ruff]
 line-length = 110
 target-version = "py311"
@@ -147,6 +156,7 @@ ignore = [
     "D200",
     "D205",
     "D400",
+    "UP007",  # Allow UNION in type annotation
 ]
 select = [
     "E",  # pycodestyle
@@ -154,13 +164,13 @@ select = [
     "N",  # pep8-naming
     "W",  # pycodestyle
     "D",  # pydocstyle
-    "UP",  # pyupgrade
-    "C4",
+    "UP", # pyupgrade
     "I",  # isort
-    "RUF022",  # sort __all__
+    "C4", # flake8-comprehensions
     "B",  # bugbear
 ]
 extend-select = [
+    "RUF022", # Sort __all__
     "RUF100", # Warn about unused noqa
 ]
 
@@ -181,6 +191,7 @@ docstring-code-line-length = 79
 checks = [
     "all",  # All except the rules listed below.
     "SA01",  # See Also section.
+    "SA04",  # We don't use descriptions with See Also.
     "EX01",  # Example section.
     "SS06",  # Summary can go into second line.
     "GL01",  # Summary text can start on same line as """

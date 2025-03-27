@@ -108,9 +108,8 @@ class TestClusterQuanta(unittest.TestCase):
         }
         config = BpsConfig(settings, search_order=[])
         qgraph = QuantumGraph({}, universe=DimensionUniverse())
-        with self.assertRaises(RuntimeError) as cm:
+        with self.assertRaisesRegex(RuntimeError, "Fake error"):
             _ = cluster_quanta(config, qgraph, "a_name")
-            self.assertIn("Fake error", str(cm))
 
     @unittest.mock.patch.object(ClusteredQuantumGraph, "validate")
     def testNoValidate(self, mock_validate):

@@ -124,6 +124,7 @@ class TestCreateGenericWorkflow(unittest.TestCase):
         config[".finalJob.computeSite"] = "special_site"
         config[".finalJob.computeCloud"] = "special_cloud"
         workflow = create_generic_workflow(config, self.cqg, "test_gw", self.tmpdir)
+        self.assertEqual(len(workflow) - 1, len(self.cqg))  # Don't count pipetaskInit
         for jname in workflow:
             gwjob = workflow.get_job(jname)
             print(gwjob)
@@ -149,7 +150,7 @@ class TestGetJobValues(unittest.TestCase):
     """Tests of _get_job_values."""
 
     def setUp(self):
-        self.default_job = GenericWorkflowJob("default_job")
+        self.default_job = GenericWorkflowJob("default_job", "default_label")
 
     def testGettingDefaults(self):
         """Test retrieving default values."""

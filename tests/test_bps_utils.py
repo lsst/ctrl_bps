@@ -51,9 +51,8 @@ class TestMkdir(unittest.TestCase):
     def testFailureDirectoryExists(self):
         path = Path(self.tmpdir.name) / "foo/bar"
         path.mkdir(parents=True, exist_ok=True)
-        with self.assertRaises(OSError) as cm:
+        with self.assertRaisesRegex(OSError, "directory.*exists"):
             mkdir(str(path))
-        self.assertRegex(cm.exception.args[0], "directory.*exists")
 
     def testFailureOther(self):
         # Not checking the error message because it depends on the OS on which
