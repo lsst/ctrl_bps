@@ -26,8 +26,42 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import unittest
 
+import click
+
+from lsst.ctrl.bps import BpsSubprocessError
 from lsst.ctrl.bps.cli import bps
+from lsst.ctrl.bps.cli.cmd.commands import catch_errors
 from lsst.daf.butler.cli.utils import LogCliRunner
+
+
+class TestCatchErrors(unittest.TestCase):
+    """Test context manager for catching BPS command errors."""
+
+    def testSuccess(self):
+        """Test a command that executes successfully."""
+
+    def testSubprocessFailure(self):
+        """Test if the error is handled when command's child process failed."""
+
+        def driver():
+            raise BpsSubprocessError(-9, "Subprocess failed")
+
+        with self.assertRaises(click.exceptions.Exit) as cm:
+            ctx = click.Context(click.Command("command"))
+            with ctx:
+                with catch_errors():
+                    driver()
+        self.assertEqual(cm.exception.exit_code, -9)
+
+    def testFailure(self):
+        """Test if the error is handled when a command failed."""
+
+        def driver():
+            raise KeyError("Key not found.")
+
+        with self.assertRaisesRegex(KeyError, "Key not found"):
+            with catch_errors():
+                driver()
 
 
 class TestCommandPing(unittest.TestCase):
