@@ -1,0 +1,1 @@
+BPS commands involved in making submissions now exit with the exit codes of the subprocess that BPS spawns to generate or update the run's quantum graph if any failure occurs.
