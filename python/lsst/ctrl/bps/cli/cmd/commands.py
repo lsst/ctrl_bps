@@ -26,10 +26,14 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Subcommand definitions."""
 
+from collections.abc import Iterator
+from contextlib import contextmanager
+
 import click
 
 from lsst.daf.butler.cli.utils import MWCommand
 
+from ... import BpsSubprocessError
 from ...drivers import (
     acquire_qgraph_driver,
     cancel_driver,
@@ -45,6 +49,31 @@ from ...drivers import (
 from .. import opt
 
 
+@contextmanager
+def catch_errors() -> Iterator[None]:
+    """Handle errors that occurred during command execution.
+
+    Returns
+    -------
+    context : `contextlib.AbstractContextManager` [ `None` ]
+        A context manager that does not return a value when entered.
+
+    Notes
+    -----
+    At the moment, the main responsibility of this context manager is to catch
+    the exception related to failures of the commands BPS runs in its
+    subprocesses to force Click CLI report command's actual exit code instead
+    of always returning 1.
+    """
+    try:
+        yield None
+    except BpsSubprocessError as e:
+        click.echo(e)
+        click.get_current_context().exit(e.errno)
+    except BaseException:
+        raise
+
+
 class BpsCommand(MWCommand):
     """Command subclass with bps-command specific overrides."""
 
@@ -56,7 +85,8 @@ class BpsCommand(MWCommand):
 @opt.submission_options()
 def acquire(*args, **kwargs):
     """Create a new quantum graph or read existing one from a file."""
-    acquire_qgraph_driver(*args, **kwargs)
+    with catch_errors():
+        acquire_qgraph_driver(*args, **kwargs)
 
 
 @click.command(cls=BpsCommand)
@@ -64,7 +94,8 @@ def acquire(*args, **kwargs):
 @opt.submission_options()
 def cluster(*args, **kwargs):
     """Create a clustered quantum graph."""
-    cluster_qgraph_driver(*args, **kwargs)
+    with catch_errors():
+        cluster_qgraph_driver(*args, **kwargs)
 
 
 @click.command(cls=BpsCommand)
@@ -72,7 +103,8 @@ def cluster(*args, **kwargs):
 @opt.submission_options()
 def transform(*args, **kwargs):
     """Transform a quantum graph to a generic workflow."""
-    transform_driver(*args, **kwargs)
+    with catch_errors():
+        transform_driver(*args, **kwargs)
 
 
 @click.command(cls=BpsCommand)
@@ -81,7 +113,8 @@ def transform(*args, **kwargs):
 @opt.submission_options()
 def prepare(*args, **kwargs):
     """Prepare a workflow for submission."""
-    prepare_driver(*args, **kwargs)
+    with catch_errors():
+        prepare_driver(*args, **kwargs)
 
 
 @click.command(cls=BpsCommand)
@@ -91,7 +124,8 @@ def prepare(*args, **kwargs):
 @opt.submission_options()
 def submit(*args, **kwargs):
     """Submit a workflow for execution."""
-    submit_driver(*args, **kwargs)
+    with catch_errors():
+        submit_driver(*args, **kwargs)
 
 
 @click.command(cls=BpsCommand)

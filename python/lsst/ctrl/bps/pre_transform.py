@@ -37,7 +37,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from lsst.ctrl.bps import BpsConfig
+from lsst.ctrl.bps import BpsConfig, BpsSubprocessError
 from lsst.pipe.base.graph import QuantumGraph
 from lsst.utils import doImport
 from lsst.utils.logging import VERBOSE
@@ -127,7 +127,7 @@ def execute(command, filename):
     return process.returncode
 
 
-def create_quantum_graph(config, out_prefix=""):
+def create_quantum_graph(config: BpsConfig, out_prefix: str = "") -> str:
     """Create QuantumGraph from pipeline definition.
 
     Parameters
@@ -144,6 +144,14 @@ def create_quantum_graph(config, out_prefix=""):
     -------
     qgraph_filename : `str`
         Name of file containing generated QuantumGraph.
+
+    Raises
+    ------
+    KeyError
+        Raised if the command for generating the QuantumGraph was not found
+        in the provided configuration.
+    BpsSubprocessError
+        Raised if the command for generating the QuantumGraph failed.
     """
     # Create name of file to store QuantumGraph.
     qgraph_filename = os.path.join(out_prefix, config["qgraphFileTemplate"])
@@ -152,21 +160,24 @@ def create_quantum_graph(config, out_prefix=""):
     search_opt = {"curvals": {"qgraphFile": qgraph_filename}}
     found, cmd = config.search("createQuantumGraph", opt=search_opt)
     if not found:
-        _LOG.error("command for generating QuantumGraph not found")
+        raise KeyError("command for generating QuantumGraph not found")
     _LOG.info(cmd)
 
     # Run QuantumGraph generation.
     out = os.path.join(out_prefix, "quantumGraphGeneration.out")
     status = execute(cmd, out)
     if status != 0:
-        raise RuntimeError(
-            f"QuantumGraph generation exited with non-zero exit code ({status})\n"
-            f"Check {out} for more details."
+        raise BpsSubprocessError(
+            status,
+            f"Generating quantum graph failed with non-zero exit code ({status})\n"
+            f"Check {out} for more details.",
         )
     return qgraph_filename
 
 
-def update_quantum_graph(config, qgraph_filename, out_prefix="", inplace=False):
+def update_quantum_graph(
+    config: BpsConfig, qgraph_filename: str, out_prefix: str = "", inplace: bool = False
+) -> None:
     """Update output run in an existing quantum graph.
 
     Parameters
@@ -199,15 +210,17 @@ def update_quantum_graph(config, qgraph_filename, out_prefix="", inplace=False):
     search_opt = {"curvals": {"inputQgraphFile": str(src_qgraph), "qgraphFile": str(dest_qgraph)}}
     found, cmd = config.search("updateQuantumGraph", opt=search_opt)
     if not found:
-        _LOG.error("command for updating quantum graph not found")
+        raise KeyError("command for updating quantum graph not found")
     _LOG.info(cmd)
 
     # Run the command to update the quantum graph.
     out = os.path.join(out_prefix, "quantumGraphUpdate.out")
     status = execute(cmd, out)
     if status != 0:
-        raise RuntimeError(
-            f"Updating quantum graph failed with non-zero exit code ({status})\nCheck {out} for more details."
+        raise BpsSubprocessError(
+            status,
+            f"Updating quantum graph failed with non-zero exit code ({status})\n"
+            f"Check {out} for more details.",
         )
 
 

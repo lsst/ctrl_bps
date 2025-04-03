@@ -24,17 +24,21 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+import errno
+import logging
 import os
 import shutil
 import tempfile
 import unittest
+from pathlib import Path
 
-from lsst.ctrl.bps import BpsConfig, ClusteredQuantumGraph
-from lsst.ctrl.bps.pre_transform import cluster_quanta, create_quantum_graph, execute
+from lsst.ctrl.bps import BpsConfig, BpsSubprocessError, ClusteredQuantumGraph
+from lsst.ctrl.bps.pre_transform import cluster_quanta, create_quantum_graph, execute, update_quantum_graph
 from lsst.daf.butler import DimensionUniverse
 from lsst.pipe.base import QuantumGraph
 
 TESTDIR = os.path.abspath(os.path.dirname(__file__))
+_LOG = logging.getLogger(__name__)
 
 
 class TestExecute(unittest.TestCase):
@@ -64,32 +68,107 @@ class TestCreatingQuantumGraph(unittest.TestCase):
 
     def setUp(self):
         self.tmpdir = tempfile.mkdtemp(dir=TESTDIR)
-
-    def tearDown(self):
-        shutil.rmtree(self.tmpdir, ignore_errors=True)
-
-    def testCreatingQuantumGraph(self):
-        """Test if a config command creates appropriately named qgraph file."""
-        settings = {
+        self.settings = {
             "createQuantumGraph": "touch {qgraphFile}",
             "submitPath": self.tmpdir,
             "whenSaveJobQgraph": "NEVER",
             "uniqProcName": "my_test",
             "qgraphFileTemplate": "{uniqProcName}.qgraph",
         }
-        config = BpsConfig(settings, search_order=[])
-        create_quantum_graph(config, self.tmpdir)
-        self.assertTrue(os.path.exists(os.path.join(self.tmpdir, config["qgraphFileTemplate"])))
+        self.logger = logging.getLogger("lsst.ctrl.bps")
 
-    def testCreatingQuantumGraphFailure(self):
-        """Test if an exception is raised when creating qgraph file fails."""
-        settings = {
-            "createQuantumGraph": "false",
-            "submitPath": self.tmpdir,
-        }
-        config = BpsConfig(settings, search_order=[])
-        with self.assertRaises(RuntimeError):
+    def tearDown(self):
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def testSuccess(self):
+        """Test if a new quantum graph was created successfully."""
+        config = BpsConfig(self.settings, search_order=[])
+        with self.assertLogs(logger=self.logger, level="INFO") as cm:
+            qgraph_filename = create_quantum_graph(config, self.tmpdir)
+        _, command = config.search("createQuantumGraph", opt={"curvals": {"qgraphFile": qgraph_filename}})
+        self.assertRegex(cm.output[0], command)
+        self.assertTrue(os.path.exists(qgraph_filename))
+
+    def testCommandMissing(self):
+        """Test if error is caught when the command is missing."""
+        del self.settings["createQuantumGraph"]
+        config = BpsConfig(self.settings, search_order=[])
+        with self.assertRaisesRegex(KeyError, "command.*not found"):
             create_quantum_graph(config, self.tmpdir)
+
+    def testFailure(self):
+        """Test if error is caught when the quantum graph creation fails."""
+        self.settings["createQuantumGraph"] = "bash -c  'exit 2'"
+        config = BpsConfig(self.settings, search_order=[])
+        with self.assertRaises(BpsSubprocessError) as cm:
+            create_quantum_graph(config, self.tmpdir)
+        self.assertEqual(cm.exception.errno, errno.ENOENT)
+        self.assertRegex(str(cm.exception), "non-zero exit code")
+
+
+class TestUpdatingQuantumGraph(unittest.TestCase):
+    """Test quantum graph update."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp(dir=TESTDIR)
+        self.settings = {
+            "updateQuantumGraph": "bash -c 'echo foo > {qgraphFile}'",
+            "submitPath": self.tmpdir,
+            "whenSaveJobQgraph": "NEVER",
+            "uniqProcName": "my_test",
+            "qgraphFileTemplate": "{uniqProcName}.qgraph",
+            "inputQgraphFile": f"{self.tmpdir}/src.qgraph",
+        }
+        self.logger = logging.getLogger("lsst.ctrl.bps")
+
+        # Create a file in the temporary directory that will serve as
+        # the file with a quantum graph that needs updating.
+        self.src = Path(self.settings["inputQgraphFile"])
+        self.src.write_text("foo\n")
+
+        self.backup = Path(f"{self.src.parent}/{self.src.stem}_orig{self.src.suffix}")
+
+    def tearDown(self):
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def testSuccess(self):
+        """Test if the quantum graph was updated."""
+        config = BpsConfig(self.settings, search_order=[])
+        with self.assertLogs(logger=self.logger, level="INFO") as cm:
+            update_quantum_graph(config, str(self.src), self.tmpdir)
+        _, command = config.search("updateQuantumGraph", opt={"curvals": {"qgraphFile": str(self.src)}})
+        self.assertRegex(cm.output[0], r"[Bb]acking up")
+        self.assertRegex(cm.output[1], r"[Cc]ompleted")
+        self.assertRegex(cm.output[2], command)
+        self.assertTrue(self.src.read_text(), "bar\n")
+        self.assertTrue(self.backup.is_file())
+        self.assertTrue(self.backup.read_text(), "foo\n")
+
+    def testSuccessInPlace(self):
+        """Test if a quantum graph was updated inplace."""
+        config = BpsConfig(self.settings, search_order=[])
+        with self.assertLogs(logger=self.logger, level="INFO") as cm:
+            update_quantum_graph(config, str(self.src), self.tmpdir, inplace=True)
+        _, expected = config.search("updateQuantumGraph", opt={"curvals": {"qgraphFile": str(self.src)}})
+        self.assertRegex(cm.output[0], expected)
+        self.assertTrue(self.src.read_text(), "bar\n")
+        self.assertFalse(self.backup.is_file())
+
+    def testCommandMissing(self):
+        """Test if error is caught when the command is missing."""
+        del self.settings["updateQuantumGraph"]
+        config = BpsConfig(self.settings, search_order=[])
+        with self.assertRaisesRegex(KeyError, "command.*not found"):
+            update_quantum_graph(config, str(self.src), self.tmpdir)
+
+    def testFailure(self):
+        """Test if error is caught when the command fails."""
+        self.settings["updateQuantumGraph"] = "bash -c  'exit 2'"
+        config = BpsConfig(self.settings, search_order=[])
+        with self.assertRaises(BpsSubprocessError) as cm:
+            update_quantum_graph(config, str(self.src), self.tmpdir)
+        self.assertEqual(cm.exception.errno, errno.ENOENT)
+        self.assertRegex(str(cm.exception), "non-zero exit code")
 
 
 class TestClusterQuanta(unittest.TestCase):

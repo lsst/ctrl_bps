@@ -24,16 +24,29 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Batch Processing Service"""
-import pkgutil
 
-__path__ = pkgutil.extend_path(__path__, __name__)
+"""Specialized BPS exceptions."""
 
-from ._exceptions import *
-from .bps_config import *
-from .bps_reports import *
-from .clustered_quantum_graph import *
-from .constants import *
-from .generic_workflow import *
-from .version import *
-from .wms_service import *
+__all__ = ["BpsError", "BpsSubprocessError"]
+
+
+class BpsError(Exception):
+    """The base class all BPS exceptions should be derived from."""
+
+
+class BpsSubprocessError(BpsError):
+    """Exception raised when the subprocess spawned by BPS fails.
+
+    Parameters
+    ----------
+    errno : `int`
+        A numeric error code returned by the command executed in the spawned
+        subprocess.
+    strerror : `str`
+        Message with the details about the error that occurred.
+    """
+
+    def __init__(self, errno: int, strerror: str) -> None:
+        super().__init__(strerror)
+        self.errno = errno
+        self.strerror = strerror
