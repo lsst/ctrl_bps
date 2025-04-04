@@ -37,8 +37,8 @@ import unittest
 from cqg_test_utils import check_cqg
 from qg_test_utils import make_test_quantum_graph
 
+import lsst.ctrl.bps.quantum_clustering_funcs as qcf
 from lsst.ctrl.bps import BpsConfig
-from lsst.ctrl.bps.quantum_clustering_funcs import dimension_clustering, single_quantum_clustering
 
 TESTDIR = os.path.abspath(os.path.dirname(__file__))
 
@@ -63,7 +63,7 @@ class TestSingleQuantumClustering(unittest.TestCase):
         )
 
         name = "single"
-        cqg = single_quantum_clustering(config, self.qgraph, name)
+        cqg = qcf.single_quantum_clustering(config, self.qgraph, name)
         answer = {
             "name": name,
             "nodes": {
@@ -111,7 +111,7 @@ class TestSingleQuantumClustering(unittest.TestCase):
         # Note: the cluster config should be ignored.
         config = BpsConfig({"cluster": {"cl1": {"pipetasks": "T1, T2, T3, T4", "dimensions": "D1, D2"}}})
 
-        cqg = single_quantum_clustering(config, self.qgraph, "single-no-template")
+        cqg = qcf.single_quantum_clustering(config, self.qgraph, "single-no-template")
         self.assertIsNotNone(cqg)
         self.assertIn(cqg.name, "single-no-template")
         self.assertEqual(len(cqg), len(self.qgraph))
@@ -157,7 +157,7 @@ class TestDimensionClustering(unittest.TestCase):
             "edges": [],
         }
 
-        cqg = dimension_clustering(config, self.qgraph, name)
+        cqg = qcf.dimension_clustering(config, self.qgraph, name)
         check_cqg(cqg, answer)
 
     def testClusterTemplate(self):
@@ -198,7 +198,7 @@ class TestDimensionClustering(unittest.TestCase):
             "edges": [],
         }
 
-        cqg = dimension_clustering(config, self.qgraph, name)
+        cqg = qcf.dimension_clustering(config, self.qgraph, name)
         check_cqg(cqg, answer)
 
     def testClusterNoDims(self):
@@ -237,7 +237,7 @@ class TestDimensionClustering(unittest.TestCase):
             ],
         }
 
-        cqg = dimension_clustering(config, self.qgraph, name)
+        cqg = qcf.dimension_clustering(config, self.qgraph, name)
         check_cqg(cqg, answer)
 
     def testClusterTaskRepeat(self):
@@ -258,7 +258,7 @@ class TestDimensionClustering(unittest.TestCase):
         )
 
         with self.assertRaises(RuntimeError):
-            _ = dimension_clustering(config, self.qgraph, name)
+            _ = qcf.dimension_clustering(config, self.qgraph, name)
 
     def testClusterMissingDimValue(self):
         """Quantum can't be missing a value for a clustering dimension."""
@@ -270,7 +270,7 @@ class TestDimensionClustering(unittest.TestCase):
         )
 
         with self.assertRaises(RuntimeError):
-            _ = dimension_clustering(config, self.qgraph, "missing-dim-value")
+            _ = qcf.dimension_clustering(config, self.qgraph, "missing-dim-value")
 
     def testClusterEqualDim1(self):
         """Test equalDimensions using right half."""
@@ -319,7 +319,7 @@ class TestDimensionClustering(unittest.TestCase):
             ],
         }
 
-        cqg = dimension_clustering(config, self.qgraph, name)
+        cqg = qcf.dimension_clustering(config, self.qgraph, name)
         check_cqg(cqg, answer)
 
     def testClusterEqualDim2(self):
@@ -362,7 +362,7 @@ class TestDimensionClustering(unittest.TestCase):
             "edges": [],
         }
 
-        cqg = dimension_clustering(config, self.qgraph, name)
+        cqg = qcf.dimension_clustering(config, self.qgraph, name)
         check_cqg(cqg, answer)
 
     def testClusterMult(self):
@@ -403,7 +403,7 @@ class TestDimensionClustering(unittest.TestCase):
             ],
         }
 
-        cqg = dimension_clustering(config, self.qgraph, name)
+        cqg = qcf.dimension_clustering(config, self.qgraph, name)
         check_cqg(cqg, answer)
 
     def testClusterPart(self):
@@ -449,7 +449,7 @@ class TestDimensionClustering(unittest.TestCase):
             ],
         }
 
-        cqg = dimension_clustering(config, self.qgraph, name)
+        cqg = qcf.dimension_clustering(config, self.qgraph, name)
         check_cqg(cqg, answer)
 
     def testClusterPartNoTemplate(self):
@@ -540,7 +540,7 @@ class TestDimensionClustering(unittest.TestCase):
             ],
         }
 
-        cqg = dimension_clustering(config, self.qgraph, name)
+        cqg = qcf.dimension_clustering(config, self.qgraph, name)
         check_cqg(cqg, answer)
 
     def testClusterExtra(self):
@@ -588,7 +588,7 @@ class TestDimensionClustering(unittest.TestCase):
             ],
         }
 
-        cqg = dimension_clustering(config, self.qgraph, name)
+        cqg = qcf.dimension_clustering(config, self.qgraph, name)
         check_cqg(cqg, answer)
 
     def testClusterCycle(self):
@@ -605,7 +605,7 @@ class TestDimensionClustering(unittest.TestCase):
 
         with self.assertLogs("lsst.ctrl.bps.quantum_clustering_funcs", level=logging.ERROR) as cm:
             with self.assertRaisesRegex(RuntimeError, "Cluster pipetasks do not create a DAG"):
-                _ = dimension_clustering(config, self.qgraph, "cycle")
+                _ = qcf.dimension_clustering(config, self.qgraph, "cycle")
             self.assertRegex(cm.records[-1].getMessage(), "Found cycle when making clusters: .*")
 
     def testClusterDepends(self):
@@ -621,7 +621,7 @@ class TestDimensionClustering(unittest.TestCase):
         )
 
         with self.assertRaises(RuntimeError):
-            _ = dimension_clustering(config, self.qgraph, "task-depends")
+            _ = qcf.dimension_clustering(config, self.qgraph, "task-depends")
 
     def testClusterOrder(self):
         """Ensure clusters method is in topological order as some
@@ -637,7 +637,7 @@ class TestDimensionClustering(unittest.TestCase):
             }
         )
 
-        cqg = dimension_clustering(config, self.qgraph, "task-cluster-order")
+        cqg = qcf.dimension_clustering(config, self.qgraph, "task-cluster-order")
         processed = set()
         for cluster in cqg.clusters():
             for parent in cqg.predecessors(cluster.name):
@@ -647,6 +647,79 @@ class TestDimensionClustering(unittest.TestCase):
                     f"clusters() returned {cluster.name} before its parent {parent.name}",
                 )
             processed.add(cluster.name)
+
+    def testMissingMaxSize(self):
+        name = "partition1"
+        config = BpsConfig(
+            {
+                "useNodeIdInClusterName": False,
+                "templateDataId": "{D1}_{D2}_{D3}_{D4}",
+                "cluster": {
+                    "cl1": {
+                        "pipetasks": "T1, T2, T2b, T3, T4",
+                        "dimensions": "D1",
+                        "partitionDimensions": "D2",
+                    },
+                },
+            }
+        )
+        with self.assertRaisesRegex(KeyError, "missing.*partitionMaxSize"):
+            _ = qcf.dimension_clustering(config, self.qgraph, name)
+
+    def testPartition(self):
+        name = "partition1"
+        config = BpsConfig(
+            {
+                "useNodeIdInClusterName": False,
+                "templateDataId": "{D1}_{D2}_{D3}_{D4}",
+                "cluster": {
+                    "cl1": {
+                        "pipetasks": "T1, T2, T2b, T3, T4",
+                        "dimensions": "D1",
+                        "partitionDimensions": "D2",
+                        "partitionMaxSize": 1,
+                    },
+                },
+            }
+        )
+        answer = {
+            "name": name,
+            "nodes": {
+                "cl1_1_001": {
+                    "label": "cl1",
+                    "dims": {"D1": 1},
+                    "counts": {"T1": 1, "T2": 1, "T2b": 1, "T3": 1, "T4": 1},
+                },
+                "cl1_1_002": {
+                    "label": "cl1",
+                    "dims": {"D1": 1},
+                    "counts": {"T1": 1, "T2": 1, "T2b": 1, "T3": 1, "T4": 1},
+                },
+                "cl1_3_002": {
+                    "label": "cl1",
+                    "dims": {"D1": 3},
+                    "counts": {"T1": 1, "T2": 1, "T2b": 1, "T3": 1, "T4": 1},
+                },
+                "T5_1_2_": {
+                    "label": "T5",
+                    "dims": {"D1": 1, "D2": 2},
+                    "counts": {"T5": 1},
+                },
+                "T5_1_4_": {
+                    "label": "T5",
+                    "dims": {"D1": 1, "D2": 4},
+                    "counts": {"T5": 1},
+                },
+                "T5_3_4_": {
+                    "label": "T5",
+                    "dims": {"D1": 3, "D2": 4},
+                    "counts": {"T5": 1},
+                },
+            },
+            "edges": [],
+        }
+        cqg = qcf.dimension_clustering(config, self.qgraph, name)
+        check_cqg(cqg, answer)
 
     def testDependenciesSink(self):
         name = "DependenciesSink"
@@ -693,7 +766,7 @@ class TestDimensionClustering(unittest.TestCase):
                 ("cl1_3_4", "NODENAME_T4_3_4_"),
             ],
         }
-        cqg = dimension_clustering(config, self.qgraph, name)
+        cqg = qcf.dimension_clustering(config, self.qgraph, name)
         check_cqg(cqg, answer)
 
     def testDependenciesSink2Clusters(self):
@@ -740,7 +813,7 @@ class TestDimensionClustering(unittest.TestCase):
                 ("cl1_3_4", "NODENAME_T2b_3_4_"),
             ],
         }
-        cqg = dimension_clustering(config, self.qgraph, name)
+        cqg = qcf.dimension_clustering(config, self.qgraph, name)
         check_cqg(cqg, answer)
 
     def testDependenciesSinkMultDepends(self):
@@ -785,7 +858,7 @@ class TestDimensionClustering(unittest.TestCase):
                 ("cl1", "NODENAME_T4_3_4_"),
             ],
         }
-        cqg = dimension_clustering(config, self.qgraph, name)
+        cqg = qcf.dimension_clustering(config, self.qgraph, name)
         check_cqg(cqg, answer)
 
     def testDependenciesSource(self):
@@ -839,7 +912,7 @@ class TestDimensionClustering(unittest.TestCase):
                 ("cl1_3_4", "NODENAME_T4_3_4_"),
             ],
         }
-        cqg = dimension_clustering(config, self.qgraph, name)
+        cqg = qcf.dimension_clustering(config, self.qgraph, name)
         check_cqg(cqg, answer)
 
     def testDependenciesSource2Clusters(self):
@@ -886,7 +959,7 @@ class TestDimensionClustering(unittest.TestCase):
                 ("cl1_3_4", "cl2_3_4"),
             ],
         }
-        cqg = dimension_clustering(config, self.qgraph, name)
+        cqg = qcf.dimension_clustering(config, self.qgraph, name)
         check_cqg(cqg, answer)
 
     def testDependenciesSourceMultDepends(self):
@@ -931,7 +1004,7 @@ class TestDimensionClustering(unittest.TestCase):
                 ("cl1", "NODENAME_T4_3_4_"),
             ],
         }
-        cqg = dimension_clustering(config, self.qgraph, name)
+        cqg = qcf.dimension_clustering(config, self.qgraph, name)
         check_cqg(cqg, answer)
 
     def testDependenciesExtra(self):
@@ -980,7 +1053,7 @@ class TestDimensionClustering(unittest.TestCase):
                 ("NODENAME_T3_3_4_", "NODENAME_T4_3_4_"),
             ],
         }
-        cqg = dimension_clustering(config, self.qgraph, name)
+        cqg = qcf.dimension_clustering(config, self.qgraph, name)
         check_cqg(cqg, answer)
 
     def testDependenciesSameCluster(self):
@@ -1065,7 +1138,7 @@ class TestDimensionClustering(unittest.TestCase):
                 ("ct_3_", "NODEONLY_T4_{'D1': 3, 'D2': 4}"),
             ],
         }
-        cqg = dimension_clustering(config, self.qgraph, name)
+        cqg = qcf.dimension_clustering(config, self.qgraph, name)
         check_cqg(cqg, answer)
 
     def testDependenciesBoth2Clusters(self):
@@ -1112,7 +1185,7 @@ class TestDimensionClustering(unittest.TestCase):
                 ("cl1_3_4", "cl2_3_4"),
             ],
         }
-        cqg = dimension_clustering(config, self.qgraph, name)
+        cqg = qcf.dimension_clustering(config, self.qgraph, name)
         check_cqg(cqg, answer)
 
     def testDependenciesBadMethod(self):
@@ -1130,7 +1203,7 @@ class TestDimensionClustering(unittest.TestCase):
             }
         )
         with self.assertRaises(RuntimeError):
-            _ = dimension_clustering(config, self.qgraph, name)
+            _ = qcf.dimension_clustering(config, self.qgraph, name)
 
     def testDependenciesSinkUneven(self):
         name = "DependenciesSinkUneven"
@@ -1183,7 +1256,7 @@ class TestDimensionClustering(unittest.TestCase):
             ],
         }
         qgraph = make_test_quantum_graph(uneven=True)
-        cqg = dimension_clustering(config, qgraph, name)
+        cqg = qcf.dimension_clustering(config, qgraph, name)
         check_cqg(cqg, answer)
 
     def testDependenciesSourceUneven(self):
@@ -1237,8 +1310,157 @@ class TestDimensionClustering(unittest.TestCase):
             ],
         }
         qgraph = make_test_quantum_graph(uneven=True)
-        cqg = dimension_clustering(config, qgraph, name)
+        cqg = qcf.dimension_clustering(config, qgraph, name)
         check_cqg(cqg, answer)
+
+    def testDependenciesSinkPartition(self):
+        name = "DependenciesSinkPartition"
+        config = BpsConfig(
+            {
+                "templateDataId": "{D1}_{D2}_{D3}_{D4}",
+                "cluster": {
+                    "cl1": {
+                        "pipetasks": "T1, T2, T3, T4",
+                        "dimensions": "D1",
+                        "findDependencyMethod": "sink",
+                        "partitionDimensions": "D2",
+                        "partitionMaxSize": 1,
+                    },
+                },
+            }
+        )
+        answer = {
+            "name": name,
+            "nodes": {
+                "cl1_1_001": {
+                    "label": "cl1",
+                    "dims": {"D1": 1},
+                    "counts": {"T1": 1, "T2": 1, "T3": 1, "T4": 1},
+                },
+                "cl1_1_002": {
+                    "label": "cl1",
+                    "dims": {"D1": 1},
+                    "counts": {"T1": 1, "T2": 1, "T3": 1, "T4": 1},
+                },
+                "cl1_3_002": {
+                    "label": "cl1",
+                    "dims": {"D1": 3},
+                    "counts": {"T1": 1, "T2": 1, "T3": 1, "T4": 1},
+                },
+                "NODENAME_T2b_1_2_": {"label": "T2b", "dims": {"D1": 1, "D2": 2}, "counts": {"T2b": 1}},
+                "NODENAME_T2b_1_4_": {"label": "T2b", "dims": {"D1": 1, "D2": 4}, "counts": {"T2b": 1}},
+                "NODENAME_T2b_3_4_": {"label": "T2b", "dims": {"D1": 3, "D2": 4}, "counts": {"T2b": 1}},
+                "NODENAME_T5_1_2_": {"label": "T5", "dims": {"D1": 1, "D2": 2}, "counts": {"T5": 1}},
+                "NODENAME_T5_1_4_": {"label": "T5", "dims": {"D1": 1, "D2": 4}, "counts": {"T5": 1}},
+                "NODENAME_T5_3_4_": {"label": "T5", "dims": {"D1": 3, "D2": 4}, "counts": {"T5": 1}},
+            },
+            "edges": [
+                ("cl1_1_001", "NODENAME_T2b_1_2_"),
+                ("cl1_1_002", "NODENAME_T2b_1_4_"),
+                ("cl1_3_002", "NODENAME_T2b_3_4_"),
+            ],
+        }
+        cqg = qcf.dimension_clustering(config, self.qgraph, name)
+        check_cqg(cqg, answer)
+
+
+class TestPartitionClusterValues(unittest.TestCase):
+    """Test partition_cluster_values function"""
+
+    def testMissingSizing(self):
+        values = list(range(1, 51))
+        config = BpsConfig(
+            {
+                "pipetasks": "T1, T2, T2b, T3, T4",
+                "dimensions": "D1",
+                "partitionDimensions": "D2",
+            }
+        )
+        with self.assertRaisesRegex(KeyError, "missing.*partitionMaxSize"):
+            _ = qcf.partition_cluster_values(config, "cluster1", values, 0)
+
+    def testExtraSizing(self):
+        values = list(range(1, 51))
+        config = BpsConfig(
+            {
+                "pipetasks": "T1, T2, T2b, T3, T4",
+                "dimensions": "D1",
+                "partitionDimensions": "D2",
+                "partitionMaxClusters": 4,
+                "partitionMaxSize": 3,
+            }
+        )
+        with self.assertRaisesRegex(KeyError, "more than one.*partitionMaxSize"):
+            _ = qcf.partition_cluster_values(config, "cluster1", values, 0)
+
+    def testMaxSizeEven(self):
+        values = list(range(1, 51))
+
+        config = BpsConfig({"partitionMaxSize": 25})
+        results = qcf.partition_cluster_values(config, "cluster1", values, 0)
+        truth = dict(zip(values, [1] * 25 + [2] * 25, strict=True))
+        self.assertEqual(results, truth)
+
+    def testMaxSizeUneven(self):
+        values = list(range(1, 51))
+
+        config = BpsConfig({"partitionMaxSize": 16})
+        results = qcf.partition_cluster_values(config, "cluster1", values, 0)
+        truth = dict(zip(values, [1] * 16 + [2] * 16 + [3] * 16 + [4] * 2, strict=True))
+        self.assertEqual(results, truth)
+
+    def testBadMaxClusters(self):
+        values = list(range(1, 51))
+
+        config = BpsConfig({"partitionMaxClusters": 16})
+        with self.assertRaisesRegex(RuntimeError, "same or larger than"):
+            _ = qcf.partition_cluster_values(config, "cluster1", values, 189)
+
+    def testMaxClustersEven(self):
+        # 10 "detectors", 50 "visits" each detector, want 100 clusters/jobs
+        values = list(range(1, 51))
+
+        config = BpsConfig({"partitionMaxClusters": 100})
+        results = qcf.partition_cluster_values(config, "cluster1", values, 10)
+        truth_partitions = []
+        for x in range(1, 11):
+            truth_partitions.extend([x] * 5)
+        truth = dict(zip(values, truth_partitions, strict=True))
+        self.assertEqual(results, truth)
+
+    def testMaxClustersSomewhatUneven(self):
+        self.maxDiff = None
+
+        # 10 "detectors", 50 "visits" each detector, want 90 clusters/jobs
+        values = list(range(1, 51))
+
+        config = BpsConfig({"partitionMaxClusters": 90})
+        results = qcf.partition_cluster_values(config, "cluster1", values, 10)
+        truth_partitions = []
+        for x in range(1, 10):
+            if x <= 5:
+                truth_partitions.extend([x] * 6)
+            else:
+                truth_partitions.extend([x] * 5)
+        truth = dict(zip(values, truth_partitions, strict=True))
+        self.assertEqual(results, truth)
+
+    def testMaxClustersUneven(self):
+        self.maxDiff = None
+
+        # 10 "detectors", 50 "visits" each detector, want 85 clusters/jobs
+        values = list(range(1, 51))
+
+        config = BpsConfig({"partitionMaxClusters": 85})
+        results = qcf.partition_cluster_values(config, "cluster1", values, 10)
+        truth_partitions = []
+        for x in range(1, 9):
+            if x <= 2:
+                truth_partitions.extend([x] * 7)
+            else:
+                truth_partitions.extend([x] * 6)
+        truth = dict(zip(values, truth_partitions, strict=True))
+        self.assertEqual(results, truth)
 
 
 if __name__ == "__main__":
