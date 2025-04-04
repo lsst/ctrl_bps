@@ -86,7 +86,7 @@ class TestCreatingQuantumGraph(unittest.TestCase):
         with self.assertLogs(logger=self.logger, level="INFO") as cm:
             qgraph_filename = create_quantum_graph(config, self.tmpdir)
         _, command = config.search("createQuantumGraph", opt={"curvals": {"qgraphFile": qgraph_filename}})
-        self.assertRegex(cm.output[0], command)
+        self.assertIn(command, cm.output[0])
         self.assertTrue(os.path.exists(qgraph_filename))
 
     def testCommandMissing(self):
@@ -103,7 +103,7 @@ class TestCreatingQuantumGraph(unittest.TestCase):
         with self.assertRaises(BpsSubprocessError) as cm:
             create_quantum_graph(config, self.tmpdir)
         self.assertEqual(cm.exception.errno, errno.ENOENT)
-        self.assertRegex(str(cm.exception), "non-zero exit code")
+        self.assertIn("non-zero exit code", str(cm.exception))
 
 
 class TestUpdatingQuantumGraph(unittest.TestCase):
@@ -137,9 +137,9 @@ class TestUpdatingQuantumGraph(unittest.TestCase):
         with self.assertLogs(logger=self.logger, level="INFO") as cm:
             update_quantum_graph(config, str(self.src), self.tmpdir)
         _, command = config.search("updateQuantumGraph", opt={"curvals": {"qgraphFile": str(self.src)}})
-        self.assertRegex(cm.output[0], r"[Bb]acking up")
-        self.assertRegex(cm.output[1], r"[Cc]ompleted")
-        self.assertRegex(cm.output[2], command)
+        self.assertIn("backing up", cm.output[0].lower())
+        self.assertIn("completed", cm.output[1].lower())
+        self.assertIn(command, cm.output[2])
         self.assertTrue(self.src.read_text(), "bar\n")
         self.assertTrue(self.backup.is_file())
         self.assertTrue(self.backup.read_text(), "foo\n")
@@ -149,8 +149,8 @@ class TestUpdatingQuantumGraph(unittest.TestCase):
         config = BpsConfig(self.settings, search_order=[])
         with self.assertLogs(logger=self.logger, level="INFO") as cm:
             update_quantum_graph(config, str(self.src), self.tmpdir, inplace=True)
-        _, expected = config.search("updateQuantumGraph", opt={"curvals": {"qgraphFile": str(self.src)}})
-        self.assertRegex(cm.output[0], expected)
+        _, command = config.search("updateQuantumGraph", opt={"curvals": {"qgraphFile": str(self.src)}})
+        self.assertIn(command, cm.output[0])
         self.assertTrue(self.src.read_text(), "bar\n")
         self.assertFalse(self.backup.is_file())
 
