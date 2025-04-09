@@ -1,0 +1,1 @@
+The check_clustering_config function is now public to support testing of clustering configuration YAML files.
