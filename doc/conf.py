@@ -14,7 +14,4 @@ exclude_patterns = ["changes/*"]
 
 # Try to pull in links for butler and pipe_base.
 intersphinx_mapping["lsst"] = ("https://pipelines.lsst.io/v/weekly/", None)  # noqa
-
-nitpick_ignore = [
-    ("py:class", "networkx.classes.digraph.DiGraph"),
-]
+intersphinx_mapping["networkx"] = ("https://networkx.org/documentation/stable/", None)  # noqa: F405
