@@ -27,6 +27,8 @@
 
 """Functions that convert QuantumGraph into ClusteredQuantumGraph."""
 
+__all__ = ["check_clustering_config"]
+
 import logging
 import re
 from collections import defaultdict
@@ -113,7 +115,7 @@ def single_quantum_clustering(config: BpsConfig, qgraph: QuantumGraph, name: str
     return cqgraph
 
 
-def _check_clusters_tasks(
+def check_clustering_config(
     cluster_config: BpsConfig, task_graph: DiGraph
 ) -> tuple[list[str], dict[str, list[str]]]:
     """Check cluster definitions in terms of pipetask lists.
@@ -234,7 +236,7 @@ def dimension_clustering(config: BpsConfig, qgraph: QuantumGraph, name: str) -> 
     quantum_to_cluster: dict[UUID, str] = {}
 
     cluster_section = config["cluster"]
-    cluster_labels, ordered_tasks = _check_clusters_tasks(
+    cluster_labels, ordered_tasks = check_clustering_config(
         cluster_section, qgraph.pipeline_graph.make_task_xgraph()
     )
     for cluster_label in cluster_labels:

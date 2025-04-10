@@ -35,5 +35,6 @@ from .bps_reports import *
 from .clustered_quantum_graph import *
 from .constants import *
 from .generic_workflow import *
+from .quantum_clustering_funcs import *
 from .version import *
 from .wms_service import *
