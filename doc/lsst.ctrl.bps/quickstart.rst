@@ -1235,6 +1235,80 @@ values appear in the cluster names and thus job names.
        # requestCpus: N              # Overrides for jobs in this cluster
        # requestMemory: NNNN         # MB, Overrides for jobs in this cluster
 
+.. _cluster_partitioning:
+
+Clustering with Partitions
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Sometimes clustering by two dimensions can produce too many short jobs while
+clustering by one dimension can produce too few larger jobs.  For example,
+clustering on exposure and detector produces a lot of short jobs (O(nexp * ndet)).
+We can make the jobs longer by only clustering on detector.  But the number of
+jobs is then limited by the fixed, small number of detectors.
+
+For a middle ground, clusters can be partitioned into smaller clusters by
+different dimensions.  Back to the example, we can partition the detector
+clusters by exposure (``partitionDimensions: exposure``).
+
+.. warning:
+
+   A cluster/job is a black box which succeeds or fails as a unit. As a
+   result, more jobs can be pruned downstream due to a single quantum failing
+   when clustering is used. Putting more quanta in a cluster most likely
+   will increase the amount of jobs pruned when a quantum failure happens.
+
+If ``partitionDimensions`` is defined, one must also define one of the following
+to tell how to partition the partition values:
+
+**partitionMaxClusters**
+  For when you know the number of clusters/jobs you want.  The number of
+  partitions will be ``floor(partitionMaxClusters / number of original clusters)``
+
+**partitionMaxSize**
+  For when you know how many of the ``partitionDimensions`` values you want in
+  a cluster/job.  This does not limit the number of quanta in the cluster as
+  there could be multiple PipelineTasks to execute.
+
+
+Example submit yaml for ``partitionMaxClusters``:
+
+.. code-block:: YAML
+
+   clusterAlgorithm: lsst.ctrl.bps.quantum_clustering_funcs.dimension_clustering
+   cluster:
+     clusterLabel1:
+       dimensions: detector
+       equalDimensions: visit:exposure
+       pipetasks: isr,calibrateImage,analyzeAmpOffsetMetadata,transformSourceTable
+       partitionDimensions: exposure
+       partitionMaxClusters: 10000   # want up to 10,000 clusters/jobs
+
+In order to make workflows more consistent, all of the values (e.g.,
+exposures) for the ``partitionDimensions`` are gathered from the
+QuantumGraph up front.  This is done across all of the relevant quanta
+in the QuantumGraph just in case some quanta are not there due to
+missing inputs or previous runs.  Then the values are sorted and
+then partitioned.  Particular values will then be in the same
+partition cluster across cluster dimensions.
+
+Working through an example with the above partitioning with:
+
+* the number of detectors = 189
+
+* the number of exposures = 800
+
+Since ``partitionMaxClusters`` is given:
+
+* First, the number of partitions is calculated:
+  ``floor(partitionMaxClusters / number of original clusters) = floor(10000/189) = 52``
+
+* Actual number of clusters (and thus jobs) = ``52 * 189 = 9828``
+
+* Number of exposures per cluster = ``800 / 52 = 15 with remainder 20``.  So the first
+  20 partitions will have 16 exposures, with the rest having 15.
+  (Sanity check: 20 * 16 + 32 * 15 = 800 which matches the number of exposures)
+
+
 .. _ordering:
 
 Job Ordering

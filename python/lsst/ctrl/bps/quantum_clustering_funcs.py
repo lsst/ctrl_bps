@@ -281,7 +281,7 @@ def add_clusters_per_quantum(
     cqgraph : `lsst.ctrl.bps.ClusteredQuantumGraph`
         The ClusteredQuantumGraph to which the new 1-quantum
         clusters are added (modified in method).
-    quantum_to_cluster : `dict` [ `uuid.UUID`, `str` ]
+    quantum_to_cluster : `dict` [`uuid.UUID`, `str`]
         Mapping of quantum node id to which cluster it was added
         (modified in method).
     """
@@ -290,7 +290,17 @@ def add_clusters_per_quantum(
         "templateDataId", opt={"curvals": {"curr_pipetask": label}, "replaceVars": False}
     )
     if found:
-        template = "{node_number}_{label}_" + template_data_id
+        template = "{label}_" + template_data_id
+        _, use_node_number = config.search(
+            "useNodeIdInClusterName",
+            opt={
+                "curvals": {"curr_pipetask": label},
+                "replaceVars": False,
+                "default": True,
+            },
+        )
+        if use_node_number:
+            template = "{node_number}_" + template
     else:
         template = "{node_number}"
 
@@ -305,6 +315,153 @@ def add_clusters_per_quantum(
         cqgraph.add_cluster(cluster)
         quantum_to_cluster[qnode.nodeId] = cluster.name
         add_cluster_dependencies(cqgraph, cluster, quantum_to_cluster)
+
+
+def _get_dim_config_settings(
+    cluster_config: BpsConfig,
+) -> tuple[list[str], list[tuple[str, str]], list[str]]:
+    """Parse dimension-related cluster configuration.
+
+    Parameters
+    ----------
+    cluster_config : `lsst.ctrl.bps.BpsConfig`
+        BPS configuration for specific cluster label.
+
+    Returns
+    -------
+    cluster_dims : `list` [`str`]
+        Names for dimensions which should be used for clustering.
+    equal_dims : `list` [`tuple` [`str`, `str`]]
+        Names for dimensions which should be considered equivalent.
+    partition_dims : `list` [`str`]
+        Names for dimensions which should be used for partitioning clusters.
+    """
+    cluster_dims = []
+    if "dimensions" in cluster_config:
+        cluster_dims = [d.strip() for d in cluster_config["dimensions"].split(",")]
+    _LOG.debug("cluster_dims = %s", cluster_dims)
+
+    equal_dims = []
+    if "equalDimensions" in cluster_config:
+        equal_dims = [pt.strip().split(":") for pt in cluster_config["equalDimensions"].split(",")]
+    _LOG.debug("equal_dims = %s", equal_dims)
+
+    partition_dims = []
+    if "partitionDimensions" in cluster_config:
+        partition_dims = [d.strip() for d in cluster_config["partitionDimensions"].split(",")]
+    _LOG.debug("partition_dims = %s", partition_dims)
+
+    return cluster_dims, equal_dims, partition_dims
+
+
+def partition_cluster_values(
+    cluster_config: BpsConfig, cluster_label: str, partition_values: set[Any], num_cluster_values: int
+) -> dict[Any, int]:
+    """Partition given values into appropriately sized chunks.
+
+    Parameters
+    ----------
+    cluster_config : `lsst.ctrl.bps.BpsConfig`
+        BPS configuration for specific cluster label.
+    cluster_label : `str`
+        Cluster label for which to add clusters.
+    partition_values : `set` [`~typing.Any`]
+        Values that would be internal to clusters to be used in partitioning.
+    num_cluster_values : `int`
+        Number of values used when doing main clustering.
+
+    Returns
+    -------
+    partition_key_to_id : `dict` [`~typing.Any`, `int`]
+        Mapping of a value to a partition id.
+
+    Raises
+    ------
+    KeyError
+        When missing one of the partitioning config values or when specifying
+        multiple sizing values.
+    RuntimeError
+        When number of cluster dimension values is larger than
+        partitionMaxClusters.
+    """
+    _, partition_max_clusters = cluster_config.search("partitionMaxClusters")
+    _, partition_max_size = cluster_config.search("partitionMaxSize")
+    _LOG.debug("partition_max_clusters = %s", partition_max_clusters)
+    _LOG.debug("partition_max_size = %s", partition_max_size)
+
+    if not partition_max_clusters and not partition_max_size:
+        raise KeyError(
+            f"Defined partitionDimensions for cluster {cluster_label}, but missing one of the following:"
+            "partitionMaxClusters or partitionMaxSize"
+        )
+    elif partition_max_clusters and partition_max_size:
+        raise KeyError(
+            f"Defined more than one of the following for cluster {cluster_label}: "
+            "partitionMaxClusters and partitionMaxSize"
+        )
+
+    partition_max_chunks = 0
+    if partition_max_clusters:
+        # User wants to define the total number of clusters for this label
+        # which translates into jobs.
+        if num_cluster_values > partition_max_clusters:
+            raise RuntimeError(
+                f"Cluster {cluster_label}: partitionMaxClusters ({partition_max_clusters}) "
+                f"must same or larger than the number of cluster dimension values ({num_cluster_values})"
+            )
+
+        partition_max_chunks = partition_max_clusters // num_cluster_values
+        _LOG.debug("max_chunks = %s", partition_max_chunks)
+
+    if partition_max_chunks:
+        max_size, remainder = divmod(len(partition_values), partition_max_chunks)
+    else:
+        max_size = partition_max_size
+        remainder = 0
+
+    _LOG.debug("max_size = %s, remainder = %s", max_size, remainder)
+
+    # Make partitions to be used across all clusters for this label.
+    # Example: values = 8, 1, 2, 5, 7, 3, 6, 4, 9, 10
+    #          max_size = 3, remainder = 1
+    #          partition 1 gets 1, 2, 3, 4
+    #          partition 2 gets 5, 6, 7
+    #          partition 3 gets 8, 9, 10
+    #
+    # Since won't be traversing QuantumGraph in partition value order when
+    # clustering, actually make a mapping of partition value to partition id
+    # instead of just sublists of partition values.  Example, partition value
+    # of 5 maps to partition 2
+
+    partition_key_to_id = {}
+    partition_id = 0  # id for current partition
+
+    # Track how many partitions so far that had an extra added in order
+    # to handle remainder
+    cnt_extra = 0
+
+    curr_max_size = max_size
+
+    # How many values in current partition, set initial value so
+    # enters if clause first time through loop to set all the values.
+    cnt = curr_max_size + 1
+
+    for value in sorted(partition_values):
+        # If filled up a partition, need to (re)set for next partition
+        if cnt >= curr_max_size:
+            partition_id += 1
+            cnt = 0
+            curr_max_size = max_size
+            # if still working on the partitions that need the extra value
+            if cnt_extra < remainder:
+                curr_max_size += 1
+                cnt_extra += 1
+
+        partition_key_to_id[value] = partition_id
+        cnt += 1
+
+    _LOG.debug("partition cnt = %s, total # clusters = %s", partition_id, partition_id * num_cluster_values)
+    return partition_key_to_id
 
 
 def add_dim_clusters(
@@ -330,15 +487,11 @@ def add_dim_clusters(
     cqgraph : `lsst.ctrl.bps.ClusteredQuantumGraph`
         The ClusteredQuantumGraph to which the new 1-quantum
         clusters are added (modified in method).
-    quantum_to_cluster : `dict` [ `uuid.UUID`, `str` ]
+    quantum_to_cluster : `dict` [`uuid.UUID`, `str`]
         Mapping of quantum node id to which cluster it was added
         (modified in method).
     """
-    cluster_dims = []
-    if "dimensions" in cluster_config:
-        cluster_dims = [d.strip() for d in cluster_config["dimensions"].split(",")]
-    _LOG.debug("cluster_dims = %s", cluster_dims)
-    equal_dims = cluster_config.get("equalDimensions", None)
+    cluster_dims, equal_dims, partition_dims = _get_dim_config_settings(cluster_config)
 
     found, template = cluster_config.search("clusterTemplate", opt={"replaceVars": False})
     if not found:
@@ -348,32 +501,31 @@ def add_dim_clusters(
             template = cluster_label
     _LOG.debug("template = %s", template)
 
-    new_clusters = []
+    # First gather quanta info and all partition values.
+    partition_values: set[str] = set()
+    quanta_info: dict[str, list[dict[str, Any]]] = {}
     for task_label in topological_sort(ordered_tasks[cluster_label]):
         # Determine cluster for each node
         task_def = qgraph.findTaskDefByLabel(task_label)
         assert task_def is not None  # for mypy
-        for node in qgraph.getNodesForTask(task_def):
+        quantum_nodes = qgraph.getNodesForTask(task_def)
+
+        for qnode in quantum_nodes:
             cluster_name, info = get_cluster_name_from_node(
-                node, cluster_dims, cluster_label, template, equal_dims
+                qnode, cluster_dims, cluster_label, template, equal_dims, partition_dims
             )
+            if "partition_key" in info:
+                partition_values.add(info["partition_key"])
+            quanta_info.setdefault(cluster_name, []).append(info)
 
-            # Save mapping for use when creating dependencies.
-            quantum_to_cluster[node.nodeId] = cluster_name
-
-            # Add cluster to the ClusteredQuantumGraph.
-            # Saving NodeId instead of number because QuantumGraph API
-            # requires it for creating per-job QuantumGraphs.
-            if cluster_name in cqgraph:
-                cluster = cqgraph.get_cluster(cluster_name)
-            else:
-                cluster = QuantaCluster(cluster_name, cluster_label, info)
-                cqgraph.add_cluster(cluster)
-            cluster.add_quantum(node.nodeId, task_label)
-            new_clusters.append(cluster)
-
-    for cluster in new_clusters:
-        add_cluster_dependencies(cqgraph, cluster, quantum_to_cluster)
+    make_and_add_clusters(
+        cqgraph,
+        cluster_config,
+        cluster_label,
+        partition_values,
+        quanta_info,
+        quantum_to_cluster,
+    )
 
 
 def add_cluster_dependencies(
@@ -388,7 +540,7 @@ def add_cluster_dependencies(
         clusters are added (modified in method).
     cluster : `lsst.ctrl.bps.QuantaCluster`
         The cluster for which to add dependencies.
-    quantum_to_cluster : `dict` [ `uuid.UUID`, `str` ]
+    quantum_to_cluster : `dict` [`uuid.UUID`, `str`]
         Mapping of quantum node id to which cluster it was added
         (modified in method).
 
@@ -446,15 +598,11 @@ def add_dim_clusters_dependency(
     cqgraph : `lsst.ctrl.bps.ClusteredQuantumGraph`
         The ClusteredQuantumGraph to which the new
         clusters are added (modified in method).
-    quantum_to_cluster : `dict` [ `str`, `str` ]
+    quantum_to_cluster : `dict` [`uuid.UUID`, `str`]
         Mapping of quantum node id to which cluster it was added
         (modified in method).
     """
-    cluster_dims = []
-    if "dimensions" in cluster_config:
-        cluster_dims = [d.strip() for d in cluster_config["dimensions"].split(",")]
-    _LOG.debug("cluster_dims = %s", cluster_dims)
-    equal_dims = cluster_config.get("equalDimensions", None)
+    cluster_dims, equal_dims, partition_dims = _get_dim_config_settings(cluster_config)
 
     found, template = cluster_config.search("clusterTemplate", opt={"replaceVars": False})
     if not found:
@@ -478,33 +626,28 @@ def add_dim_clusters_dependency(
             raise RuntimeError(f"Invalid findDependencyMethod ({method})")
     _LOG.info("label_search_order = %s", label_search_order)
 
-    new_clusters = []
+    # First gather quanta info and all partition values.
+    partition_values: set[str] = set()
+    quanta_info: dict[str, list[dict[str, Any]]] = {}
+    # Since not only using source/sink labels, might look at
+    # node more than once.  Keep a list of node ids to make
+    # quicker to check
+    quanta_visited = set()
     for task_label in label_search_order:
         task_def = qgraph.findTaskDefByLabel(task_label)
         assert task_def is not None  # for mypy
         for node in qgraph.getNodesForTask(task_def):
-            # Since not only using source/sink labels, might look at
-            # node more than once.
-            if node.nodeId in quantum_to_cluster:
+            # skip if visited before
+            if node.nodeId in quanta_visited:
                 continue
 
             cluster_name, info = get_cluster_name_from_node(
-                node, cluster_dims, cluster_label, template, equal_dims
+                node, cluster_dims, cluster_label, template, equal_dims, partition_dims
             )
-
-            # Add cluster to the ClusteredQuantumGraph.
-            # Saving NodeId instead of number because QuantumGraph API
-            # requires it for creating per-job QuantumGraphs.
-            if cluster_name in cqgraph:
-                cluster = cqgraph.get_cluster(cluster_name)
-            else:
-                cluster = QuantaCluster(cluster_name, cluster_label, info)
-                cqgraph.add_cluster(cluster)
-                new_clusters.append(cluster)
-            cluster.add_quantum(node.nodeId, task_label)
-
-            # Save mapping for use when creating dependencies.
-            quantum_to_cluster[node.nodeId] = cluster_name
+            if "partition_key" in info:
+                partition_values.add(info["partition_key"])
+            quanta_info.setdefault(cluster_name, []).append(info)
+            quanta_visited.add(node.nodeId)
 
             # Use dependencies to find other quantum to add
             # Note: in testing, using the following code was faster than
@@ -516,17 +659,19 @@ def add_dim_clusters_dependency(
                 node_to_use = nodes_to_use.pop()
                 possible_nodes = find_possible_nodes(node_to_use)
                 for possible_node in possible_nodes:
+                    # skip if visited before
+                    if possible_node.nodeId in quanta_visited:
+                        continue
+                    quanta_visited.add(possible_node.nodeId)
+
                     if possible_node.taskDef.label in ordered_tasks[cluster_label]:
-                        if possible_node.nodeId not in cluster.qgraph_node_ids:
-                            _LOG.debug(
-                                "Adding possible quantum %s (%s) to cluster %s",
-                                possible_node.nodeId,
-                                possible_node.taskDef.label,
-                                cluster_name,
-                            )
-                            cluster.add_quantum(possible_node.nodeId, possible_node.taskDef.label)
-                            quantum_to_cluster[possible_node.nodeId] = cluster_name
-                            nodes_to_use.append(possible_node)
+                        cluster_name, info = get_cluster_name_from_node(
+                            possible_node, cluster_dims, cluster_label, template, equal_dims, partition_dims
+                        )
+                        if "partition_key" in info:
+                            partition_values.add(info["partition_key"])
+                        quanta_info.setdefault(cluster_name, []).append(info)
+                        nodes_to_use.append(possible_node)
                     else:
                         _LOG.debug(
                             "label (%s) not in ordered_tasks. Not adding possible quantum %s",
@@ -534,7 +679,70 @@ def add_dim_clusters_dependency(
                             possible_node.nodeId,
                         )
 
-    for cluster in new_clusters:
+    make_and_add_clusters(
+        cqgraph,
+        cluster_config,
+        cluster_label,
+        partition_values,
+        quanta_info,
+        quantum_to_cluster,
+    )
+
+
+def make_and_add_clusters(
+    cqgraph: ClusteredQuantumGraph,
+    cluster_config: BpsConfig,
+    cluster_label: str,
+    partition_values: set[Any],
+    quanta_info: dict[str, list[dict[str, Any]]],
+    quantum_to_cluster: dict[UUID, str],
+) -> None:
+    """Make the clusters add them and dependencies to the given
+       ClusteredQuantumGraph.
+
+    Parameters
+    ----------
+    cqgraph : `lsst.ctrl.bps.ClusteredQuantumGraph`
+        The ClusteredQuantumGraph to which the new
+        clusters are added (modified in method).
+    cluster_config : `lsst.ctrl.bps.BpsConfig`
+        BPS configuration for specific cluster label.
+    cluster_label : `str`
+        Cluster label for which to add clusters.
+    partition_values : `set` [`~typing.Any`]
+        Values that would be internal to clusters to be used in partitioning.
+    quanta_info : `dict` [`str`, `dict` [`str`, `~typing.Any`]]
+        Mapping of cluster names to pre-gathered quanta information.
+    quantum_to_cluster : `dict` [`uuid.UUID`, `str`]
+        Mapping of quantum node id to which cluster it was added
+        (modified in method).
+    """
+    if partition_values:
+        partition_key_to_id = partition_cluster_values(
+            cluster_config, cluster_label, partition_values, len(quanta_info)
+        )
+
+    # Make and add clusters.
+    new_clusters: dict[str, QuantaCluster] = {}
+    for cluster_name, info_list in quanta_info.items():
+        for info in info_list:
+            full_cluster_name = cluster_name
+            if "partition_key" in info:
+                full_cluster_name += f"_{partition_key_to_id[info['partition_key']]:03}"
+
+            if full_cluster_name in new_clusters:
+                cluster = new_clusters[full_cluster_name]
+            else:
+                cluster = QuantaCluster(full_cluster_name, cluster_label, info["tags"])
+                cqgraph.add_cluster(cluster)
+                new_clusters[full_cluster_name] = cluster
+
+            cluster.add_quantum(info["node_number"], info["node_label"])
+
+            # Save mapping for use when creating dependencies.
+            quantum_to_cluster[info["node_number"]] = full_cluster_name
+
+    for cluster in new_clusters.values():
         add_cluster_dependencies(cqgraph, cluster, quantum_to_cluster)
 
 
@@ -543,7 +751,8 @@ def get_cluster_name_from_node(
     cluster_dims: list[str],
     cluster_label: str,
     template: str,
-    equal_dims: str,
+    equal_dims: list[tuple[str, str]],
+    partition_dims: list[str],
 ) -> tuple[str, dict[str, Any]]:
     """Get the cluster name in which to add the given node.
 
@@ -551,14 +760,16 @@ def get_cluster_name_from_node(
     ----------
     node : `lsst.pipe.base.QuantumNode`
         QuantumNode from which to create the cluster.
-    cluster_dims : `list` [ `str` ]
-        List of dimension names to be used when clustering.
+    cluster_dims : `list` [`str`]
+        Dimension names to be used when clustering.
     cluster_label : `str`
         Cluster label.
     template : `str`
         Template for the cluster name.
-    equal_dims : `str`
-        Configuration describing any dimensions to be considered equal.
+    equal_dims : `list` [`tuple` [`str`, `str`]]
+        Pairs of dimension names considered equal for clustering.
+    partition_dims : `list` [`str`]
+        Dimension names to be used when partitioning.
 
     Returns
     -------
@@ -568,35 +779,39 @@ def get_cluster_name_from_node(
         Information needed if creating a new node.
     """
     # Gather info for cluster name template into a dictionary.
-    info: dict[str, Any] = {"node_number": node.nodeId}
+    info: dict[str, Any] = {
+        "node_number": node.nodeId,
+        "node_label": node.taskDef.label,
+        "label": cluster_label,
+    }
+
+    # Save values for all dimensions used in clustering and partitioning.
+    all_dims = cluster_dims + partition_dims
 
     missing_info = set()
     assert node.quantum.dataId is not None  # for mypy
     data_id_info = dict(node.quantum.dataId.mapping)
-    for dim_name in cluster_dims:
+    for dim_name in all_dims:
         _LOG.debug("dim_name = %s", dim_name)
         if dim_name in data_id_info:
             info[dim_name] = data_id_info[dim_name]
         else:
             missing_info.add(dim_name)
-    if equal_dims:
-        for pair in [pt.strip() for pt in equal_dims.split(",")]:
-            dim1, dim2 = pair.strip().split(":")
-            if dim1 in cluster_dims and dim2 in data_id_info:
-                info[dim1] = data_id_info[dim2]
-                missing_info.remove(dim1)
-            elif dim2 in cluster_dims and dim1 in data_id_info:
-                info[dim2] = data_id_info[dim1]
-                missing_info.remove(dim2)
-
-    info["label"] = cluster_label
-    _LOG.debug("info for template = %s", info)
+    for dim1, dim2 in equal_dims:
+        if dim1 in all_dims and dim2 in data_id_info:
+            info[dim1] = data_id_info[dim2]
+            missing_info.remove(dim1)
+        elif dim2 in all_dims and dim1 in data_id_info:
+            info[dim2] = data_id_info[dim1]
+            missing_info.remove(dim2)
 
     if missing_info:
         raise RuntimeError(
             f"Quantum {node.nodeId} ({data_id_info}) missing dimensions: {','.join(missing_info)}; "
             f"required for cluster {cluster_label}"
         )
+
+    _LOG.debug("info for template = %s", info)
 
     # Use dictionary plus template format string to create name.
     # To avoid # key errors from generic patterns, use defaultdict.
@@ -606,5 +821,13 @@ def get_cluster_name_from_node(
     # Some dimensions contain slash which must be replaced.
     cluster_name = re.sub("/", "_", cluster_name)
     _LOG.debug("cluster_name = %s", cluster_name)
+
+    info["tags"] = {}
+    for dim in cluster_dims:
+        info["tags"][dim] = info[dim]
+        del info[dim]
+
+    if partition_dims:
+        info["partition_key"] = "==".join([str(info[dim]) for dim in partition_dims])
 
     return cluster_name, info
