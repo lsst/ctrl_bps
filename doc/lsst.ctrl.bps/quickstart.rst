@@ -70,6 +70,41 @@ functionality, a NotImplementedError will be thrown.
    ``bps ping`` does *not* test whether compute resources are available or
    that jobs will run.
 
+.. _bps_logging:
+
+Logging
+-------
+
+To set the logging options for bps itself, the options go on the command
+line between ``bps`` and the subcommand.  To see these via the command line,
+use ``bps --help`` (putting ``--help`` after the subcommand prints
+help specific to the subcommand).
+
+- ``--log-level LEVEL|COMPONENT=LEVEL ...``
+  The logging level. Without an explicit logger name, will only affect the
+  default root loggers (lsst). To modify the root logger use ``'.=LEVEL'``.
+  Supported levels are ``CRITICAL``, ``ERROR``, ``WARNING``, ``INFO``,
+  ``VERBOSE``, ``DEBUG`` or ``TRACE``.
+
+- ``--long-log``
+  Make log messages appear in long format.
+
+- ``--log-file FILE ...``
+  File(s) to write log messages. If the path ends with '.json' then JSON
+  log records will be written, else formatted text log records will be
+  written. This file can exist and records will be appended.
+
+- ``--log-tty / --no-log-tty``
+  Log to terminal (default). If false logging to terminal is disabled.
+
+- ``--log-label TEXT ...``
+  Keyword=value pairs to add to MDC of log records.
+
+In ``bps submit`` these settings aren't passed through to ``QuantumGraph``
+generation or running.  Instead there are special values in the YAML file
+for putting options between the command and its subcommand (see
+:ref:`internal-logging`).
+
 .. _bps-computesite:
 
 Specifying the Compute site
@@ -160,6 +195,7 @@ If submission was successfully, it will output something like this:
    Submit dir: /home/jdoe/tmp/bps/submit/shared/pipecheck/20211117T155008Z
    Run Id: 176261
    Run Name: u_jdoe_pipelines_check_20211117T155008Z
+
 
 Additional Submit Options
 ^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -515,6 +551,45 @@ and ``cloud``.
     Subsections cloud names which are matched to ``computeCloud``.  See
     the documentation of the WMS plugin in use for examples of cloud
     specifications.
+
+.. _internal-logging:
+
+Internal Logging
+^^^^^^^^^^^^^^^^
+
+Any logging options given when using ``bps <logging options> submit`` aren't
+passed through to ``QuantumGraph`` generation or running.  Instead there are
+special values in the YAML file for this:
+
+**defaultPreCmdOpts**
+  Defaults to ``"--long-log --log-level=VERBOSE"``, affects all ``pipetask`` commands.
+
+**qgraphPreCmdOpts**
+  Defaults to ``defaultPreCmdOpts``.  Affects the command to generate a ``QuantumGraph``.
+
+**initPreCmdOpts**
+  Defaults to ``defaultPreCmdOpts``.  Affects the run command for ``pipetaskInit``.
+
+**runPreCmdOpts**
+  Defaults to ``defaultPreCmdOpts``.  Affects the command to run quanta.  This can be
+  overridden in all jobs by specifying this at the root level.  To override for a
+  particular ``pipetask`` (no clustering) or ``cluster``, add the setting in the particular
+  section.  For more focused logging, use the COMPONENT when specifying the logging
+  level.
+
+**updateQgraphPreCmdOpts**
+  Defaults to ``defaultPreCmdOpts``.  Affects the command to update a pre-existing QuantumGraph.
+
+**finalPreCmdOpts**
+  Defaults to ``defaultPreCmdOpts``.  Affects the finalJob command.  Must be overridden
+  in the ``finalJob`` section.
+
+.. note::
+
+   All of the \*PreCmdOpts keywords put strings between the command and subcommand
+   (like logging options) whereas all of the extra\*Options keywords add the strings
+   to the end of the command line.
+
 
 .. _bps-supported-settings:
 
