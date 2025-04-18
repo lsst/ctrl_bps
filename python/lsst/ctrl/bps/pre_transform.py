@@ -95,7 +95,7 @@ def acquire_quantum_graph(config: BpsConfig, out_prefix: str = "") -> tuple[str,
     return qgraph_filename, qgraph
 
 
-def execute(command, filename):
+def execute(command: str, filename: str, write_buffering: int = 1) -> int:
     """Execute a command.
 
     Parameters
@@ -104,19 +104,50 @@ def execute(command, filename):
         String representing the command to execute.
     filename : `str`
         A file to which both stderr and stdout will be written to.
+    write_buffering : `int`
+        Buffering policy passed to open for the stdout/stderr file.
+        0 - not allowed here because writing in text mode.
+        1 - line buffering (default).
+        > 1 - size in bytes for a chunk buffer.
 
     Returns
     -------
     exit_code : `int`
         The exit code the command being executed finished with.
+
+    Raises
+    ------
+    ValueError
+        Raised if write_buffering is 0.
     """
+    # Modify the current StreamHandler to not print newline to avoid
+    # extra blank lines.  Otherwise have to waste time and memory to
+    # strip newline character from subprocess output.
+    stream_handler = None
+    orig_terminator = None
+    current_logger = _LOG
+    while current_logger:
+        for handler in current_logger.handlers:
+            if isinstance(handler, logging.StreamHandler):
+                stream_handler = handler
+                break
+        if not stream_handler and current_logger.propagate:
+            current_logger = current_logger.parent
+        else:
+            break
+
+    if stream_handler:
+        orig_terminator = stream_handler.terminator
+        stream_handler.terminator = ""
+
     buffer_size = 5000
-    with open(filename, "w") as fh:
+    with open(filename, "w", write_buffering) as fh:
         print(command, file=fh)
         print("\n", file=fh)  # Note: want a blank line
         process = subprocess.Popen(
             shlex.split(command), shell=False, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
         )
+        assert process.stdout is not None  # for mypy
         buffer = os.read(process.stdout.fileno(), buffer_size).decode()
         while process.poll is None or buffer:
             print(buffer, end="", file=fh)
@@ -124,6 +155,9 @@ def execute(command, filename):
             buffer = os.read(process.stdout.fileno(), buffer_size).decode()
         process.stdout.close()
         process.wait()
+
+    if stream_handler:
+        stream_handler.terminator = orig_terminator
     return process.returncode
 
 

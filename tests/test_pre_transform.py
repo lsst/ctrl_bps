@@ -28,6 +28,7 @@ import errno
 import logging
 import os
 import shutil
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -46,14 +47,22 @@ class TestExecute(unittest.TestCase):
 
     def setUp(self):
         self.file = tempfile.NamedTemporaryFile("w+")
+        self.logger = logging.getLogger("lsst.ctrl.bps")
 
     def tearDown(self):
         self.file.close()
 
     def testSuccessfulExecution(self):
         """Test exit status if command succeeded."""
-        status = execute("true", self.file.name)
-        self.assertIn("true", self.file.read())
+        content = "Successful execution"
+        command = f"{sys.executable} -c 'print(\"{content}\")'"
+        with self.assertLogs(logger=self.logger, level="INFO") as cm:
+            status = execute(command, self.file.name)
+        self.assertIn(content, cm.output[0])
+        self.file.seek(0)
+        file_contents = self.file.read()
+        self.assertIn(command, file_contents)
+        self.assertIn(content, file_contents)
         self.assertEqual(status, 0)
 
     def testFailingExecution(self):
