@@ -449,6 +449,23 @@ class TestGenericWorkflow(unittest.TestCase):
                 }
             )
 
+    def testCheckJobOrderingConfigUnusedLabel(self):
+        gwf = gtu.make_3_label_workflow("test_unused_label", final=True)
+        with self.assertRaisesRegex(
+            RuntimeError,
+            r"Job label\(s\) \(unused1,unused2\) from job ordering group "
+            "order1 does not exist in workflow.  Aborting.",
+        ):
+            gwf._check_job_ordering_config(
+                {
+                    "order1": {
+                        "ordering_type": "sort",
+                        "labels": "label2,unused1,label3,unused2",
+                        "dimensions": "visit",
+                    },
+                }
+            )
+
     def testCheckJobOrderingConfigMissingDim(self):
         gwf = gtu.make_3_label_workflow("test_missing_dim", final=True)
         with self.assertRaisesRegex(KeyError, "Missing dimensions entry in ordering group order1"):
