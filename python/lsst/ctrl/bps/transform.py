@@ -416,7 +416,7 @@ def _get_job_values(config, search_opt, cmd_line_key):
         search_opt["replaceVars"] = True
         job_values["environment"] = {}
         for name in job_env:
-            job_values["environment"][name] = config.search(name, search_opt)[1]
+            job_values["environment"][name] = str(config.search(name, search_opt)[1])
         if old_searchobj is None:
             del search_opt["searchobj"]
         else:
