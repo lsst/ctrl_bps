@@ -189,25 +189,25 @@ class TestGetJobValues(unittest.TestCase):
         config = BpsConfig(
             {
                 "var1": "two",
-                "environment": {"TEST_INT": 1, "TEST_SPACES": "one {var1} three"},
+                "environment": {"TEST_INT": 1, "TEST_BOOL": False, "TEST_SPACES": "one {var1} three"},
             }
         )
         job_values = _get_job_values(config, {}, None)
-        truth = BpsConfig({"TEST_INT": 1, "TEST_SPACES": "one two three"}, {}, None)
+        truth = BpsConfig({"TEST_INT": "1", "TEST_BOOL": "False", "TEST_SPACES": "one two three"}, {}, None)
         self.assertEqual(truth, job_values["environment"])
 
     def testEnvironmentOptions(self):
         config = BpsConfig(
             {
                 "var1": "two",
-                "environment": {"TEST_INT": 1, "TEST_SPACES": "one {var1} three"},
+                "environment": {"TEST_INT": 1, "TEST_BOOL": False, "TEST_SPACES": "one {var1} three"},
                 "finalJob": {"requestMemory": 8096, "command1": "/usr/bin/env"},
             }
         )
         search_obj = config["finalJob"]
         search_opts = {"replaceVars": False, "searchobj": search_obj}
         job_values = _get_job_values(config, search_opts, None)
-        truth = {"TEST_INT": 1, "TEST_SPACES": "one two three"}
+        truth = {"TEST_INT": "1", "TEST_BOOL": "False", "TEST_SPACES": "one two three"}
         self.assertEqual(truth, job_values["environment"])
         self.assertEqual(search_opts["replaceVars"], False)
         self.assertEqual(search_opts["searchobj"]["requestMemory"], 8096)
