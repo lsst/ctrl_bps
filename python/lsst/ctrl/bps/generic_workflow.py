@@ -964,14 +964,24 @@ class GenericWorkflow(DiGraph):
 
             job_labels = [x.strip() for x in group_vals["labels"].split(",")]
             _LOG.debug("group %s: job_labels=%s", group, job_labels)
+            unused_labels = []
             for job_label in job_labels:
-                if job_label in job_label_to_group:
+                if job_label not in self._job_labels.labels:
+                    unused_labels.append(job_label)
+                elif job_label in job_label_to_group:
                     raise RuntimeError(
                         f"Job label {job_label} appears in more than one job ordering group "
                         f"({group} {job_label_to_group[job_label]})"
                     )
                 else:
                     job_label_to_group[job_label] = group
+
+            if unused_labels:
+                _LOG.info("Workflow job labels = %s", ",".join(self._job_labels.labels))
+                raise RuntimeError(
+                    f"Job label(s) ({','.join(unused_labels)}) from job ordering group "
+                    f"{group} does not exist in workflow.  Aborting."
+                )
 
             label_subgraph = self._job_labels.subgraph(job_labels)
             group_to_label_subgraph[group] = label_subgraph
