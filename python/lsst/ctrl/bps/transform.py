@@ -316,13 +316,7 @@ def _fill_arguments(use_shared, generic_workflow, arguments, cmdvals):
                 # Have shared filesystems and jobs can share file.
                 uri = gwfile.src_uri
             else:
-                # Taking advantage of inside knowledge.  Not future-proof.
-                # Temporary fix until have job wrapper that pulls files
-                # within job.
-                if gwfile.name == "butlerConfig" and os.path.splitext(gwfile.src_uri)[1] != ".yaml":
-                    uri = "butler.yaml"
-                else:
-                    uri = os.path.basename(gwfile.src_uri)
+                uri = os.path.basename(gwfile.src_uri)
         else:  # Using push transfer
             uri = os.path.basename(gwfile.src_uri)
 
