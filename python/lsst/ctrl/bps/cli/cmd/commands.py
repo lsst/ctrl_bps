@@ -42,6 +42,7 @@ from ...drivers import (
     prepare_driver,
     report_driver,
     restart_driver,
+    status_driver,
     submit_driver,
     submitcmd_driver,
     transform_driver,
@@ -156,8 +157,25 @@ def restart(*args, **kwargs):
     help="Query all available job queues for job information.",
 )
 def report(*args, **kwargs):
-    """Display execution status for submitted workflows."""
+    """Display execution information for submitted workflows."""
     report_driver(*args, **kwargs)
+
+
+@click.command(cls=BpsCommand)
+@opt.wms_service_option()
+@click.option("--id", "run_id", required=True, help="Restrict report to specific WMS run id.")
+@click.option("--hist", "hist_days", default=0.0, help="Search WMS history X days for completed info.")
+@click.option(
+    "--global/--no-global",
+    "is_global",
+    default=False,
+    help="Query all available job queues for job information.",
+)
+def status(*args, **kwargs):
+    """Exit with execution status of single submitted workflow."""
+    # Note: Using return statement doesn't actually return the value
+    # to the shell.  Using click function instead.
+    click.get_current_context().exit(status_driver(*args, **kwargs))
 
 
 @click.command(cls=BpsCommand)

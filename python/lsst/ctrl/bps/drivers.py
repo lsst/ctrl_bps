@@ -39,6 +39,7 @@ __all__ = [
     "prepare_driver",
     "report_driver",
     "restart_driver",
+    "status_driver",
     "submit_driver",
     "submitcmd_driver",
     "transform_driver",
@@ -69,6 +70,7 @@ from .pre_transform import acquire_quantum_graph, cluster_quanta
 from .prepare import prepare
 from .report import BPS_POSTPROCESSORS, display_report, retrieve_report
 from .restart import restart
+from .status import status
 from .submit import submit
 from .transform import transform
 
@@ -467,6 +469,48 @@ def report_driver(wms_service, run_id, user, hist_days, pass_thru, is_global=Fal
                 f"Hints: Double check id, retry with a larger --hist value (currently: {hist_days}), "
                 "and/or use --global to search all job queues."
             )
+
+
+def status_driver(wms_service: str, run_id: str, hist_days: float, is_global: bool = False) -> int:
+    """Print out status of workflow submitted for execution.
+
+    Parameters
+    ----------
+    wms_service : `str`
+        Name of the class.
+    run_id : `str`
+        A run id the report will be restricted to.
+    hist_days : `float`
+        Number of days.
+    is_global : `bool`, optional
+        If set, all available job queues will be queried for job information.
+        Defaults to False which means that only a local job queue will be
+        queried for information.
+
+        Only applicable in the context of a WMS using distributed job queues
+        (e.g., HTCondor).
+
+    Returns
+    -------
+    state : `int`
+        Status of submitted workflow.
+    """
+    if wms_service is None:
+        default_config = BpsConfig(BPS_DEFAULTS)
+        wms_service = os.environ.get("BPS_WMS_SERVICE_CLASS", default_config["wmsServiceClass"])
+
+    state, message = status(
+        wms_service,
+        run_id=run_id,
+        hist=hist_days,
+        is_global=is_global,
+    )
+
+    _LOG.info("status: %s", state.name)
+    if message:
+        _LOG.warning(message)
+
+    return state.value
 
 
 def cancel_driver(wms_service, run_id, user, require_bps, pass_thru, is_global=False):
