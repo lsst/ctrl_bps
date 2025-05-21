@@ -49,37 +49,41 @@ _LOG = logging.getLogger(__name__)
 class WmsStates(Enum):
     """Run and job states."""
 
-    UNKNOWN = 0
+    # Offset values so can use as exit codes to bps status
+    # without colliding with click exit codes (e.g., 2 for
+    # bad command line)
+
+    UNKNOWN = 10
     """Can't determine state."""
 
-    MISFIT = 1
+    MISFIT = 11
     """Determined state, but doesn't fit other states."""
 
-    UNREADY = 2
+    UNREADY = 12
     """Still waiting for parents to finish."""
 
-    READY = 3
+    READY = 13
     """All of its parents have finished successfully."""
 
-    PENDING = 4
+    PENDING = 14
     """Ready to run, visible in batch queue."""
 
-    RUNNING = 5
+    RUNNING = 15
     """Currently running."""
 
-    DELETED = 6
+    DELETED = 16
     """In the process of being deleted or already deleted."""
 
-    HELD = 7
+    HELD = 17
     """In a hold state."""
 
-    SUCCEEDED = 8
+    SUCCEEDED = 0
     """Have completed with success status."""
 
-    FAILED = 9
+    FAILED = 19
     """Have completed with non-success status."""
 
-    PRUNED = 10
+    PRUNED = 20
     """At least one of the parents failed or can't be run."""
 
 
@@ -432,6 +436,40 @@ class BaseWmsService:
         message : `str`
             Message to user on how to find more status information specific to
             this particular WMS.
+        """
+        raise NotImplementedError
+
+    def get_status(
+        self,
+        wms_workflow_id: str,
+        hist: float = 1,
+        is_global: bool = False,
+    ) -> tuple[WmsStates, str]:
+        """Query WMS for quick status of single submitted WMS workflow.
+
+        Parameters
+        ----------
+        wms_workflow_id : `int` or `str`, optional
+            ID that can be used by WMS service to look up status.
+        hist : `float`, optional
+            Number of days to expand query to include finished WMS workflows.
+            Defaults to 1.
+        is_global : `bool`, optional
+            If set, all available job queues will be queried for run
+            information.  Defaults to False which means that only a local run
+            queue will be queried for information.
+
+            Only applicable in the context of a WMS using distributed job
+            queues (e.g., HTCondor). A WMS with a centralized job queue
+            (e.g. PanDA) can safely ignore it.
+
+        Returns
+        -------
+        status : `lsst.ctrl.bps.WmsStates`
+            Status of single run from given information.
+        message : `str`
+            Extra message for status command to print.  This could be pointers
+            to documentation or to WMS specific commands.
         """
         raise NotImplementedError
 

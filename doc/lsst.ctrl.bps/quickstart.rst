@@ -322,12 +322,32 @@ There are few things you need to keep in mind though:
    and stderr of the job can be found same way as payload job. You also can use
    ``bps report`` to check its status, ``bps cancel`` to cancel it, etc.
 
-_bps-report:
+.. _bps-status:
 
 Checking status
 ---------------
+To check the status of a particular submitted run, use
 
-To check the status of the submitted run, use
+.. code-block:: bash
+
+   bps status --id <wms id or path>
+
+It will print a name of the status (e.g., SUCCEEDED) as well as
+exit with a status value (e.g., 15 for RUNNING).  For the full list
+of status names and values see ``lsst.ctrl.bps.WmsStates``.
+
+If wanting some timing information, turn on debugging logging as below.
+Also check to see if WMS plugin can turn on more information.
+
+.. code-block:: bash
+
+   bps --long-log --log-level=lsst.ctrl.bps.status=DEBUG status --id <wms id or path>
+
+.. _bps-report:
+
+Printing a report
+-----------------
+To get a summary of job statuses of submitted runs, use
 
 .. code-block:: bash
 
@@ -1636,3 +1656,4 @@ when installing an LSST package:
 .. _ctrl_bps_panda: https://pipelines.lsst.io/modules/lsst.ctrl.bps.panda/index.html
 .. _pipelines_check: https://github.com/lsst/pipelines_check
 .. _lsst_bps_plugins: https://github.com/lsst/lsst_bps_plugins
+.. _
