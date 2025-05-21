@@ -164,7 +164,7 @@ class WmsSpecificInfo:
             Raised if the message can't be rendered due to errors in either
             the template, the context, or both.
         """
-        ctx = {}
+        ctx: dict[str, Any] = {}
         if context is not None:
             ctx |= context
         ctx.update(kwargs)
@@ -211,64 +211,64 @@ class WmsJobReport:
 class WmsRunReport:
     """WMS run information to be included in detailed report output."""
 
-    wms_id: str = None
+    wms_id: str | None = None
     """Id assigned to the run by the WMS.
     """
 
-    global_wms_id: str = None
+    global_wms_id: str | None = None
     """Global run identification number.
 
     Only applicable in the context of a WMS using distributed job queues
     (e.g., HTCondor).
     """
 
-    path: str = None
+    path: str | None = None
     """Path to the submit directory."""
 
-    label: str = None
+    label: str | None = None
     """Run's label."""
 
-    run: str = None
+    run: str | None = None
     """Run's name."""
 
-    project: str = None
+    project: str | None = None
     """Name of the project run belongs to."""
 
-    campaign: str = None
+    campaign: str | None = None
     """Name of the campaign the run belongs to."""
 
-    payload: str = None
+    payload: str | None = None
     """Name of the payload."""
 
-    operator: str = None
+    operator: str | None = None
     """Username of the operator who submitted the run."""
 
-    run_summary: str = None
+    run_summary: str | None = None
     """Job counts per label."""
 
-    state: WmsStates = None
+    state: WmsStates | None = None
     """Run's execution state."""
 
-    jobs: list[WmsJobReport] = None
+    jobs: list[WmsJobReport] | None = None
     """Information about individual jobs in the run."""
 
-    total_number_jobs: int = None
+    total_number_jobs: int | None = None
     """Total number of jobs in the run."""
 
-    job_state_counts: dict[WmsStates, int] = None
+    job_state_counts: dict[WmsStates, int] | None = None
     """Job counts per state."""
 
-    job_summary: dict[str, dict[WmsStates, int]] = None
+    job_summary: dict[str, dict[WmsStates, int]] | None = None
     """Job counts per label and per state."""
 
-    exit_code_summary: dict[str, list[int]] = None
+    exit_code_summary: dict[str, list[int]] | None = None
     """Summary of non-zero exit codes per job label available through the WMS.
 
     Currently behavior for jobs that were canceled, held, etc. are plugin
     dependent.
     """
 
-    specific_info: WmsSpecificInfo = None
+    specific_info: WmsSpecificInfo | None = None
     """Any additional WMS specific information."""
 
 
