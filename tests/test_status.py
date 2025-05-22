@@ -24,31 +24,27 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""Unit tests for status.py."""
 
-__all__ = [
-    "acquire",
-    "cluster",
-    "transform",
-    "prepare",
-    "submit",
-    "restart",
-    "report",
-    "cancel",
-    "ping",
-    "submitcmd",
-    "status",
-]
+import unittest
 
-from .commands import (
-    acquire,
-    cancel,
-    cluster,
-    ping,
-    prepare,
-    report,
-    restart,
-    status,
-    submit,
-    submitcmd,
-    transform,
-)
+from lsst.ctrl.bps import WmsStates
+from lsst.ctrl.bps.status import status
+
+
+class TestStatus(unittest.TestCase):
+    """Tests for status."""
+
+    def testSuccess(self):
+        retval, message = status("wms_test_utils.WmsServiceSuccess", run_id="/dummy/path", hist=3)
+        self.assertEqual(retval, WmsStates.SUCCEEDED)
+        self.assertEqual(message, "")
+
+    def testFailed(self):
+        retval, message = status("wms_test_utils.WmsServiceFailure", run_id="/dummy/path", hist=3)
+        self.assertEqual(retval, WmsStates.FAILED)
+        self.assertEqual(message, "Dummy error message.")
+
+
+if __name__ == "__main__":
+    unittest.main()

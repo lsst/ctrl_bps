@@ -118,5 +118,72 @@ class TestCommandPing(unittest.TestCase):
             )
 
 
+class TestCommandStatus(unittest.TestCase):
+    """Test executing the status subcommand."""
+
+    def setUp(self):
+        self.runner = LogCliRunner()
+
+    def testStatusSuccess(self):
+        with unittest.mock.patch("lsst.ctrl.bps.cli.cmd.commands.status_driver") as mock_driver:
+            mock_driver.return_value = 0
+            result = self.runner.invoke(
+                bps.cli,
+                [
+                    "status",
+                    "--wms-service-class",
+                    "wms_test_utils.WmsServiceDummy",
+                    "--id",
+                    "100",
+                ],
+            )
+            self.assertEqual(result.exit_code, 0)
+            mock_driver.assert_called_with(
+                wms_service="wms_test_utils.WmsServiceDummy",
+                run_id="100",
+                hist_days=0.0,
+                is_global=False,
+            )
+
+    def testStatusMissingIDCommandLine(self):
+        with unittest.mock.patch("lsst.ctrl.bps.cli.cmd.commands.status_driver") as mock_driver:
+            mock_driver.return_value = 0
+            result = self.runner.invoke(
+                bps.cli,
+                [
+                    "status",
+                    "--wms-service-class",
+                    "wms_test_utils.WmsServiceDummy",
+                    "--user",
+                    "user_not_allowed",
+                ],
+            )
+            self.assertEqual(result.exit_code, 2)
+
+    def testStatusNonZeroStatus(self):
+        with unittest.mock.patch("lsst.ctrl.bps.cli.cmd.commands.status_driver") as mock_driver:
+            mock_driver.return_value = 15
+            result = self.runner.invoke(
+                bps.cli,
+                [
+                    "status",
+                    "--wms-service-class",
+                    "wms_test_utils.WmsServiceDummy",
+                    "--id",
+                    "/dummy/path",
+                    "--hist",
+                    "6",
+                    "--global",
+                ],
+            )
+            self.assertEqual(result.exit_code, 15)
+            mock_driver.assert_called_with(
+                wms_service="wms_test_utils.WmsServiceDummy",
+                run_id="/dummy/path",
+                hist_days=6.0,
+                is_global=True,
+            )
+
+
 if __name__ == "__main__":
     unittest.main()
