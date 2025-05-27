@@ -169,7 +169,7 @@ def retrieve_report(
         A run id the report will be restricted to.
     user : `str`, optional
         A username the report will be restricted to.
-    hist : int, optional
+    hist : `float`, optional
         Include runs from the given number of past days.
     pass_thru : `str`, optional
         A string to pass directly to the WMS service class.

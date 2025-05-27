@@ -409,7 +409,7 @@ class BaseWmsService:
             Id that can be used by WMS service to look up status.
         user : `str`, optional
             Limit report to submissions by this particular user.
-        hist : `int`, optional
+        hist : `float`, optional
             Number of days to expand report to include finished WMS workflows.
         pass_thru : `str`, optional
             Additional arguments to pass through to the specific WMS service.

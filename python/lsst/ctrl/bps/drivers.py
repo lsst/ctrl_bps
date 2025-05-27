@@ -411,7 +411,7 @@ def report_driver(wms_service, run_id, user, hist_days, pass_thru, is_global=Fal
         A run id the report will be restricted to.
     user : `str`
         A user the report will be restricted to.
-    hist_days : int
+    hist_days : `float`
         Number of days.
     pass_thru : `str`
         A string to pass directly to the WMS service class.
