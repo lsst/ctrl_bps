@@ -34,7 +34,8 @@ import unittest
 
 import yaml
 
-from lsst.ctrl.bps.drivers import _init_submission_driver, ping_driver
+from lsst.ctrl.bps import WmsStates
+from lsst.ctrl.bps.drivers import _init_submission_driver, ping_driver, status_driver
 
 TESTDIR = os.path.abspath(os.path.dirname(__file__))
 
@@ -115,6 +116,30 @@ class TestPingDriver(unittest.TestCase):
             retval = ping_driver("wms_test_utils.WmsServicePassThru", "EXTRA_VALUES")
             self.assertEqual(retval, 0)
             self.assertRegex(cm.output[0], "INFO.+EXTRA_VALUES")
+
+
+class TestStatusDriver(unittest.TestCase):
+    """Test status_driver function."""
+
+    def testWmsServiceSuccess(self):
+        with self.assertLogs(level=logging.INFO) as cm:
+            retval = status_driver("wms_test_utils.WmsServiceSuccess", run_id="/dummy/path", hist_days=3)
+            self.assertEqual(retval, WmsStates.SUCCEEDED.value)
+            self.assertEqual(cm.records[0].getMessage(), "status: SUCCEEDED")
+
+    def testWmsServiceFailure(self):
+        with self.assertLogs(level=logging.WARNING) as cm:
+            retval = status_driver("wms_test_utils.WmsServiceFailure", run_id="/dummy/path", hist_days=3)
+            self.assertEqual(retval, WmsStates.FAILED.value)
+            self.assertEqual(cm.records[0].getMessage(), "Dummy error message.")
+
+    @unittest.mock.patch(
+        "lsst.ctrl.bps.drivers.BPS_DEFAULTS", {"wmsServiceClass": "wms_test_utils.WmsServiceDefault"}
+    )
+    def testWmsServiceNone(self):
+        with unittest.mock.patch.dict(os.environ, {}):
+            retval = status_driver(None, run_id="/dummy/path", hist_days=3)
+            self.assertEqual(retval, WmsStates.RUNNING.value)
 
 
 if __name__ == "__main__":

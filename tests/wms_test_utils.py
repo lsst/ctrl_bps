@@ -54,7 +54,7 @@ TEST_REPORT = WmsRunReport(
 
 
 class WmsServiceSuccess(BaseWmsService):
-    """WMS service class with working ping."""
+    """WMS service class with working ping and get_status."""
 
     def ping(self, pass_thru):
         _LOG.info(f"Success {pass_thru}")
@@ -72,9 +72,20 @@ class WmsServiceSuccess(BaseWmsService):
         report = dataclasses.replace(TEST_REPORT)
         return [report], []
 
+    def get_status(
+        self,
+        wms_workflow_id,
+        hist=0,
+        pass_thru=None,
+        is_global=False,
+    ):
+        return WmsStates.SUCCEEDED, ""
+
 
 class WmsServiceFailure(BaseWmsService):
-    """WMS service class with non-functional ping."""
+    """WMS service class with non-functional ping and
+    get_status for failed run.
+    """
 
     def ping(self, pass_thru):
         _LOG.warning("service failure")
@@ -92,6 +103,15 @@ class WmsServiceFailure(BaseWmsService):
         report = WmsRunReport()
         return [report], []
 
+    def get_status(
+        self,
+        wms_workflow_id,
+        hist=0,
+        pass_thru=None,
+        is_global=False,
+    ):
+        return WmsStates.FAILED, "Dummy error message."
+
 
 class WmsServicePassThru(BaseWmsService):
     """WMS service class with pass through ping."""
@@ -102,11 +122,20 @@ class WmsServicePassThru(BaseWmsService):
 
 
 class WmsServiceDefault(BaseWmsService):
-    """WMS service class with default ping."""
+    """WMS service class with default ping and get_status."""
 
     def ping(self, pass_thru):
         _LOG.info(f"DEFAULT {pass_thru}")
         return 0, "default"
+
+    def get_status(
+        self,
+        wms_workflow_id=None,
+        hist=0,
+        pass_thru=None,
+        is_global=False,
+    ):
+        return WmsStates.RUNNING, ""
 
 
 class WmsServiceFromCmdline(BaseWmsService):
