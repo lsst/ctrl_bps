@@ -1,1 +1,0 @@
-Added check that every job label in a group config has at least one job.
