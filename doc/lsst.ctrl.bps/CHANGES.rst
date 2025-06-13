@@ -1,3 +1,29 @@
+lsst-ctrl-bps v29.1.0 (2025-06-13)
+==================================
+
+New Features
+------------
+
+- Added ability to enforce workflow job ordering beyond data dependencies. (`DM-46294 <https://rubinobs.atlassian.net/browse/DM-46294>`_)
+- Added partitioning of clusters for when clustering on two dimensions makes too many short jobs but one dimension makes too few long jobs. (`DM-49240 <https://rubinobs.atlassian.net/browse/DM-49240>`_)
+- Added status subcommand to quickly print overall run status. (`DM-50619 <https://rubinobs.atlassian.net/browse/DM-50619>`_)
+
+
+API Changes
+-----------
+
+- The ``check_clustering_config`` function is now public to support testing of clustering configuration YAML files. (`DM-49222 <https://rubinobs.atlassian.net/browse/DM-49222>`_)
+
+
+Other Changes and Additions
+---------------------------
+
+- BPS commands involved in making submissions now exit with the exit codes of the subprocess that BPS spawns to generate or update the run's quantum graph if any failure occurs. (`DM-49744 <https://rubinobs.atlassian.net/browse/DM-49744>`_)
+- Added check that every job label in a group config has at least one job. (`DM-49747 <https://rubinobs.atlassian.net/browse/DM-49747>`_)
+- Ensured all job environment values are strings in the ``GenericWorkflow``. (`DM-50498 <https://rubinobs.atlassian.net/browse/DM-50498>`_)
+- Added logging instructions to documentation. (`DM-50243 <https://rubinobs.atlassian.net/browse/DM-50243>`_)
+- Decreased buffering for writing ``stdout``/``stderr`` to file when generating or updating ``QuantumGraph``. (`DM-50294 <https://rubinobs.atlassian.net/browse/DM-50294>`_)
+
 lsst-ctrl-bps v29.0.0 (2025-03-25)
 ==================================
 
