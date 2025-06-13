@@ -1,0 +1,17 @@
+p1: 3
+p2: "unused root"
+p3: 16
+p4: 4
+submitPath: "{tempDir}/submit_test/{outputRun}"
+
+payload:
+  payloadName: "test_payload"
+
+pipetask:
+  ptask1:
+    p2: "unused ptask1"
+    p3: 32
+
+finalJob:
+  p1: 9
+  p2: "unused final"
