@@ -131,6 +131,12 @@ class TestInitSubmission(unittest.TestCase):
         self.assertIn(f"{uniq_proc_name}.env.info.yaml", files)
         self.assertIn(f"{uniq_proc_name}.pkg.info.yaml", files)
 
+        # generate_config tested elsewhere so just
+        # check a couple values that shows it ran.
+        self.assertEqual(config[".genall_1"], "/repo/test")
+        self.assertEqual(config[".pipetask.ptask1.p3"], 32)
+        self.assertEqual(config[".finalJob.gencfg_4"], 9)
+
     @unittest.mock.patch("lsst.ctrl.bps.initialize.BPS_DEFAULTS", {})
     def testMissingWmsServiceClass(self):
         filename = os.path.join(TESTDIR, "data/initialize_config.yaml")

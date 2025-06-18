@@ -31,7 +31,7 @@ import unittest
 from pathlib import Path
 
 from lsst.ctrl.bps import BpsConfig
-from lsst.ctrl.bps.bps_utils import _make_id_link, chdir, mkdir
+from lsst.ctrl.bps.bps_utils import _make_id_link, bps_eval, chdir, mkdir
 
 
 class TestMkdir(unittest.TestCase):
@@ -222,6 +222,17 @@ class TestMakeIdLink(unittest.TestCase):
             self.assertRegex(cm.records[-1].getMessage(), "Could not make id softlink:.*Permission denied")
         link_path = dir_of_links / "100.0"
         self.assertFalse(link_path.is_symlink())
+
+
+class TestBpsEval(unittest.TestCase):
+    """Test bps_eval function."""
+
+    def testBuiltIn(self):
+        """Test using a built-in function."""
+        with self.assertLogs("lsst.ctrl.bps.bps_utils", level=logging.DEBUG) as cm:
+            results = bps_eval("sum", "[1, 2]")
+        self.assertEqual(results, 3)
+        self.assertEqual(cm.records[-1].getMessage(), "String passed to eval: 'sum([1, 2])'")
 
 
 if __name__ == "__main__":

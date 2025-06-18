@@ -130,6 +130,9 @@ def init_submission(
     else:
         _LOG.debug("Skipping submission checks.")
 
+    # Replace all bpsGenerateConfig
+    config.generate_config()
+
     # Make submit directory to contain all outputs.
     submit_path = mkdir(config["submitPath"])
     config[".bps_defined.submitPath"] = str(submit_path)

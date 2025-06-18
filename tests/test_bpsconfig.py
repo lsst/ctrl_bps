@@ -289,13 +289,145 @@ class TestBpsConfigSearch(unittest.TestCase):
         test_opt = {"expandEnvVars": True, "replaceEnvVars": True, "replaceVars": True}
         found, value = self.config.search("grault", opt=test_opt)
         self.assertEqual(found, True)
-        self.assertEqual(found, True)
         self.assertEqual(value, "garply/waldo/002")
 
     def testRequired(self):
         """Test if exception is raised if a required setting is missing."""
         with self.assertRaises(KeyError):
             self.config.search("fred", opt={"required": True})
+
+
+class TestBpsConfigGenerateConfig(unittest.TestCase):
+    """Test BpsConfig.generate_config and bpsEval methods."""
+
+    def setUp(self):
+        # Just to shorten string length in tests
+        self.test_prefix = "lsst.ctrl.bps.tests.config_test_utils"
+
+        filename = os.path.join(TESTDIR, "data/initialize_config.yaml")
+        self.config = BpsConfig(filename, BPS_SEARCH_ORDER, defaults={})
+
+    def testUnparsableValue(self):
+        config = BpsConfig(
+            {
+                "p1": 3,
+                "p3": 16,
+            },
+            BPS_SEARCH_ORDER,
+        )
+        # invalid function name
+        config["bpsGenerateConfig"] = "not a valid name({p1}, param3={p3})"
+        with self.assertRaisesRegex(ValueError, "Unparsable bpsGenerateConfig value='not a valid"):
+            config.generate_config()
+
+    def testMissingParen(self):
+        config = BpsConfig(
+            {
+                "p1": 3,
+                "p3": 16,
+            },
+            BPS_SEARCH_ORDER,
+        )
+        # invalid function name
+        config["bpsGenerateConfig"] = self.test_prefix + ".generate_config_1(1, param3=2"
+        with self.assertRaisesRegex(ValueError, "Unparsable bpsGenerateConfig value='"):
+            config.generate_config()
+
+    def testBadFunctionName(self):
+        config = BpsConfig(
+            {
+                "p1": 3,
+                "p3": 16,
+            },
+            BPS_SEARCH_ORDER,
+        )
+        # invalid function name
+        config["bpsGenerateConfig"] = self.test_prefix + ".notthere({p1}, param3={p3})"
+        with self.assertRaisesRegex(ImportError, "notthere"):
+            config.generate_config()
+
+    def testBadModuleName(self):
+        config = BpsConfig(
+            {
+                "p1": 3,
+                "p3": 16,
+            },
+            BPS_SEARCH_ORDER,
+        )
+        # invalid module name
+        config["bpsGenerateConfig"] = "lsst.ctrl.bps.notthere.generate_config(1, 2)"
+        with self.assertRaisesRegex(ImportError, "notthere"):
+            config.generate_config()
+
+    def testBadParamName(self):
+        config = BpsConfig(
+            {"p1": 3, "p3": 16, "bpsGenerateConfig": self.test_prefix + ".generate_config_1(1, param5=2)"},
+            BPS_SEARCH_ORDER,
+        )
+        with self.assertRaisesRegex(TypeError, "unexpected keyword argument 'param5'"):
+            config.generate_config()
+
+    def testExtraParam(self):
+        config = BpsConfig(
+            {
+                "p1": 3,
+                "p3": 16,
+                "bpsGenerateConfig": self.test_prefix + ".generate_config_1({p1}, 2, {p3}, 4)",
+            },
+            BPS_SEARCH_ORDER,
+        )
+        with self.assertRaisesRegex(TypeError, "positional arguments"):
+            config.generate_config()
+
+    def testWithSearchOrder(self):
+        # Check that bpsGenerateConfig is replaced in search sections
+        #     (e.g., pipetask) And when replacing vars in subsections
+        #     config ordering is used.
+        # Ditto for finalJob (which isn't a search section).
+        # Checking all in single function to ensure doesn't quit early.
+        self.config.generate_config()
+
+        filename = os.path.join(TESTDIR, "data/initialize_config_truth.yaml")
+        truth = BpsConfig(filename, BPS_SEARCH_ORDER, defaults={})
+
+        self.assertEqual(self.config, truth)
+
+    def testBpsEval(self):
+        """Test replacing bpsEval when need to import module."""
+        test_opt = {
+            "expandEnvVars": True,
+            "replaceEnvVars": True,
+            "replaceVars": True,
+            "curvals": {"curr_pipetask": "ptask1"},
+        }
+        found, value = self.config.search("genval1", opt=test_opt)
+        self.assertEqual(found, True)
+        self.assertEqual(value, "-c val1:0.1 -c val2:3")
+
+    def testBpsEvalBuiltin(self):
+        """Test replacing bpsEval with builtin function."""
+        test_opt = {
+            "expandEnvVars": True,
+            "replaceEnvVars": True,
+            "replaceVars": True,
+            "curvals": {"curr_pipetask": "ptask1"},
+        }
+        found, value = self.config.search("genval2", opt=test_opt)
+        self.assertEqual(found, True)
+        self.assertEqual(value, "-c val1:32")
+
+    def testBpsEvalInvalid(self):
+        """Test reporting not replacing bpsEval."""
+        test_opt = {
+            "expandEnvVars": True,
+            "replaceEnvVars": True,
+            "replaceVars": True,
+            "curvals": {"curr_pipetask": "ptask1"},
+        }
+
+        self.config["badkey1"] = "badval1 bpsEval('sum([1,2]') blah"
+        with self.assertRaisesRegex(ValueError, "Unparsable bpsEval in 'badval1 bpsEval"):
+            _ = self.config.search("badkey1", opt=test_opt)
 
 
 if __name__ == "__main__":

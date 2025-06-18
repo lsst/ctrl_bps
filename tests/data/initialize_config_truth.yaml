@@ -1,7 +1,7 @@
 p1: 3
 p2: "unused root"
 p3: 16
-bpsGenerateConfig: "lsst.ctrl.bps.tests.config_test_utils.generate_config_all('{butlerConfig}', 12, 13)"
+genall_1: "/repo/test"
 submitPath: "{tempDir}/submit_test/{outputRun}"
 
 payload:
@@ -12,11 +12,19 @@ pipetask:
   ptask1:
     p2: "unused ptask1"
     p3: 32
-    bpsGenerateConfig: "lsst.ctrl.bps.tests.config_test_utils.generate_config_1({p1}, param3={p3})"
+    p4: 41
+    genall_2: 12
+    gencfg_1: 3
+    gencfg_2: -1
+    gencfg_3: 32
     genval1: "-c val1:0.1 bpsEval(lsst.ctrl.bps.tests.config_test_utils.generate_value_1, {p1})"
     genval2: "-c val1:bpsEval(max, [{p1}, {p3}])"
 
 finalJob:
   p1: 9
   p2: "unused final"
-  bpsGenerateConfig: "lsst.ctrl.bps.tests.config_test_utils.generate_config_2({p1}, param3={p3})"
+  p4: 42
+  genall_3: 13
+  gencfg_4: 9
+  gencfg_5: -3
+  gencfg_6: 16
