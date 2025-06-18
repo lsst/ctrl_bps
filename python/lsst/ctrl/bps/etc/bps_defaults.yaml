@@ -115,6 +115,7 @@ executionButler:
   whenCreate: "NEVER"
 
 finalJob:
+  retryUnlessExit: 2
   updateOutputChain: "--update-output-chain"
   whenSetup: "NEVER"
   whenRun: "ALWAYS"
