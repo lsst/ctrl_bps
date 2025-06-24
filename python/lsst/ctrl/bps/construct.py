@@ -33,7 +33,13 @@ import logging
 import shutil
 from pathlib import Path
 
-from lsst.ctrl.bps import BpsConfig, GenericWorkflow, GenericWorkflowExec, GenericWorkflowJob
+from lsst.ctrl.bps import (
+    BpsConfig,
+    GenericWorkflow,
+    GenericWorkflowExec,
+    GenericWorkflowFile,
+    GenericWorkflowJob,
+)
 from lsst.ctrl.bps.transform import _get_job_values
 
 _LOG = logging.getLogger(__name__)
@@ -73,7 +79,7 @@ def create_custom_workflow(config: BpsConfig) -> tuple[GenericWorkflow, BpsConfi
     generic_workflow_config : `lsst.ctrl.BpsConfig`
         Configuration to accompany created generic workflow.
     """
-    gwjob = create_custom_job(config)
+    gwjob, inputs, outputs = create_custom_job(config)
 
     _, name = config.search("uniqProcName", opt={"required": True})
     generic_workflow = GenericWorkflow(name)
@@ -90,6 +96,10 @@ def create_custom_workflow(config: BpsConfig) -> tuple[GenericWorkflow, BpsConfi
             "bps_runsite": config["computeSite"],
         }
     )
+    if inputs:
+        generic_workflow.add_job_inputs(gwjob.name, inputs)
+    if outputs:
+        generic_workflow.add_job_outputs(gwjob.name, outputs)
 
     generic_workflow_config = BpsConfig(config)
     generic_workflow_config["workflowName"] = config["uniqProcName"]
@@ -98,7 +108,9 @@ def create_custom_workflow(config: BpsConfig) -> tuple[GenericWorkflow, BpsConfi
     return generic_workflow, generic_workflow_config
 
 
-def create_custom_job(config: BpsConfig) -> GenericWorkflowJob:
+def create_custom_job(
+    config: BpsConfig,
+) -> tuple[GenericWorkflowJob, list[GenericWorkflowFile], list[GenericWorkflowFile]]:
     """Create a job that will run a custom command or script.
 
     Parameters
@@ -110,6 +122,10 @@ def create_custom_job(config: BpsConfig) -> GenericWorkflowJob:
     -------
     job : `lsst.ctrl.bps.GenericWorkflowJob`
         A custom job responsible for running the command.
+    inputs : `list` [`lsst.ctrl.bps.GenericWorkflowFile`]
+        List of job's input files, empty if the job has no input files.
+    outputs : `list` [`lsst.ctrl.bps.GenericWorkflowFile`]
+        List of job's output files, empty if the job has no output files.
     """
     prefix = Path(config["submitPath"])
     job_label = "customJob"
@@ -135,6 +151,50 @@ def create_custom_job(config: BpsConfig) -> GenericWorkflowJob:
     job.executable = GenericWorkflowExec(
         name=script_name, src_uri=str(prefix / script_name), transfer_executable=True
     )
-    job.arguments = config[f".{job_label}.arguments"]
+    _, job.arguments = config.search("arguments", opt=search_opts | {"replaceVars": False})
 
-    return job
+    inputs = []
+    found, mapping = config.search("inputs", opt=search_opts)
+    if found:
+        inputs = create_job_files(mapping, prefix, do_copy=True)
+
+    outputs = []
+    found, mapping = config.search("outputs", opt=search_opts)
+    if found:
+        outputs = create_job_files(mapping, prefix, do_copy=False)
+
+    for name in inputs + outputs:
+        job.arguments = job.arguments.replace(f"{{{name}}}", f"<FILE:{name}>")
+
+    return job, inputs, outputs
+
+
+def create_job_files(
+    mapping: BpsConfig, prefix: str | Path, do_copy: bool = False
+) -> list[GenericWorkflowFile]:
+    """Create files for a job.
+
+    Parameters
+    ----------
+    mapping : `lsst.ctrl.bps.BpsConfig`
+        Mapping between file names and their paths.
+    prefix : `str` | `pathlib.Path`
+        Prefix to prepend to file paths.
+    do_copy : `bool`, optional
+        If ``True``, copy files to the location specified by ``prefix``.
+
+    Returns
+    -------
+    files : `list` [`lsst.ctrl.bps.GenericWorkflowFile`]
+        List of files created for the job.
+    """
+    prefix = Path(prefix)
+    files = []
+    for key, path in mapping.items():
+        src = Path(path)
+        dest = prefix / src.name if src.is_absolute() else prefix / src
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        files.append(GenericWorkflowFile(name=key, src_uri=str(dest), wms_transfer=True))
+        if do_copy:
+            shutil.copy2(src, dest)
+    return files
