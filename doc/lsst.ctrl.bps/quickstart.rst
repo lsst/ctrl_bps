@@ -1497,6 +1497,49 @@ invisible to the user.  ``bps report`` will still show same labels and
 total counts as without ordering.  ``cancel`` and ``restart`` will still
 work the same.
 
+.. _bps-config-generation:
+
+Config Generation
+-----------------
+
+In some rare use cases, the submit yaml depends upon what happened in
+previous runs (e.g., passing pipeline configuration values to the HiPS
+QuantumGraph generation command depending upon colors of generated outputs
+of previous run).  One can wait until a run finishes, query the results,
+and then manually modify the submit yaml for the next run.  To help make
+this easier to automate, two special mechanisms, ``bpsGenerateConfig`` and
+``bpsEval`` have been added to ``bps``.  While different syntax, both take
+two pieces of information.  The first piece describes what to import and
+execute and the second the parameters to pass which typically will
+be config variables (e.g., "{butlerConfig}").
+
+``bpsGenerateConfig`` is a key/value pair where the function returns a
+Mapping to update the config.  It can be used at the root level and can
+return nested dictionaries to replace values across multiple sections.
+It can also be used inside sections (e.g., inside a specific pipetask
+section).  The function is not run when loading the config.  Instead it
+is run during the initialization in the ``bps submit`` (before saving
+the config yaml to the submit directory and before running QuantumGraph
+generation).  Example:
+
+..code::
+
+  bpsGenerateConfig: "lsst.my.package.my_func_1('{butlerConfig}', param3='{output}')"
+
+
+``bpsEval`` is a placeholder in an submit yaml value.  It is executed when
+the corresponding key is requested from the config.  Its function needs
+to return a value whose string representation can replace ``bpsEval``.  Example:
+
+..code::
+
+  extraQgraphOptions: "--dataset-query-constraint off bpsEval(lsst.my.package.my_func_2, '{butlerConfig}', '{output}')
+
+.. warning::
+
+   Quotes must be placed around variables that return strings (e.g., '{butlerConfig}').
+   Forgetting the quotes typically results in an invalid syntax error.
+
 .. _bps-softlink:
 
 WMS-id softlink

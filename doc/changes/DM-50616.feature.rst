@@ -1,0 +1,1 @@
+Added ``bpsGenerateConfig`` and ``bpsEval`` to run functions to produce config values.  ``bpsGenerateConfig`` is used when inserting or updating one or more key/value pairs.  ``bpsEval`` is for replacing part of a string value.

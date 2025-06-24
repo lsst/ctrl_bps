@@ -31,6 +31,7 @@ __all__ = [
     "_dump_env_info",
     "_dump_pkg_info",
     "_make_id_link",
+    "bps_eval",
     "chdir",
     "create_count_summary",
     "create_job_quantum_graph_filename",
@@ -52,6 +53,7 @@ from typing import Any
 
 import yaml
 
+from lsst.utils import doImport
 from lsst.utils.packages import Packages
 
 _LOG = logging.getLogger(__name__)
@@ -353,3 +355,35 @@ def subset_dimension_values(
             f"{desc_what} missing dimensions ({', '.join(sorted(missing_dims))}) required for {desc_for}"
         )
     return dim_values
+
+
+def bps_eval(func: str, args: str) -> Any:
+    """Evaluate user provided expression/function.
+
+    Parameters
+    ----------
+    func : `str`
+        Importable string or built-in function name.
+    args : `str`
+        Parameters to pass to the function.
+
+    Returns
+    -------
+    results : `~typing.Any`
+        Results of running eval.
+
+    Raises
+    ------
+    ImportError
+        If problems importing.
+    """
+    if "." in func:
+        genfunc = doImport(func)  # noqa: F841
+        func_reference = "genfunc"
+    else:
+        func_reference = func
+    eval_str = f"{func_reference}({args})"
+    _LOG.debug("String passed to eval: '%s'", eval_str)
+    results = eval(eval_str)
+
+    return results
