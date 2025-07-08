@@ -72,12 +72,20 @@ from .report import BPS_POSTPROCESSORS, display_report, retrieve_report
 from .restart import restart
 from .status import status
 from .submit import submit
+from .summary import (
+    AcquireStageSummary,
+    BpsSummary,
+    ClusterStageSummary,
+    PrepareStageSummary,
+    SubmitStageSummary,
+    TransformStageSummary,
+)
 from .transform import transform
 
 _LOG = logging.getLogger(__name__)
 
 
-def _init_submission_driver(config_file: str, **kwargs) -> BpsConfig:
+def _init_submission_driver(config_file: str, summary: BpsSummary, **kwargs) -> BpsConfig:
     """Initialize runtime environment.
 
     Parameters
@@ -100,6 +108,7 @@ def _init_submission_driver(config_file: str, **kwargs) -> BpsConfig:
         prefix=None,
         msg="BPS configuration initialized and submit directory created",
         mem_usage=True,
+        mem_child=True,
         mem_unit=DEFAULT_MEM_UNIT,
         mem_fmt=DEFAULT_MEM_FMT,
     ):
@@ -108,16 +117,22 @@ def _init_submission_driver(config_file: str, **kwargs) -> BpsConfig:
 
     submit_path = config[".bps_defined.submitPath"]
     print(f"Submit dir: {submit_path}")
+    summary.submit_path = submit_path
+    summary.name = config["uniqProcName"]
+    summary.output_run = config["outputRun"]
+
     return config
 
 
-def acquire_qgraph_driver(config_file: str, **kwargs) -> tuple[BpsConfig, QuantumGraph]:
+def acquire_qgraph_driver(config_file: str, summary: BpsSummary, **kwargs) -> tuple[BpsConfig, QuantumGraph]:
     """Read a quantum graph from a file or create one from pipeline definition.
 
     Parameters
     ----------
     config_file : `str`
         Name of the configuration file.
+    summary : `lsst.ctrl.bps.BpsSummary`
+        Summary to update with acquire stage summary.
     **kwargs : `~typing.Any`
         Additional modifiers to the configuration.
 
@@ -128,9 +143,10 @@ def acquire_qgraph_driver(config_file: str, **kwargs) -> tuple[BpsConfig, Quantu
     qgraph : `lsst.pipe.base.graph.QuantumGraph`
         A graph representing quanta.
     """
-    config = _init_submission_driver(config_file, **kwargs)
+    config = _init_submission_driver(config_file, summary, **kwargs)
 
     _LOG.info("Starting acquire stage (generating and/or reading quantum graph)")
+    summary.acquire_summary = AcquireStageSummary()
     submit_path = config[".bps_defined.submitPath"]
     with time_this(
         log=_LOG,
@@ -138,23 +154,30 @@ def acquire_qgraph_driver(config_file: str, **kwargs) -> tuple[BpsConfig, Quantu
         prefix=None,
         msg="Acquire stage completed",
         mem_usage=True,
+        mem_child=True,
         mem_unit=DEFAULT_MEM_UNIT,
         mem_fmt=DEFAULT_MEM_FMT,
-    ):
+    ) as metadata:
         qgraph_file, qgraph = acquire_quantum_graph(config, out_prefix=submit_path)
+    summary.acquire_summary.qgraph_filename = qgraph_file
+    summary.acquire_summary.number_quanta = len(qgraph)
+    summary.acquire_summary.store_time_this_metadata(metadata)
+    summary.acquire_summary.details = qgraph.getSummary()
     _log_mem_usage()
 
     config[".bps_defined.runQgraphFile"] = qgraph_file
     return config, qgraph
 
 
-def cluster_qgraph_driver(config_file, **kwargs):
+def cluster_qgraph_driver(config_file: str, summary: BpsSummary, **kwargs):
     """Group quanta into clusters.
 
     Parameters
     ----------
     config_file : `str`
         Name of the configuration file.
+    summary : `lsst.ctrl.bps.BpsSummary`
+        Summary to update with acquire stage summary.
     **kwargs : `~typing.Any`
         Additional modifiers to the configuration.
 
@@ -165,40 +188,51 @@ def cluster_qgraph_driver(config_file, **kwargs):
     clustered_qgraph : `lsst.ctrl.bps.ClusteredQuantumGraph`
         A graph representing clustered quanta.
     """
-    config, qgraph = acquire_qgraph_driver(config_file, **kwargs)
+    config, qgraph = acquire_qgraph_driver(config_file, summary, **kwargs)
 
     _LOG.info("Starting cluster stage (grouping quanta into jobs)")
+    summary.cluster_summary = ClusterStageSummary()
     with time_this(
         log=_LOG,
         level=logging.INFO,
         prefix=None,
         msg="Cluster stage completed",
         mem_usage=True,
+        mem_child=True,
         mem_unit=DEFAULT_MEM_UNIT,
         mem_fmt=DEFAULT_MEM_FMT,
-    ):
+    ) as metadata:
         clustered_qgraph = cluster_quanta(config, qgraph, config["uniqProcName"])
+    summary.cluster_summary.store_time_this_metadata(metadata)
     _log_mem_usage()
 
-    _LOG.info("ClusteredQuantumGraph contains %d cluster(s)", len(clustered_qgraph))
+    cluster_counts = clustered_qgraph.cluster_counts
+    num_clusters = sum(cluster_counts.values())
+    _LOG.info("ClusteredQuantumGraph contains %d cluster(s)", num_clusters)
+    summary.cluster_summary.number_clusters = num_clusters
+    summary.cluster_summary.cluster_counts = cluster_counts
 
     submit_path = config[".bps_defined.submitPath"]
     _, save_clustered_qgraph = config.search("saveClusteredQgraph", opt={"default": False})
     if save_clustered_qgraph:
-        clustered_qgraph.save(os.path.join(submit_path, "bps_clustered_qgraph.pickle"))
+        filename = os.path.join(submit_path, "bps_clustered_qgraph.pickle")
+        clustered_qgraph.save(filename)
+        summary.cluster_summary.clustered_qgraph_filename = filename
     _, save_dot = config.search("saveDot", opt={"default": False})
     if save_dot:
         clustered_qgraph.draw(os.path.join(submit_path, "bps_clustered_qgraph.dot"))
     return config, clustered_qgraph
 
 
-def transform_driver(config_file, **kwargs):
+def transform_driver(config_file: str, summary: BpsSummary, **kwargs):
     """Create a workflow for a specific workflow management system.
 
     Parameters
     ----------
     config_file : `str`
         Name of the configuration file.
+    summary : `lsst.ctrl.bps.BpsSummary`
+        Summary to update with transform stage summary.
     **kwargs : `~typing.Any`
         Additional modifiers to the configuration.
 
@@ -210,30 +244,39 @@ def transform_driver(config_file, **kwargs):
         Representation of the abstract/scientific workflow specific to a given
         workflow management system.
     """
-    config, clustered_qgraph = cluster_qgraph_driver(config_file, **kwargs)
+    config, clustered_qgraph = cluster_qgraph_driver(config_file, summary, **kwargs)
     submit_path = config[".bps_defined.submitPath"]
 
     _LOG.info("Starting transform stage (creating generic workflow)")
+    summary.transform_summary = TransformStageSummary()
     with time_this(
         log=_LOG,
         level=logging.INFO,
         prefix=None,
         msg="Transform stage completed",
         mem_usage=True,
+        mem_child=True,
         mem_unit=DEFAULT_MEM_UNIT,
         mem_fmt=DEFAULT_MEM_FMT,
-    ):
+    ) as metadata:
         generic_workflow, generic_workflow_config = transform(config, clustered_qgraph, submit_path)
         _LOG.info("Generic workflow name '%s'", generic_workflow.name)
+    summary.transform_summary.store_time_this_metadata(metadata)
     _log_mem_usage()
 
-    num_jobs = sum(generic_workflow.job_counts.values())
+    job_counts = generic_workflow.job_counts
+    num_jobs = sum(job_counts.values())
     _LOG.info("GenericWorkflow contains %d job(s) (including final)", num_jobs)
+    summary.transform_summary.number_jobs = num_jobs
+    summary.transform_summary.job_counts = job_counts
 
     _, save_workflow = config.search("saveGenericWorkflow", opt={"default": False})
     if save_workflow:
-        with open(os.path.join(submit_path, "bps_generic_workflow.pickle"), "wb") as outfh:
+        filename = os.path.join(submit_path, "bps_generic_workflow.pickle")
+        with open(filename, "wb") as outfh:
             generic_workflow.save(outfh, "pickle")
+        summary.transform_summary.generic_workflow_filename = filename
+
     _, save_dot = config.search("saveDot", opt={"default": False})
     if save_dot:
         with open(os.path.join(submit_path, "bps_generic_workflow.dot"), "w") as outfh:
@@ -241,13 +284,15 @@ def transform_driver(config_file, **kwargs):
     return generic_workflow_config, generic_workflow
 
 
-def prepare_driver(config_file, **kwargs):
+def prepare_driver(config_file: str, summary: BpsSummary, **kwargs):
     """Create a representation of the generic workflow.
 
     Parameters
     ----------
     config_file : `str`
         Name of the configuration file.
+    summary : `lsst.ctrl.bps.BpsSummary`
+        Summary to update with prepare stage summary.
     **kwargs : `~typing.Any`
         Additional modifiers to the configuration.
 
@@ -260,36 +305,42 @@ def prepare_driver(config_file, **kwargs):
         workflow management system.
     """
     kwargs.setdefault("runWmsSubmissionChecks", True)
-    generic_workflow_config, generic_workflow = transform_driver(config_file, **kwargs)
+    generic_workflow_config, generic_workflow = transform_driver(config_file, summary, **kwargs)
     submit_path = generic_workflow_config[".bps_defined.submitPath"]
 
     _LOG.info("Starting prepare stage (creating specific implementation of workflow)")
+    summary.prepare_summary = PrepareStageSummary()
     with time_this(
         log=_LOG,
         level=logging.INFO,
         prefix=None,
         msg="Prepare stage completed",
         mem_usage=True,
+        mem_child=True,
         mem_unit=DEFAULT_MEM_UNIT,
         mem_fmt=DEFAULT_MEM_FMT,
-    ):
+    ) as metadata:
         wms_workflow = prepare(generic_workflow_config, generic_workflow, submit_path)
+    summary.prepare_summary.store_time_this_metadata(metadata)
     _log_mem_usage()
 
     wms_workflow_config = generic_workflow_config
     return wms_workflow_config, wms_workflow
 
 
-def submit_driver(config_file, **kwargs):
+def submit_driver(config_file: str, summary: BpsSummary, **kwargs):
     """Submit workflow for execution.
 
     Parameters
     ----------
     config_file : `str`
         Name of the configuration file.
+    summary : `lsst.ctrl.bps.BpsSummary`
+        Summary to update with submit stage summary.
     **kwargs : `~typing.Any`
         Additional modifiers to the configuration.
     """
+    summary.submit_summary = SubmitStageSummary()
     kwargs.setdefault("runWmsSubmissionChecks", True)
 
     _LOG.info(
@@ -321,10 +372,11 @@ def submit_driver(config_file, **kwargs):
                     prefix=None,
                     msg="Initializing execution environment completed",
                     mem_usage=True,
+                    mem_child=True,
                     mem_unit=DEFAULT_MEM_UNIT,
                     mem_fmt=DEFAULT_MEM_FMT,
                 ):
-                    config = _init_submission_driver(config_file, **kwargs)
+                    config = _init_submission_driver(config_file, summary, **kwargs)
                     kwargs["remote_build"] = remote_build
                     kwargs["config_file"] = config_file
                     wms_workflow = None
@@ -338,11 +390,12 @@ def submit_driver(config_file, **kwargs):
         prefix=None,
         msg="Submission process completed",
         mem_usage=True,
+        mem_child=True,
         mem_unit=DEFAULT_MEM_UNIT,
         mem_fmt=DEFAULT_MEM_FMT,
-    ):
+    ) as time_this_all:
         if not remote_build:
-            wms_workflow_config, wms_workflow = prepare_driver(config_file, **kwargs)
+            wms_workflow_config, wms_workflow = prepare_driver(config_file, summary, **kwargs)
         else:
             wms_workflow_config = config
 
@@ -353,13 +406,19 @@ def submit_driver(config_file, **kwargs):
             prefix=None,
             msg="Submit stage completed",
             mem_usage=True,
+            mem_child=True,
             mem_unit=DEFAULT_MEM_UNIT,
             mem_fmt=DEFAULT_MEM_FMT,
-        ):
+            force_mem_usage=True,
+        ) as time_this_submit:
             workflow = submit(wms_workflow_config, wms_workflow, **kwargs)
             if not wms_workflow:
                 wms_workflow = workflow
             _LOG.info("Run '%s' submitted for execution with id '%s'", wms_workflow.name, wms_workflow.run_id)
+        summary.submit_summary.store_time_this_metadata(time_this_submit)
+    summary.store_time_this_metadata(time_this_all)
+    summary.submit_summary.wms_service = wms_workflow.service_class
+    summary.submit_summary.wms_id = wms_workflow.run_id
     _log_mem_usage()
 
     _make_id_link(wms_workflow_config, wms_workflow.run_id)

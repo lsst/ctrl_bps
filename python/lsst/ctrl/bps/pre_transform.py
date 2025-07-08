@@ -175,6 +175,10 @@ def create_quantum_graph(config: BpsConfig, out_prefix: str = "") -> str:
         raise KeyError("command for generating QuantumGraph not found")
     _LOG.info(cmd)
 
+    found, create_summary = config.search("createSummary", opt=search_opt)
+    if found and create_summary:
+        cmd += f" --summary {out_prefix}/quantumGraph_summary.json"
+
     # Run QuantumGraph generation.
     out = os.path.join(out_prefix, "quantumGraphGeneration.out")
     status = execute(cmd, out)

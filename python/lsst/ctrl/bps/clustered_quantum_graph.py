@@ -44,6 +44,7 @@ from lsst.pipe.base import NodeId, QuantumGraph
 from lsst.utils.iteration import ensure_iterable
 
 from .bps_draw import draw_networkx_dot
+from .summary import ClusteredQgraphSummary
 
 _LOG = logging.getLogger(__name__)
 
@@ -243,6 +244,14 @@ class ClusteredQuantumGraph:
         QuantumGraph.
         """
         return self._quantum_graph
+
+    @property
+    def cluster_counts(self) -> Counter[str]:
+        """Counts of clusters per cluster label."""
+        counts: Counter[str] = Counter()
+        for cluster in self.clusters():
+            counts[cluster.label] += 1
+        return counts
 
     def add_cluster(self, clusters_for_adding):
         """Add a cluster of quanta as a node in the graph.
@@ -552,3 +561,18 @@ class ClusteredQuantumGraph:
                 f"Number of Quanta in clustered qgraph ({quanta_count_cqgraph}) does not equal number in"
                 f" quantum graph ({quanta_count_qgraph})"
             )
+
+    def get_summary(self):
+        """Create summary of clustered QuantumGraph.
+
+        Returns
+        -------
+        summary : `ClusteredQgraphSummary`
+           Summary of clustered QuantumGraph.
+        """
+        summary = ClusteredQgraphSummary(
+            self._name,
+            self._quantum_graph_filename,
+            self._clusterqg_filename,
+        )
+        return summary

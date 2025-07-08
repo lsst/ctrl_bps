@@ -34,10 +34,12 @@ __all__ = [
     "extra_update_qgraph_option",
     "id_link_path_option",
     "make_id_link_option",
+    "summary_details_option",
+    "summary_option",
     "wms_service_option",
 ]
 
-from lsst.daf.butler.cli.utils import MWOptionDecorator
+from lsst.daf.butler.cli.utils import MWOptionDecorator, MWPath
 
 extra_qgraph_option = MWOptionDecorator(
     "--extra-qgraph-options", help="String to pass through to QuantumGraph builder."
@@ -78,4 +80,19 @@ id_link_path_option = MWOptionDecorator(
     "--id-link-path",
     "id_link_path",
     help="Location in which to make id soft link to the submit directory.default ('${PWD}/bps_links')",
+)
+
+summary_option = MWOptionDecorator(
+    "--summary",
+    "submit_summary_file",
+    help="Location for storing user copy of submit summary (JSON file).",
+    type=MWPath(dir_okay=False, file_okay=True, writable=True),
+)
+
+summary_details_option = MWOptionDecorator(
+    "--include-summary-details",
+    "include_summary_details",
+    default=False,
+    is_flag=True,
+    help="Whether to include summary details which grow in size with graphs.",
 )

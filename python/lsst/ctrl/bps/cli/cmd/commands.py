@@ -26,14 +26,21 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Subcommand definitions."""
 
+import logging
+import shutil
 from collections.abc import Iterator
 from contextlib import contextmanager
 
 import click
 
 from lsst.daf.butler.cli.utils import MWCommand
+from lsst.utils.timer import time_this
 
 from ... import BpsSubprocessError
+from ...constants import (
+    DEFAULT_MEM_FMT,
+    DEFAULT_MEM_UNIT,
+)
 from ...drivers import (
     acquire_qgraph_driver,
     cancel_driver,
@@ -47,11 +54,31 @@ from ...drivers import (
     submitcmd_driver,
     transform_driver,
 )
+from ...summary import BpsSummary
 from .. import opt
+
+_LOG = logging.getLogger(__name__)
+
+
+def save_summary(summary: BpsSummary) -> None:
+    """Save the summary file.
+
+    Parameters
+    ----------
+    summary : `lsst.ctrl.bps.BpsSummary`
+        Summary information to save.
+    """
+    if summary.submit_path and summary.name:
+        filename = f"{summary.submit_path}/{summary.name}_summary.json"
+        summary.save(filename)
+        if summary.user_copy:
+            shutil.copy2(filename, summary.user_copy)
+    elif summary.user_copy:
+        print("Not enough summary information.  Skipping writing.")
 
 
 @contextmanager
-def catch_errors() -> Iterator[None]:
+def catch_errors(summary: BpsSummary | None = None) -> Iterator[None]:
     """Handle errors that occurred during command execution.
 
     Returns
@@ -69,9 +96,18 @@ def catch_errors() -> Iterator[None]:
     try:
         yield None
     except BpsSubprocessError as e:
+        if summary:
+            summary.set_exception(e)
+            summary.exit_code = e.errno
+            save_summary(summary)
         click.echo(e)
         click.get_current_context().exit(e.errno)
-    except BaseException:
+    except BaseException as e:
+        print(e)
+        print(dir(e))
+        if summary:
+            summary.set_exception(e)
+            save_summary(summary)
         raise
 
 
@@ -86,8 +122,23 @@ class BpsCommand(MWCommand):
 @opt.submission_options()
 def acquire(*args, **kwargs):
     """Create a new quantum graph or read existing one from a file."""
-    with catch_errors():
-        acquire_qgraph_driver(*args, **kwargs)
+    summary = BpsSummary(
+        user_copy=kwargs["submit_summary_file"], include_details=kwargs["include_summary_details"]
+    )
+    with time_this(
+        log=_LOG,
+        level=logging.INFO,
+        prefix=None,
+        msg="Acquire process completed",
+        mem_usage=True,
+        mem_child=True,
+        mem_unit=DEFAULT_MEM_UNIT,
+        mem_fmt=DEFAULT_MEM_FMT,
+    ) as metadata:
+        with catch_errors(summary):
+            acquire_qgraph_driver(*args, **kwargs)
+    summary.store_time_this_metadata(metadata)
+    save_summary(summary)
 
 
 @click.command(cls=BpsCommand)
@@ -95,8 +146,23 @@ def acquire(*args, **kwargs):
 @opt.submission_options()
 def cluster(*args, **kwargs):
     """Create a clustered quantum graph."""
-    with catch_errors():
-        cluster_qgraph_driver(*args, **kwargs)
+    summary = BpsSummary(
+        user_copy=kwargs["submit_summary_file"], include_details=kwargs["include_summary_details"]
+    )
+    with time_this(
+        log=_LOG,
+        level=logging.INFO,
+        prefix=None,
+        msg="Cluster process completed",
+        mem_usage=True,
+        mem_child=True,
+        mem_unit=DEFAULT_MEM_UNIT,
+        mem_fmt=DEFAULT_MEM_FMT,
+    ) as metadata:
+        with catch_errors(summary):
+            cluster_qgraph_driver(*args, **kwargs)
+    summary.store_time_this_metadata(metadata)
+    save_summary(summary)
 
 
 @click.command(cls=BpsCommand)
@@ -104,8 +170,23 @@ def cluster(*args, **kwargs):
 @opt.submission_options()
 def transform(*args, **kwargs):
     """Transform a quantum graph to a generic workflow."""
-    with catch_errors():
-        transform_driver(*args, **kwargs)
+    summary = BpsSummary(
+        user_copy=kwargs["submit_summary_file"], include_details=kwargs["include_summary_details"]
+    )
+    with time_this(
+        log=_LOG,
+        level=logging.INFO,
+        prefix=None,
+        msg="Transform process completed",
+        mem_usage=True,
+        mem_child=True,
+        mem_unit=DEFAULT_MEM_UNIT,
+        mem_fmt=DEFAULT_MEM_FMT,
+    ) as metadata:
+        with catch_errors(summary):
+            transform_driver(*args, **kwargs)
+    summary.store_time_this_metadata(metadata)
+    save_summary(summary)
 
 
 @click.command(cls=BpsCommand)
@@ -114,8 +195,23 @@ def transform(*args, **kwargs):
 @opt.submission_options()
 def prepare(*args, **kwargs):
     """Prepare a workflow for submission."""
-    with catch_errors():
-        prepare_driver(*args, **kwargs)
+    summary = BpsSummary(
+        user_copy=kwargs["submit_summary_file"], include_details=kwargs["include_summary_details"]
+    )
+    with time_this(
+        log=_LOG,
+        level=logging.INFO,
+        prefix=None,
+        msg="Prepare process completed",
+        mem_usage=True,
+        mem_child=True,
+        mem_unit=DEFAULT_MEM_UNIT,
+        mem_fmt=DEFAULT_MEM_FMT,
+    ) as metadata:
+        with catch_errors(summary):
+            prepare_driver(*args, **kwargs)
+    summary.store_time_this_metadata(metadata)
+    save_summary(summary)
 
 
 @click.command(cls=BpsCommand)
@@ -125,8 +221,23 @@ def prepare(*args, **kwargs):
 @opt.submission_options()
 def submit(*args, **kwargs):
     """Submit a workflow for execution."""
-    with catch_errors():
-        submit_driver(*args, **kwargs)
+    summary = BpsSummary(
+        user_copy=kwargs["submit_summary_file"], include_details=kwargs["include_summary_details"]
+    )
+    with time_this(
+        log=_LOG,
+        level=logging.INFO,
+        prefix=None,
+        msg="Submission process completed",
+        mem_usage=True,
+        mem_child=True,
+        mem_unit=DEFAULT_MEM_UNIT,
+        mem_fmt=DEFAULT_MEM_FMT,
+    ) as metadata:
+        with catch_errors(summary):
+            submit_driver(*args, summary=summary, **kwargs)
+    summary.store_time_this_metadata(metadata)
+    save_summary(summary)
 
 
 @click.command(cls=BpsCommand)

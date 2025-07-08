@@ -62,7 +62,7 @@ class TestInitSubmissionDriver(unittest.TestCase):
         with tempfile.NamedTemporaryFile(mode="w+", suffix=".yaml") as file:
             yaml.dump(config, stream=file)
             with self.assertRaisesRegex(KeyError, "outCollection"):
-                _init_submission_driver(file.name)
+                _init_submission_driver(file.name, None)
 
     @unittest.mock.patch("lsst.ctrl.bps.initialize.BPS_DEFAULTS", {})
     def testMissingOutputRun(self):
@@ -70,7 +70,7 @@ class TestInitSubmissionDriver(unittest.TestCase):
         with tempfile.NamedTemporaryFile(mode="w+", suffix=".yaml") as file:
             yaml.dump(config, stream=file)
             with self.assertRaisesRegex(KeyError, "outputRun"):
-                _init_submission_driver(file.name)
+                _init_submission_driver(file.name, None)
 
     @unittest.mock.patch("lsst.ctrl.bps.initialize.BPS_DEFAULTS", {})
     def testMissingSubmitPath(self):
@@ -78,7 +78,7 @@ class TestInitSubmissionDriver(unittest.TestCase):
         with tempfile.NamedTemporaryFile(mode="w+", suffix=".yaml") as file:
             yaml.dump(config, stream=file)
             with self.assertRaisesRegex(KeyError, "submitPath"):
-                _init_submission_driver(file.name)
+                _init_submission_driver(file.name, None)
 
 
 class TestPingDriver(unittest.TestCase):

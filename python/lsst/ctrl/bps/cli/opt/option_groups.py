@@ -46,6 +46,8 @@ from .options import (
     extra_update_qgraph_option,
     id_link_path_option,
     make_id_link_option,
+    summary_details_option,
+    summary_option,
 )
 
 
@@ -73,4 +75,6 @@ class submission_options(OptionGroup):  # noqa: N801
             extra_run_quantum_option(),
             make_id_link_option(),
             id_link_path_option(),
+            summary_option(),
+            summary_details_option(),
         ]

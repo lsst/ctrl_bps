@@ -38,3 +38,4 @@ from .generic_workflow import *
 from .quantum_clustering_funcs import *
 from .version import *
 from .wms_service import *
+from .summary import *

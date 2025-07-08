@@ -226,6 +226,7 @@ def dimension_clustering(config: BpsConfig, qgraph: QuantumGraph, name: str) -> 
     cqgraph : `lsst.ctrl.bps.ClusteredQuantumGraph`
         ClusteredQuantumGraph with clustering as defined in config.
     """
+    cluster_section = config["cluster"]
     cqgraph = ClusteredQuantumGraph(
         name=name,
         qgraph=qgraph,
@@ -235,7 +236,6 @@ def dimension_clustering(config: BpsConfig, qgraph: QuantumGraph, name: str) -> 
     # save mapping in order to create dependencies later
     quantum_to_cluster: dict[UUID, str] = {}
 
-    cluster_section = config["cluster"]
     cluster_labels, ordered_tasks = check_clustering_config(
         cluster_section, qgraph.pipeline_graph.make_task_xgraph()
     )
