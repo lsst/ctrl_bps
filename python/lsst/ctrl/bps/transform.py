@@ -738,7 +738,7 @@ def create_generic_workflow(
     )
 
     # Add final job
-    add_final_job(config, generic_workflow, prefix)
+    add_final_job(config, generic_workflow, prefix, cqgraph.qgraph)
 
     if "ordering" in config:
         generic_workflow.add_special_job_ordering(config["ordering"])
@@ -767,7 +767,8 @@ def create_generic_workflow_config(config, prefix):
     return generic_workflow_config
 
 
-def add_final_job(config: BpsConfig, generic_workflow: GenericWorkflow, prefix: str) -> None:
+def add_final_job(config: BpsConfig, generic_workflow: GenericWorkflow, prefix: str,
+                  qgraph: QuantumGraph) -> None:
     """Add final workflow job depending upon configuration.
 
     Depending on configuration, the final job will be added as a special job
@@ -783,10 +784,12 @@ def add_final_job(config: BpsConfig, generic_workflow: GenericWorkflow, prefix: 
         Generic workflow to which attributes should be added.
     prefix : `str`
         Directory in which to output final script.
+    qgraph : `lsst.ctrl.bps.QuantumGraph`
+        QuantumGraph for a specific payload.
     """
     _, when_run = config.search(".finalJob.whenRun")
     if when_run.upper() != "NEVER":
-        gwjob = create_final_job(config, generic_workflow, prefix)
+        gwjob = create_final_job(config, generic_workflow, prefix, qgraph)
         if when_run.upper() == "ALWAYS":
             generic_workflow.add_final(gwjob)
         elif when_run.upper() == "SUCCESS":
@@ -795,7 +798,8 @@ def add_final_job(config: BpsConfig, generic_workflow: GenericWorkflow, prefix: 
             raise ValueError(f"Invalid value for finalJob.whenRun: {when_run}")
 
 
-def create_final_job(config: BpsConfig, generic_workflow: GenericWorkflow, prefix: str) -> GenericWorkflowJob:
+def create_final_job(config: BpsConfig, generic_workflow: GenericWorkflow, prefix: str,
+                     qgraph: QuantumGraph) -> GenericWorkflowJob:
     """Create the final workflow job.
 
     Parameters
@@ -806,6 +810,8 @@ def create_final_job(config: BpsConfig, generic_workflow: GenericWorkflow, prefi
         Generic workflow to which attributes should be added.
     prefix : `str`
         Directory in which to output final script.
+    qgraph : `lsst.ctrl.bps.QuantumGraph`
+        QuantumGraph for a specific payload.
 
     Returns
     -------
@@ -835,7 +841,7 @@ def create_final_job(config: BpsConfig, generic_workflow: GenericWorkflow, prefi
             setattr(gwjob, attr, job_values[attr])
 
     # Create script and add command line to job.
-    gwjob.executable, gwjob.arguments = create_final_command(config, prefix)
+    gwjob.executable, gwjob.arguments = create_final_command(config, prefix, qgraph)
 
     # Determine inputs from command line.
     for file_key in re.findall(r"<FILE:([^>]+)>", gwjob.arguments):
@@ -843,10 +849,12 @@ def create_final_job(config: BpsConfig, generic_workflow: GenericWorkflow, prefi
         generic_workflow.add_job_inputs(gwjob.name, gwfile)
 
     _enhance_command(config, generic_workflow, gwjob, {})
+
     return gwjob
 
 
-def create_final_command(config: BpsConfig, prefix: str) -> tuple[GenericWorkflowExec, str]:
+def create_final_command(config: BpsConfig, prefix: str,
+                         qgraph: QuantumGraph) -> tuple[GenericWorkflowExec, str]:
     """Create the command and shell script for the final job.
 
     Parameters
@@ -855,6 +863,8 @@ def create_final_command(config: BpsConfig, prefix: str) -> tuple[GenericWorkflo
         Bps configuration.
     prefix : `str`
         Directory in which to output final script.
+    qgraph : `lsst.ctrl.bps.QuantumGraph`
+        QuantumGraph for a specific payload.
 
     Returns
     -------
@@ -869,7 +879,8 @@ def create_final_command(config: BpsConfig, prefix: str) -> tuple[GenericWorkflo
     """
     search_opt = {
         "replaceVars": True,
-        "skipNames": ["butlerConfig", "qgraphFile"],
+        "skipNames": ["butlerConfig", "qgraphFile", "dstypesToZip",
+                      "dstypesNotToZip", "zipTmpDir"],
         "replaceEnvVars": False,
         "expandEnvVars": False,
         "searchobj": config["finalJob"],
@@ -883,15 +894,23 @@ def create_final_command(config: BpsConfig, prefix: str) -> tuple[GenericWorkflo
 
         print("qgraphFile=$1", file=fh)
         print("butlerConfig=$2", file=fh)
+        print("dstypesToZip=$3", file=fh)
+        print("dstypesNotToZip=$4", file=fh)
+        print("zipTmpDir=$5", file=fh)
 
         command_len = 0  # Make sure at least write one actual command
         i = 1
         found, command = config.search(f"command{i}", opt=search_opt)
         while found:
+            print(command)
             # The files will be args to script, so change to shell vars
             command = command.replace("{qgraphFile}", "${qgraphFile}")
             command = command.replace("{butlerConfig}", "${butlerConfig}")
+            command = command.replace("{dstypesToZip}", "${dstypesToZip}")
+            command = command.replace("{dstypesNotToZip}", "${dstypesNotToZip}")
+            command = command.replace("{zipTmpDir}", "${zipTmpDir}")
 
+            print(command)
             print(command, file=fh)
             command_len += len(command.strip())
 
@@ -906,7 +925,36 @@ def create_final_command(config: BpsConfig, prefix: str) -> tuple[GenericWorkflo
     executable = GenericWorkflowExec(os.path.basename(script_file), script_file, True)
 
     _, orig_butler = config.search("butlerConfig")
-    return executable, f"<FILE:runQgraphFile> {orig_butler}"
+    dstypesToZip, dstypesNotToZip = _get_zip_dataset_types(config, qgraph)
+    _, zip_tmp_dir = config.search("zipTmpDir")
+    return executable, f"<FILE:runQgraphFile> {orig_butler} {dstypesToZip} {dstypesNotToZip} {zip_tmp_dir}"
+
+
+def _get_zip_dataset_types(config: BpsConfig, qgraph: QuantumGraph):
+    """Get lists of dataset types to zip and not to zip from the
+    the QuantumGraph and the zipDatasetTypes config.
+
+    Parameters
+    ----------
+    config : `lsst.ctrl.bps.BpsConfig`
+        BPS configuration.
+    qgraph : `lsst.ctrl.bps.QuantumGraph`
+        QuantumGraph for a specific payload.
+
+    Returns
+    -------
+    to_zip, not_to_zip : `str`, `str`
+        Strings listing dataset types to zip and not to zip.
+    """
+    output_refs, _ = qgraph.get_refs(include_outputs=True,
+                                     include_init_outputs=True,
+                                     conform_outputs=True)
+    dstypes = set(ref.datasetType.name for ref in output_refs)
+    zip_candidates = set(config["zipDatasetTypes"])
+    to_zip = ','.join(sorted(dstypes.intersection(zip_candidates)))
+    not_to_zip = ','.join(sorted(dstypes.difference(zip_candidates)))
+
+    return to_zip, not_to_zip
 
 
 def add_final_job_as_sink(generic_workflow, final_job):

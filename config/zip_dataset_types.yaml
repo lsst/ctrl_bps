@@ -1,0 +1,6 @@
+zipDatasetTypes:
+  - isrStatistics
+  - isr_config
+  - isr_log
+  - isr_metadata
+  - packages
