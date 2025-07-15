@@ -253,22 +253,14 @@ class CreateJobFilesTestCase(unittest.TestCase):
 
     def testJobFileCreationNoFiles(self):
         """Test create_job_files with empty file specs."""
-
-        def dummy_path_creator(path, prefix):
-            return prefix / path.name
-
         config = BpsConfig({"inputs": {}})
         _, filespecs = config.search("inputs")
-        files = create_job_files(filespecs, self.prefix, dummy_path_creator)
+        files = create_job_files(filespecs, self.prefix, lambda path, prefix: prefix / path.name)
 
         self.assertEqual(files, [])
 
     def testJobFileCreationWithFiles(self):
         """Test create_job_files with file specifications."""
-
-        def dummy_path_creator(path, prefix):
-            return prefix / path.name
-
         config = BpsConfig(
             {
                 "inputs": {
@@ -278,7 +270,7 @@ class CreateJobFilesTestCase(unittest.TestCase):
             }
         )
         _, filespecs = config.search("inputs")
-        files = create_job_files(filespecs, self.prefix, dummy_path_creator)
+        files = create_job_files(filespecs, self.prefix, lambda path, prefix: prefix / path.name)
 
         self.assertEqual(len(files), 2)
         self.assertEqual(files[0].name, "file1")
