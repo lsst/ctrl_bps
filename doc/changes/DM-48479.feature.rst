@@ -1,0 +1,1 @@
+Added support for transferring input files to the execution site and bringing the produced output files back to the submit site when using ``bps submitcmd``.

@@ -31,9 +31,16 @@ __all__ = ["construct"]
 
 import logging
 import shutil
+from collections.abc import Callable
 from pathlib import Path
 
-from lsst.ctrl.bps import BpsConfig, GenericWorkflow, GenericWorkflowExec, GenericWorkflowJob
+from lsst.ctrl.bps import (
+    BpsConfig,
+    GenericWorkflow,
+    GenericWorkflowExec,
+    GenericWorkflowFile,
+    GenericWorkflowJob,
+)
 from lsst.ctrl.bps.transform import _get_job_values
 
 _LOG = logging.getLogger(__name__)
@@ -73,7 +80,7 @@ def create_custom_workflow(config: BpsConfig) -> tuple[GenericWorkflow, BpsConfi
     generic_workflow_config : `lsst.ctrl.BpsConfig`
         Configuration to accompany created generic workflow.
     """
-    gwjob = create_custom_job(config)
+    gwjob, inputs, outputs = create_custom_job(config)
 
     _, name = config.search("uniqProcName", opt={"required": True})
     generic_workflow = GenericWorkflow(name)
@@ -90,6 +97,10 @@ def create_custom_workflow(config: BpsConfig) -> tuple[GenericWorkflow, BpsConfi
             "bps_runsite": config["computeSite"],
         }
     )
+    if inputs:
+        generic_workflow.add_job_inputs(gwjob.name, inputs)
+    if outputs:
+        generic_workflow.add_job_outputs(gwjob.name, outputs)
 
     generic_workflow_config = BpsConfig(config)
     generic_workflow_config["workflowName"] = config["uniqProcName"]
@@ -98,7 +109,9 @@ def create_custom_workflow(config: BpsConfig) -> tuple[GenericWorkflow, BpsConfi
     return generic_workflow, generic_workflow_config
 
 
-def create_custom_job(config: BpsConfig) -> GenericWorkflowJob:
+def create_custom_job(
+    config: BpsConfig,
+) -> tuple[GenericWorkflowJob, list[GenericWorkflowFile], list[GenericWorkflowFile]]:
     """Create a job that will run a custom command or script.
 
     Parameters
@@ -110,6 +123,10 @@ def create_custom_job(config: BpsConfig) -> GenericWorkflowJob:
     -------
     job : `lsst.ctrl.bps.GenericWorkflowJob`
         A custom job responsible for running the command.
+    inputs : `list` [`lsst.ctrl.bps.GenericWorkflowFile`]
+        List of job's input files, empty if the job has no input files.
+    outputs : `list` [`lsst.ctrl.bps.GenericWorkflowFile`]
+        List of job's output files, empty if the job has no output files.
     """
     prefix = Path(config["submitPath"])
     job_label = "customJob"
@@ -135,6 +152,92 @@ def create_custom_job(config: BpsConfig) -> GenericWorkflowJob:
     job.executable = GenericWorkflowExec(
         name=script_name, src_uri=str(prefix / script_name), transfer_executable=True
     )
-    job.arguments = config[f".{job_label}.arguments"]
+    _, job.arguments = config.search("arguments", opt=search_opts | {"replaceVars": False})
 
-    return job
+    inputs = []
+    found, mapping = config.search("inputs", opt=search_opts)
+    if found:
+        inputs = create_job_files(mapping, prefix, path_creator=create_input_path)
+
+    outputs = []
+    found, mapping = config.search("outputs", opt=search_opts)
+    if found:
+        outputs = create_job_files(mapping, prefix, path_creator=create_output_path)
+
+    for gwfile in inputs + outputs:
+        job.arguments = job.arguments.replace(f"{{{gwfile.name}}}", f"<FILE:{gwfile.name}>")
+
+    return job, inputs, outputs
+
+
+def create_job_files(
+    file_specs: BpsConfig, prefix: str | Path, path_creator: Callable[[Path, Path], Path]
+) -> list[GenericWorkflowFile]:
+    """Create files for a job.
+
+    Parameters
+    ----------
+    file_specs : `lsst.ctrl.bps.BpsConfig`
+        The mapping between file keys and file paths.
+    prefix : `str` | `pathlib.Path`
+        The root directory to which the files will be written.
+    path_creator : `Callable` [[`Path`, `Path`], `Path`]
+        File category that determines actions that need to be taken during
+        file creation.
+
+    Returns
+    -------
+    gwfiles : `list` [`lsst.ctrl.bps.GenericWorkflowFile`]
+        List of files created for the job.
+    """
+    prefix = Path(prefix)
+
+    gwfiles = []
+    for key, path in file_specs.items():
+        src = Path(path)
+        dest = path_creator(src, prefix)
+        gwfiles.append(GenericWorkflowFile(name=key, src_uri=str(dest), wms_transfer=True))
+    return gwfiles
+
+
+def create_input_path(path: Path, prefix: Path) -> Path:
+    """Process an input path.
+
+    Parameters
+    ----------
+    path : `pathlib.Path`
+        The input path.
+    prefix : `pathlib.Path`
+        The root directory to which the file will be written.
+
+    Raises
+    ------
+    ValueError
+        Raised if the input path does not exist or is a directory.
+    """
+    if path.exists():
+        if path.is_dir():
+            raise ValueError(f"input path '{path} is a directory, must be file")
+    else:
+        raise ValueError(f"input path '{path}' does not exist")
+    dest = prefix / path.name
+    shutil.copy2(path, dest)
+    return dest
+
+
+def create_output_path(path: Path, prefix: Path) -> Path:
+    """Process an output path.
+
+    Parameters
+    ----------
+    path : `pathlib.Path`
+        The output path.
+    prefix : `pathlib.Path`
+        The root directory to which the file will be written.
+    """
+    if path.is_absolute():
+        dest = path
+    else:
+        dest = prefix / path
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    return dest
