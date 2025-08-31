@@ -33,10 +33,10 @@
 # pylint: disable=missing-class-docstring
 
 import lsst.pipe.base.connectionTypes as cT
-from lsst.daf.butler import Config, DataCoordinate, DatasetRef, DatasetType, DimensionUniverse, Quantum
+from lsst.daf.butler import DataCoordinate, DatasetRef, DatasetType, DimensionConfig, Quantum
 from lsst.pex.config import Field
-from lsst.pipe.base import PipelineTask, PipelineTaskConfig, PipelineTaskConnections, QuantumGraph, TaskDef
-from lsst.utils.introspection import get_full_type_name
+from lsst.pipe.base import PipelineTask, PipelineTaskConfig, PipelineTaskConnections
+from lsst.pipe.base.tests.mocks import DynamicConnectionConfig, InMemoryRepo
 
 METADATA = {"D1": [1, 2, 3]}
 
@@ -211,37 +211,13 @@ def _make_quantum(run, universe, task, task_def, dim1, dim2, intermediate_refs):
     return quantum
 
 
-def make_test_quantum_graph(run: str = "run", uneven=False):
-    """Create a QuantumGraph for unit tests.
+def make_test_helper() -> InMemoryRepo:
+    """Make a test helper that can produce a quantum graph useful for
+    clustering tests.
 
-    Parameters
-    ----------
-    run : `str`, optional
-        Name of the RUN collection for output datasets.
-    uneven : `bool`, optional
-        Whether some of the quanta for initial tasks are
-        not included as if finished in previous run.
-
-    Returns
-    -------
-    qgraph : `lsst.pipe.base.QuantumGraph`
-        A test QuantumGraph looking like the following:
-        (DummyTask4 is completely independent).
-
-        Numbers in parens are the values for the two dimensions (D1, D2).
-
-        .. code-block::
-           T1(1,2)    T1(1,4)     T1(3,4)  T5(1,2)  T5(1,4)  T5(3,4)
-            |          |           |
-           T2(1,2)    T2(1,4)     T2(3,4)
-            |   |      |   |       |   |
-            | T2b(1,2) | T2b(1,4)  | T2b(3,4)
-            |          |           |
-           T3(1,2)    T3(1,4)     T3(3,4)
-            |          |           |
-           T4(1,2)    T4(1,4)     T4(3,4)
+    See `make_quantum_graph` for a more complete description of this graph.
     """
-    config = Config(
+    dimension_config = DimensionConfig(
         {
             "version": 1,
             "skypix": {
@@ -278,38 +254,96 @@ def make_test_quantum_graph(run: str = "run", uneven=False):
             "packers": {},
         }
     )
+    helper = InMemoryRepo(dimension_config=dimension_config)
+    helper.butler.registry.insertDimensionData("D1", *[{"id": n} for n in (1, 3)])
+    helper.butler.registry.insertDimensionData("D2", *[{"id": n} for n in (2, 4)])
+    # Note that automatic inputs and outputs work for most of the tasks below
+    # to create a chain from each task to the next.
+    helper.add_task(
+        "T1",
+        dimensions=("D1", "D2"),
+        init_outputs={"initOutput": DynamicConnectionConfig(dataset_type_name="Dummy1InitOutput")},
+    )
+    helper.add_task(
+        "T2",
+        dimensions=("D1", "D2"),
+        init_inputs={"initInput": DynamicConnectionConfig(dataset_type_name="Dummy1InitOutput")},
+        init_outputs={"initOutput": DynamicConnectionConfig(dataset_type_name="Dummy2InitOutput")},
+    )
+    helper.add_task(
+        "T3",
+        dimensions=("D1", "D2"),
+        init_inputs={"initInput": DynamicConnectionConfig(dataset_type_name="Dummy2InitOutput")},
+        init_outputs={"initOutput": DynamicConnectionConfig(dataset_type_name="Dummy3InitOutput")},
+    )
+    helper.add_task(
+        "T4",
+        dimensions=("D1", "D2"),
+        init_inputs={"initInput": DynamicConnectionConfig(dataset_type_name="Dummy3InitOutput")},
+        init_outputs={"initOutput": DynamicConnectionConfig(dataset_type_name="Dummy4InitOutput")},
+    )
+    helper.add_task(
+        "T5",
+        dimensions=("D1", "D2"),
+        inputs={
+            "initInput": DynamicConnectionConfig(dataset_type_name="Dummy5Input", dimensions=("D1", "D2"))
+        },
+        outputs={
+            "initOutput": DynamicConnectionConfig(dataset_type_name="Dummy5Output", dimensions=("D1", "D2"))
+        },
+    )
+    helper.add_task(
+        "T2b",
+        dimensions=("D1", "D2"),
+        init_inputs={"initInput": DynamicConnectionConfig(dataset_type_name="Dummy2InitOutput")},
+        init_outputs={"initOutput": DynamicConnectionConfig(dataset_type_name="Dummy2bInitOutput")},
+        inputs={"input": DynamicConnectionConfig(dataset_type_name="dataset_auto2", dimensions=("D1", "D2"))},
+    )
+    helper.insert_datasets("dataset_auto0", where="D1 < D2")
+    helper.insert_datasets("Dummy5Input", where="D1 < D2")
+    return helper
 
-    universe = DimensionUniverse(config=config)
-    # need to make a mapping of TaskDef to set of quantum
-    quantum_map = {}
-    tasks = []
-    # Map to keep output/intermediate refs.
-    intermediate_refs: dict[tuple[DatasetType, DataCoordinate], DatasetRef] = {}
 
-    # control quanta to put in quantum graph:
-    default_dims = [(1, 2), (1, 4), (3, 4)]
-    info = {
-        "T2b": {"task": Dummy2bPipelineTask, "dims": default_dims},
-        "T3": {"task": Dummy3PipelineTask, "dims": default_dims},
-        "T4": {"task": Dummy4PipelineTask, "dims": default_dims},
-        "T5": {"task": Dummy5PipelineTask, "dims": default_dims},
-    }
+def make_test_quantum_graph(run: str = "run", uneven=False):
+    """Create a quantum graph for unit tests.
+
+    Parameters
+    ----------
+    run : `str`, optional
+        Name of the RUN collection for output datasets.
+    uneven : `bool`, optional
+        Whether some of the quanta for initial tasks are
+        not included as if finished in previous run.
+
+    Returns
+    -------
+    qgraph : `lsst.pipe.base.quantum_graph.PredictedQuantumGraph`
+        A test QuantumGraph looking like the following:
+        (Task T5 is completely independent).
+
+        Numbers in parens are the values for the two dimensions (D1, D2).
+
+        .. code-block::
+           T1(1,2)    T1(1,4)     T1(3,4)  T5(1,2)  T5(1,4)  T5(3,4)
+            |          |           |
+           T2(1,2)    T2(1,4)     T2(3,4)
+            |   |      |   |       |   |
+            | T2b(1,2) | T2b(1,4)  | T2b(3,4)
+            |          |           |
+           T3(1,2)    T3(1,4)     T3(3,4)
+            |          |           |
+           T4(1,2)    T4(1,4)     T4(3,4)
+    """
+    helper = make_test_helper()
+    qgc = helper.make_quantum_graph_builder(output_run=run).finish(attach_datastore_records=False)
     if uneven:
-        info["T1"] = {"task": Dummy1PipelineTask, "dims": [(3, 4)]}
-        info["T2"] = {"task": Dummy2PipelineTask, "dims": [(1, 4), (3, 4)]}
-    else:
-        info["T1"] = {"task": Dummy1PipelineTask, "dims": default_dims}
-        info["T2"] = {"task": Dummy2PipelineTask, "dims": default_dims}
-
-    for label in sorted(info):
-        task = info[label]["task"]
-        task_def = TaskDef(get_full_type_name(task), task.ConfigClass(), task, label)
-        tasks.append(task_def)
-        quantum_set = set()
-        for dim1, dim2 in info[label]["dims"]:
-            quantum = _make_quantum(run, universe, task, task_def, dim1, dim2, intermediate_refs)
-            quantum_set.add(quantum)
-        quantum_map[task_def] = quantum_set
-    qgraph = QuantumGraph(quantum_map, metadata=METADATA)
-
-    return qgraph
+        keys_to_drop = {("T1", 1, 2), ("T1", 1, 4), ("T2", 1, 2)}
+        qgc.quantum_datasets = {
+            qd.quantum_id: qd
+            for qd in qgc.quantum_datasets.values()
+            if (qd.task_label, *qd.data_coordinate) not in keys_to_drop
+        }
+        qgc.set_quantum_indices()
+        qgc.set_thin_graph()
+        qgc.set_header_counts()
+    return qgc.assemble()

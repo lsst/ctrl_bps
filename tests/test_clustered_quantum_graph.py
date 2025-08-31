@@ -50,54 +50,49 @@ class TestQuantaCluster(unittest.TestCase):
 
     def setUp(self):
         self.qgraph = make_test_quantum_graph()
-        nodes = list(self.qgraph.getNodesForTask(self.qgraph.findTaskDefByLabel("T1")))
-        self.qnode1 = nodes[0]
-        self.qnode2 = nodes[1]
+        self.id1, self.id2, *_ = self.qgraph.quanta_by_task["T1"].values()
+        self.info1 = self.qgraph.quantum_only_xgraph.nodes[self.id1]
+        self.info2 = self.qgraph.quantum_only_xgraph.nodes[self.id2]
 
     def tearDown(self):
         pass
 
     def testQgraphNodeIds(self):
-        qc = QuantaCluster.from_quantum_node(self.qnode1, "{node_number}")
-        self.assertEqual(qc.qgraph_node_ids, frozenset([self.qnode1.nodeId]))
+        qc = QuantaCluster.from_quantum_info(self.id1, self.info1, "{node_number}")
+        self.assertEqual(qc.qgraph_node_ids, frozenset([self.id1]))
 
     def testQuantaCountsNone(self):
         qc = QuantaCluster("NoQuanta", "the_label")
         self.assertEqual(qc.quanta_counts, Counter())
 
     def testQuantaCounts(self):
-        qc = QuantaCluster.from_quantum_node(self.qnode1, "{node_number}")
+        qc = QuantaCluster.from_quantum_info(self.id1, self.info1, "{node_number}")
         self.assertEqual(qc.quanta_counts, Counter({"T1": 1}))
 
-    def testAddQuantumNode(self):
-        qc = QuantaCluster.from_quantum_node(self.qnode1, "{node_number}")
-        qc.add_quantum_node(self.qnode2)
-        self.assertEqual(qc.quanta_counts, Counter({"T1": 2}))
-
     def testAddQuantum(self):
-        qc = QuantaCluster.from_quantum_node(self.qnode1, "{node_number}")
-        qc.add_quantum(self.qnode2.quantum, self.qnode2.taskDef.label)
+        qc = QuantaCluster.from_quantum_info(self.id1, self.info1, "{node_number}")
+        qc.add_quantum(self.id2, self.info2["task_label"])
         self.assertEqual(qc.quanta_counts, Counter({"T1": 2}))
 
     def testStr(self):
-        qc = QuantaCluster.from_quantum_node(self.qnode1, "{node_number}")
+        qc = QuantaCluster.from_quantum_info(self.id1, self.info1, "{node_number}")
         self.assertIn(qc.name, str(qc))
         self.assertIn("T1", str(qc))
         self.assertIn("tags", str(qc))
 
     def testEqual(self):
-        qc1 = QuantaCluster.from_quantum_node(self.qnode1, "{node_number}")
-        qc2 = QuantaCluster.from_quantum_node(self.qnode1, "{node_number}")
+        qc1 = QuantaCluster.from_quantum_info(self.id1, self.info1, "{node_number}")
+        qc2 = QuantaCluster.from_quantum_info(self.id1, self.info1, "{node_number}")
         self.assertEqual(qc1, qc2)
 
     def testNotEqual(self):
-        qc1 = QuantaCluster.from_quantum_node(self.qnode1, "{node_number}")
-        qc2 = QuantaCluster.from_quantum_node(self.qnode2, "{node_number}")
+        qc1 = QuantaCluster.from_quantum_info(self.id1, self.info1, "{node_number}")
+        qc2 = QuantaCluster.from_quantum_info(self.id2, self.info2, "{node_number}")
         self.assertNotEqual(qc1, qc2)
 
     def testHash(self):
-        qc1 = QuantaCluster.from_quantum_node(self.qnode1, "{node_number}")
-        qc2 = QuantaCluster.from_quantum_node(self.qnode2, "{node_number}")
+        qc1 = QuantaCluster.from_quantum_info(self.id1, self.info1, "{node_number}")
+        qc2 = QuantaCluster.from_quantum_info(self.id2, self.info2, "{node_number}")
         self.assertNotEqual(hash(qc1), hash(qc2))
 
 
@@ -196,8 +191,9 @@ class TestClusteredQuantumGraph(unittest.TestCase):
     def testValidateDuplicateId(self):
         # Add new Quanta with duplicate Quantum
         qc1 = self.cqg1.get_cluster("T1_1_2")
-        qnode = self.cqg1.get_quantum_node(next(iter(qc1.qgraph_node_ids)))
-        qc = QuantaCluster.from_quantum_node(qnode, "DuplicateId")
+        quantum_id = next(iter(qc1.qgraph_node_ids))
+        quantum_info = self.cqg1.get_quantum_info(quantum_id)
+        qc = QuantaCluster.from_quantum_info(quantum_id, quantum_info, "DuplicateId")
         self.cqg1.add_cluster(qc)
         qc2 = self.cqg1.get_cluster("T23_1_2")
         self.cqg1.add_dependency(qc2, qc)

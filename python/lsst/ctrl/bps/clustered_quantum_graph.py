@@ -29,18 +29,21 @@
 a QuantumGraph.
 """
 
-__all__ = ["ClusteredQuantumGraph", "QuantaCluster"]
+from __future__ import annotations
 
+__all__ = ["ClusteredQuantumGraph", "QuantaCluster"]
 
 import logging
 import pickle
 import re
+import uuid
 from collections import Counter, defaultdict
 from pathlib import Path
 
 from networkx import DiGraph, is_directed_acyclic_graph, is_isomorphic, topological_sort
 
-from lsst.pipe.base import NodeId, QuantumGraph
+from lsst.pipe.base.pipeline_graph import TaskImportMode
+from lsst.pipe.base.quantum_graph import PredictedQuantumGraph, QuantumInfo
 from lsst.utils.iteration import ensure_iterable
 
 from .bps_draw import draw_networkx_dot
@@ -79,13 +82,17 @@ class QuantaCluster:
             self.tags = {}
 
     @classmethod
-    def from_quantum_node(cls, quantum_node, template):
-        """Create single quantum cluster from given quantum node.
+    def from_quantum_info(
+        cls, quantum_id: uuid.UUID, quantum_info: QuantumInfo, template: str
+    ) -> QuantaCluster:
+        """Create single quantum cluster from the given quantum information.
 
         Parameters
         ----------
-        quantum_node : `lsst.pipe.base.QuantumNode`
-            QuantumNode for which to make into a single quantum cluster.
+        quantum_id : `uuid.UUID`
+            ID of the quantum.
+        quantum_info : `lsst.pipe.base.quantum_graph.QuantumInfo`
+            Dictionary of additional information about the quantum.
         template : `str`
             Template for creating cluster name.
 
@@ -94,14 +101,13 @@ class QuantaCluster:
         cluster : `QuantaCluster`
             Newly created cluster containing the given quantum.
         """
-        label = quantum_node.taskDef.label
-        node_id = quantum_node.nodeId
-        data_id = quantum_node.quantum.dataId
+        label = quantum_info["task_label"]
+        data_id = quantum_info["data_id"]
 
         # Gather info for name template into a dictionary.
         info = dict(data_id.required)
         info["label"] = label
-        info["node_number"] = node_id
+        info["node_number"] = quantum_id
         _LOG.debug("template = %s", template)
         _LOG.debug("info for template = %s", info)
 
@@ -116,7 +122,7 @@ class QuantaCluster:
         _LOG.debug("template name = %s", name)
 
         cluster = QuantaCluster(name, label, info)
-        cluster.add_quantum(quantum_node.nodeId, label)
+        cluster.add_quantum(quantum_id, label)
         return cluster
 
     @property
@@ -130,24 +136,12 @@ class QuantaCluster:
         """Counts of Quanta per taskDef.label in this cluster."""
         return Counter(self._task_label_counts)
 
-    def add_quantum_node(self, quantum_node):
-        """Add a quantumNode to this cluster.
-
-        Parameters
-        ----------
-        quantum_node : `lsst.pipe.base.QuantumNode`
-            Quantum node to add.
-        """
-        _LOG.debug("quantum_node = %s", quantum_node)
-        _LOG.debug("quantum_node.nodeId = %s", quantum_node.nodeId)
-        self.add_quantum(quantum_node.nodeId, quantum_node.taskDef.label)
-
     def add_quantum(self, node_id, task_label):
         """Add a quantumNode to this cluster.
 
         Parameters
         ----------
-        node_id : `lsst.pipe.base.NodeId`
+        node_id : `uuid.UUID`
             ID for quantumNode to be added to cluster.
         task_label : `str`
             Task label for quantumNode to be added to cluster.
@@ -185,11 +179,10 @@ class ClusteredQuantumGraph:
     ----------
     name : `str`
         Name to be given to the ClusteredQuantumGraph.
-    qgraph : `lsst.pipe.base.QuantumGraph`
-        The QuantumGraph to be clustered.
+    qgraph : `lsst.pipe.base.quantum_graph.PredictedQuantumGraph`
+        The quantum graph to be clustered.
     qgraph_filename : `str`
-        Filename for given QuantumGraph if it has already been
-        serialized.
+        Filename for given quantum graph.
 
     Raises
     ------
@@ -203,11 +196,12 @@ class ClusteredQuantumGraph:
     use API over totally minimized memory usage.
     """
 
-    def __init__(self, name, qgraph, qgraph_filename=None):
+    def __init__(self, name: str, qgraph: PredictedQuantumGraph, qgraph_filename: str):
         if "/" in name:
             raise ValueError(f"name cannot have a / ({name})")
         self._name = name
         self._quantum_graph = qgraph
+        self._quantum_only_xgraph = qgraph.quantum_only_xgraph
         self._quantum_graph_filename = Path(qgraph_filename).resolve()
         self._cluster_graph = DiGraph()
 
@@ -228,21 +222,26 @@ class ClusteredQuantumGraph:
             return False
         if len(self) != len(other):
             return False
-        return self._quantum_graph == other._quantum_graph and is_isomorphic(
+        return is_isomorphic(self.qxgraph, other.qxgraph) and is_isomorphic(
             self._cluster_graph, other._cluster_graph
         )
 
     @property
-    def name(self):
+    def name(self) -> str:
         """The name of the ClusteredQuantumGraph."""
         return self._name
 
     @property
-    def qgraph(self):
-        """The QuantumGraph associated with this Clustered
+    def qgraph(self) -> PredictedQuantumGraph:
+        """The quantum graph associated with this Clustered
         QuantumGraph.
         """
         return self._quantum_graph
+
+    @property
+    def qxgraph(self) -> DiGraph:
+        """A networkx graph of all quanta."""
+        return self._quantum_only_xgraph
 
     def add_cluster(self, clusters_for_adding):
         """Add a cluster of quanta as a node in the graph.
@@ -286,30 +285,26 @@ class ClusteredQuantumGraph:
             raise KeyError(f"{self.name} does not have a cluster named {name}") from ex
         return attr["cluster"]
 
-    def get_quantum_node(self, id_):
-        """Retrieve a QuantumNode from the ClusteredQuantumGraph by ID.
+    def get_quantum_info(self, id_: uuid.UUID) -> QuantumInfo:
+        """Retrieve a quantum info dict from the ClusteredQuantumGraph by ID.
 
         Parameters
         ----------
-        id_ : `lsst.pipe.base.NodeId` or int
-            ID of the QuantumNode to retrieve.
+        id_ : `uuid.UUID`
+            ID of the quantum to retrieve.
 
         Returns
         -------
-        quantum_node : `lsst.pipe.base.QuantumNode`
-            QuantumNode matching given ID.
+        quantum_info : `lsst.pipe.base.quantum_graph.QuantumInfo`
+            Quantum info dictionary for the given ID.
 
         Raises
         ------
         KeyError
             Raised if the ClusteredQuantumGraph does not contain
-            a QuantumNode with given ID.
+            a quantum with given ID.
         """
-        node_id = id_
-        if isinstance(id_, int):
-            node_id = NodeId(id, self._quantum_graph.graphID)
-        _LOG.debug("get_quantum_node: node_id = %s", node_id)
-        return self._quantum_graph.getQuantumNodeByNodeId(node_id)
+        return self._quantum_only_xgraph.nodes[id_]
 
     def __iter__(self):
         """Iterate over names of clusters.
@@ -414,8 +409,8 @@ class ClusteredQuantumGraph:
 
     def save(self, filename, format_=None):
         """Save the ClusteredQuantumGraph in a format that is loadable.
-        The QuantumGraph is saved separately if hasn't already been
-        serialized.
+
+        The quantum graph is assumed to have been saved separately.
 
         Parameters
         ----------
@@ -432,14 +427,6 @@ class ClusteredQuantumGraph:
 
         if format_ not in {"pickle"}:
             raise RuntimeError(f"Unknown format ({format_})")
-
-        if not self._quantum_graph_filename:
-            # Create filename based on given ClusteredQuantumGraph filename
-            self._quantum_graph_filename = path.with_suffix(".qgraph")
-
-        # If QuantumGraph file doesn't already exist, save it:
-        if not Path(self._quantum_graph_filename).exists():
-            self._quantum_graph.saveUri(self._quantum_graph_filename)
 
         if format_ == "pickle":
             # Don't save QuantumGraph in same file.
@@ -503,14 +490,14 @@ class ClusteredQuantumGraph:
         cgraph = None
         if format_ == "pickle":
             with open(filename, "rb") as fh:
-                cgraph = pickle.load(fh)
+                cgraph: ClusteredQuantumGraph = pickle.load(fh)
 
             # The QuantumGraph was saved separately
-            try:
-                cgraph._quantum_graph = QuantumGraph.loadUri(cgraph._quantum_graph_filename)
-            except FileNotFoundError:  # Try same path as ClusteredQuantumGraph
-                new_filename = path.parent / Path(cgraph._quantum_graph_filename).name
-                cgraph._quantum_graph = QuantumGraph.loadUri(new_filename)
+            with PredictedQuantumGraph.open(
+                cgraph._quantum_graph_filename, import_mode=TaskImportMode.DO_NOT_IMPORT
+            ) as reader:
+                reader.read_thin_graph()
+                cgraph._quantum_graph = reader.finish()
 
         return cgraph
 

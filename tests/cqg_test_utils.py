@@ -27,9 +27,8 @@
 """ClusteredQuantumGraph-related utilities to support ctrl_bps testing."""
 
 import uuid
-from copy import deepcopy
 
-from qg_test_utils import make_test_quantum_graph
+from qg_test_utils import make_test_helper
 
 from lsst.ctrl.bps import ClusteredQuantumGraph, QuantaCluster
 
@@ -169,80 +168,88 @@ def make_test_clustered_quantum_graph(outdir):
     Parameters
     ----------
     outdir : `str`
-        Root used for the QuantumGraph filename stored
-        in the ClusteredQuantumGraph.
+        Root used for the quantum graph filename stored
+        in the ClusteredQuantumGraph.  The quantum graph is always saved to
+        this location.
 
     Returns
     -------
-    qgraph : `lsst.pipe.base.QuantumGraph`
+    qgraph : `lsst.pipe.base.quantum_graph.PredictedQuantumGraph`
         The fake QuantumGraph created for the test
         ClusteredQuantumGraph returned separately.
     cqg : `lsst.ctrl.bps.ClusteredQuantumGraph`
         Clustered quantum graph.
     """
-    qgraph = make_test_quantum_graph()
-    qgraph2 = deepcopy(qgraph)  # keep separate copy
-
-    cqg = ClusteredQuantumGraph("cqg1", qgraph, f"{outdir}/test_file.qgraph")
+    helper = make_test_helper()
+    qgc = helper.make_quantum_graph_builder(output_run="run").finish(attach_datastore_records=False)
+    qg_filename = f"{outdir}/test_file.qg"
+    qgc.write(qg_filename)
+    qgraph = qgc.assemble()
+    cqg = ClusteredQuantumGraph("cqg1", qgraph, qg_filename)
 
     # since random hash ids, create mapping for tests
     test_lookup = {}
-    for qnode in qgraph:
-        data_id = dict(qnode.quantum.dataId.required)
-        key = f"{qnode.taskDef.label}_{data_id['D1']}_{data_id['D2']}"
-        test_lookup[key] = qnode
+    for task_label, quanta_for_task in qgraph.quanta_by_task.items():
+        for data_coordinate, quantum_id in quanta_for_task.items():
+            data_id = dict(data_coordinate.required)
+            key = f"{task_label}_{data_id['D1']}_{data_id['D2']}"
+            test_lookup[key] = (quantum_id, cqg.qxgraph.nodes[quantum_id])
+
+    def get_add_quantum_args(key: str) -> tuple[uuid.UUID, str]:
+        quantum_id, quantum_info = test_lookup[key]
+        return quantum_id, quantum_info["task_label"]
 
     # T1 -> T2,T3 -> T4  Dim1 = 1, Dim2 = 2
-    qc1 = QuantaCluster.from_quantum_node(test_lookup["T1_1_2"], "T1_1_2")
-    qc23 = QuantaCluster.from_quantum_node(test_lookup["T2_1_2"], "T23_1_2")
-    qc23.add_quantum_node(test_lookup["T3_1_2"])
+    qc1 = QuantaCluster.from_quantum_info(*test_lookup["T1_1_2"], template="T1_1_2")
+    qc23 = QuantaCluster.from_quantum_info(*test_lookup["T2_1_2"], template="T23_1_2")
+    qc23.add_quantum(*get_add_quantum_args("T3_1_2"))
     qc23.label = "clusterT2T3"  # update label so doesnt look like only T2
     qc23.tags["label"] = "clusterT2T3"
     cqg.add_cluster([qc23, qc1])  # reversed to check order is corrected in tests
     cqg.add_dependency(qc1, qc23)
-    qc4 = QuantaCluster.from_quantum_node(test_lookup["T4_1_2"], "T4_1_2")
+    qc4 = QuantaCluster.from_quantum_info(*test_lookup["T4_1_2"], template="T4_1_2")
     cqg.add_cluster(qc4)
     cqg.add_dependency(qc23, qc4)
-    qc2b = QuantaCluster.from_quantum_node(test_lookup["T2b_1_2"], "T2b_1_2")
+    qc2b = QuantaCluster.from_quantum_info(*test_lookup["T2b_1_2"], template="T2b_1_2")
     cqg.add_cluster(qc2b)
     cqg.add_dependency(qc23, qc2b)
 
     # T1 -> T2,T3 -> T4  Dim1 = 1, Dim2 = 4
-    qc1 = QuantaCluster.from_quantum_node(test_lookup["T1_1_4"], "T1_1_4")
-    qc23 = QuantaCluster.from_quantum_node(test_lookup["T2_1_4"], "T23_1_4")
-    qc23.add_quantum_node(test_lookup["T3_1_4"])
+    qc1 = QuantaCluster.from_quantum_info(*test_lookup["T1_1_4"], template="T1_1_4")
+    qc23 = QuantaCluster.from_quantum_info(*test_lookup["T2_1_4"], template="T23_1_4")
+    qc23.add_quantum(*get_add_quantum_args("T3_1_4"))
     qc23.label = "clusterT2T3"  # update label so doesnt look like only T2
     qc23.tags["label"] = "clusterT2T3"
     cqg.add_cluster([qc23, qc1])  # reversed to check order is corrected in tests
     cqg.add_dependency(qc1, qc23)
-    qc4 = QuantaCluster.from_quantum_node(test_lookup["T4_1_4"], "T4_1_4")
+    qc4 = QuantaCluster.from_quantum_info(*test_lookup["T4_1_4"], template="T4_1_4")
     cqg.add_cluster(qc4)
     cqg.add_dependency(qc23, qc4)
-    qc2b = QuantaCluster.from_quantum_node(test_lookup["T2b_1_4"], "T2b_1_4")
+    qc2b = QuantaCluster.from_quantum_info(*test_lookup["T2b_1_4"], template="T2b_1_4")
     cqg.add_cluster(qc2b)
     cqg.add_dependency(qc23, qc2b)
 
     # T1 -> T2,T3 -> T4  Dim1 = 3, Dim2 = 4
-    qc1 = QuantaCluster.from_quantum_node(test_lookup["T1_3_4"], "T1_3_4")
-    qc23 = QuantaCluster.from_quantum_node(test_lookup["T2_3_4"], "T23_3_4")
-    qc23.add_quantum_node(test_lookup["T3_3_4"])
+    qc1 = QuantaCluster.from_quantum_info(*test_lookup["T1_3_4"], template="T1_3_4")
+    qc23 = QuantaCluster.from_quantum_info(*test_lookup["T2_3_4"], template="T23_3_4")
+    qc23.add_quantum(*get_add_quantum_args("T3_3_4"))
     qc23.label = "clusterT2T3"  # update label so doesnt look like only T2
     qc23.tags["label"] = "clusterT2T3"
     cqg.add_cluster([qc23, qc1])  # reversed to check order is corrected in tests
     cqg.add_dependency(qc1, qc23)
-    qc4 = QuantaCluster.from_quantum_node(test_lookup["T4_3_4"], "T4_3_4")
+    qc4 = QuantaCluster.from_quantum_info(*test_lookup["T4_3_4"], template="T4_3_4")
     cqg.add_cluster(qc4)
     cqg.add_dependency(qc23, qc4)
-    qc2b = QuantaCluster.from_quantum_node(test_lookup["T2b_3_4"], "T2b_3_4")
+    qc2b = QuantaCluster.from_quantum_info(*test_lookup["T2b_3_4"], template="T2b_3_4")
     cqg.add_cluster(qc2b)
     cqg.add_dependency(qc23, qc2b)
 
     # Add remaining
-    cluster = QuantaCluster.from_quantum_node(test_lookup["T5_1_2"], "T5_1_2")
+    cluster = QuantaCluster.from_quantum_info(*test_lookup["T5_1_2"], template="T5_1_2")
     cqg.add_cluster(cluster)
-    cluster = QuantaCluster.from_quantum_node(test_lookup["T5_1_4"], "T5_1_4")
+    cluster = QuantaCluster.from_quantum_info(*test_lookup["T5_1_4"], template="T5_1_4")
     cqg.add_cluster(cluster)
-    cluster = QuantaCluster.from_quantum_node(test_lookup["T5_3_4"], "T5_3_4")
+    cluster = QuantaCluster.from_quantum_info(*test_lookup["T5_3_4"], template="T5_3_4")
     cqg.add_cluster(cluster)
 
-    return qgraph2, cqg
+    return qgraph, cqg
