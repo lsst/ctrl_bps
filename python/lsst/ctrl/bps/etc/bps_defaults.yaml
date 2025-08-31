@@ -1,6 +1,6 @@
 #USER pipelineYaml: "${OBS_SUBARU_DIR}/pipelines/DRP.yaml#processCcd"
 #  OR
-#USER qgraphFile: "/path/to/existing/file.qgraph"
+#USER qgraphFile: "/path/to/existing/file.qg"
 
 
 # At minimum, following group used in bps report and can be
@@ -94,7 +94,7 @@ clusterAlgorithm: lsst.ctrl.bps.quantum_clustering_funcs.single_quantum_clusteri
 
 # Templates for bps filenames
 submitPath: ${PWD}/submit/{outputRun}
-qgraphFileTemplate: "{uniqProcName}.qgraph"
+qgraphFileTemplate: "{uniqProcName}.qg"
 subDirTemplate: "{label}/{tract}/{patch}/{band}/{subfilter}/{physical_filter}/{visit}/{exposure}"
 templateDataId: "{tract}_{patch}_{band}_{visit}_{exposure}_{detector}"
 

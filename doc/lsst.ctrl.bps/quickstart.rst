@@ -157,7 +157,7 @@ or a pre-made file containing a serialized QuantumGraph, for example
 
 .. code-block:: YAML
 
-   qgraphFile: pipelines_check_w_2020_45.qgraph
+   qgraphFile: pipelines_check_w_2020_45.qg
 
 .. warning::
 
@@ -1243,7 +1243,7 @@ The major differences to users are:
     the output run in the provided pre-existing quantum graph.
   - ``final_post_finalJob.out``: An internal file for debugging incorrect
     reporting of final run status.
-  - ``<qgraph_filename>_orig.qgraph``: A backup copy of the original
+  - ``<qgraph_filename>_orig.qg``: A backup copy of the original
     pre-existing quantum graph file that was used for submitting the run.  Note
     that this file will *not* be present in the submit directory if the
     pipeline YAML specification was used during the submission instead.
