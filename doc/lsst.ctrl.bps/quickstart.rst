@@ -846,7 +846,7 @@ Supported settings
     When to output job QuantumGraph files (default = TRANSFORM).
 
     * NEVER = all jobs will use full QuantumGraph file. (Warning: make sure
-      runQuantumCommand has ``--qgraph-id {qgraphId} --qgraph-node-id {qgraphNodeId}``.)
+      runQuantumCommand has ``--qgraph-node-id {qgraphNodeId}``.)
     * TRANSFORM = Output QuantumGraph files after creating GenericWorkflow.
     * PREPARE = QuantumGraph files are output after creating WMS submission.
 
@@ -904,7 +904,7 @@ Reserved keywords
     However, contrary to YAML specification, it is currently not portable.
 
 **qgraphId**
-    Internal ID for the full QuantumGraph (passed as ``--qgraph-id`` on pipetask command line).
+    Ignored; accepted for backwards compatibility.
 
 **qgraphNodeId**
     Comma-separated list of internal QuantumGraph node numbers to be
@@ -1079,13 +1079,12 @@ single full QuantumGraph file plus node numbers for each job. The default is
 using per-job QuantumGraph files.
 
 To use full QuantumGraph file, the submit YAML must set ``whenSaveJobQgraph`` to
-"NEVER" and the ``pipetask run`` command must include ``--qgraph-id {qgraphId}
---qgraph-node-id {qgraphNodeId}``.  For example:
+"NEVER" and the ``pipetask run`` command must include ``--qgraph-node-id {qgraphNodeId}``.  For example:
 
 .. code::
 
     whenSaveJobQgraph: "NEVER"
-    runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask --long-log run -b {butlerConfig} --output {output} --output-run {outputRun} --qgraph {qgraphFile} --qgraph-id {qgraphId} --qgraph-node-id {qgraphNodeId} --skip-init-writes --extend-run --clobber-outputs --skip-existing"
+    runQuantumCommand: "${CTRL_MPEXEC_DIR}/bin/pipetask --long-log run -b {butlerConfig} --output {output} --output-run {outputRun} --qgraph {qgraphFile} --qgraph-node-id {qgraphNodeId} --skip-init-writes --extend-run --clobber-outputs --skip-existing"
 
 
 .. warning::
