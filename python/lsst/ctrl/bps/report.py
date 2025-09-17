@@ -40,10 +40,16 @@ from typing import TextIO
 
 from lsst.utils import doImport
 
-from .bps_reports import DetailedRunReport, ExitCodesReport, SummaryRunReport, compile_job_summary
+from .bps_reports import (
+    DetailedRunReport,
+    ExitCodesReport,
+    SummaryRunReport,
+    compile_code_summary,
+    compile_job_summary,
+)
 from .wms_service import WmsRunReport, WmsStates
 
-BPS_POSTPROCESSORS = (compile_job_summary,)
+BPS_POSTPROCESSORS = (compile_job_summary, compile_code_summary)
 """Postprocessors for massaging run reports
 (`tuple` [`Callable` [[`WmsRunReport`], None]).
 """
@@ -145,7 +151,8 @@ def display_report(
         print(run_brief, file=file)
 
     if messages:
-        print("\n".join(messages), file=file)
+        uniques = list(dict.fromkeys(messages))
+        print("\n".join(uniques), file=file)
         print("\n", file=file)
 
 
@@ -210,12 +217,12 @@ def retrieve_report(
     if postprocessors:
         for report in reports:
             for postprocessor in postprocessors:
-                try:
-                    postprocessor(report)
-                except Exception as exc:
-                    messages.append(
-                        f"Postprocessing error for '{report.wms_id}': {str(exc)} "
-                        f"(origin: {postprocessor.__name__})"
-                    )
+                if warnings := postprocessor(report):
+                    for warning in warnings:
+                        messages.append(
+                            f"WARNING: Report may be incomplete. "
+                            f"There was an issue with report postprocessing for '{report.wms_id}': "
+                            f"{warning} (origin: {postprocessor.__name__})"
+                        )
 
     return reports, messages
