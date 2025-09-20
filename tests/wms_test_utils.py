@@ -184,3 +184,7 @@ class WmsServiceFromDefaults(BaseWmsService):
     @property
     def defaults_path(self):
         return "/wms/class/from/defaults"
+
+
+class WmsServiceInvalid:
+    """WMS service class that is not a subclass of BaseWmsService."""

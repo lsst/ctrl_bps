@@ -42,6 +42,7 @@ from lsst.ctrl.bps import (
     WmsJobReport,
     WmsRunReport,
     WmsStates,
+    compile_code_summary,
     compile_job_summary,
 )
 from lsst.ctrl.bps.report import retrieve_report
@@ -335,23 +336,30 @@ class ExitCodesReportTestCase(unittest.TestCase):
 
         self.actual = ExitCodesReport(self.fields)
 
-    def testAddWithJobSummary(self):
-        """Test adding a run with a job summary."""
-        self.run.jobs = None
+    def testAddSuccess(self):
+        """Test adding a run successfully."""
         self.actual.add(self.run)
+
+        self.assertEqual(len(self.actual), 2)
         self.assertEqual(self.actual, self.expected)
 
-    def testAddWithJobs(self):
-        """Test adding a run with a job info, but not job summary."""
-        self.run.job_summary = None
+    def testAddFailure(self):
+        """Test adding a run unsuccessfully."""
+        self.run.job_summary = {}
+        self.run.exit_code_summary = {}
+
         self.actual.add(self.run)
-        self.assertEqual(self.actual, self.expected)
+
+        self.assertEqual(len(self.actual), 0)
+        self.assertRegex(self.actual.message, r"^WARNING.*report.*incomplete")
 
     def testAddWithoutRunSummary(self):
         """Test adding a run without a run summary."""
         self.run.run_summary = None
+
         self.actual.add(self.run)
-        self.assertRegex(self.actual.message, r"^WARNING.*incomplete")
+
+        self.assertRegex(self.actual.message, r"^WARNING.*sorted alphabetically")
 
 
 class CompileJobSummaryTestCase(unittest.TestCase):
@@ -364,30 +372,129 @@ class CompileJobSummaryTestCase(unittest.TestCase):
         pass
 
     def testSummaryExists(self):
-        """Test if existing report is not altered."""
+        """Test if the existing report is not altered."""
         # Create a report with a "fake" job summary, i.e., a summary which
         # differs from the one which would be compiled from the information
         # about individual jobs.
-        expected = dataclasses.replace(self.report)
-        expected.job_summary = {"foo": {state: 1 if state == WmsStates.FAILED else 0 for state in WmsStates}}
-
+        expected = dataclasses.replace(
+            self.report,
+            job_summary={"foo": {state: 1 if state == WmsStates.FAILED else 0 for state in WmsStates}},
+        )
         result = dataclasses.replace(expected)
-        compile_job_summary(result)
+
+        messages = compile_job_summary(result)
+
         self.assertEqual(result, expected)
+        self.assertFalse(messages)
 
     def testSummaryMissing(self):
-        """Test if the summary will be compiled if necessary."""
-        result = dataclasses.replace(self.report)
-        result.job_summary = None
-        compile_job_summary(result)
+        """Test if the summary is compiled if necessary."""
+        result = dataclasses.replace(self.report, job_summary=None)
+
+        messages = compile_job_summary(result)
+
         self.assertEqual(result, self.report)
+        self.assertFalse(messages)
 
     def testCompilationError(self):
-        """Test if error is raised if the summary cannot be compiled."""
-        self.report.job_summary = None
-        self.report.jobs = None
-        with self.assertRaises(ValueError):
-            compile_job_summary(self.report)
+        """Test if a warning is issued if the summary cannot be compiled."""
+        result = dataclasses.replace(self.report, jobs=None, job_summary=None)
+
+        messages = compile_job_summary(result)
+
+        self.assertEqual(len(messages), 1)
+        self.assertRegex(messages[0], r"information.*not available")
+
+
+class CompileCodeSummaryTestCase(unittest.TestCase):
+    """Test compiling a code summary."""
+
+    def setUp(self):
+        self.report = WmsRunReport(
+            wms_id="1.0",
+            global_wms_id="foo#1.0",
+            path="/path/to/run",
+            label="label",
+            run="run",
+            project="dev",
+            campaign="testing",
+            payload="test",
+            operator="tester",
+            run_summary="foo:1;bar:1;baz:1",
+            state=WmsStates.RUNNING,
+            jobs=[
+                WmsJobReport(wms_id="1.0", name="", label="foo", state=WmsStates.SUCCEEDED),
+                WmsJobReport(wms_id="2.0", name="", label="bar", state=WmsStates.FAILED),
+                WmsJobReport(wms_id="3.0", name="", label="baz", state=WmsStates.RUNNING),
+            ],
+            total_number_jobs=3,
+            job_state_counts={
+                state: 1 if state in {WmsStates.SUCCEEDED, WmsStates.FAILED, WmsStates.RUNNING} else 0
+                for state in WmsStates
+            },
+            job_summary={
+                "foo": {state: 1 if state == WmsStates.SUCCEEDED else 0 for state in WmsStates},
+                "bar": {state: 1 if state == WmsStates.FAILED else 0 for state in WmsStates},
+                "baz": {state: 1 if state == WmsStates.RUNNING else 0 for state in WmsStates},
+            },
+            exit_code_summary={"foo": [], "bar": [1], "baz": []},
+        )
+
+    def tearDown(self):
+        pass
+
+    def testAddingMissingEntries(self):
+        """Test if the missing entries are added to the summary."""
+        result = dataclasses.replace(self.report, exit_code_summary={"bar": [1]})
+
+        messages = compile_code_summary(result)
+
+        self.assertEqual(result, self.report)
+        self.assertFalse(messages)
+
+    def testDetectingMismatches(self):
+        """Test if a mismatch between exit codes and failures is reported."""
+        expected = dataclasses.replace(self.report, exit_code_summary={"foo": [1], "bar": [1], "baz": []})
+        result = dataclasses.replace(expected)
+
+        messages = compile_code_summary(result)
+
+        self.assertEqual(result, expected)
+        self.assertEqual(len(messages), 1)
+        self.assertRegex(messages[0], r"exit codes.*differs.*failures.*labels: foo")
+
+    def testDetectingOmissions(self):
+        """Test if a failure not reflected in exit codes is reported."""
+        expected = dataclasses.replace(self.report, exit_code_summary={"foo": [], "baz": []})
+        result = dataclasses.replace(expected)
+
+        messages = compile_code_summary(result)
+
+        self.assertEqual(result, expected)
+        self.assertEqual(len(messages), 1)
+        self.assertRegex(messages[0], r"exit codes.*not available.*labels: bar")
+
+    def testDetectingDiscrepancies(self):
+        """Test if multiple discrepancies are reported."""
+        expected = dataclasses.replace(self.report, exit_code_summary={"foo": [], "baz": [1]})
+        result = dataclasses.replace(expected)
+
+        messages = compile_code_summary(result)
+
+        self.assertEqual(result, expected)
+        self.assertEqual(len(messages), 2)
+        self.assertRegex(messages[0], r"exit codes.*differs.*failures.*labels: baz")
+        self.assertRegex(messages[1], r"exit codes.*not available.*labels: bar")
+
+    def testHandlingNoJobSummary(self):
+        """Test if the existing report is not altered if no job summary."""
+        expected = dataclasses.replace(self.report, job_summary=None)
+        result = dataclasses.replace(expected)
+
+        messages = compile_code_summary(result)
+
+        self.assertEqual(result, expected)
+        self.assertFalse(messages)
 
 
 class RetrieveReportTestCase(unittest.TestCase):
@@ -414,7 +521,12 @@ class RetrieveReportTestCase(unittest.TestCase):
             "wms_test_utils.WmsServiceFailure", postprocessors=(compile_job_summary,)
         )
         self.assertEqual(len(messages), 1)
-        self.assertRegex(messages[0], "Postprocessing error")
+        self.assertRegex(messages[0], "issue.*postprocessing")
+
+    def testRetrievalInvalidClass(self):
+        """Test retrieving a report with an invalid class."""
+        with self.assertRaises(TypeError):
+            retrieve_report("wms_test_utils.WmsServiceInvalid", run_id="1.0", postprocessors=None)
 
 
 if __name__ == "__main__":
