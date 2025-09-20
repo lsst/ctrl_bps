@@ -62,7 +62,7 @@ class BaseRunReport(abc.ABC):
 
     def __eq__(self, other):
         if isinstance(other, BaseRunReport):
-            return all(self._table == other._table)
+            return self._table.pformat() == other._table.pformat()
         return False
 
     def __len__(self):
