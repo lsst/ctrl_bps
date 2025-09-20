@@ -117,7 +117,7 @@ def display_report(
 
             run_report.add(run, use_global_id=is_global)
             if run_report.message:
-                print(run_report.message, file=file)
+                messages.append(run_report.message)
 
             print(run_brief, file=file)
             print("\n", file=file)
@@ -138,6 +138,8 @@ def display_report(
                 ]
                 run_exits_report = ExitCodesReport(fields)
                 run_exits_report.add(run, use_global_id=is_global)
+                if run_exits_report.message:
+                    messages.append(run_exits_report.message)
                 print("\n", file=file)
                 print(run_exits_report, file=file)
                 run_exits_report.clear()
