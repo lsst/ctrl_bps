@@ -38,7 +38,7 @@ import sys
 from collections.abc import Callable, Sequence
 from typing import TextIO
 
-from lsst.utils import doImport
+from lsst.utils import doImportType
 
 from .bps_reports import (
     DetailedRunReport,
@@ -47,7 +47,7 @@ from .bps_reports import (
     compile_code_summary,
     compile_job_summary,
 )
-from .wms_service import WmsRunReport, WmsStates
+from .wms_service import BaseWmsService, WmsRunReport, WmsStates
 
 BPS_POSTPROCESSORS = (compile_job_summary, compile_code_summary)
 """Postprocessors for massaging run reports
@@ -159,7 +159,7 @@ def display_report(
 
 
 def retrieve_report(
-    wms_service: str,
+    wms_service_fqn: str,
     *,
     run_id: str | None = None,
     user: str | None = None,
@@ -172,7 +172,7 @@ def retrieve_report(
 
     Parameters
     ----------
-    wms_service : `str`
+    wms_service_fqn : `str`
         Name of the WMS service class.
     run_id : `str`, optional
         A run id the report will be restricted to.
@@ -205,11 +205,21 @@ def retrieve_report(
     messages : `list` [`str`]
         Errors that happened during report retrieval and/or processing.
         Empty if no issues were encountered.
-    """
-    messages = []
 
-    wms_service_class = doImport(wms_service)
+    Raises
+    ------
+    TypeError
+        Raised if the WMS service class is not a subclass of BaseWmsService.
+    """
+    messages: list[str] = []
+
+    wms_service_class = doImportType(wms_service_fqn)
+    if not issubclass(wms_service_class, BaseWmsService):
+        raise TypeError(
+            f"Invalid WMS service class '{wms_service_fqn}'; must be a subclass of BaseWmsService"
+        )
     wms_service = wms_service_class({})
+
     reports, message = wms_service.report(
         wms_workflow_id=run_id, user=user, hist=hist, pass_thru=pass_thru, is_global=is_global
     )
