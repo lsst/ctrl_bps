@@ -27,7 +27,14 @@
 
 """Classes and functions used in reporting run status."""
 
-__all__ = ["BaseRunReport", "DetailedRunReport", "ExitCodesReport", "SummaryRunReport", "compile_job_summary"]
+__all__ = [
+    "BaseRunReport",
+    "DetailedRunReport",
+    "ExitCodesReport",
+    "SummaryRunReport",
+    "compile_code_summary",
+    "compile_job_summary",
+]
 
 import abc
 import logging
@@ -55,7 +62,7 @@ class BaseRunReport(abc.ABC):
 
     def __eq__(self, other):
         if isinstance(other, BaseRunReport):
-            return all(self._table == other._table)
+            return self._table.pformat() == other._table.pformat()
         return False
 
     def __len__(self):
@@ -195,7 +202,7 @@ class DetailedRunReport(BaseRunReport):
         job_summary = run_report.job_summary
         if job_summary is None:
             id_ = run_report.global_wms_id if use_global_id else run_report.wms_id
-            self._msg = f"WARNING: Job summary for run '{id_}' not available, report maybe incomplete."
+            self._msg = f"WARNING: Job summary for run '{id_}' not available, report may be incomplete."
             return
 
         if by_label_expected:
@@ -231,44 +238,60 @@ class ExitCodesReport(BaseRunReport):
     error handling from the wms service.
     """
 
-    def add(self, run_report, use_global_id=False):
+    def add(self, run_report: WmsRunReport, use_global_id: bool = False) -> None:
         # Docstring inherited from the base class.
 
-        # Use label ordering from the run summary as it should reflect
-        # the ordering of the pipetasks in the pipeline.
+        exit_code_summary = run_report.exit_code_summary
+        if not exit_code_summary:
+            id_ = run_report.global_wms_id if use_global_id else run_report.wms_id
+            self._msg = f"WARNING: Exit code summary for run '{id_}' not available, report may be incomplete."
+            return
+
+        warnings = []
+
+        # If available, use label ordering from the run summary as it should
+        # reflect the ordering of the pipetasks in the pipeline.
         labels = []
         if run_report.run_summary:
             for part in run_report.run_summary.split(";"):
                 label, _ = part.split(":")
                 labels.append(label)
-        else:
-            id_ = run_report.global_wms_id if use_global_id else run_report.wms_id
-            self._msg = f"WARNING: Job summary for run '{id_}' not available, report maybe incomplete."
-            return
+        if not labels:
+            labels = sorted(exit_code_summary)
+            warnings.append("WARNING: Could not determine order of pipeline, instead sorted alphabetically.")
 
         # Payload (e.g. pipetask) error codes:
         # * 1: general failure,
         # * 2: command line error (e.g. unknown command and/or option).
         pyld_error_codes = {1, 2}
 
-        exit_code_summary = run_report.exit_code_summary
+        missing_labels = set()
         for label in labels:
-            exit_codes = exit_code_summary[label]
+            try:
+                exit_codes = exit_code_summary[label]
+            except KeyError:
+                missing_labels.add(label)
+            else:
+                pyld_errors = [code for code in exit_codes if code in pyld_error_codes]
+                pyld_error_count = len(pyld_errors)
+                pyld_error_summary = (
+                    ", ".join(sorted(str(code) for code in set(pyld_errors))) if pyld_errors else "None"
+                )
 
-            pyld_errors = [code for code in exit_codes if code in pyld_error_codes]
-            pyld_error_count = len(pyld_errors)
-            pyld_error_summary = (
-                ", ".join(sorted(str(code) for code in set(pyld_errors))) if pyld_errors else "None"
+                infra_errors = [code for code in exit_codes if code not in pyld_error_codes]
+                infra_error_count = len(infra_errors)
+                infra_error_summary = (
+                    ", ".join(sorted(str(code) for code in set(infra_errors))) if infra_errors else "None"
+                )
+
+                run = [label, pyld_error_count, pyld_error_summary, infra_error_count, infra_error_summary]
+                self._table.add_row(run)
+        if missing_labels:
+            warnings.append(
+                f"WARNING: Exit code summary was not available for job labels: {', '.join(missing_labels)}"
             )
-
-            infra_errors = [code for code in exit_codes if code not in pyld_error_codes]
-            infra_error_count = len(infra_errors)
-            infra_error_summary = (
-                ", ".join(sorted(str(code) for code in set(infra_errors))) if infra_errors else "None"
-            )
-
-            run = [label, pyld_error_count, pyld_error_summary, infra_error_count, infra_error_summary]
-            self._table.add_row(run)
+        if warnings:
+            self._msg = "\n".join(warnings)
 
     def __str__(self):
         alignments = ["<"] + [">"] * (len(self._table.colnames) - 1)
@@ -276,7 +299,7 @@ class ExitCodesReport(BaseRunReport):
         return str("\n".join(lines))
 
 
-def compile_job_summary(report: WmsRunReport) -> None:
+def compile_job_summary(report: WmsRunReport) -> list[str]:
     """Add a job summary to the run report if necessary.
 
     If the job summary is not provided, the function will attempt to compile
@@ -289,24 +312,89 @@ def compile_job_summary(report: WmsRunReport) -> None:
     report : `lsst.ctrl.bps.WmsRunReport`
         Information about a single run.
 
-    Raises
-    ------
-    ValueError
-        Raised if the job summary *and* information about individual jobs
-        is not available.
+    Returns
+    -------
+    warnings : `list` [`str`]
+        List of messages describing any non-critical issues encountered during
+        processing. Empty if none.
     """
+    warnings: list[str] = []
+
+    # If the job summary already exists, exit early.
     if report.job_summary:
-        return
-    if not report.jobs:
-        raise ValueError("job summary cannot be compiled: information about individual jobs not available.")
-    job_summary = {}
-    by_label = group_jobs_by_label(report.jobs)
-    for label, job_group in by_label.items():
-        by_label_state = group_jobs_by_state(job_group)
-        _LOG.debug("by_label_state = %s", by_label_state)
-        counts = {state: len(jobs) for state, jobs in by_label_state.items()}
-        job_summary[label] = counts
-    report.job_summary = job_summary
+        return warnings
+
+    if report.jobs:
+        job_summary = {}
+        by_label = group_jobs_by_label(report.jobs)
+        for label, job_group in by_label.items():
+            by_label_state = group_jobs_by_state(job_group)
+            _LOG.debug("by_label_state = %s", by_label_state)
+            counts = {state: len(jobs) for state, jobs in by_label_state.items()}
+            job_summary[label] = counts
+        report.job_summary = job_summary
+    else:
+        warnings.append("information about individual jobs not available")
+
+    return warnings
+
+
+def compile_code_summary(report: WmsRunReport) -> list[str]:
+    """Add missing entries to the exit code summary if necessary.
+
+    A WMS plugin may exclude job labels for which there are no failures from
+    the exit code summary. The function will attempt to use the job summary,
+    if available, to add missing entries for these labels.
+
+    Parameters
+    ----------
+    report : `lsst.ctrl.bps.WmsRunReport`
+        Information about a single run.
+
+    Returns
+    -------
+    warnings : `list` [`str`]
+        List of messages describing any non-critical issues encountered during
+        processing. Empty if none.
+    """
+    warnings: list[str] = []
+
+    # If the job summary is not available, exit early.
+    if not report.job_summary:
+        return warnings
+
+    # A shallow copy is enough here because we won't be modifying the existing
+    # entries, only adding new ones if necessary.
+    exit_code_summary = dict(report.exit_code_summary) if report.exit_code_summary else {}
+
+    # Use the job summary to add the entries for labels with no failures
+    # *without* modifying already existing entries.
+    failure_summary = {label: states[WmsStates.FAILED] for label, states in report.job_summary.items()}
+    for label, count in failure_summary.items():
+        if count == 0:
+            exit_code_summary.setdefault(label, [])
+
+    # Check if there are any discrepancies between the data in the exit code
+    # summary and the job summary.
+    code_summary_labels = set(exit_code_summary)
+    failure_summary_labels = set(failure_summary)
+    mismatches = {
+        label
+        for label in failure_summary_labels & code_summary_labels
+        if len(exit_code_summary[label]) != failure_summary[label]
+    }
+    if mismatches:
+        warnings.append(
+            f"number of exit codes differs from number of failures for job labels: {', '.join(mismatches)}"
+        )
+    missing = failure_summary_labels - code_summary_labels
+    if missing:
+        warnings.append(f"exit codes not available for job labels: {', '.join(missing)}")
+
+    if exit_code_summary:
+        report.exit_code_summary = exit_code_summary
+
+    return warnings
 
 
 def group_jobs_by_state(jobs):
