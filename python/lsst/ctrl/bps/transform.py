@@ -190,16 +190,6 @@ def create_init_workflow(
     # Adjust job attributes values if necessary.
     _handle_job_values(job_values, gwjob)
 
-    # Pick a node id for each task (not quantum!) to avoid reading the entire
-    # quantum graph during the initialization stage.
-    node_ids = []
-    for task_label in qgraph.pipeline_graph.tasks:
-        task_def = qgraph.findTaskDefByLabel(task_label)
-        node = next(iter(qgraph.getNodesForTask(task_def)))
-        node_ids.append(node.nodeId)
-    gwjob.cmdvals["qgraphId"] = qgraph.graphID
-    gwjob.cmdvals["qgraphNodeId"] = ",".join(sorted([f"{node_id}" for node_id in node_ids]))
-
     init_workflow.add_job(gwjob)
     init_workflow.add_job_inputs(gwjob.name, [qgraph_gwfile])
     _enhance_command(config, init_workflow, gwjob, {})
@@ -682,14 +672,13 @@ def create_generic_workflow(
         # either common or aggregate for all Quanta in cluster.
         for node_id in iter(cluster.qgraph_node_ids):
             _LOG.debug("node_id=%s", node_id)
-            qnode = cqgraph.get_quantum_node(node_id)
+            quantum_info = cqgraph.get_quantum_info(node_id)
 
-            if qnode.taskDef.label not in cached_pipetask_values:
-                search_opt["curvals"]["curr_pipetask"] = qnode.taskDef.label
-                cached_pipetask_values[qnode.taskDef.label] = _get_job_values(
-                    config, search_opt, "runQuantumCommand"
-                )
-            _handle_job_values(cached_pipetask_values[qnode.taskDef.label], gwjob, unset_attributes)
+            task_label = quantum_info["task_label"]
+            if task_label not in cached_pipetask_values:
+                search_opt["curvals"]["curr_pipetask"] = task_label
+                cached_pipetask_values[task_label] = _get_job_values(config, search_opt, "runQuantumCommand")
+            _handle_job_values(cached_pipetask_values[task_label], gwjob, unset_attributes)
 
         # Update job with workflow attribute and profile values.
         qgraph_gwfile = _get_qgraph_gwfile(
@@ -699,7 +688,6 @@ def create_generic_workflow(
         generic_workflow.add_job(gwjob)
         generic_workflow.add_job_inputs(gwjob.name, [qgraph_gwfile])
 
-        gwjob.cmdvals["qgraphId"] = cqgraph.qgraph.graphID
         gwjob.cmdvals["qgraphNodeId"] = ",".join(
             sorted([f"{node_id}" for node_id in cluster.qgraph_node_ids])
         )

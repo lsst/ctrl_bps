@@ -146,7 +146,7 @@ def create_job_quantum_graph_filename(config, job, out_prefix=None):
     found, subdir = config.search("subDirTemplate", opt={"curvals": curvals})
     if not found:
         subdir = "{job.label}"
-    full_filename = Path("inputs") / subdir / f"quantum_{job.name}.qgraph"
+    full_filename = Path("inputs") / subdir / f"quantum_{job.name}.qg"
 
     if out_prefix is not None:
         full_filename = Path(out_prefix) / full_filename

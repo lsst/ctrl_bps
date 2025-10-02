@@ -35,8 +35,7 @@ from pathlib import Path
 
 from lsst.ctrl.bps import BpsConfig, BpsSubprocessError, ClusteredQuantumGraph
 from lsst.ctrl.bps.pre_transform import cluster_quanta, create_quantum_graph, execute, update_quantum_graph
-from lsst.daf.butler import DimensionUniverse
-from lsst.pipe.base import QuantumGraph
+from lsst.pipe.base.tests.mocks import InMemoryRepo
 
 TESTDIR = os.path.abspath(os.path.dirname(__file__))
 _LOG = logging.getLogger(__name__)
@@ -82,7 +81,7 @@ class TestCreatingQuantumGraph(unittest.TestCase):
             "submitPath": self.tmpdir,
             "whenSaveJobQgraph": "NEVER",
             "uniqProcName": "my_test",
-            "qgraphFileTemplate": "{uniqProcName}.qgraph",
+            "qgraphFileTemplate": "{uniqProcName}.qg",
         }
         self.logger = logging.getLogger("lsst.ctrl.bps")
 
@@ -125,8 +124,8 @@ class TestUpdatingQuantumGraph(unittest.TestCase):
             "submitPath": self.tmpdir,
             "whenSaveJobQgraph": "NEVER",
             "uniqProcName": "my_test",
-            "qgraphFileTemplate": "{uniqProcName}.qgraph",
-            "inputQgraphFile": f"{self.tmpdir}/src.qgraph",
+            "qgraphFileTemplate": "{uniqProcName}.qg",
+            "inputQgraphFile": f"{self.tmpdir}/src.qg",
         }
         self.logger = logging.getLogger("lsst.ctrl.bps")
 
@@ -195,7 +194,7 @@ class TestClusterQuanta(unittest.TestCase):
             "validateClusteredQgraph": True,
         }
         config = BpsConfig(settings, search_order=[])
-        qgraph = QuantumGraph({}, universe=DimensionUniverse())
+        qgraph = InMemoryRepo().make_quantum_graph()
         with self.assertRaisesRegex(RuntimeError, "Fake error"):
             _ = cluster_quanta(config, qgraph, "a_name")
 
@@ -209,7 +208,7 @@ class TestClusterQuanta(unittest.TestCase):
             "validateClusteredQgraph": False,
         }
         config = BpsConfig(settings, search_order=[])
-        qgraph = QuantumGraph({}, universe=DimensionUniverse())
+        qgraph = InMemoryRepo().make_quantum_graph()
         _ = cluster_quanta(config, qgraph, "a_name")
 
 

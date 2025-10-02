@@ -50,7 +50,7 @@ import logging
 import os
 from pathlib import Path
 
-from lsst.pipe.base import QuantumGraph
+from lsst.pipe.base.quantum_graph import PredictedQuantumGraph
 from lsst.utils.timer import time_this
 from lsst.utils.usage import get_peak_mem_usage
 
@@ -111,7 +111,7 @@ def _init_submission_driver(config_file: str, **kwargs) -> BpsConfig:
     return config
 
 
-def acquire_qgraph_driver(config_file: str, **kwargs) -> tuple[BpsConfig, QuantumGraph]:
+def acquire_qgraph_driver(config_file: str, **kwargs) -> tuple[BpsConfig, PredictedQuantumGraph]:
     """Read a quantum graph from a file or create one from pipeline definition.
 
     Parameters
@@ -125,7 +125,7 @@ def acquire_qgraph_driver(config_file: str, **kwargs) -> tuple[BpsConfig, Quantu
     -------
     config : `lsst.ctrl.bps.BpsConfig`
         Updated configuration.
-    qgraph : `lsst.pipe.base.graph.QuantumGraph`
+    qgraph : `lsst.pipe.base.quantum_graph.PredictedQuantumGraph`
         A graph representing quanta.
     """
     config = _init_submission_driver(config_file, **kwargs)
