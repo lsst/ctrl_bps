@@ -93,15 +93,13 @@ def acquire_quantum_graph(config: BpsConfig, out_prefix: str = "") -> tuple[str,
 
     _LOG.info("Reading quantum graph from '%s'", qgraph_filename)
     with time_this(log=_LOG, level=logging.INFO, prefix=None, msg="Completed reading quantum graph"):
-        qgraph_filename = ResourcePath(qgraph_filename)
-        if qgraph_filename.getExtension() == ".qg":
-            with PredictedQuantumGraph.open(
-                qgraph_filename, import_mode=TaskImportMode.DO_NOT_IMPORT
-            ) as reader:
+        qgraph_path = ResourcePath(qgraph_filename)
+        if qgraph_path.getExtension() == ".qg":
+            with PredictedQuantumGraph.open(qgraph_path, import_mode=TaskImportMode.DO_NOT_IMPORT) as reader:
                 reader.read_thin_graph()
                 qgraph = reader.finish()
-        elif qgraph_filename.getExtension() == ".qgraph":
-            qgraph = PredictedQuantumGraph.from_old_quantum_graph(QuantumGraph.loadUri(qgraph_filename))
+        elif qgraph_path.getExtension() == ".qgraph":
+            qgraph = PredictedQuantumGraph.from_old_quantum_graph(QuantumGraph.loadUri(qgraph_path))
         else:
             raise ValueError(f"Unrecognized extension for quantum graph file: {qgraph_filename}.")
     return qgraph_filename, qgraph
