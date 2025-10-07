@@ -451,6 +451,7 @@ def report_driver(wms_service, run_id, user, hist_days, pass_thru, is_global=Fal
         hist=hist_days,
         pass_thru=pass_thru,
         is_global=is_global,
+        return_exit_codes=return_exit_codes,
         postprocessors=postprocessors,
     )
 

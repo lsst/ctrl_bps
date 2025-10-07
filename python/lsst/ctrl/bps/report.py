@@ -166,6 +166,7 @@ def retrieve_report(
     hist: float | None = None,
     pass_thru: str | None = None,
     is_global: bool = False,
+    return_exit_codes: bool = False,
     postprocessors: Sequence[Callable[[WmsRunReport], None]] | None = None,
 ) -> tuple[list[WmsRunReport], list[str]]:
     """Retrieve summary of jobs submitted for execution.
@@ -189,6 +190,13 @@ def retrieve_report(
 
         Only applicable in the context of a WMS using distributed job queues
         (e.g., HTCondor).
+    return_exit_codes : `bool`, optional
+        If set, return exit codes related to jobs with a
+        non-success status. Defaults to False, which means that only
+        the summary state is returned.
+
+        Only applicable in the context of a WMS with associated
+        handlers to return exit codes from jobs.
     postprocessors : `collections.abc.Sequence` [callable], optional
         List of functions for "massaging" reports returned by the plugin. Each
         function must take one positional argument:
@@ -221,7 +229,12 @@ def retrieve_report(
     wms_service = wms_service_class({})
 
     reports, message = wms_service.report(
-        wms_workflow_id=run_id, user=user, hist=hist, pass_thru=pass_thru, is_global=is_global
+        wms_workflow_id=run_id,
+        user=user,
+        hist=hist,
+        pass_thru=pass_thru,
+        is_global=is_global,
+        return_exit_codes=return_exit_codes,
     )
     if message:
         messages.append(message)
