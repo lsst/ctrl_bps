@@ -1161,9 +1161,9 @@ New YAML Section
      implementation: JOB
      concurrencyLimit: db_limit
      command1: >-
-       ${DAF_BUTLER_DIR}/bin/butler transfer-from-graph
-       {fileDistributionEndPoint}{qgraphFile}
+       ${DAF_BUTLER_DIR}/bin/butler aggregate-graph
        {butlerConfig}
+       -g {fileDistributionEndPoint}{qgraphFile}
        --register-dataset-types
        {updateOutputChain}
 
