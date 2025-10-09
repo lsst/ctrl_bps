@@ -124,10 +124,13 @@ finalJob:
   implementation: JOB
   concurrencyLimit: db_limit
   finalPreCmdOpts: "{defaultPreCmdOpts}"
+  requestCpus: 32
+  requestMemory: 65536
   command1: >-
-    ${DAF_BUTLER_DIR}/bin/butler {finalPreCmdOpts} transfer-from-graph
-    {fileDistributionEndPoint}{qgraphFile}
+    ${DAF_BUTLER_DIR}/bin/butler {finalPreCmdOpts} aggregate-graph
     {butlerConfig}
+    -g {fileDistributionEndPoint}{qgraphFile}
+    -j 48
     --register-dataset-types
     {updateOutputChain}
 
