@@ -114,7 +114,7 @@ useLazyCommands: True
 executionButler:
   whenCreate: "NEVER"
 
-finalJobNumProcesses: 8
+finalJobNumProcesses: 16
 extraAggregateOptions: ""
 finalJob:
   retryUnlessExit: 2
@@ -127,7 +127,7 @@ finalJob:
   concurrencyLimit: db_limit
   finalPreCmdOpts: "{defaultPreCmdOpts}"
   requestCpus: "{finalJobNumProcesses}"
-  requestMemory: 16384
+  requestMemory: 32768
   command1: >-
     ${DAF_BUTLER_DIR}/bin/butler {finalPreCmdOpts} aggregate-graph
     {fileDistributionEndPoint}{qgraphFile}
