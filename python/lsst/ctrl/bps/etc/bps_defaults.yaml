@@ -114,6 +114,7 @@ useLazyCommands: True
 executionButler:
   whenCreate: "NEVER"
 
+extraAggregateOptions: ""
 finalJob:
   retryUnlessExit: 2
   updateOutputChain: "--update-output-chain"
@@ -124,12 +125,16 @@ finalJob:
   implementation: JOB
   concurrencyLimit: db_limit
   finalPreCmdOpts: "{defaultPreCmdOpts}"
+  requestCpus: 16
+  requestMemory: 32768
   command1: >-
-    ${DAF_BUTLER_DIR}/bin/butler {finalPreCmdOpts} transfer-from-graph
+    ${DAF_BUTLER_DIR}/bin/butler {finalPreCmdOpts} aggregate-graph
     {fileDistributionEndPoint}{qgraphFile}
     {butlerConfig}
+    -j {requestCpus}
     --register-dataset-types
     {updateOutputChain}
+    {extraAggregateOptions}
 
 # Set a global default memory limit (in MiB) for the automatic memory scaling
 # mechanism. The value, 480 GiB, picked based on the cluster specifications
