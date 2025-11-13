@@ -156,7 +156,7 @@ def retrieve_report(
     pass_thru: str | None = None,
     is_global: bool = False,
     return_exit_codes: bool = False,
-    postprocessors: Sequence[Callable[[WmsRunReport], None]] | None = None,
+    postprocessors: Sequence[Callable[[WmsRunReport], list[str]]] | None = None,
 ) -> tuple[list[WmsRunReport], list[str]]:
     """Retrieve summary of jobs submitted for execution.
 
