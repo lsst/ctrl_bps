@@ -55,6 +55,7 @@ from lsst.utils.timer import time_this
 from lsst.utils.usage import get_peak_mem_usage
 
 from . import BPS_DEFAULTS, BPS_SEARCH_ORDER, DEFAULT_MEM_FMT, DEFAULT_MEM_UNIT, BpsConfig
+from .bps_reports import compile_code_summary, compile_job_summary
 from .bps_utils import _dump_env_info, _dump_pkg_info, _make_id_link
 from .cancel import cancel
 from .construct import construct
@@ -68,7 +69,7 @@ from .initialize import (
 from .ping import ping
 from .pre_transform import acquire_quantum_graph, cluster_quanta
 from .prepare import prepare
-from .report import BPS_POSTPROCESSORS, display_report, retrieve_report
+from .report import display_report, retrieve_report
 from .restart import restart
 from .status import status
 from .submit import submit
@@ -400,20 +401,31 @@ def restart_driver(wms_service, run_id):
             print("Restart failed: Unknown error")
 
 
-def report_driver(wms_service, run_id, user, hist_days, pass_thru, is_global=False, return_exit_codes=False):
-    """Print out summary of jobs submitted for execution.
+def report_driver(
+    wms_service: str | None = None,
+    run_id: str | None = None,
+    user: str | None = None,
+    hist_days: float = 0.0,
+    pass_thru: str | None = None,
+    is_global: bool = False,
+    return_exit_codes: bool = False,
+):
+    """Print out the summary of jobs submitted for execution.
 
     Parameters
     ----------
-    wms_service : `str`
+    wms_service : `str`, optional
         Name of the class.
-    run_id : `str`
+    run_id : `str`, optional
         A run id the report will be restricted to.
-    user : `str`
+    user : `str`, optional
         A user the report will be restricted to.
-    hist_days : `float`
-        Number of days.
-    pass_thru : `str`
+    hist_days : `float`, optional
+        Number of past days to consider while preparing the report. By default,
+        only the currently running workflows are included in the report.
+        If the report is restricted to a single run (i.e., ``run_id`` is set),
+        the history search will be limited by default to two past days.
+    pass_thru : `str`, optional
         A string to pass directly to the WMS service class.
     is_global : `bool`, optional
         If set, all available job queues will be queried for job information.
@@ -430,17 +442,19 @@ def report_driver(wms_service, run_id, user, hist_days, pass_thru, is_global=Fal
         Only applicable in the context of a WMS with associated
         handlers to return exit codes from jobs.
     """
-    if wms_service is None:
+    if not wms_service:
         default_config = BpsConfig(BPS_DEFAULTS)
         wms_service = os.environ.get("BPS_WMS_SERVICE_CLASS", default_config["wmsServiceClass"])
 
-    # When reporting on single run:
-    # * increase history until better mechanism for handling completed jobs is
-    #   available.
+    # When reporting on a single run:
+    # * increase history until a better mechanism for handling completed jobs
+    #   is available.
     # * massage the retrieved reports using BPS report postprocessors.
     if run_id:
         hist_days = max(hist_days, 2)
-        postprocessors = BPS_POSTPROCESSORS
+        postprocessors = [compile_job_summary]
+        if return_exit_codes:
+            postprocessors.append(compile_code_summary)
     else:
         postprocessors = None
 
