@@ -343,7 +343,6 @@ def make_test_quantum_graph(run: str = "run", uneven=False):
             for qd in qgc.quantum_datasets.values()
             if (qd.task_label, *qd.data_coordinate) not in keys_to_drop
         }
-        qgc.set_quantum_indices()
         qgc.set_thin_graph()
         qgc.set_header_counts()
     return qgc.assemble()
