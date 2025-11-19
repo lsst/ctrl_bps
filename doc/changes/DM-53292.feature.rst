@@ -1,0 +1,1 @@
+Implemented `wmsAttemptNum` with generic wms variable placeholders.
