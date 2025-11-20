@@ -31,7 +31,7 @@ Note: Expectations are that future reporting effort will revolve around LSST
 oriented database tables.
 """
 
-__all__ = ["BPS_POSTPROCESSORS", "display_report", "retrieve_report"]
+__all__ = ["display_report", "retrieve_report"]
 
 import logging
 import sys
@@ -40,19 +40,8 @@ from typing import TextIO
 
 from lsst.utils import doImportType
 
-from .bps_reports import (
-    DetailedRunReport,
-    ExitCodesReport,
-    SummaryRunReport,
-    compile_code_summary,
-    compile_job_summary,
-)
+from .bps_reports import DetailedRunReport, ExitCodesReport, SummaryRunReport
 from .wms_service import BaseWmsService, WmsRunReport, WmsStates
-
-BPS_POSTPROCESSORS = (compile_job_summary, compile_code_summary)
-"""Postprocessors for massaging run reports
-(`tuple` [`Callable` [[`WmsRunReport`], None]).
-"""
 
 _LOG = logging.getLogger(__name__)
 
@@ -167,7 +156,7 @@ def retrieve_report(
     pass_thru: str | None = None,
     is_global: bool = False,
     return_exit_codes: bool = False,
-    postprocessors: Sequence[Callable[[WmsRunReport], None]] | None = None,
+    postprocessors: Sequence[Callable[[WmsRunReport], list[str]]] | None = None,
 ) -> tuple[list[WmsRunReport], list[str]]:
     """Retrieve summary of jobs submitted for execution.
 
