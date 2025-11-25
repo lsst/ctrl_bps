@@ -194,7 +194,8 @@ class TestClusterQuanta(unittest.TestCase):
             "validateClusteredQgraph": True,
         }
         config = BpsConfig(settings, search_order=[])
-        qgraph = InMemoryRepo().make_quantum_graph()
+        with InMemoryRepo() as repo:
+            qgraph = repo.make_quantum_graph()
         with self.assertRaisesRegex(RuntimeError, "Fake error"):
             _ = cluster_quanta(config, qgraph, "a_name")
 
@@ -208,7 +209,8 @@ class TestClusterQuanta(unittest.TestCase):
             "validateClusteredQgraph": False,
         }
         config = BpsConfig(settings, search_order=[])
-        qgraph = InMemoryRepo().make_quantum_graph()
+        with InMemoryRepo() as repo:
+            qgraph = repo.make_quantum_graph()
         _ = cluster_quanta(config, qgraph, "a_name")
 
 
