@@ -2,8 +2,8 @@ click
 astropy
 networkx <3.6
 pyyaml
-lsst-daf-butler @ git+https://github.com/lsst/daf_butler@main
+lsst-daf-butler @ git+https://github.com/lsst/daf_butler@tickets/DM-53370
 lsst-utils @ git+https://github.com/lsst/utils@main
-lsst-pipe-base @ git+https://github.com/lsst/pipe_base@main
+lsst-pipe-base @ git+https://github.com/lsst/pipe_base@tickets/DM-53370
 lsst-resources @ git+https://github.com/lsst/resources@main
-lsst-ctrl-mpexec @ git+https://github.com/lsst/ctrl_mpexec@main
+lsst-ctrl-mpexec @ git+https://github.com/lsst/ctrl_mpexec@tickets/DM-53370
