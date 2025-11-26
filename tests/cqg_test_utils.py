@@ -180,8 +180,8 @@ def make_test_clustered_quantum_graph(outdir):
     cqg : `lsst.ctrl.bps.ClusteredQuantumGraph`
         Clustered quantum graph.
     """
-    helper = make_test_helper()
-    qgc = helper.make_quantum_graph_builder(output_run="run").finish(attach_datastore_records=False)
+    with make_test_helper() as helper:
+        qgc = helper.make_quantum_graph_builder(output_run="run").finish(attach_datastore_records=False)
     qg_filename = f"{outdir}/test_file.qg"
     qgc.write(qg_filename)
     qgraph = qgc.assemble()
