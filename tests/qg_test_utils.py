@@ -334,15 +334,15 @@ def make_test_quantum_graph(run: str = "run", uneven=False):
             |          |           |
            T4(1,2)    T4(1,4)     T4(3,4)
     """
-    helper = make_test_helper()
-    qgc = helper.make_quantum_graph_builder(output_run=run).finish(attach_datastore_records=False)
-    if uneven:
-        keys_to_drop = {("T1", 1, 2), ("T1", 1, 4), ("T2", 1, 2)}
-        qgc.quantum_datasets = {
-            qd.quantum_id: qd
-            for qd in qgc.quantum_datasets.values()
-            if (qd.task_label, *qd.data_coordinate) not in keys_to_drop
-        }
-        qgc.set_thin_graph()
-        qgc.set_header_counts()
-    return qgc.assemble()
+    with make_test_helper() as helper:
+        qgc = helper.make_quantum_graph_builder(output_run=run).finish(attach_datastore_records=False)
+        if uneven:
+            keys_to_drop = {("T1", 1, 2), ("T1", 1, 4), ("T2", 1, 2)}
+            qgc.quantum_datasets = {
+                qd.quantum_id: qd
+                for qd in qgc.quantum_datasets.values()
+                if (qd.task_label, *qd.data_coordinate) not in keys_to_drop
+            }
+            qgc.set_thin_graph()
+            qgc.set_header_counts()
+        return qgc.assemble()
