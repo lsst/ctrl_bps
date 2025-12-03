@@ -1,0 +1,1 @@
+Added a custom __new__ method to the GenericWorkflow class so **ctrl_bps** can work when using NetworkX 3.6.

@@ -332,6 +332,18 @@ class GenericWorkflow(DiGraph):
         self.run_id = None
         self._final: GenericWorkflowJob | GenericWorkflow | None = None
 
+    # Starting from ver. 3.6 of NetworkX, the DiGraph class defines its custom
+    # __new__ method that explicitly defines arguments it accepts. As a result,
+    # we need to override it to let our subclass use different ones.
+    #
+    # Notes
+    # -----
+    # Most likely overriding __new__ in this manner will prevent us from using
+    # different graph backends with our subclass. However, since we are not
+    # using any backends, this should not be a problem at the moment.
+    def __new__(cls, *args, **kwargs) -> "GenericWorkflow":
+        return object.__new__(cls)
+
     @property
     def name(self) -> str:
         """Retrieve name of generic workflow.
