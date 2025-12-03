@@ -27,7 +27,7 @@ dependencies = [
     "astropy >=4.0",
     "pyyaml >=5.1",
     "click >= 7.0",
-    "networkx <3.6",
+    "networkx",
     "lsst-daf-butler",
     "lsst-pipe-base",
     "lsst-ctrl-mpexec",
