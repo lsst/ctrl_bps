@@ -34,8 +34,9 @@ import unittest
 
 import yaml
 
-from lsst.ctrl.bps import WmsStates
-from lsst.ctrl.bps.drivers import _init_submission_driver, ping_driver, status_driver
+from lsst.ctrl.bps import WmsRunReport, WmsStates
+from lsst.ctrl.bps.bps_reports import compile_code_summary, compile_job_summary
+from lsst.ctrl.bps.drivers import _init_submission_driver, ping_driver, report_driver, status_driver
 
 TESTDIR = os.path.abspath(os.path.dirname(__file__))
 
@@ -140,6 +141,188 @@ class TestStatusDriver(unittest.TestCase):
         with unittest.mock.patch.dict(os.environ, {}):
             retval = status_driver(None, run_id="/dummy/path", hist_days=3)
             self.assertEqual(retval, WmsStates.RUNNING.value)
+
+
+class TestReportDriver(unittest.TestCase):
+    """Test report_driver function."""
+
+    @unittest.mock.patch(
+        "lsst.ctrl.bps.drivers.BPS_DEFAULTS", new={"wmsServiceClass": "wms_test_utils.WmsServiceSuccess"}
+    )
+    def testWmsServiceFromDefaults(self):
+        # Should not raise an exception and use default from BPS_DEFAULTS.
+        with unittest.mock.patch.dict(os.environ, {}, clear=True):
+            report_driver(
+                wms_service=None,
+                run_id=None,
+                user=None,
+                hist_days=0,
+                pass_thru=None,
+            )
+
+    def testWmsServiceFromEnvVar(self):
+        # Should not raise an exception.
+        with unittest.mock.patch.dict(
+            os.environ, {"BPS_WMS_SERVICE_CLASS": "wms_test_utils.WmsServiceSuccess"}
+        ):
+            report_driver(
+                wms_service=None,
+                run_id=None,
+                user=None,
+                hist_days=0.0,
+                pass_thru=None,
+            )
+
+    @unittest.mock.patch("lsst.ctrl.bps.drivers.retrieve_report")
+    @unittest.mock.patch("lsst.ctrl.bps.drivers.display_report")
+    def testHistDefault(self, mock_display, mock_retrieve):
+        mock_retrieve.return_value = ([], [])
+
+        report_driver(
+            wms_service="wms_test_utils.WmsServiceSuccess",
+            run_id="123",
+            user=None,
+            hist_days=0.0,
+            pass_thru=None,
+        )
+
+        # Verify retrieve_report was called with the default hist setting.
+        _, kwargs = mock_retrieve.call_args
+        self.assertAlmostEqual(kwargs["hist"], 2.0)
+
+    @unittest.mock.patch("lsst.ctrl.bps.drivers.retrieve_report")
+    @unittest.mock.patch("lsst.ctrl.bps.drivers.display_report")
+    def testHistCustom(self, mock_display, mock_retrieve):
+        mock_retrieve.return_value = ([], [])
+
+        report_driver(
+            wms_service="wms_test_utils.WmsServiceSuccess",
+            run_id="123",
+            user=None,
+            hist_days=4.0,
+            pass_thru=None,
+        )
+
+        # Verify retrieve_report was called with a custom hist setting.
+        _, kwargs = mock_retrieve.call_args
+        self.assertAlmostEqual(kwargs["hist"], 4.0)
+
+    @unittest.mock.patch("lsst.ctrl.bps.drivers.retrieve_report")
+    @unittest.mock.patch("lsst.ctrl.bps.drivers.display_report")
+    def testPostprocessorsWithoutExitCodes(self, mock_display, mock_retrieve):
+        mock_retrieve.return_value = ([], [])
+
+        report_driver(
+            wms_service="wms_test_utils.WmsServiceSuccess",
+            run_id="123",
+            user=None,
+            hist_days=0.0,
+            pass_thru=None,
+            return_exit_codes=False,
+        )
+
+        # Verify the postprocessors list contains only one postprocessor.
+        args, kwargs = mock_retrieve.call_args
+        self.assertEqual(len(kwargs["postprocessors"]), 1)
+        self.assertIn(compile_job_summary, kwargs["postprocessors"])
+
+    @unittest.mock.patch("lsst.ctrl.bps.drivers.retrieve_report")
+    @unittest.mock.patch("lsst.ctrl.bps.drivers.display_report")
+    def testPostprocessorsWithExitCodes(self, mock_display, mock_retrieve):
+        mock_retrieve.return_value = ([], [])
+
+        report_driver(
+            wms_service="wms_test_utils.WmsServiceSuccess",
+            run_id="123",
+            user=None,
+            hist_days=0.0,
+            pass_thru=None,
+            return_exit_codes=True,
+        )
+
+        # Verify the postprocessors list contains both postprocessors.
+        _, kwargs = mock_retrieve.call_args
+        self.assertEqual(len(kwargs["postprocessors"]), 2)
+        self.assertIn(compile_code_summary, kwargs["postprocessors"])
+        self.assertIn(compile_job_summary, kwargs["postprocessors"])
+
+    @unittest.mock.patch("lsst.ctrl.bps.drivers.retrieve_report")
+    @unittest.mock.patch("lsst.ctrl.bps.drivers.display_report")
+    def testPostprocessorsNoRunId(self, mock_display, mock_retrieve):
+        mock_retrieve.return_value = ([], [])
+
+        report_driver(
+            wms_service="wms_test_utils.WmsServiceSuccess",
+            run_id=None,
+            user=None,
+            hist_days=0.0,
+            pass_thru=None,
+        )
+
+        # Verify postprocessors contains compile_job_summary
+        _, kwargs = mock_retrieve.call_args
+        self.assertIsNone(kwargs["postprocessors"])
+
+    @unittest.mock.patch("lsst.ctrl.bps.drivers.retrieve_report")
+    @unittest.mock.patch("lsst.ctrl.bps.drivers.display_report")
+    def testDisplayCalledIfRuns(self, mock_display, mock_retrieve):
+        mock_runs = [WmsRunReport(wms_id="1", state=WmsStates.SUCCEEDED)]
+        mock_retrieve.return_value = (mock_runs, [])
+
+        report_driver(
+            wms_service="wms_test_utils.WmsServiceSuccess",
+            run_id=None,
+            user=None,
+            hist_days=0,
+            pass_thru=None,
+        )
+
+        # Verify display_report was called with the runs
+        mock_display.assert_called_once()
+        args, kwargs = mock_display.call_args
+        self.assertEqual(args[0], mock_runs)
+
+    @unittest.mock.patch("lsst.ctrl.bps.drivers.retrieve_report")
+    @unittest.mock.patch("lsst.ctrl.bps.drivers.display_report")
+    def testDisplayCalledIfMessages(self, mock_display, mock_retrieve):
+        mock_messages = ["Warning message 1", "Warning message 2"]
+        mock_retrieve.return_value = ([], mock_messages)
+
+        report_driver(
+            wms_service="wms_test_utils.WmsServiceSuccess",
+            run_id=None,
+            user=None,
+            hist_days=0,
+            pass_thru=None,
+        )
+
+        # Verify display_report was called with messages
+        mock_display.assert_called_once()
+        args, kwargs = mock_display.call_args
+        self.assertEqual(args[1], mock_messages)
+
+    @unittest.mock.patch("lsst.ctrl.bps.drivers.retrieve_report")
+    @unittest.mock.patch("lsst.ctrl.bps.drivers.display_report")
+    @unittest.mock.patch("builtins.print")
+    def testNoRecordsFoundMessage(self, mock_print, mock_display, mock_retrieve):
+        mock_retrieve.return_value = ([], [])
+
+        report_driver(
+            wms_service="wms_test_utils.WmsServiceSuccess",
+            run_id="123",
+            user=None,
+            hist_days=1.5,
+            pass_thru=None,
+        )
+
+        # Verify display_report() was NOT called.
+        mock_display.assert_not_called()
+
+        # Verify that a helpful message was printed.
+        mock_print.assert_called_once()
+        call_args = mock_print.call_args[0][0]
+        self.assertIn("No records found", call_args)
+        self.assertIn("123", call_args)
 
 
 if __name__ == "__main__":
