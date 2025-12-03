@@ -34,8 +34,15 @@ import unittest
 
 from cqg_test_utils import make_test_clustered_quantum_graph
 
-from lsst.ctrl.bps import BPS_SEARCH_ORDER, BpsConfig, GenericWorkflowJob
+from lsst.ctrl.bps import (
+    BPS_SEARCH_ORDER,
+    BpsConfig,
+    GenericWorkflow,
+    GenericWorkflowExec,
+    GenericWorkflowJob,
+)
 from lsst.ctrl.bps.transform import (
+    _enhance_command,
     _get_job_values,
     create_final_command,
     create_generic_workflow,
@@ -333,6 +340,60 @@ class TestCreateFinalCommand(unittest.TestCase):
             self.script_beginning
             + ["/usr/bin/echo 42a ${qgraphFile} 42b ${butlerConfig} 42c\n", "\n", "/usr/bin/uptime\n"],
         )
+
+
+class TestEnhanceCommand(unittest.TestCase):
+    """Tests of _enhance_command function."""
+
+    def setUp(self):
+        self.gw_exec = GenericWorkflowExec("test_exec", "/dummy/dir/pipetask")
+        self.config = BpsConfig(
+            {
+                # "profile": {},
+                "bpsUseShared": True,
+                "whenSaveJobQgraph": "NEVER",
+                "useLazyCommands": True,
+                # "memoryLimit": 32768,
+                "defOpts": "--long-log --log-file {submitPath}/{jobName}.{wmsAttemptNum}.json",
+                "submitPath": "/the/path",
+            }
+        )
+        self.cached_vals = {
+            "label1": {
+                "profile": {},
+                "bpsUseShared": True,
+                "whenSaveJobQgraph": "NEVER",
+                "useLazyCommands": True,
+                "memoryLimit": 32768,
+                "key1": "val1",
+            }
+        }
+
+    def testAttemptNum(self):
+        # test both in arguments as well as in variables in arguments
+        gwjob = GenericWorkflowJob("job1", "label1", executable=self.gw_exec)
+        gw = GenericWorkflow("test1")
+        gw.add_job(gwjob)
+
+        first_args = "{defOpts} run-qbb repo test.qg --summary {submitPath}/{jobName}-summary."
+        gwjob.arguments = first_args + "{wmsAttemptNum}.json"
+
+        new_arguments = first_args + "<WMS:attemptNum>.json"
+        new_opts = "--long-log --log-file /the/path/job1.<WMS:attemptNum>.json"
+
+        _enhance_command(self.config, gw, gwjob, {})
+
+        self.assertEqual(gwjob.arguments, new_arguments)
+        self.assertEqual(gwjob.cmdvals["defOpts"], new_opts)
+
+    def testKeyCachedCmdVal(self):
+        gwjob = GenericWorkflowJob("job1", "label1", executable=self.gw_exec)
+        gw = GenericWorkflow("test1")
+        gw.add_job(gwjob)
+        gwjob.arguments = "run-qbb repo test.qg -x {key1}"
+        self.assertNotIn("key1", gwjob.cmdvals)
+        _enhance_command(self.config, gw, gwjob, self.cached_vals)
+        self.assertEqual(gwjob.cmdvals["key1"], "val1")
 
 
 if __name__ == "__main__":
