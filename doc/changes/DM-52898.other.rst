@@ -1,1 +1,0 @@
-Modified the BPS report driver so it compiles exit code summary only when necessary, i.e., when ``--return-exit-codes`` option was used with ``bps report``.
