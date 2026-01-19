@@ -1,1 +1,0 @@
-Fixed bug where the return_exit_codes command line value was not passed to plugin's report function.  While it was correctly used when displaying the report, not having the value didn't allow the plugin to optimize its report function.

@@ -1,1 +1,0 @@
-Made the BPS reporting mechanism a bit more robust. If the BPS plugin does not explicitly includes jobs labels for which there are no failures in the run's exit code summary, it will try to use run's job summary to do that.

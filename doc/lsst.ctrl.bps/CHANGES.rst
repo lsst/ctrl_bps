@@ -1,3 +1,33 @@
+lsst-ctrl-bps v30.0.0 (2026-01-16)
+==================================
+
+New Features
+------------
+
+- Added support for transferring input files to the execution site and bringing the produced output files back to the submit site when using ``bps submitcmd``. (`DM-48479 <https://rubinobs.atlassian.net/browse/DM-48479>`_)
+- Added ``bpsGenerateConfig`` and ``bpsEval`` to run functions to produce config values.  ``bpsGenerateConfig`` is used when inserting or updating one or more key/value pairs.  ``bpsEval`` is for replacing part of a string value. (`DM-50616 <https://rubinobs.atlassian.net/browse/DM-50616>`_)
+
+Bug Fixes
+---------
+
+- Fixed bug where the ``return_exit_codes`` command line value was not passed to the plugin's report function.  While it was correctly used when displaying the report, not having the value didn't allow the plugin to optimize its report function. (`DM-52791 <https://rubinobs.atlassian.net/browse/DM-52791>`_)
+
+Performance Enhancement
+-----------------------
+
+- Switched the default ``finalJob`` implementation to the new ``aggregate-graph`` command, which makes use of multiple cores much more effectively than ``transfer-from-graph``. (`DM-52360 <https://rubinobs.atlassian.net/browse/DM-52360>`_)
+
+
+Other Changes and Additions
+---------------------------
+
+- Removed exit code 1 from the default for ``finalJob``\ 's ``retryUnlessExit`` as the majority of these are related to system issues which could be transient. (`DM-51313 <https://rubinobs.atlassian.net/browse/DM-51313>`_)
+- Modified the BPS report driver so it compiles exit code summary only when necessary, i.e., when ``--return-exit-codes`` option was used with ``bps report``. (`DM-52898 <https://rubinobs.atlassian.net/browse/DM-52898>`_)
+- Added a custom __new__ method to the GenericWorkflow class so **ctrl_bps** can work when using NetworkX 3.6. (`DM-53492 <https://rubinobs.atlassian.net/browse/DM-53492>`_)
+- Made the BPS reporting mechanism a bit more robust. If the BPS plugin does not explicitly includes jobs labels for which there are no failures in the run's exit code summary, it will try to use the run's job summary to do that. (`DM-51261 <https://rubinobs.atlassian.net/browse/DM-51261>`_)
+- Used the new ``PredictedQuantumGraph`` class internally and default to the new QG file format via the "``.qg``" extension. (`DM-52339 <https://rubinobs.atlassian.net/browse/DM-52339>`_)
+
+
 lsst-ctrl-bps v29.1.0 (2025-06-13)
 ==================================
 
