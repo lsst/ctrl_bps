@@ -891,6 +891,11 @@ Supported settings
     The parent directory for the WMS-id link.  Defaults to ``${PWD}/bps_links``.
     (see :ref:`bps-softlink`)
 
+**wmsAttemptNum**
+    A placeholder for the WMS-specific job attempt number (0-based) that can be
+    used in ``runQuantumCommand`` lines or ``environment`` sections.  Check
+    WMS-specific documentation to see if particular WMS plugin supports it.
+
 .. _pickle: https://docs.python.org/3/library/pickle.html
 .. _ref: https://stackoverflow.com/a/38971446
 

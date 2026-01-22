@@ -216,8 +216,17 @@ def _enhance_command(config, generic_workflow, gwjob, cached_job_values):
     """
     _LOG.debug("gwjob given to _enhance_command: %s", gwjob)
 
+    curvals = {
+        "curr_pipetask": gwjob.label,
+        "curr_cluster": gwjob.label,
+        "jobName": gwjob.name,
+        "jobLabel": gwjob.label,
+    }
+    for key, value in gwjob.tags.items():
+        curvals[key] = value
+
     search_opt = {
-        "curvals": {"curr_pipetask": gwjob.label},
+        "curvals": curvals,
         "replaceVars": False,
         "expandEnvVars": False,
         "replaceEnvVars": True,
@@ -251,16 +260,25 @@ def _enhance_command(config, generic_workflow, gwjob, cached_job_values):
     for gwfile in generic_workflow.get_job_outputs(gwjob.name):
         gwjob.arguments = gwjob.arguments.replace(f"{{{gwfile.name}}}", f"<FILE:{gwfile.name}>")
 
+    # Replace wms variables with wms placeholders.
+    gwjob.arguments = re.sub(
+        r"{wms([^}]+)}", lambda x: f"<WMS:{x[1][0].lower() + x[1][1:]}>", gwjob.arguments
+    )
+
+    # To make yaml-specified paths easier to read, remove empty subdirs (//)
+    gwjob.arguments = re.sub(r"//+", "/", gwjob.arguments)
+
     # Save dict of other values needed to complete command line.
     # (Be careful to not replace env variables as they may
     # be different in compute job.)
     search_opt["replaceVars"] = True
-
     for key in re.findall(r"{([^}]+)}", gwjob.arguments):
-        if key not in gwjob.cmdvals:
-            if key not in cached_job_values[gwjob.label]:
-                _, cached_job_values[gwjob.label][key] = config.search(key, opt=search_opt)
+        if key in gwjob.cmdvals:
+            continue
+        elif key in cached_job_values[gwjob.label]:
             gwjob.cmdvals[key] = cached_job_values[gwjob.label][key]
+        else:
+            _, gwjob.cmdvals[key] = config.search(key, opt=search_opt)
 
     # backwards compatibility
     if not cached_job_values[gwjob.label]["useLazyCommands"]:
