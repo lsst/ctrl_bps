@@ -1,1 +1,1 @@
-Bumped minimum Python version to 3.12.
+Bumped minimum Python version to 3.12.  Dropped ``black`` and ``isort`` sections from ``pyproject.toml``.
