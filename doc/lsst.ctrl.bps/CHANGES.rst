@@ -1,3 +1,17 @@
+lsst-ctrl-bps v30.0.1 (2026-02-03)
+==================================
+
+Dropped Python 3.11.
+Tested with Python 3.14.
+
+Other Changes and Additions
+---------------------------
+
+- - Bumped minimum Python version to 3.12.
+  - Dropped ``black`` and ``isort`` sections from ``pyproject.toml``.
+  - Switched documentation build to use ``sphinxutils``. (`DM-54006 <https://rubinobs.atlassian.net/browse/DM-54006>`_)
+
+
 lsst-ctrl-bps v30.0.0 (2026-01-16)
 ==================================
 
