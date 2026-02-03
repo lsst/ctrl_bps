@@ -1,0 +1,1 @@
+Bumped minimum Python version to 3.12.  Dropped ``black`` and ``isort`` sections from ``pyproject.toml``.  Switched docs action to use ``sphinxutils``.

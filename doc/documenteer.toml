@@ -1,0 +1,20 @@
+[project]
+title = "lsst-ctrl-bps"
+
+[project.python]
+package = "lsst-ctrl-bps"
+
+[build]
+clean = true
+
+[sphinx]
+extensions = [
+    "sphinx_click"
+]
+
+[sphinx.intersphinx.projects]
+astropy = "https://docs.astropy.org/en/stable"
+python = "https://docs.python.org/3"
+lsst = "https://pipelines.lsst.io/v/daily/"
+click = "https://click.palletsprojects.com/en/stable"
+networkx = "https://networkx.org/documentation/stable/"

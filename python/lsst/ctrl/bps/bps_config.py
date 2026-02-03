@@ -197,7 +197,7 @@ class BpsConfig(Config):
         ----------
         key : `str`
             Key to look for in config.
-        default : Any, optional
+        default : `~typing.Any`, optional
             Default value to return if the key is not in the config.
 
         Returns
