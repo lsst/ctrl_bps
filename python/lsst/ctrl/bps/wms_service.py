@@ -121,14 +121,14 @@ class WmsSpecificInfo:
 
         Returns
         -------
-        context : `dict` [`str`, `Any`]
+        context : `dict` [`str`, `~typing.Any`]
             A copy of the dictionary representing the mapping between
             *every* template variable and its value.
 
         Notes
         -----
         The property returns a *shallow* copy of the dictionary representing
-        the context as the intended purpose of the ``WmsSpecificInfo`` is to
+        the context as the intended purpose of the `WmsSpecificInfo` is to
         pass a small number of brief messages from WMS to BPS reporting
         subsystem. Hence, it is assumed that the dictionary will only contain
         immutable objects (e.g. strings, numbers).
@@ -157,7 +157,7 @@ class WmsSpecificInfo:
         ----------
         template : `str`
             A message template.
-        context : `dict` [`str`, `Any`], optional
+        context : `dict` [`str`, `~typing.Any`], optional
             A mapping between template variables and their values.
         **kwargs
             Additional keyword arguments.
@@ -296,7 +296,7 @@ class BaseWmsService:
         -----
         This property is currently being used in ``BpsConfig.__init__()``.
         As long as that's the case it cannot be changed to return
-        a ``BpsConfig`` instance.
+        a `BpsConfig` instance.
         """
         return None
 
@@ -386,7 +386,7 @@ class BaseWmsService:
 
         Returns
         -------
-        job_ids : `list` [`Any`]
+        job_ids : `list` [`~typing.Any`]
             Only job ids to be used by cancel and other functions.  Typically
             this means top-level jobs (i.e., not children jobs).
         """

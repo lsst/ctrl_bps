@@ -58,7 +58,8 @@ def init_submission(
     ----------
     config_file : `str`
         Name of the configuration file.
-    validators : `Iterable[Callable[[BpsConfig], None]]`, optional
+    validators : `~collections.abc.Iterable` \
+            [`~collections.abc.Callable` [[`BpsConfig`], `None`]], optional
         A list of functions performing checks on the given configuration.
         Each function should take a single argument, a BpsConfig object, and
         raise if the check fails. By default, no checks are performed.
