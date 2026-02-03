@@ -61,7 +61,7 @@ class QuantaCluster:
         be unique within ClusteredQuantumGraph.
     label : `str`
         Value used to group clusters.
-    tags : `dict` [`str`, `Any`], optional
+    tags : `dict` [`str`, `~typing.Any`], optional
         Arbitrary key/value pairs for the cluster.
 
     Raises
@@ -248,7 +248,8 @@ class ClusteredQuantumGraph:
 
         Parameters
         ----------
-        clusters_for_adding : `QuantaCluster` or `Iterable` [`QuantaCluster`]
+        clusters_for_adding : `QuantaCluster` or \
+                `~collections.abc.Iterable` [`QuantaCluster`]
             The cluster to be added to the ClusteredQuantumGraph.
         """
         for cluster in ensure_iterable(clusters_for_adding):
@@ -311,7 +312,7 @@ class ClusteredQuantumGraph:
 
         Returns
         -------
-        names : `Iterator` [`str`]
+        names : `~collections.abc.Iterator` [`str`]
             Iterator over names of clusters.
         """
         return self._cluster_graph.nodes()
@@ -321,7 +322,7 @@ class ClusteredQuantumGraph:
 
         Returns
         -------
-        clusters : `Iterator` [`lsst.ctrl.bps.QuantaCluster`]
+        clusters : `~collections.abc.Iterator` [`lsst.ctrl.bps.QuantaCluster`]
             Iterator over clusters in topological order.
         """
         return map(self.get_cluster, topological_sort(self._cluster_graph))
@@ -337,7 +338,7 @@ class ClusteredQuantumGraph:
 
         Returns
         -------
-        clusters : `Iterator` [`lsst.ctrl.bps.QuantaCluster`]
+        clusters : `~collections.abc.Iterator` [`lsst.ctrl.bps.QuantaCluster`]
             Iterator over successors of given cluster.
         """
         return map(self.get_cluster, self._cluster_graph.successors(name))
@@ -353,7 +354,7 @@ class ClusteredQuantumGraph:
 
         Returns
         -------
-        clusters : `Iterator` [`lsst.ctrl.bps.QuantaCluster`]
+        clusters : `~collections.abc.Iterator` [`lsst.ctrl.bps.QuantaCluster`]
             Iterator over predecessors of given cluster.
         """
         return map(self.get_cluster, self._cluster_graph.predecessors(name))

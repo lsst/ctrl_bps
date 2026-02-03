@@ -428,7 +428,7 @@ class GenericWorkflow(DiGraph):
         ----------
         data : `bool`, optional
             Whether to return the file data as well as the file object name
-            (The default is False).
+            (The default is `False`).
         transfer_only : `bool`, optional
             Whether to only return files for which a workflow management system
             would be responsible for transferring.

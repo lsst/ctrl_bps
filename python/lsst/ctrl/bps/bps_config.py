@@ -87,7 +87,7 @@ class BpsConfig(Config):
         afterwards. WMS settings takes precedence over provided defaults.
     wms_service_class_fqn : `str`, optional
         Fully qualified name of the WMS service class to use to get plugin's
-        specific default settings. If ``None`` (default), the WMS service
+        specific default settings. If `None` (default), the WMS service
         class provided by
 
         1. ``other`` config,
@@ -256,7 +256,7 @@ class BpsConfig(Config):
         ----------
         key : `str`
             Key to look for in config.
-        opt : `dict` [`str`, `Any`], optional
+        opt : `dict` [`str`, `~typing.Any`], optional
             Options dictionary to use while searching.  All are optional.
 
             ``"curvals"``
@@ -264,7 +264,7 @@ class BpsConfig(Config):
                     (curr_<sectname>) or variable replacements.
                     (`dict`, optional)
             ``"default"``
-                    Value to return if not found. (`Any`, optional)
+                    Value to return if not found. (`~typing.Any`, optional)
             ``"replaceEnvVars"``
                     If search result is string, whether to replace environment
                     variables inside it with special placeholder (<ENV:name>).

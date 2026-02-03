@@ -789,7 +789,7 @@ def get_cluster_name_from_info(
     -------
     cluster_name : `str`
         Name of the cluster in which to add the given node.
-    info : dict [`str`, `Any`]
+    info : dict [`str`, `~typing.Any`]
         Information needed if creating a new node.
     """
     # Gather info for cluster name template into a dictionary.

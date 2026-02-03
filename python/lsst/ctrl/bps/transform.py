@@ -210,7 +210,7 @@ def _enhance_command(config, generic_workflow, gwjob, cached_job_values):
     gwjob : `lsst.ctrl.bps.GenericWorkflowJob`
         Generic workflow job to which the updated executable, arguments,
         and values should be saved.
-    cached_job_values : `dict` [`str`, dict[`str`, `Any`]]
+    cached_job_values : `dict` [`str`, dict[`str`, `~typing.Any`]]
         Cached values common across jobs with same label.  Updated if values
         aren't already saved for given gwjob's label.
     """
@@ -286,7 +286,7 @@ def _fill_arguments(use_shared, generic_workflow, arguments, cmdvals):
         Generic workflow containing the job.
     arguments : `str`
         String containing placeholders.
-    cmdvals : `dict` [`str`, `Any`]
+    cmdvals : `dict` [`str`, `~typing.Any`]
         Any command line values that can be used to replace placeholders.
 
     Returns
@@ -365,14 +365,14 @@ def _get_job_values(config, search_opt, cmd_line_key):
     ----------
     config : `lsst.ctrl.bps.BpsConfig`
         Bps configuration.
-    search_opt : `dict` [`str`, `Any`]
+    search_opt : `dict` [`str`, `~typing.Any`]
         Search options to be used when searching config.
     cmd_line_key : `str` or None
         Which command line key to search for (e.g., "runQuantumCommand").
 
     Returns
     -------
-    job_values : `dict` [ `str`, `Any` ]`
+    job_values : `dict` [ `str`, `~typing.Any` ]`
         A mapping between job attributes and their values.
     """
     _LOG.debug("cmd_line_key=%s, search_opt=%s", cmd_line_key, search_opt)
@@ -443,7 +443,7 @@ def _handle_job_values(quantum_job_values, gwjob, attributes=_ATTRS_ALL):
         Job values for running single Quantum.
     gwjob : `lsst.ctrl.bps.GenericWorkflowJob`
         Generic workflow job in which to store the universal values.
-    attributes : `Iterable` [`str`], optional
+    attributes : `~collections.abc.Iterable` [`str`], optional
         Job attributes to be set in the job following different rules.
         The default value is _ATTRS_ALL.
     """
@@ -463,7 +463,7 @@ def _handle_job_values_universal(quantum_job_values, gwjob, attributes=_ATTRS_UN
         Job values for running single Quantum.
     gwjob : `lsst.ctrl.bps.GenericWorkflowJob`
         Generic workflow job in which to store the universal values.
-    attributes : `Iterable` [`str`], optional
+    attributes : `~collections.abc.Iterable` [`str`], optional
         Job attributes to be set in the job following different rules.
         The default value is _ATTRS_UNIVERSAL.
     """
@@ -502,11 +502,11 @@ def _handle_job_values_max(quantum_job_values, gwjob, attributes=_ATTRS_MAX):
 
     Parameters
     ----------
-    quantum_job_values : `dict` [`str`, `Any`]
+    quantum_job_values : `dict` [`str`, `~typing.Any`]
         Job values for running single Quantum.
     gwjob : `lsst.ctrl.bps.GenericWorkflowJob`
         Generic workflow job in which to store the aggregate values.
-    attributes : `Iterable` [`str`], optional
+    attributes : `~collections.abc.Iterable` [`str`], optional
         Job attributes to be set in the job following different rules.
         The default value is _ATTR_MAX.
     """
@@ -547,11 +547,11 @@ def _handle_job_values_sum(quantum_job_values, gwjob, attributes=_ATTRS_SUM):
 
     Parameters
     ----------
-    quantum_job_values : `dict` [`str`, `Any`]
+    quantum_job_values : `dict` [`str`, `~typing.Any`]
         Job values for running single Quantum.
     gwjob : `lsst.ctrl.bps.GenericWorkflowJob`
         Generic workflow job in which to store the aggregate values.
-    attributes : `Iterable` [`str`], optional
+    attributes : `~collections.abc.Iterable` [`str`], optional
         Job attributes to be set in the job following different rules.
         The default value is _ATTRS_SUM.
     """

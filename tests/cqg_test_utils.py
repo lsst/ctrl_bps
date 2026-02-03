@@ -41,7 +41,7 @@ def check_cqg(cqg, truth=None):
     ----------
     cqg : `lsst.ctrl.bps.ClusteredQuantumGraph`
         ClusteredQuantumGraph to be checked for correctness.
-    truth : `dict` [`str`, `Any`], optional
+    truth : `dict` [`str`, `~typing.Any`], optional
         Information describing what this cluster should look like.
     """
     cqg.validate()
@@ -62,7 +62,7 @@ def replace_node_name(name, label, dims):
         Cluster name.
     label : `str`
         Cluster label.
-    dims : `dict` [`str`, `Any`]
+    dims : `dict` [`str`, `~typing.Any`]
         Dimension names and values in order to make new name unique.
 
     Returns
@@ -92,7 +92,7 @@ def dump_cqg(cqg):
 
     Returns
     -------
-    info : `dict` [`str`, `Any`]
+    info : `dict` [`str`, `~typing.Any`]
         Dictionary represention of ClusteredQuantumGraph.
     """
     info = {"name": cqg.name, "nodes": {}}
@@ -121,9 +121,9 @@ def compare_cqg_dicts(truth, cqg):
 
     Parameters
     ----------
-    truth : `dict` [`str`, `Any`]
+    truth : `dict` [`str`, `~typing.Any`]
         Representation of the expected ClusteredQuantumGraph.
-    cqg : `dict` [`str`, `Any`]
+    cqg : `dict` [`str`, `~typing.Any`]
         Representation of the calculated ClusteredQuantumGraph.
 
     Raises

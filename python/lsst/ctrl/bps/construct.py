@@ -181,7 +181,8 @@ def create_job_files(
         The mapping between file keys and file paths.
     prefix : `str` | `pathlib.Path`
         The root directory to which the files will be written.
-    path_creator : `Callable` [[`Path`, `Path`], `Path`]
+    path_creator : `~collections.abc.Callable` \
+            [[`pathlib.Path`, `pathlib.Path`], `pathlib.Path`]
         File category that determines actions that need to be taken during
         file creation.
 
