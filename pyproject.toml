@@ -37,8 +37,9 @@ dynamic = ["version"]
 
 [project.urls]
 "Homepage" = "https://github.com/lsst/ctrl_bps"
-[project.optional-dependencies]
+"Source" = "https://github.com/lsst/ctrl_bps"
 
+[project.optional-dependencies]
 test = [
     "pytest >= 3.2",
     "pytest-openfiles >= 0.5.0"
@@ -190,6 +191,7 @@ checks = [
     "RT01",  # Unfortunately our @property trigger this.
     "RT02",  # Does not want named return value. DM style says we do.
     "SS05",  # pydocstyle is better at finding infinitive verb.
+    "RT03",  # Temporarily disable for sphinx empty returns.
 ]
 exclude = [
     '^test_.*',  # Do not test docstrings in test code.

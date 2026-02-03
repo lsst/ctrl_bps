@@ -490,7 +490,7 @@ class GenericWorkflow(DiGraph):
         ----------
         node_for_adding : `lsst.ctrl.bps.GenericWorkflowJob`
             Job to be added to generic workflow.
-        **attr
+        **attr : `~typing.Any`
             Needed to match original networkx function, but not used.
         """
         self.add_job(node_for_adding)
@@ -524,7 +524,7 @@ class GenericWorkflow(DiGraph):
         ebunch_to_add : Iterable [`tuple` [`str`, `str`]]
             Iterable of job name pairs between which a dependency should be
             saved.
-        **attr : keyword arguments, optional
+        **attr : `~typing.Any`
             Data can be assigned using keyword arguments (not currently used).
         """
         for edge_to_add in ebunch_to_add:
@@ -539,7 +539,7 @@ class GenericWorkflow(DiGraph):
             Name of parent job.
         v_of_edge : `str`
             Name of child job.
-        **attr : keyword arguments, optional
+        **attr
             Attributes to save with edge.
         """
         if u_of_edge not in self:
