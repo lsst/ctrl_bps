@@ -26,15 +26,18 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Unit tests of transform.py."""
 
+import copy
 import dataclasses
+import logging
 import os
 import shutil
 import tempfile
 import unittest
 
-from cqg_test_utils import make_test_clustered_quantum_graph
+from cqg_test_utils import make_test_2_cluster_cqg
 
 from lsst.ctrl.bps import (
+    BPS_DEFAULTS,
     BPS_SEARCH_ORDER,
     BpsConfig,
     GenericWorkflow,
@@ -47,6 +50,7 @@ from lsst.ctrl.bps.transform import (
     create_final_command,
     create_generic_workflow,
     create_generic_workflow_config,
+    gather_job_environment,
 )
 
 TESTDIR = os.path.abspath(os.path.dirname(__file__))
@@ -70,63 +74,26 @@ class TestCreateGenericWorkflow(unittest.TestCase):
     """Tests of create_generic_workflow."""
 
     def setUp(self):
+        logging.basicConfig(level=logging.WARNING)
+        logging.getLogger("lsst.ctrl.bps.bps_config").setLevel(logging.INFO)
         self.tmpdir = tempfile.mkdtemp(dir=TESTDIR)
-        self.config = BpsConfig(
-            {
-                "runInit": True,
-                "computeSite": "global",
-                "runQuantumCommand": "gexe -q {qgraphFile} --qgraph-node-id {qgraphNodeId}",
-                "clusterTemplate": "{D1}_{D2}",
-                "cluster": {
-                    "cl1": {"pipetasks": "T1, T2", "dimensions": "D1, D2"},
-                    "cl2": {"pipetasks": "T3, T4", "dimensions": "D1, D2"},
-                },
-                "cloud": {
-                    "cloud1": {"runQuantumCommand": "c1exe -q {qgraphFile} --qgraph-node-id {qgraphNodeId}"},
-                    "cloud2": {"runQuantumCommand": "c2exe -q {qgraphFile} --qgraph-node-id {qgraphNodeId}"},
-                },
-                "site": {
-                    "site1": {"runQuantumCommand": "s1exe -q {qgraphFile} --qgraph-node-id {qgraphNodeId}"},
-                    "site2": {"runQuantumCommand": "s2exe -q {qgraphFile} --qgraph-node-id {qgraphNodeId}"},
-                    "global": {"runQuantumCommand": "s3exe -q {qgraphFile} --qgraph-node-id {qgraphNodeId}"},
-                },
-                # Needed because transform assumes they exist
-                "whenSaveJobQgraph": "NEVER",
-                "finalJob": {"whenRun": "ALWAYS", "command1": "/usr/bin/env"},
-            },
-            BPS_SEARCH_ORDER,
+        filename = os.path.join(TESTDIR, "data/config_for_transform.yaml")
+        self.orig_config = BpsConfig(
+            filename, BPS_SEARCH_ORDER, BPS_DEFAULTS, wms_service_class_fqn="wms_test_utils.WmsServiceSuccess"
         )
-        _, self.cqg = make_test_clustered_quantum_graph(self.tmpdir)
+        _, self.cqg = make_test_2_cluster_cqg(self.tmpdir)
 
     def tearDown(self):
         shutil.rmtree(self.tmpdir, ignore_errors=True)
 
-    def testCreatingGenericWorkflowGlobal(self):
-        """Test creating a GenericWorkflow with global settings."""
-        config = BpsConfig(self.config)
-        config["computeCloud"] = "cloud1"
-        config["computeSite"] = "site2"
-        config["queue"] = "global_queue"
-        print(config)
-        workflow = create_generic_workflow(config, self.cqg, "test_gw", self.tmpdir)
-        for jname in workflow:
-            gwjob = workflow.get_job(jname)
-            print(gwjob)
-            self.assertEqual(gwjob.compute_site, "site2")
-            self.assertEqual(gwjob.compute_cloud, "cloud1")
-            self.assertEqual(gwjob.executable.src_uri, "s2exe")
-            self.assertEqual(gwjob.queue, "global_queue")
-        final = workflow.get_final()
-        self.assertEqual(final.compute_site, "site2")
-        self.assertEqual(final.compute_cloud, "cloud1")
-        self.assertEqual(final.queue, "global_queue")
-
-    def testCreatingQuantumGraphMixed(self):
-        """Test creating a GenericWorkflow with setting overrides."""
-        config = BpsConfig(self.config)
-        config[".cluster.cl1.computeCloud"] = "cloud2"
-        config[".cluster.cl1.computeSite"] = "notthere"
-        config[".cluster.cl2.computeSite"] = "site1"
+    def testCreatingQuantumGraph(self):
+        """Test creating a GenericWorkflow with setting overrides.  While
+        other tests exist to check get_job_valuei,gather_job_environment,
+        etc., going ahead and checking the integration of these by checking
+        results instead of using mocks.
+        """
+        config = BpsConfig(self.orig_config)
+        config[".computeSite"] = "site1"
         config[".finalJob.queue"] = "special_final_queue"
         config[".finalJob.computeSite"] = "special_site"
         config[".finalJob.computeCloud"] = "special_cloud"
@@ -134,29 +101,63 @@ class TestCreateGenericWorkflow(unittest.TestCase):
         self.assertEqual(len(workflow) - 1, len(self.cqg))  # Don't count pipetaskInit
         for jname in workflow:
             gwjob = workflow.get_job(jname)
-            print(gwjob)
-            if jname.startswith("cl1"):
-                self.assertEqual(gwjob.compute_site, "notthere")
-                self.assertEqual(gwjob.compute_cloud, "cloud2")
-                self.assertEqual(gwjob.executable.src_uri, "c2exe")
-            elif jname.startswith("cl2"):
-                self.assertEqual(gwjob.compute_site, "site1")
-                self.assertIsNone(gwjob.compute_cloud)
-                self.assertEqual(gwjob.executable.src_uri, "s1exe")
-            elif jname.startswith("pipetask"):
-                self.assertEqual(gwjob.compute_site, "global")
-                self.assertIsNone(gwjob.compute_cloud)
-                self.assertEqual(gwjob.executable.src_uri, "s3exe")
+            self.assertEqual(gwjob.compute_site, "site1", f"failed for job {gwjob}")
+            self.assertIsNone(gwjob.compute_cloud, f"failed for job {gwjob}")
+            if gwjob.label == "pipetaskInit":
+                self.assertEqual(gwjob.executable.src_uri, "pipetask", f"failed for job {gwjob}")
+            else:
+                self.assertEqual(gwjob.executable.src_uri, "s1exe", f"failed for job {gwjob}")
+                self.assertIn("{qgraphNodeId}", gwjob.arguments)
+
+            base_site_env_truth = {
+                "VAR2": "root_val2",
+                "VAR3": "root_val3",
+                "VAR4": "site1_val4",
+                "VAR_PATH": "<ENV:PACKAGE_DIR>/site1_dir:<ENV:PACKAGE_DIR>/root_dir:<ENV:VAR_PATH>",
+                "TEST_VAR": "one site1_val1 three",
+            }
+
+            match gwjob.label:
+                case "pipetaskInit":
+                    env_truth = dict(base_site_env_truth)
+                    env_truth["TEST_VAR"] = "one init_val1 three"
+                    self.assertEqual(gwjob.environment, env_truth)
+                    self.assertEqual(gwjob.cmdvals["initPreCmdOpts"], "--log-level=DEBUG")
+                    # Taking pipetaskInit-defined requestMemory.
+                    self.assertEqual(gwjob.request_memory, 8096)
+                case "clusterT1T2":
+                    # Taking cluster-defined requestMemory.
+                    self.assertEqual(gwjob.request_memory, 6144)
+                    self.assertEqual(len(gwjob.cmdvals["qgraphNodeId"].split(",")), 2)
+                case "clusterT3T4":
+                    # Taking max of the requestMemory for quanta in cluster.
+                    self.assertEqual(gwjob.request_memory, 4048)
+                    self.assertEqual(len(gwjob.cmdvals["qgraphNodeId"].split(",")), 2)
+                case "T2b":
+                    # Taking default requestMemory from root section.
+                    self.assertEqual(gwjob.request_memory, BPS_DEFAULTS["requestMemory"])
+                    self.assertEqual(len(gwjob.cmdvals["qgraphNodeId"].split(",")), 1)
+                case "T5":
+                    # Taking default requestMemory from root section.
+                    self.assertEqual(gwjob.request_memory, BPS_DEFAULTS["requestMemory"])
+                    self.assertEqual(len(gwjob.cmdvals["qgraphNodeId"].split(",")), 1)
+                case _:
+                    # Should always have a label from above, but need to
+                    # fail test if get different label.
+                    self.fail(f"Invalid gwjob.label for job {gwjob}")  # pragma: no cover
         final = workflow.get_final()
-        self.assertEqual(final.compute_site, "special_site")
-        self.assertEqual(final.compute_cloud, "special_cloud")
-        self.assertEqual(final.queue, "special_final_queue")
+        self.assertEqual(final.compute_site, "special_site", f"failed for final job {final}")
+        self.assertEqual(final.compute_cloud, "special_cloud", f"failed for final job {final}")
+        self.assertEqual(final.queue, "special_final_queue", f"failed for final job {final}")
+        self.assertEqual(final.request_memory, BPS_DEFAULTS["finalJob"]["requestMemory"])
 
 
 class TestGetJobValues(unittest.TestCase):
     """Tests of _get_job_values."""
 
     def setUp(self):
+        logging.basicConfig(level=logging.WARNING)
+        logging.getLogger("lsst.ctrl.bps.bps_config").setLevel(logging.INFO)
         self.default_job = GenericWorkflowJob("default_job", "default_label")
 
     def testGettingDefaults(self):
@@ -192,33 +193,162 @@ class TestGetJobValues(unittest.TestCase):
         self.assertEqual(job_values["executable"].src_uri, "/path/to/foo")
         self.assertEqual(job_values["arguments"], "bar.txt")
 
-    def testEnvironment(self):
+    @unittest.mock.patch("lsst.ctrl.bps.transform.gather_job_environment")
+    def testCallGatherJobEnvironmentNoSearchOpts(self, mock_gather):
+        # Test that _get_job_values passes right search options on
+        # to gather_job_environment function and didn't have side-effects.
+        env_truth = {"TEST_INT": "1", "TEST_BOOL": "False", "TEST_SPACES": "one two three"}
+        mock_gather.return_value = dict(env_truth)
         config = BpsConfig(
             {
                 "var1": "two",
                 "environment": {"TEST_INT": 1, "TEST_BOOL": False, "TEST_SPACES": "one {var1} three"},
+                "runQuantumCommand": "/path/to/foo bar.txt",
+                "pipetask": {"isr": {"requestMemory": 8096, "environment": {"ISR_VAR": "45"}}},
             }
         )
-        job_values = _get_job_values(config, {}, None)
-        truth = {"TEST_INT": "1", "TEST_BOOL": "False", "TEST_SPACES": "one two three"}
-        self.assertEqual(truth, job_values["environment"])
+        search_opts = {}
+        config_copy = BpsConfig(config)
+        search_opts_copy = dict(search_opts)
 
-    def testEnvironmentOptions(self):
+        job_values = _get_job_values(config, search_opts, None)
+        env_truth = {"TEST_INT": "1", "TEST_BOOL": "False", "TEST_SPACES": "one two three"}
+        self.assertEqual(env_truth, job_values["environment"])
+        mock_gather.assert_called_once_with(config, search_opts)
+
+        # And didn't have side-effects that changed vars
+        self.assertEqual(config, config_copy)
+        self.assertEqual(search_opts, search_opts_copy)
+
+    @unittest.mock.patch("lsst.ctrl.bps.transform.gather_job_environment")
+    def testCallGatherJobEnvironmentWithCurvals(self, mock_gather):
+        # Test that _get_job_values passes right search options on
+        # to gather_job_environment function and didn't have side-effects.
+        env_truth = {"TEST_INT": "1", "TEST_BOOL": "False", "TEST_SPACES": "one two three", "ISR_VAR": "45"}
+        mock_gather.return_value = dict(env_truth)
         config = BpsConfig(
             {
                 "var1": "two",
                 "environment": {"TEST_INT": 1, "TEST_BOOL": False, "TEST_SPACES": "one {var1} three"},
-                "finalJob": {"requestMemory": 8096, "command1": "/usr/bin/env"},
+                "runQuantumCommand": "/path/to/foo bar.txt",
+                "pipetask": {"isr": {"requestMemory": 8096, "environment": {"ISR_VAR": "45"}}},
             }
         )
-        search_obj = config["finalJob"]
-        search_opts = {"replaceVars": False, "searchobj": search_obj}
-        job_values = _get_job_values(config, search_opts, None)
-        truth = {"TEST_INT": "1", "TEST_BOOL": "False", "TEST_SPACES": "one two three"}
-        self.assertEqual(truth, job_values["environment"])
+        curvals = {"curr_pipetask": "isr"}
+        search_opts = {"replaceVars": False, "searchobj": {"curvals": curvals}}
+
+        # Save copies to check no side-effects
+        config_copy = BpsConfig(config)
+        search_opts_copy = dict(search_opts)
+
+        job_values = _get_job_values(config, search_opts, "runQuantumCommand")
+        mock_gather.assert_called_once_with(config, search_opts)
+
+        self.assertEqual(job_values["environment"], env_truth)
+        self.assertEqual(job_values["executable"].src_uri, "/path/to/foo")
+
+        # And didn't have side-effects that changed vars
+        self.assertEqual(config, config_copy)
+        self.assertEqual(search_opts, search_opts_copy)
+
+
+class TestGatherJobEnvironment(unittest.TestCase):
+    """Tests for the gather_job_environment function."""
+
+    def setUp(self):
+        logging.basicConfig(level=logging.WARNING)
+        logging.getLogger("lsst.ctrl.bps.bps_config").setLevel(logging.INFO)
+        # The directories don't match real ones, but are here to test
+        # environment variables in yaml environment section as well as
+        # appending values across sections.
+        filename = os.path.join(TESTDIR, "data/config_for_transform.yaml")
+        self.orig_config = BpsConfig(
+            filename, BPS_SEARCH_ORDER, BPS_DEFAULTS, wms_service_class_fqn="wms_test_utils.WmsServiceSuccess"
+        )
+
+    def testEnvironmentRootSiteCluster(self):
+        search_opts = {
+            "replaceVars": False,
+            "curvals": {"curr_cluster": "clusterT1T2", "curr_site": "site1"},
+        }
+        job_env = gather_job_environment(self.orig_config, search_opts)
+        truth = {
+            "VAR3": "cl12_val3",
+            "VAR4": "cl12_val4",
+            "VAR_PATH": "<ENV:PACKAGE_DIR>/cl12_dir:<ENV:PACKAGE_DIR>/site1_dir:<ENV:PACKAGE_DIR>/root_dir"
+            ":<ENV:VAR_PATH>",
+            "TEST_VAR": "one cl12_val1 three",
+        }
+        self.assertEqual(truth, job_env)
         self.assertEqual(search_opts["replaceVars"], False)
-        self.assertEqual(search_opts["searchobj"]["requestMemory"], 8096)
-        self.assertEqual(job_values["request_memory"], 8096)
+
+    def testEnvironmentRootSite(self):
+        # Checking that doesn't pick up env from other cluster
+        search_opts = {
+            "replaceVars": False,
+            "curvals": {"curr_cluster": "notthere", "curr_site": "site1"},
+        }
+        job_env = gather_job_environment(self.orig_config, search_opts)
+        truth = {
+            "VAR2": "root_val2",
+            "VAR3": "root_val3",
+            "VAR4": "site1_val4",
+            "VAR_PATH": "<ENV:PACKAGE_DIR>/site1_dir:<ENV:PACKAGE_DIR>/root_dir:<ENV:VAR_PATH>",
+            "TEST_VAR": "one site1_val1 three",
+        }
+        self.assertEqual(truth, job_env)
+        self.assertEqual(search_opts["replaceVars"], False)
+
+    def testEnvironmentRoot(self):
+        # Checking that doesn't pick up env from other cluster or site.
+        # Also check that doesn't modify our search_opts by setting opposites
+        # of what function uses.
+        orig_search_opts = {
+            "replaceVars": False,
+            "replaceEnvBps2Shell": True,
+            "replaceEnvShell2Bps": False,
+            "expandEnvVars": True,
+            "curvals": {"curr_cluster": "notthere", "curr_site": "notthere"},
+        }
+        search_opts = copy.deepcopy(orig_search_opts)
+
+        job_env = gather_job_environment(self.orig_config, search_opts)
+        truth = {
+            "VAR2": "root_val2",
+            "VAR3": "root_val3",
+            "VAR_PATH": "<ENV:PACKAGE_DIR>/root_dir:<ENV:VAR_PATH>",
+            "TEST_VAR": "one root_val1 three",
+        }
+        self.assertEqual(truth, job_env)
+        self.assertEqual(orig_search_opts, search_opts)
+
+    def testEnvironmentNoSearchOpts(self):
+        search_opts = {}
+        job_env = gather_job_environment(self.orig_config, search_opts)
+        truth = {
+            "VAR2": "root_val2",
+            "VAR_PATH": "<ENV:PACKAGE_DIR>/root_dir:<ENV:VAR_PATH>",
+            "VAR3": "root_val3",
+            "TEST_VAR": "one root_val1 three",
+        }
+        self.assertEqual(truth, job_env)
+        self.assertEqual(search_opts, {})
+
+    def testSearchObj(self):
+        # Test that works with searchobj, like finalJob
+        search_opts = {"searchobj": self.orig_config["finalJob"], "curvals": {"curr_site": "site1"}}
+        copy_final = BpsConfig(self.orig_config["finalJob"])
+        job_env = gather_job_environment(self.orig_config, search_opts)
+        # VAR3 and VAR4 removed in setUp
+        truth = {
+            "TEST_VAR": "one final_val1 three",
+            "VAR2": "root_val2",
+            "VAR5": "final_val5",
+            "VAR_PATH": "<ENV:PACKAGE_DIR>/final_dir:<ENV:PACKAGE_DIR>/site1_dir:<ENV:PACKAGE_DIR>/root_dir"
+            ":<ENV:VAR_PATH>",
+        }
+        self.assertEqual(truth, job_env)
+        self.assertEqual(search_opts["searchobj"], copy_final)
 
     def testVarsInEnvironment(self):
         config = BpsConfig(
@@ -236,6 +366,8 @@ class TestCreateFinalCommand(unittest.TestCase):
     """Tests for the create_final_command function."""
 
     def setUp(self):
+        logging.basicConfig(level=logging.WARNING)
+        logging.getLogger("lsst.ctrl.bps.bps_config").setLevel(logging.INFO)
         self.tmpdir = tempfile.TemporaryDirectory()
         self.script_beginning = [
             "#!/bin/bash\n",
@@ -357,6 +489,8 @@ class TestEnhanceCommand(unittest.TestCase):
     """Tests of _enhance_command function."""
 
     def setUp(self):
+        logging.basicConfig(level=logging.WARNING)
+        logging.getLogger("lsst.ctrl.bps.bps_config").setLevel(logging.INFO)
         self.gw_exec = GenericWorkflowExec("test_exec", "/dummy/dir/pipetask")
         self.config = BpsConfig(
             {
