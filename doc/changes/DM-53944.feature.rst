@@ -1,0 +1,1 @@
+Made improvements to how the environment specifications in submit yaml are handled.  See ``Job Environment`` section in docs for details and examples.

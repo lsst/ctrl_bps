@@ -1536,6 +1536,84 @@ invisible to the user.  ``bps report`` will still show same labels and
 total counts as without ordering.  ``cancel`` and ``restart`` will still
 work the same.
 
+
+.. _job-environment:
+
+Job Environment
+---------------
+
+One can specify environment values for jobs in the submit yaml.  When creating
+the job description for the WMS-plugins, BPS will search for environment
+settings following normal scoping ordering but performs a special merge
+instead of replacing the entire section.  If an environment value has
+another yaml environment variable, BPS will replace that yaml environment
+variable with its value.  This will allow normal path chaining
+behavior across sections.
+
+.. note::
+
+   To not include an environment variable from another section, use the special
+   string ``BPS_NONE`` as the environment variable value (case-insensitive).
+
+Here are some examples, given the following BPS config yaml what
+environment values BPS tells the WMS-plugin to set inside the job:
+
+.. code-block:: YAML
+
+   var1: "root_val1"
+   environment:
+     VAR2: "root_val2"
+     VAR3: "root_val3"
+     VAR_PATH: "${PACKAGE_DIR}/root_dir:${VAR_PATH}"
+     TEST_VAR: "one {var1} three"
+   site:
+     site1:
+       var1: "site_val1"
+       environment:
+         VAR4: "site_val4"
+         VAR_PATH: "${PACKAGE_DIR}/site_dir:${VAR_PATH}"
+   cluster:
+     cl1:
+       var1: "cl1_val1"
+       environment:
+         VAR2: "BPS_NONE"
+         VAR3: "cl1_val3"
+         VAR4: "cl1_val4"
+
+#. BPS environment for a cl1 job for site1 :
+
+   .. code-block::
+
+      VAR3="cl1_val3"
+      VAR4="cl1_val4"
+      VAR_PATH="${PACKAGE_DIR}/site_dir:${PACKAGE_DIR}/root_dir:${VAR_PATH}"
+      TEST_VAR="one cl1_val1 three"
+
+#. BPS environment for a non-cl1 job for site1 :
+
+   .. code-block::
+
+      VAR2="root_val2"
+      VAR3="root_val3"
+      VAR4="site_val4"
+      VAR_PATH="${PACKAGE_DIR}/site_dir:${PACKAGE_DIR}/root_dir:${VAR_PATH}"
+      TEST_VAR="one site_val1 three"
+
+#. BPS environment for a non-cli job for some site other than site1:
+
+   .. code-block::
+
+      VAR2="root_val2"
+      VAR3="root_val3"
+      VAR_PATH="${PACKAGE_DIR}/root_dir:${VAR_PATH}"
+      TEST_VAR="one root_val1 three"
+
+Different WMS-plugins create the job environment via different mechanisms
+(e.g., the HTCondor plugin copies the submit environment to the job) or may
+not support setting the environment via submit yaml.  If the WMS-plugin
+supports setting the environment via submit yaml, the job environment must
+at least include what is in the submit yaml, but it may include more.
+
 .. _bps-config-generation:
 
 Config Generation

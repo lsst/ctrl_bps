@@ -34,12 +34,13 @@ import unittest
 
 from cqg_test_utils import make_test_clustered_quantum_graph
 
-from lsst.ctrl.bps import BPS_SEARCH_ORDER, BpsConfig, GenericWorkflowJob
+from lsst.ctrl.bps import BPS_NONE, BPS_SEARCH_ORDER, BpsConfig, GenericWorkflowJob
 from lsst.ctrl.bps.transform import (
     _get_job_values,
     create_final_command,
     create_generic_workflow,
     create_generic_workflow_config,
+    gather_job_environment,
 )
 
 TESTDIR = os.path.abspath(os.path.dirname(__file__))
@@ -185,33 +186,156 @@ class TestGetJobValues(unittest.TestCase):
         self.assertEqual(job_values["executable"].src_uri, "/path/to/foo")
         self.assertEqual(job_values["arguments"], "bar.txt")
 
-    def testEnvironment(self):
+    @unittest.mock.patch("lsst.ctrl.bps.transform.gather_job_environment")
+    def testCallGatherJobEnvironment(self, mock_gather):
+        # Test that _get_job_values passes right search options on
+        # to gather_job_environment function.
+        env_truth = {"TEST_INT": "1", "TEST_BOOL": "False", "TEST_SPACES": "one two three", "ISR_VAR": "45"}
+        mock_gather.return_value = dict(env_truth)
         config = BpsConfig(
             {
                 "var1": "two",
                 "environment": {"TEST_INT": 1, "TEST_BOOL": False, "TEST_SPACES": "one {var1} three"},
+                "runQuantumCommand": "/path/to/foo bar.txt",
+                "pipetask": {"isr": {"requestMemory": 8096, "environment": {"ISR_VAR": "45"}}},
             }
         )
-        job_values = _get_job_values(config, {}, None)
-        truth = BpsConfig({"TEST_INT": "1", "TEST_BOOL": "False", "TEST_SPACES": "one two three"}, {}, None)
-        self.assertEqual(truth, job_values["environment"])
+        curvals = {"curr_pipetask": "isr"}
 
-    def testEnvironmentOptions(self):
-        config = BpsConfig(
+        # Save copies to check no side-effects
+        config_copy = BpsConfig(config)
+        curvals_copy = dict(curvals)
+
+        search_opts = {"replaceVars": False, "searchobj": {"curvals": curvals}}
+        job_values = _get_job_values(config, search_opts, "runQuantumCommand")
+        mock_gather.assert_called_once()
+
+        self.assertEqual(job_values["environment"], env_truth)
+        self.assertEqual(job_values["executable"].src_uri, "/path/to/foo")
+
+        # And didn't have side-effects that changed vars
+        self.assertEqual(config, config_copy)
+        self.assertEqual(search_opts["replaceVars"], False)
+        self.assertEqual(curvals, curvals_copy)
+
+
+class TestGatherJobEnvironment(unittest.TestCase):
+    """Tests for the gather_job_environment function."""
+
+    def setUp(self):
+        # The directories don't match real ones, but are here to test
+        # environment variables in yaml environment section as well as
+        # appending values across sections.
+        self.config = BpsConfig(
             {
-                "var1": "two",
-                "environment": {"TEST_INT": 1, "TEST_BOOL": False, "TEST_SPACES": "one {var1} three"},
-                "finalJob": {"requestMemory": 8096, "command1": "/usr/bin/env"},
+                "var1": "root_val1",
+                "environment": {
+                    "VAR2": "root_val2",
+                    "VAR3": "root_val3",
+                    "VAR_PATH": "${PACKAGE_DIR}/root_dir:${VAR_PATH}",
+                    "TEST_VAR": "one {var1} three",
+                },
+                "site": {
+                    "site1": {
+                        "var1": "site_val1",
+                        "environment": {
+                            "VAR4": "site_val4",
+                            "VAR_PATH": "${PACKAGE_DIR}/site_dir:${VAR_PATH}",
+                        },
+                    }
+                },
+                "cluster": {
+                    "cl1": {
+                        "var1": "cl1_val1",
+                        "environment": {
+                            "VAR2": BPS_NONE.lower(),  # test case-insensitivity
+                            "VAR3": "cl1_val3",
+                            "VAR4": "cl1_val4",
+                        },
+                    }
+                },
+                "finalJob": {
+                    "var1": "final_val1",
+                    "environment": {
+                        "VAR3": BPS_NONE,
+                        "VAR4": BPS_NONE,
+                    },
+                },
             }
         )
-        search_obj = config["finalJob"]
-        search_opts = {"replaceVars": False, "searchobj": search_obj}
-        job_values = _get_job_values(config, search_opts, None)
-        truth = {"TEST_INT": "1", "TEST_BOOL": "False", "TEST_SPACES": "one two three"}
-        self.assertEqual(truth, job_values["environment"])
+
+    def testEnvironmentRootSiteCluster(self):
+        search_opts = {
+            "replaceVars": False,
+            "curvals": {"curr_cluster": "cl1", "curr_site": "site1"},
+        }
+        job_env = gather_job_environment(self.config, search_opts)
+        truth = {
+            "VAR3": "cl1_val3",
+            "VAR4": "cl1_val4",
+            "VAR_PATH": "${PACKAGE_DIR}/site_dir:${PACKAGE_DIR}/root_dir:${VAR_PATH}",
+            "TEST_VAR": "one cl1_val1 three",
+        }
+        self.assertEqual(truth, job_env)
         self.assertEqual(search_opts["replaceVars"], False)
-        self.assertEqual(search_opts["searchobj"]["requestMemory"], 8096)
-        self.assertEqual(job_values["request_memory"], 8096)
+
+    def testEnvironmentRootSite(self):
+        # Checking that doesn't pick up env from other cluster
+        search_opts = {
+            "replaceVars": False,
+            "curvals": {"curr_cluster": "notthere", "curr_site": "site1"},
+        }
+        job_env = gather_job_environment(self.config, search_opts)
+        truth = {
+            "VAR2": "root_val2",
+            "VAR3": "root_val3",
+            "VAR4": "site_val4",
+            "VAR_PATH": "${PACKAGE_DIR}/site_dir:${PACKAGE_DIR}/root_dir:${VAR_PATH}",
+            "TEST_VAR": "one site_val1 three",
+        }
+        self.assertEqual(truth, job_env)
+        self.assertEqual(search_opts["replaceVars"], False)
+
+    def testEnvironmentRoot(self):
+        # Checking that doesn't pick up env from other cluster or site.
+        search_opts = {
+            "replaceVars": False,
+            "curvals": {"curr_cluster": "notthere", "curr_site": "notthere"},
+        }
+        job_env = gather_job_environment(self.config, search_opts)
+        truth = {
+            "VAR2": "root_val2",
+            "VAR3": "root_val3",
+            "VAR_PATH": "${PACKAGE_DIR}/root_dir:${VAR_PATH}",
+            "TEST_VAR": "one root_val1 three",
+        }
+        self.assertEqual(truth, job_env)
+        self.assertEqual(search_opts["replaceVars"], False)
+
+    def testEnvironmentNoSearchOpts(self):
+        search_opts = {}
+        job_env = gather_job_environment(self.config, search_opts)
+        truth = {
+            "VAR2": "root_val2",
+            "VAR_PATH": "${PACKAGE_DIR}/root_dir:${VAR_PATH}",
+            "VAR3": "root_val3",
+            "TEST_VAR": "one root_val1 three",
+        }
+        self.assertEqual(truth, job_env)
+        self.assertEqual(search_opts, {})
+
+    def testSearchObj(self):
+        # Test that works with searchobj, like finalJob
+        search_opts = {"searchobj": self.config["finalJob"], "curvals": {"curr_site": "site1"}}
+        copy_final = BpsConfig(self.config["finalJob"])
+        job_env = gather_job_environment(self.config, search_opts)
+        truth = {
+            "VAR2": "root_val2",
+            "VAR_PATH": "${PACKAGE_DIR}/site_dir:${PACKAGE_DIR}/root_dir:${VAR_PATH}",
+            "TEST_VAR": "one final_val1 three",
+        }
+        self.assertEqual(truth, job_env)
+        self.assertEqual(search_opts["searchobj"], copy_final)
 
 
 class TestCreateFinalCommand(unittest.TestCase):
