@@ -29,11 +29,7 @@
 
 from astropy import units as u
 
-__all__ = [
-    "DEFAULT_MEM_FMT",
-    "DEFAULT_MEM_RETRIES",
-    "DEFAULT_MEM_UNIT",
-]
+__all__ = ["BPS_NONE", "DEFAULT_MEM_FMT", "DEFAULT_MEM_RETRIES", "DEFAULT_MEM_UNIT"]
 
 
 DEFAULT_MEM_RETRIES = 5
@@ -46,4 +42,8 @@ DEFAULT_MEM_UNIT = u.gibibyte
 
 DEFAULT_MEM_FMT = ".3f"
 """Default format specifier to use when reporting memory consumption.
+"""
+
+BPS_NONE = "BPS_NONE"
+"""Special yaml value for a None value that can be read and written.
 """

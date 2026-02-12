@@ -33,13 +33,17 @@ import logging
 import math
 import os
 import re
+from typing import Any
 
 from lsst.ctrl.bps import ClusteredQuantumGraph
+from lsst.daf.butler import Config
 from lsst.pipe.base import QuantumGraph
 from lsst.utils.logging import VERBOSE
 from lsst.utils.timer import timeMethod
 
 from . import (
+    BPS_NONE,
+    BPS_SEARCH_ORDER,
     DEFAULT_MEM_RETRIES,
     BpsConfig,
     GenericWorkflow,
@@ -390,25 +394,7 @@ def _get_job_values(config, search_opt, cmd_line_key):
         else:
             job_values[attr] = getattr(default_gwjob, attr)
 
-    # Need to replace all config variables in environment values
-    # While replacing variables, convert to plain dict
-    if job_values["environment"]:
-        old_searchobj = search_opt.get("searchobj", None)
-        old_replace_vars = search_opt.get("replaceVars", None)
-        job_env = job_values["environment"]
-        search_opt["searchobj"] = job_env
-        search_opt["replaceVars"] = True
-        job_values["environment"] = {}
-        for name in job_env:
-            job_values["environment"][name] = str(config.search(name, search_opt)[1])
-        if old_searchobj is None:
-            del search_opt["searchobj"]
-        else:
-            search_opt["searchobj"] = old_searchobj
-        if old_replace_vars is None:
-            del search_opt["replaceVars"]
-        else:
-            search_opt["replaceVars"] = old_replace_vars
+    job_values["environment"] = gather_job_environment(config, search_opt)
 
     # If the automatic memory scaling is enabled (i.e. the memory multiplier
     # is set and it is a positive number greater than 1.0), adjust number
@@ -907,3 +893,86 @@ def add_final_job_as_sink(generic_workflow, final_job):
 
     generic_workflow.add_job(final_job)
     generic_workflow.add_job_relationships(gw_sinks, final_job.name)
+
+
+def gather_job_environment(config: BpsConfig, search_opt: dict[str, Any]) -> dict[str, str]:
+    """Gather environment settings using given config search options.
+
+    Parameters
+    ----------
+    config : `lsst.ctrl.bps.BpsConfig`
+        Bps configuration.
+    search_opt : `dict` [`str`, `~typing.Any`]
+        Config search options.
+
+    Returns
+    -------
+    environment : `dict` [`str`, `str`]
+        Dictionary of environment variable names and values.
+    """
+    # Save some search options so can temporarily change them.
+    old_replace_vars = search_opt.get("replaceVars", None)
+    old_expand_env_vars = search_opt.get("expandEnvVars", None)
+    search_opt["replaceVars"] = False
+    search_opt["expandEnvVars"] = False
+
+    environment = {}
+    new_environment = {}
+    curvals = search_opt.get("curvals", {})
+    if ".environment" in config:
+        _, root_env = config.search("environment", {"replaceVars": False})
+
+        # Cast to Config to avoid replacing variables.
+        environment.update(Config(root_env))
+
+    # In order to do the concatenation correctly, must
+    # search in reverse order than normal config searches
+    for sect in reversed(BPS_SEARCH_ORDER):
+        sect_key = "curr_" + sect
+        if sect_key in curvals and sect in config and curvals[sect_key] in config[sect]:
+            search_sect = config[sect][curvals[sect_key]]
+            if "environment" in search_sect:
+                # Cast to Config to avoid replacing variables
+                for key, value in Config(search_sect["environment"]).items():
+                    for envkey in re.findall(r"\${([^}]+)}", value):
+                        if envkey == key and envkey in environment:
+                            oldval = environment[key]
+                            value = re.sub(rf"\${{{envkey}}}", oldval, value)
+
+                    environment[key] = value
+
+    # Because not using normal config search, also have to check the
+    # search object if given.
+    if "searchobj" in search_opt and "environment" in search_opt["searchobj"]:
+        # Cast to Config to avoid replacing variables
+        env_sect = Config(search_opt["searchobj"]["environment"])
+        for key, value in env_sect.items():
+            for envkey in re.findall(r"\${([^}]+)}", value):
+                if envkey == key and envkey in environment:
+                    oldval = environment[key]
+                    value = re.sub(rf"\${{{envkey}}}", oldval, value)
+            environment[key] = value
+
+    # Need to replace all config variables in environment values.
+    # Also remove any environment variable where value is "BPS_NONE".
+    if environment:
+        search_opt["replaceVars"] = True
+        new_environment = {}
+        for name in environment:
+            # Ensure that environment values are strings
+            new_environment[name] = str(config.replace_vars(environment[name], search_opt))
+            if new_environment[name].upper() == BPS_NONE:
+                _LOG.debug("Removing %s from the merged environment", name)
+                del new_environment[name]
+
+    # Set search opts back to original values.
+    if old_replace_vars is None:
+        del search_opt["replaceVars"]
+    else:
+        search_opt["replaceVars"] = old_replace_vars
+    if old_expand_env_vars is None:
+        del search_opt["expandEnvVars"]
+    else:
+        search_opt["expandEnvVars"] = old_replace_vars
+
+    return new_environment
