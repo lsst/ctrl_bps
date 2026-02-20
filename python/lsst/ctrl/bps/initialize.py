@@ -140,7 +140,10 @@ def init_submission(
 
     # save copy of configs (orig and expanded config)
     shutil.copy2(config_file, submit_path)
-    with open(f"{submit_path}/{config['uniqProcName']}_config.yaml", "w") as fh:
+    expanded_config_file = f"{submit_path}/{config['uniqProcName']}_config.yaml"
+    config[".bps_defined.configFile"] = expanded_config_file
+
+    with open(expanded_config_file, "w") as fh:
         config.dump(fh)
 
     # Dump information about runtime environment and software versions in use.

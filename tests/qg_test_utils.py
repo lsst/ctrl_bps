@@ -304,7 +304,7 @@ def make_test_helper() -> InMemoryRepo:
     return helper
 
 
-def make_test_quantum_graph(run: str = "run", uneven=False):
+def make_test_quantum_graph(run: str = "run", uneven=False, save_filename: str = None):
     """Create a quantum graph for unit tests.
 
     Parameters
@@ -314,6 +314,8 @@ def make_test_quantum_graph(run: str = "run", uneven=False):
     uneven : `bool`, optional
         Whether some of the quanta for initial tasks are
         not included as if finished in previous run.
+    save_filename : `str`, optional
+        Save test quantum graph to file using given filename.
 
     Returns
     -------
@@ -345,4 +347,7 @@ def make_test_quantum_graph(run: str = "run", uneven=False):
             }
             qgc.set_thin_graph()
             qgc.set_header_counts()
+
+        if save_filename:
+            qgc.write(save_filename)
         return qgc.assemble()

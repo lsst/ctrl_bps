@@ -33,6 +33,7 @@ __all__ = [
     "make_5_label_workflow",
     "make_5_label_workflow_2_groups",
     "make_5_label_workflow_middle_groups",
+    "make_lazy_workflow",
 ]
 
 import logging
@@ -44,6 +45,7 @@ from lsst.ctrl.bps import (
     GenericWorkflowExec,
     GenericWorkflowGroup,
     GenericWorkflowJob,
+    GenericWorkflowLazyGroup,
     GenericWorkflowNodeType,
     GenericWorkflowNoopJob,
 )
@@ -656,3 +658,43 @@ def compare_generic_workflows(gwf1: GenericWorkflow, gwf2: GenericWorkflow) -> b
         equal = False
 
     return equal
+
+
+def make_lazy_workflow(workflow_name: str, final: bool) -> GenericWorkflow:
+    """Create a simple test workflow containing a lazy workflow node.
+
+    Parameters
+    ----------
+    workflow_name : `str`
+        Name of the test workflow.
+    final : `bool`
+        Whether to add a final job.
+
+    Returns
+    -------
+    gwf : `lsst.ctrl.bps.GenericWorkflow`
+        The test workflow.
+    """
+    gwf = GenericWorkflow(workflow_name)
+
+    # job 1
+    gwexec1 = GenericWorkflowExec("exec1", "my_exec1.sh", False)
+    job1 = GenericWorkflowJob("job1", "label1", executable=gwexec1)
+    gwf.add_job(job1, None)
+
+    # lazy workflow job
+    gwexec2 = GenericWorkflowExec("exec2", "${CTRL_BPS_DIR}/python/lsst/ctrl/bps/_make_workflow.sh", False)
+    job2 = GenericWorkflowLazyGroup("lazy2", "label2", executable=gwexec2)
+    gwf.add_job(job2, [job1.name])
+
+    # Job after
+    gwexec3 = GenericWorkflowExec("exec3", "my_exec3.sh", False)
+    job3 = GenericWorkflowJob("job3", "label3", executable=gwexec3)
+    gwf.add_job(job3, [job2.name])
+
+    if final:
+        gwexec = GenericWorkflowExec("finalJob.bash", "finalJob.bash", True)
+        job = GenericWorkflowJob("finalJob", label="finalJob", executable=gwexec)
+        gwf.add_final(job)
+
+    return gwf
