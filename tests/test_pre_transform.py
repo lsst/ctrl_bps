@@ -33,8 +33,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from lsst.ctrl.bps import BpsConfig, BpsSubprocessError, ClusteredQuantumGraph
-from lsst.ctrl.bps.pre_transform import cluster_quanta, create_quantum_graph, execute, update_quantum_graph
+from qg_test_utils import make_test_quantum_graph
+
+from lsst.ctrl.bps import BpsConfig, BpsSubprocessError, ClusteredQuantumGraph, pre_transform
+from lsst.pipe.base import QuantumGraph
+from lsst.pipe.base.quantum_graph import PredictedQuantumGraph
 from lsst.pipe.base.tests.mocks import InMemoryRepo
 
 TESTDIR = os.path.abspath(os.path.dirname(__file__))
@@ -56,7 +59,7 @@ class TestExecute(unittest.TestCase):
         content = "Successful execution"
         command = f"{sys.executable} -c 'print(\"{content}\")'"
         with self.assertLogs(logger=self.logger, level="INFO") as cm:
-            status = execute(command, self.file.name)
+            status = pre_transform.execute(command, self.file.name)
         self.assertIn(content, cm.output[0])
         self.file.seek(0)
         file_contents = self.file.read()
@@ -66,7 +69,7 @@ class TestExecute(unittest.TestCase):
 
     def testFailingExecution(self):
         """Test exit status if command failed."""
-        status = execute("false", self.file.name)
+        status = pre_transform.execute("false", self.file.name)
         self.assertIn("false", self.file.read())
         self.assertNotEqual(status, 0)
 
@@ -92,7 +95,7 @@ class TestCreatingQuantumGraph(unittest.TestCase):
         """Test if a new quantum graph was created successfully."""
         config = BpsConfig(self.settings, search_order=[])
         with self.assertLogs(logger=self.logger, level="INFO") as cm:
-            qgraph_filename = create_quantum_graph(config, self.tmpdir)
+            qgraph_filename = pre_transform.create_quantum_graph(config, self.tmpdir)
         _, command = config.search("createQuantumGraph", opt={"curvals": {"qgraphFile": qgraph_filename}})
         self.assertIn(command, cm.output[0])
         self.assertTrue(os.path.exists(qgraph_filename))
@@ -102,14 +105,14 @@ class TestCreatingQuantumGraph(unittest.TestCase):
         del self.settings["createQuantumGraph"]
         config = BpsConfig(self.settings, search_order=[])
         with self.assertRaisesRegex(KeyError, "command.*not found"):
-            create_quantum_graph(config, self.tmpdir)
+            pre_transform.create_quantum_graph(config, self.tmpdir)
 
     def testFailure(self):
         """Test if error is caught when the quantum graph creation fails."""
         self.settings["createQuantumGraph"] = "bash -c  'exit 2'"
         config = BpsConfig(self.settings, search_order=[])
         with self.assertRaises(BpsSubprocessError) as cm:
-            create_quantum_graph(config, self.tmpdir)
+            pre_transform.create_quantum_graph(config, self.tmpdir)
         self.assertEqual(cm.exception.errno, errno.ENOENT)
         self.assertIn("non-zero exit code", str(cm.exception))
 
@@ -143,7 +146,7 @@ class TestUpdatingQuantumGraph(unittest.TestCase):
         """Test if the quantum graph was updated."""
         config = BpsConfig(self.settings, search_order=[])
         with self.assertLogs(logger=self.logger, level="INFO") as cm:
-            update_quantum_graph(config, str(self.src), self.tmpdir)
+            pre_transform.update_quantum_graph(config, str(self.src), self.tmpdir)
         _, command = config.search("updateQuantumGraph", opt={"curvals": {"qgraphFile": str(self.src)}})
         self.assertIn("backing up", cm.output[0].lower())
         self.assertIn("completed", cm.output[1].lower())
@@ -156,7 +159,7 @@ class TestUpdatingQuantumGraph(unittest.TestCase):
         """Test if a quantum graph was updated inplace."""
         config = BpsConfig(self.settings, search_order=[])
         with self.assertLogs(logger=self.logger, level="INFO") as cm:
-            update_quantum_graph(config, str(self.src), self.tmpdir, inplace=True)
+            pre_transform.update_quantum_graph(config, str(self.src), self.tmpdir, inplace=True)
         _, command = config.search("updateQuantumGraph", opt={"curvals": {"qgraphFile": str(self.src)}})
         self.assertIn(command, cm.output[0])
         self.assertTrue(self.src.read_text(), "bar\n")
@@ -167,16 +170,105 @@ class TestUpdatingQuantumGraph(unittest.TestCase):
         del self.settings["updateQuantumGraph"]
         config = BpsConfig(self.settings, search_order=[])
         with self.assertRaisesRegex(KeyError, "command.*not found"):
-            update_quantum_graph(config, str(self.src), self.tmpdir)
+            pre_transform.update_quantum_graph(config, str(self.src), self.tmpdir)
 
     def testFailure(self):
         """Test if error is caught when the command fails."""
         self.settings["updateQuantumGraph"] = "bash -c  'exit 2'"
         config = BpsConfig(self.settings, search_order=[])
         with self.assertRaises(BpsSubprocessError) as cm:
-            update_quantum_graph(config, str(self.src), self.tmpdir)
+            pre_transform.update_quantum_graph(config, str(self.src), self.tmpdir)
         self.assertEqual(cm.exception.errno, errno.ENOENT)
         self.assertRegex(str(cm.exception), "non-zero exit code")
+
+
+class TestReadQuantumGraph(unittest.TestCase):
+    """Test read_quantum_graph method."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp(dir=TESTDIR)
+        self.logger = logging.getLogger("lsst.ctrl.bps")
+
+    def tearDown(self):
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def testBadExtension(self):
+        with self.assertRaisesRegex(ValueError, "Unrecognized extension for quantum graph file"):
+            _ = pre_transform.read_quantum_graph("mygraph.badext")
+
+    def testReadQG(self):
+        filename = f"{self.tmpdir}/testQG.qg"
+        self.qg = make_test_quantum_graph("test_read", save_filename=filename)
+        self.assertTrue(os.path.exists(filename))
+
+        qg = pre_transform.read_quantum_graph(filename)
+        self.assertEqual(len(qg), 18)
+
+    @unittest.mock.patch.object(QuantumGraph, "loadUri")
+    @unittest.mock.patch.object(PredictedQuantumGraph, "from_old_quantum_graph")
+    def testReadOldQG(self, mock_from, mock_load):
+        # Instead of maintaining old format in ctrl_bps, just make sure bps
+        # function calls methods to read old format and convert old format.
+        # This test will fail if from_old_quantum_graph or QuantumGraph are
+        # removed.  Those calls should also be removed from read_quantum_graph.
+        mock_from.return_value = "quantum_graph"
+        mock_load.return_value = "quantum_graph"
+        filename = f"{self.tmpdir}/testQG.qgraph"
+        _ = pre_transform.read_quantum_graph(filename)
+        mock_load.assert_called_once()
+        mock_from.assert_called_once()
+
+
+class TestAcquireQuantumGraph(unittest.TestCase):
+    """Test acquire_quantum_graph method."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp(dir=TESTDIR)
+        self.logger = logging.getLogger("lsst.ctrl.bps")
+
+    def tearDown(self):
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    @unittest.mock.patch("lsst.ctrl.bps.pre_transform.create_quantum_graph")
+    def testCreateGraph(self, mock_create):
+        qgraph_filename = f"{self.tmpdir}/created.qg"
+        mock_create.return_value = qgraph_filename
+        results = pre_transform.acquire_quantum_graph(BpsConfig({}), out_prefix=self.tmpdir)
+        self.assertEqual(results, qgraph_filename)
+        mock_create.assert_called_once()
+
+    @unittest.mock.patch("lsst.ctrl.bps.pre_transform.update_quantum_graph")
+    def testExistingGraphNoCopy(self, mock_update):
+        filename = "original.qg"
+        config = BpsConfig({"qgraphFile": filename, "finalJob": {"dummy_var": "dummy_val"}})
+
+        results = pre_transform.acquire_quantum_graph(config, out_prefix=None)
+        self.assertEqual(results, filename)
+        mock_update.assert_called_once()
+
+    @unittest.mock.patch("lsst.ctrl.bps.pre_transform.update_quantum_graph")
+    def testExistingGraphNoCopyNoUpdate(self, mock_update):
+        filename = "original.qg"
+        config = BpsConfig({"qgraphFile": filename})
+
+        results = pre_transform.acquire_quantum_graph(config, out_prefix=None)
+        self.assertEqual(results, filename)
+        mock_update.assert_not_called()
+
+    @unittest.mock.patch("lsst.ctrl.bps.pre_transform.update_quantum_graph")
+    def testExistingGraphCopy(self, mock_update):
+        filename = Path(self.tmpdir) / "original.qg"
+        with open(filename, "w") as fh:
+            fh.write("test file")
+        path = Path(self.tmpdir) / "run_dir"
+        path.mkdir(parents=True, exist_ok=True)
+
+        config = BpsConfig({"qgraphFile": str(filename), "finalJob": {"dummy_var": "dummy_val"}})
+
+        results = pre_transform.acquire_quantum_graph(config, out_prefix=path)
+        self.assertEqual(results, str(path / filename.name))
+        self.assertTrue(Path(results).exists())
+        mock_update.assert_called_once()
 
 
 class TestClusterQuanta(unittest.TestCase):
@@ -197,7 +289,7 @@ class TestClusterQuanta(unittest.TestCase):
         with InMemoryRepo() as repo:
             qgraph = repo.make_quantum_graph()
         with self.assertRaisesRegex(RuntimeError, "Fake error"):
-            _ = cluster_quanta(config, qgraph, "a_name")
+            _ = pre_transform.cluster_quanta(config, qgraph, "a_name")
 
     @unittest.mock.patch.object(ClusteredQuantumGraph, "validate")
     def testNoValidate(self, mock_validate):
@@ -211,7 +303,7 @@ class TestClusterQuanta(unittest.TestCase):
         config = BpsConfig(settings, search_order=[])
         with InMemoryRepo() as repo:
             qgraph = repo.make_quantum_graph()
-        _ = cluster_quanta(config, qgraph, "a_name")
+        _ = pre_transform.cluster_quanta(config, qgraph, "a_name")
 
 
 if __name__ == "__main__":
