@@ -33,6 +33,7 @@ __all__ = [
     "GenericWorkflowFile",
     "GenericWorkflowGroup",
     "GenericWorkflowJob",
+    "GenericWorkflowLazyGroup",
     "GenericWorkflowNode",
     "GenericWorkflowNodeType",
     "GenericWorkflowNoopJob",
@@ -126,6 +127,9 @@ class GenericWorkflowNodeType(IntEnum):
 
     GROUP = auto()
     """A special group (subdag) of jobs."""
+
+    LAZY_GROUP = auto()
+    """When run will generate sub-workflow of jobs."""
 
 
 @dataclasses.dataclass(slots=True)
@@ -474,7 +478,7 @@ class GenericWorkflow(DiGraph):
         super().add_node(job.name, job=job)
         self.add_job_relationships(parent_names, job.name)
         self.add_job_relationships(job.name, child_names)
-        if job.node_type == GenericWorkflowNodeType.PAYLOAD:
+        if job.node_type in [GenericWorkflowNodeType.PAYLOAD, GenericWorkflowNodeType.LAZY_GROUP]:
             job = cast(GenericWorkflowJob, job)
             self.add_executable(job.executable)
             self._job_labels.add_job(
@@ -1334,6 +1338,18 @@ class GenericWorkflowGroup(GenericWorkflowNode, GenericWorkflow):
         GenericWorkflowNode.__init__(self, name, label)
         GenericWorkflow.__init__(self, name)
         self.blocking = blocking
+
+
+@dataclasses.dataclass(slots=True)
+class GenericWorkflowLazyGroup(GenericWorkflowJob):
+    """Node representing a group of jobs to be generated when run."""
+
+    # Docstring inherited.
+
+    @property
+    def node_type(self) -> GenericWorkflowNodeType:
+        """Indicate this is a lazy group job."""
+        return GenericWorkflowNodeType.LAZY_GROUP
 
 
 class GenericWorkflowLabels:
