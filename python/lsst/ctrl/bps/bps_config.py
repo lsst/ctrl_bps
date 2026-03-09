@@ -371,8 +371,10 @@ class BpsConfig(Config):
                 value = re.sub(r"<ENV:([^>]+)>", r"$\1", value)
                 value = expandvars(value)
             elif opt.get("replaceEnvVars", False):
-                value = re.sub(r"\${([^}]+)}", r"<ENV:\1>", value)
-                value = re.sub(r"\$(\S+)", r"<ENV:\1>", value)
+                # Don't replace double dollar signs or $( to allow
+                # pass-through to WMS
+                value = re.sub(r"\${([^$(}]+)}", r"<ENV:\1>", value)
+                value = re.sub(r"\$([^$(}]+)", r"<ENV:\1>", value)
 
             if opt.get("replaceVars", True):
                 value = self.replace_vars(value, opt)
@@ -409,6 +411,9 @@ class BpsConfig(Config):
         for name in opt.get("skipNames", {}):
             value = value.replace(f"{{{name}}}", f"<BPSTMP2:{name}>")
 
+        # Replace special keys for WMS to fill in.
+        value = re.sub(r"{wms([^}]+)}", lambda x: f"<WMS:{x[1][0].lower() + x[1][1:]}>", value)
+
         value = self.formatter.format(value, self, opt)
 
         # Replace any temporary place holders.
@@ -425,6 +430,9 @@ class BpsConfig(Config):
         )
         if "bpsEval" in value:
             raise ValueError(f"Unparsable bpsEval in '{value}'")
+
+        # Make yaml-specified paths easier to read, remove empty subdirs (//)
+        value = re.sub(r"//+", "/", value)
 
         return value
 
