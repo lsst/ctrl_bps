@@ -1,0 +1,1 @@
+Fixed bug that converts s3:// to s3:/.  Changed code to only remove double slashes with subDirTemplate since we are guaranteed it is used as part of a path and doesn't include a scheme.

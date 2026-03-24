@@ -265,9 +265,6 @@ def _enhance_command(config, generic_workflow, gwjob, cached_job_values):
         r"{wms([^}]+)}", lambda x: f"<WMS:{x[1][0].lower() + x[1][1:]}>", gwjob.arguments
     )
 
-    # To make yaml-specified paths easier to read, remove empty subdirs (//)
-    gwjob.arguments = re.sub(r"//+", "/", gwjob.arguments)
-
     # Save dict of other values needed to complete command line.
     # (Be careful to not replace env variables as they may
     # be different in compute job.)
