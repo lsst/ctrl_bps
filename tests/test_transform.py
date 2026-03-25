@@ -395,6 +395,16 @@ class TestEnhanceCommand(unittest.TestCase):
         _enhance_command(self.config, gw, gwjob, self.cached_vals)
         self.assertEqual(gwjob.cmdvals["key1"], "val1")
 
+    def testS3Argument(self):
+        """Make sure s3 double slashes are not getting removed."""
+        gwjob = GenericWorkflowJob("job1", "label1", executable=self.gw_exec)
+        gw = GenericWorkflow("test1")
+        gw.add_job(gwjob)
+        s3 = "s3://user1@rubin-place-users/butler-pipeline1-processing.yaml"
+        gwjob.arguments = s3
+        _enhance_command(self.config, gw, gwjob, {})
+        self.assertEqual(gwjob.arguments, s3)
+
 
 if __name__ == "__main__":
     unittest.main()

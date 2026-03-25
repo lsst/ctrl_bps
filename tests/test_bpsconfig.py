@@ -296,6 +296,87 @@ class TestBpsConfigSearch(unittest.TestCase):
         with self.assertRaises(KeyError):
             self.config.search("fred", opt={"required": True})
 
+    def testS3Path(self):
+        """Test that double slashes aren't replaced with single slash."""
+        config = BpsConfig(self.config)
+        s3 = "s3://user1@rubin-place-users/butler-pipeline1-processing.yaml"
+        config["butlerConfig"] = s3
+        test_opt = {"expandEnvVars": True, "replaceEnvVars": True, "replaceVars": True}
+        found, value = config.search("butlerConfig", opt=test_opt)
+        self.assertEqual(found, True)
+        self.assertEqual(value, s3)
+
+    def testSubDirTemplate(self):
+        """Test that double slashes are replaced with single slash
+        in subDirTemplate.
+        """
+        config = BpsConfig(self.config)
+
+        # template doesn't end in slash, post-slashes value didn't end in slash
+        config["subDirTemplate"] = "{label}/{val1}/{val2}/{val3}/{val4}/{val5}"
+        test_opt = {
+            "expandEnvVars": True,
+            "replaceEnvVars": True,
+            "replaceVars": True,
+            "curvals": {"label": "label1", "val5": 12345},
+        }
+        found, value = config.search("subDirTemplate", opt=test_opt)
+        self.assertEqual(found, True)
+        self.assertEqual(value, "label1/12345")
+
+        # template doesn't end in slash, post-slashes value ended in slash
+        config["subDirTemplate"] = "{label}/{val1}/{val2}/{val3}/{val4}/{val5}"
+        test_opt = {
+            "expandEnvVars": True,
+            "replaceEnvVars": True,
+            "replaceVars": True,
+            "curvals": {"label": "label2", "val4": 12345},
+        }
+        found, value = config.search("subDirTemplate", opt=test_opt)
+        self.assertEqual(found, True)
+        self.assertEqual(value, "label2/12345")
+
+        # template ends in slash, post-slashes value didn't end in slash
+        config["subDirTemplate"] = "{label}/{val1}/{val2}/{val3}/{val4}/{val5}/"
+        test_opt = {
+            "expandEnvVars": True,
+            "replaceEnvVars": True,
+            "replaceVars": True,
+            "curvals": {"label": "label3", "val4": 12345},
+        }
+        found, value = config.search("subDirTemplate", opt=test_opt)
+        self.assertEqual(found, True)
+        self.assertEqual(value, "label3/12345/")
+
+        # template ends in slash, post-slashes value ended in slash
+        config["subDirTemplate"] = "{label}/{val1}/{val2}/{val3}/{val4}/{val5}/"
+        test_opt = {
+            "expandEnvVars": True,
+            "replaceEnvVars": True,
+            "replaceVars": True,
+            "curvals": {"label": "label4", "val2": 12345},
+        }
+        found, value = config.search("subDirTemplate", opt=test_opt)
+        self.assertEqual(found, True)
+        self.assertEqual(value, "label4/12345/")
+
+    def testOtherTemplate(self):
+        """Test that other subDirTemplate-like value doesn't have
+        double slashes replaced.
+        """
+        config = BpsConfig(self.config)
+
+        config["otherTemplate"] = "{label}/{val1}/{val2}/{val3}/{val4}/{val5}"
+        test_opt = {
+            "expandEnvVars": True,
+            "replaceEnvVars": True,
+            "replaceVars": True,
+            "curvals": {"label": "label1", "val4": 12345, "val5": ""},
+        }
+        found, value = config.search("otherTemplate", opt=test_opt)
+        self.assertEqual(found, True)
+        self.assertEqual(value, "label1////12345/")
+
 
 class TestBpsConfigGenerateConfig(unittest.TestCase):
     """Test BpsConfig.generate_config and bpsEval methods."""

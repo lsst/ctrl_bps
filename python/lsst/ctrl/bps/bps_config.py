@@ -37,7 +37,7 @@ import logging
 import os
 import re
 import string
-from os.path import expandvars
+from os.path import expandvars, normpath
 from typing import Any
 
 from lsst.daf.butler import Config
@@ -366,6 +366,10 @@ class BpsConfig(Config):
 
         _LOG.debug("opt=%s %s", opt, type(opt))
         if found and isinstance(value, str):
+            if key == "subDirTemplate":
+                # Save if template ends with slash
+                template_endswith_slash = value.endswith("/")
+
             if opt.get("expandEnvVars", True):
                 _LOG.debug("before format=%s", value)
                 value = re.sub(r"<ENV:([^>]+)>", r"$\1", value)
@@ -378,6 +382,15 @@ class BpsConfig(Config):
 
             if opt.get("replaceVars", True):
                 value = self.replace_vars(value, opt)
+                if key == "subDirTemplate":
+                    # Make yaml-specified subdirs easier to read
+                    # by removing empty subdirs (//).  normpath
+                    # removes any trailing slash.
+                    value = normpath(value)
+                    # Check if subDirTemplate pattern actually ends in slash
+                    # If so, the value returned should.
+                    if template_endswith_slash:
+                        value += "/"
 
             _LOG.debug("after format=%s", value)
 
@@ -430,9 +443,6 @@ class BpsConfig(Config):
         )
         if "bpsEval" in value:
             raise ValueError(f"Unparsable bpsEval in '{value}'")
-
-        # Make yaml-specified paths easier to read, remove empty subdirs (//)
-        value = re.sub(r"//+", "/", value)
 
         return value
 
