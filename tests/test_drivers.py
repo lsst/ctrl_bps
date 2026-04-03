@@ -31,12 +31,12 @@ import os
 import shutil
 import tempfile
 import unittest
+from pathlib import Path
 
 import yaml
 
-from lsst.ctrl.bps import WmsRunReport, WmsStates
+from lsst.ctrl.bps import BaseWmsWorkflow, BpsConfig, WmsRunReport, WmsStates, drivers
 from lsst.ctrl.bps.bps_reports import compile_code_summary, compile_job_summary
-from lsst.ctrl.bps.drivers import _init_submission_driver, ping_driver, report_driver, status_driver
 
 TESTDIR = os.path.abspath(os.path.dirname(__file__))
 
@@ -63,7 +63,7 @@ class TestInitSubmissionDriver(unittest.TestCase):
         with tempfile.NamedTemporaryFile(mode="w+", suffix=".yaml") as file:
             yaml.dump(config, stream=file)
             with self.assertRaisesRegex(KeyError, "outCollection"):
-                _init_submission_driver(file.name)
+                drivers._init_submission_driver(file.name)
 
     @unittest.mock.patch("lsst.ctrl.bps.initialize.BPS_DEFAULTS", {})
     def testMissingOutputRun(self):
@@ -71,7 +71,7 @@ class TestInitSubmissionDriver(unittest.TestCase):
         with tempfile.NamedTemporaryFile(mode="w+", suffix=".yaml") as file:
             yaml.dump(config, stream=file)
             with self.assertRaisesRegex(KeyError, "outputRun"):
-                _init_submission_driver(file.name)
+                drivers._init_submission_driver(file.name)
 
     @unittest.mock.patch("lsst.ctrl.bps.initialize.BPS_DEFAULTS", {})
     def testMissingSubmitPath(self):
@@ -79,19 +79,19 @@ class TestInitSubmissionDriver(unittest.TestCase):
         with tempfile.NamedTemporaryFile(mode="w+", suffix=".yaml") as file:
             yaml.dump(config, stream=file)
             with self.assertRaisesRegex(KeyError, "submitPath"):
-                _init_submission_driver(file.name)
+                drivers._init_submission_driver(file.name)
 
 
 class TestPingDriver(unittest.TestCase):
     """Test ping."""
 
     def testWmsServiceSuccess(self):
-        retval = ping_driver("wms_test_utils.WmsServiceSuccess")
+        retval = drivers.ping_driver("wms_test_utils.WmsServiceSuccess")
         self.assertEqual(retval, 0)
 
     def testWmsServiceFailure(self):
         with self.assertLogs(level=logging.ERROR) as cm:
-            retval = ping_driver("wms_test_utils.WmsServiceFailure")
+            retval = drivers.ping_driver("wms_test_utils.WmsServiceFailure")
             self.assertNotEqual(retval, 0)
             self.assertEqual(cm.records[0].getMessage(), "Couldn't contact service X")
 
@@ -99,7 +99,7 @@ class TestPingDriver(unittest.TestCase):
         with unittest.mock.patch.dict(
             os.environ, {"BPS_WMS_SERVICE_CLASS": "wms_test_utils.WmsServiceSuccess"}
         ):
-            retval = ping_driver()
+            retval = drivers.ping_driver()
             self.assertEqual(retval, 0)
 
     @unittest.mock.patch(
@@ -108,13 +108,13 @@ class TestPingDriver(unittest.TestCase):
     def testWmsServiceNone(self):
         with unittest.mock.patch.dict(os.environ, {}):
             with self.assertLogs(level=logging.INFO) as cm:
-                retval = ping_driver()
+                retval = drivers.ping_driver()
                 self.assertEqual(retval, 0)
                 self.assertEqual(cm.records[0].getMessage(), "DEFAULT None")
 
     def testWmsServicePassThru(self):
         with self.assertLogs(level=logging.INFO) as cm:
-            retval = ping_driver("wms_test_utils.WmsServicePassThru", "EXTRA_VALUES")
+            retval = drivers.ping_driver("wms_test_utils.WmsServicePassThru", "EXTRA_VALUES")
             self.assertEqual(retval, 0)
             self.assertRegex(cm.output[0], "INFO.+EXTRA_VALUES")
 
@@ -124,13 +124,17 @@ class TestStatusDriver(unittest.TestCase):
 
     def testWmsServiceSuccess(self):
         with self.assertLogs(level=logging.INFO) as cm:
-            retval = status_driver("wms_test_utils.WmsServiceSuccess", run_id="/dummy/path", hist_days=3)
+            retval = drivers.status_driver(
+                "wms_test_utils.WmsServiceSuccess", run_id="/dummy/path", hist_days=3
+            )
             self.assertEqual(retval, WmsStates.SUCCEEDED.value)
             self.assertEqual(cm.records[0].getMessage(), "status: SUCCEEDED")
 
     def testWmsServiceFailure(self):
         with self.assertLogs(level=logging.WARNING) as cm:
-            retval = status_driver("wms_test_utils.WmsServiceFailure", run_id="/dummy/path", hist_days=3)
+            retval = drivers.status_driver(
+                "wms_test_utils.WmsServiceFailure", run_id="/dummy/path", hist_days=3
+            )
             self.assertEqual(retval, WmsStates.FAILED.value)
             self.assertEqual(cm.records[0].getMessage(), "Dummy error message.")
 
@@ -139,7 +143,7 @@ class TestStatusDriver(unittest.TestCase):
     )
     def testWmsServiceNone(self):
         with unittest.mock.patch.dict(os.environ, {}):
-            retval = status_driver(None, run_id="/dummy/path", hist_days=3)
+            retval = drivers.status_driver(None, run_id="/dummy/path", hist_days=3)
             self.assertEqual(retval, WmsStates.RUNNING.value)
 
 
@@ -152,7 +156,7 @@ class TestReportDriver(unittest.TestCase):
     def testWmsServiceFromDefaults(self):
         # Should not raise an exception and use default from BPS_DEFAULTS.
         with unittest.mock.patch.dict(os.environ, {}, clear=True):
-            report_driver(
+            drivers.report_driver(
                 wms_service=None,
                 run_id=None,
                 user=None,
@@ -165,7 +169,7 @@ class TestReportDriver(unittest.TestCase):
         with unittest.mock.patch.dict(
             os.environ, {"BPS_WMS_SERVICE_CLASS": "wms_test_utils.WmsServiceSuccess"}
         ):
-            report_driver(
+            drivers.report_driver(
                 wms_service=None,
                 run_id=None,
                 user=None,
@@ -178,7 +182,7 @@ class TestReportDriver(unittest.TestCase):
     def testHistDefault(self, mock_display, mock_retrieve):
         mock_retrieve.return_value = ([], [])
 
-        report_driver(
+        drivers.report_driver(
             wms_service="wms_test_utils.WmsServiceSuccess",
             run_id="123",
             user=None,
@@ -195,7 +199,7 @@ class TestReportDriver(unittest.TestCase):
     def testHistCustom(self, mock_display, mock_retrieve):
         mock_retrieve.return_value = ([], [])
 
-        report_driver(
+        drivers.report_driver(
             wms_service="wms_test_utils.WmsServiceSuccess",
             run_id="123",
             user=None,
@@ -212,7 +216,7 @@ class TestReportDriver(unittest.TestCase):
     def testPostprocessorsWithoutExitCodes(self, mock_display, mock_retrieve):
         mock_retrieve.return_value = ([], [])
 
-        report_driver(
+        drivers.report_driver(
             wms_service="wms_test_utils.WmsServiceSuccess",
             run_id="123",
             user=None,
@@ -231,7 +235,7 @@ class TestReportDriver(unittest.TestCase):
     def testPostprocessorsWithExitCodes(self, mock_display, mock_retrieve):
         mock_retrieve.return_value = ([], [])
 
-        report_driver(
+        drivers.report_driver(
             wms_service="wms_test_utils.WmsServiceSuccess",
             run_id="123",
             user=None,
@@ -251,7 +255,7 @@ class TestReportDriver(unittest.TestCase):
     def testPostprocessorsNoRunId(self, mock_display, mock_retrieve):
         mock_retrieve.return_value = ([], [])
 
-        report_driver(
+        drivers.report_driver(
             wms_service="wms_test_utils.WmsServiceSuccess",
             run_id=None,
             user=None,
@@ -269,7 +273,7 @@ class TestReportDriver(unittest.TestCase):
         mock_runs = [WmsRunReport(wms_id="1", state=WmsStates.SUCCEEDED)]
         mock_retrieve.return_value = (mock_runs, [])
 
-        report_driver(
+        drivers.report_driver(
             wms_service="wms_test_utils.WmsServiceSuccess",
             run_id=None,
             user=None,
@@ -288,7 +292,7 @@ class TestReportDriver(unittest.TestCase):
         mock_messages = ["Warning message 1", "Warning message 2"]
         mock_retrieve.return_value = ([], mock_messages)
 
-        report_driver(
+        drivers.report_driver(
             wms_service="wms_test_utils.WmsServiceSuccess",
             run_id=None,
             user=None,
@@ -307,7 +311,7 @@ class TestReportDriver(unittest.TestCase):
     def testNoRecordsFoundMessage(self, mock_print, mock_display, mock_retrieve):
         mock_retrieve.return_value = ([], [])
 
-        report_driver(
+        drivers.report_driver(
             wms_service="wms_test_utils.WmsServiceSuccess",
             run_id="123",
             user=None,
@@ -323,6 +327,130 @@ class TestReportDriver(unittest.TestCase):
         call_args = mock_print.call_args[0][0]
         self.assertIn("No records found", call_args)
         self.assertIn("123", call_args)
+
+
+class TestAcquireQgraphDriver(unittest.TestCase):
+    """Test acquire_qgraph_driver function."""
+
+    def setUp(self):
+        self.tmpdir = Path(tempfile.mkdtemp())
+        self.config_file = str(self.tmpdir / "config.yaml")
+        config = BpsConfig({"bps_defined": {"submitPath": str(self.tmpdir)}})
+
+        with open(self.config_file, "w") as fh:
+            config.dump(fh)
+
+    def tearDown(self):
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    @unittest.mock.patch("lsst.ctrl.bps.drivers.read_quantum_graph")
+    @unittest.mock.patch("lsst.ctrl.bps.drivers.acquire_quantum_graph")
+    @unittest.mock.patch("lsst.ctrl.bps.drivers._init_submission_driver")
+    def testSuccess(self, mock_init, mock_acquire, mock_read):
+        drivers.acquire_qgraph_driver(self.config_file)
+        mock_init.assert_called_once()
+        mock_acquire.assert_called_once()
+        mock_read.assert_called_once()
+
+
+class TestBatchAcquireDriver(unittest.TestCase):
+    """Test batch_acquire_driver function."""
+
+    def setUp(self):
+        self.tmpdir = Path(tempfile.mkdtemp())
+        self.config_file = str(self.tmpdir / "config.yaml")
+        config = BpsConfig({"bps_defined": {"submitPath": str(self.tmpdir)}})
+
+        with open(self.config_file, "w") as fh:
+            config.dump(fh)
+
+    def tearDown(self):
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    @unittest.mock.patch("lsst.ctrl.bps.drivers.acquire_quantum_graph")
+    def testSuccess(self, mock_acquire):
+        drivers.batch_acquire_driver(self.config_file)
+        mock_acquire.assert_called_once()
+
+
+class TestBatchPrepareDriver(unittest.TestCase):
+    """Test batch_prepare_driver function."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self.config_file = f"{self.tmpdir}/config.yaml"
+        config = BpsConfig({"bps_defined": {"submitPath": str(self.tmpdir)}})
+
+        with open(self.config_file, "w") as fh:
+            config.dump(fh)
+
+    def tearDown(self):
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    @unittest.mock.patch("lsst.ctrl.bps.drivers.batch_payload_prepare")
+    def testSuccess(self, mock_prepare):
+        drivers.batch_prepare_driver(self.config_file)
+        mock_prepare.assert_called_once()
+
+
+class _TestWorkflow(BaseWmsWorkflow):
+    def __init__(self, name, config=None, run_id=None):
+        super().__init__(name, config)
+        self.run_id = run_id
+
+    def write(self, out_prefix):
+        pass  # pragma: no cover
+
+    def add_to_parent_workflow(self, config):
+        pass  # pragma: no cover
+
+
+class TestBatchSubmitDriver(unittest.TestCase):
+    """Test batch_submit_driver function."""
+
+    def setUp(self):
+        self.tmpdir = Path(tempfile.mkdtemp())
+        self.config_file = str(self.tmpdir / "config.yaml")
+        self.config = BpsConfig(
+            {"bps_defined": {"submitPath": str(self.tmpdir), "outputRun": "output_run_dir"}}
+        )
+
+        with open(self.config_file, "w") as fh:
+            self.config.dump(fh)
+
+    def tearDown(self):
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    @unittest.mock.patch("lsst.ctrl.bps.drivers.submit")
+    @unittest.mock.patch("lsst.ctrl.bps.drivers.prepare")
+    @unittest.mock.patch("lsst.ctrl.bps.drivers.create_batch_stages")
+    @unittest.mock.patch("lsst.ctrl.bps.drivers._init_submission_driver")
+    def testDryRun(self, mock_init, mock_create, mock_prepare, mock_submit):
+        mock_init.return_value = self.config
+        mock_create.return_value = ["mock_generic_workflow", self.config]
+        mock_prepare.return_value = _TestWorkflow("mock1", self.config)
+        drivers.batch_submit_driver(self.config_file, dry_run=True)
+        mock_init.assert_called_once()
+        mock_create.assert_called_once()
+        mock_prepare.assert_called_once()
+        mock_submit.assert_not_called()
+
+    @unittest.mock.patch("lsst.ctrl.bps.drivers._make_id_link")
+    @unittest.mock.patch("lsst.ctrl.bps.drivers.submit")
+    @unittest.mock.patch("lsst.ctrl.bps.drivers.prepare")
+    @unittest.mock.patch("lsst.ctrl.bps.drivers.create_batch_stages")
+    @unittest.mock.patch("lsst.ctrl.bps.drivers._init_submission_driver")
+    def testSubmit(self, mock_init, mock_create, mock_prepare, mock_submit, mock_link):
+        mock_init.return_value = self.config
+        mock_create.return_value = ["mock_generic_workflow", self.config]
+        mock_prepare.return_value = _TestWorkflow("mock1", self.config)
+        mock_submit.return_value = _TestWorkflow("mock1", self.config, 12345)
+        drivers.batch_submit_driver(self.config_file)
+        mock_init.assert_called_once()
+        mock_create.assert_called_once()
+        mock_prepare.assert_called_once()
+        mock_submit.assert_called_once()
+        mock_link.assert_called_once()
 
 
 if __name__ == "__main__":

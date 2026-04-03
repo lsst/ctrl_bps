@@ -1,0 +1,1 @@
+Added ability to run submit processes as batch jobs on same cluster with shared filesystems.

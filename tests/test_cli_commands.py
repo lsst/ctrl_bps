@@ -185,5 +185,47 @@ class TestCommandStatus(unittest.TestCase):
             )
 
 
+class TestCommandBatchSubmit(unittest.TestCase):
+    """Test executing the batch-submit subcommand."""
+
+    def setUp(self):
+        self.runner = LogCliRunner()
+
+    def testBatchSubmit(self):
+        with unittest.mock.patch("lsst.ctrl.bps.cli.cmd.commands.batch_submit_driver") as mock_driver:
+            mock_driver.return_value = 0
+            result = self.runner.invoke(bps.cli, ["batch-submit", "test.yaml"])
+            self.assertEqual(result.exit_code, 0)
+            mock_driver.assert_called_once()
+
+
+class TestCommandBatchAcquire(unittest.TestCase):
+    """Test executing the batch-acquire subcommand."""
+
+    def setUp(self):
+        self.runner = LogCliRunner()
+
+    def testBatchAcquire(self):
+        with unittest.mock.patch("lsst.ctrl.bps.cli.cmd.commands.batch_acquire_driver") as mock_driver:
+            mock_driver.return_value = 0
+            result = self.runner.invoke(bps.cli, ["batch-acquire", "test.yaml"])
+            self.assertEqual(result.exit_code, 0)
+            mock_driver.assert_called_once()
+
+
+class TestCommandBatchPrepare(unittest.TestCase):
+    """Test executing the batch-prepare subcommand."""
+
+    def setUp(self):
+        self.runner = LogCliRunner()
+
+    def testBatchPrepare(self):
+        with unittest.mock.patch("lsst.ctrl.bps.cli.cmd.commands.batch_prepare_driver") as mock_driver:
+            mock_driver.return_value = 0
+            result = self.runner.invoke(bps.cli, ["batch-prepare", "test.yaml"])
+            self.assertEqual(result.exit_code, 0)
+            mock_driver.assert_called_once()
+
+
 if __name__ == "__main__":
     unittest.main()

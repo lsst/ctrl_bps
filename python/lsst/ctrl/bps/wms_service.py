@@ -43,6 +43,8 @@ from abc import ABCMeta, abstractmethod
 from enum import Enum
 from typing import Any
 
+from . import BpsConfig
+
 _LOG = logging.getLogger(__name__)
 
 
@@ -574,5 +576,16 @@ class BaseWmsWorkflow(metaclass=ABCMeta):
         out_prefix : `str`
             Root directory to be used for WMS workflow inputs and outputs
             as well as internal WMS files.
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def add_to_parent_workflow(self, config: BpsConfig) -> None:
+        """Add self to parent workflow.
+
+        Parameters
+        ----------
+        config : `lsst.ctrl.bps.BpsConfig`
+            Configuration.
         """
         raise NotImplementedError

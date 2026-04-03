@@ -41,7 +41,7 @@ from lsst.ctrl.bps import BpsConfig, BpsSubprocessError
 from lsst.pipe.base import QuantumGraph
 from lsst.pipe.base.pipeline_graph import TaskImportMode
 from lsst.pipe.base.quantum_graph import PredictedQuantumGraph
-from lsst.resources import ResourcePath
+from lsst.resources import ResourcePath, ResourcePathExpression
 from lsst.utils import doImport
 from lsst.utils.logging import VERBOSE
 from lsst.utils.timer import time_this, timeMethod
@@ -50,7 +50,7 @@ _LOG = logging.getLogger(__name__)
 
 
 @timeMethod(logger=_LOG, logLevel=VERBOSE)
-def acquire_quantum_graph(config: BpsConfig, out_prefix: str = "") -> tuple[str, PredictedQuantumGraph]:
+def acquire_quantum_graph(config: BpsConfig, out_prefix: str = "") -> str:
     """Read a quantum graph from a file or create one from scratch.
 
     Parameters
@@ -64,10 +64,7 @@ def acquire_quantum_graph(config: BpsConfig, out_prefix: str = "") -> tuple[str,
     Returns
     -------
     qgraph_filename : `str`
-        Name of file containing QuantumGraph that was read into qgraph.
-    qgraph : `lsst.pipe.base.quantum_graph.PredictedQuantumGraph`
-        A quantum graph read in from pre-generated file or one that is the
-        result of running code that generates it.
+        Name of file containing the quantum graph.
     """
     # Check to see if user provided pre-generated QuantumGraph.
     found, input_qgraph_filename = config.search("qgraphFile")
@@ -91,6 +88,24 @@ def acquire_quantum_graph(config: BpsConfig, out_prefix: str = "") -> tuple[str,
         with time_this(log=_LOG, level=logging.INFO, prefix=None, msg="Completed creating quantum graph"):
             qgraph_filename = create_quantum_graph(config, out_prefix)
 
+    return qgraph_filename
+
+
+@timeMethod(logger=_LOG, logLevel=VERBOSE)
+def read_quantum_graph(qgraph_filename: ResourcePathExpression) -> PredictedQuantumGraph:
+    """Read a quantum graph from a file.
+
+    Parameters
+    ----------
+    qgraph_filename : `lsst.resources.ResourcePathExpression`
+        Name of file containing PredictedQuantumGraph to be read.
+
+    Returns
+    -------
+    qgraph : `lsst.pipe.base.quantum_graph.PredictedQuantumGraph`
+        A quantum graph read in from pre-generated file or one that is the
+        result of running code that generates it.
+    """
     _LOG.info("Reading quantum graph from '%s'", qgraph_filename)
     with time_this(log=_LOG, level=logging.INFO, prefix=None, msg="Completed reading quantum graph"):
         qgraph_path = ResourcePath(qgraph_filename)
@@ -102,7 +117,7 @@ def acquire_quantum_graph(config: BpsConfig, out_prefix: str = "") -> tuple[str,
             qgraph = PredictedQuantumGraph.from_old_quantum_graph(QuantumGraph.loadUri(qgraph_path))
         else:
             raise ValueError(f"Unrecognized extension for quantum graph file: {qgraph_filename}.")
-    return qgraph_filename, qgraph
+    return qgraph
 
 
 def execute(command: str, filename: str, write_buffering: int = 1) -> int:
