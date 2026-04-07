@@ -1,3 +1,12 @@
+lsst-ctrl-bps v30.0.6 (2026-04-06)
+==================================
+
+New Features
+------------
+
+- Implemented ``wmsAttemptNum`` with generic WMS variable placeholders. (`DM-53292 <https://rubinobs.atlassian.net/browse/DM-53292>`_)
+
+
 lsst-ctrl-bps v30.0.1 (2026-02-03)
 ==================================
 
