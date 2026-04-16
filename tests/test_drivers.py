@@ -359,7 +359,7 @@ class TestBatchAcquireDriver(unittest.TestCase):
     def setUp(self):
         self.tmpdir = Path(tempfile.mkdtemp())
         self.config_file = str(self.tmpdir / "config.yaml")
-        config = BpsConfig({"bps_defined": {"submitPath": str(self.tmpdir)}})
+        config = BpsConfig({"bps_defined": {"submitPath": str(self.tmpdir)}, "computeSite": "site1"})
 
         with open(self.config_file, "w") as fh:
             config.dump(fh)
@@ -450,7 +450,7 @@ class TestBatchPrepareDriver(unittest.TestCase):
 
     @unittest.mock.patch("lsst.ctrl.bps.drivers.batch_payload_prepare")
     def testSuccess(self, mock_prepare):
-        drivers.batch_prepare_driver(self.config_file)
+        drivers.batch_prepare_driver(self.config_file, qgraph="test.qg")
         mock_prepare.assert_called_once()
 
 

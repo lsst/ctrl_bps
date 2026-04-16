@@ -266,12 +266,19 @@ class BpsConfig(Config):
             ``"default"``
                     Value to return if not found. (`~typing.Any`, optional)
             ``"replaceEnvVars"``
+                    Kept for backward compatibility.
+                    See ``replaceEnvShell2Bps``.
+            ``"replaceEnvShell2Bps"``
                     If search result is string, whether to replace environment
                     variables inside it with special placeholder (<ENV:name>).
                     By default set to False. (`bool`)
+            ``"replaceEnvBps2Shell"``
+                    If search result is string, whether to replace environment
+                    placeholder inside it with shell environment syntax.
+                    By default set to False. (`bool`)
             ``"expandEnvVars"``
                     If search result is string, whether to replace environment
-                    variables inside it with current environment value.
+                    placeholder inside it with current environment value.
                     By default set to False. (`bool`)
             ``"replaceVars"``
                     If search result is string, whether to replace variables
@@ -349,6 +356,9 @@ class BpsConfig(Config):
                     found = True
                     value = Config.__getitem__(self, key)
                     _LOG.debug("root value='%s'", value)
+                else:
+                    _LOG.debug("not in root section for key='%s'", key)
+                    _LOG.debug(Config(self))
 
         if not found and "default" in opt:
             value = opt["default"]
@@ -366,33 +376,8 @@ class BpsConfig(Config):
 
         _LOG.debug("opt=%s %s", opt, type(opt))
         if found and isinstance(value, str):
-            if key == "subDirTemplate":
-                # Save if template ends with slash
-                template_endswith_slash = value.endswith("/")
-
-            if opt.get("expandEnvVars", True):
-                _LOG.debug("before format=%s", value)
-                value = re.sub(r"<ENV:([^>]+)>", r"$\1", value)
-                value = expandvars(value)
-            elif opt.get("replaceEnvVars", False):
-                # Don't replace double dollar signs or $( to allow
-                # pass-through to WMS
-                value = re.sub(r"\${([^$(}]+)}", r"<ENV:\1>", value)
-                value = re.sub(r"\$([^$(}]+)", r"<ENV:\1>", value)
-
-            if opt.get("replaceVars", True):
-                value = self.replace_vars(value, opt)
-                if key == "subDirTemplate":
-                    # Make yaml-specified subdirs easier to read
-                    # by removing empty subdirs (//).  normpath
-                    # removes any trailing slash.
-                    value = normpath(value)
-                    # Check if subDirTemplate pattern actually ends in slash
-                    # If so, the value returned should.
-                    if template_endswith_slash:
-                        value += "/"
-
-            _LOG.debug("after format=%s", value)
+            value = self.modify_value(key, value, opt)
+            _LOG.debug("after modify_value=%s", value)
 
         if found and isinstance(value, Config):
             value = BpsConfig(value, search_order=[])
@@ -427,7 +412,9 @@ class BpsConfig(Config):
         # Replace special keys for WMS to fill in.
         value = re.sub(r"{wms([^}]+)}", lambda x: f"<WMS:{x[1][0].lower() + x[1][1:]}>", value)
 
+        _LOG.debug("before formatter.format=%s", value)
         value = self.formatter.format(value, self, opt)
+        _LOG.debug("after formatter.format=%s", value)
 
         # Replace any temporary place holders.
         value = re.sub(r"<BPSTMP:([^>]+)>", r"${\1}", value)
@@ -445,6 +432,57 @@ class BpsConfig(Config):
             raise ValueError(f"Unparsable bpsEval in '{value}'")
 
         return value
+
+    def modify_value(self, key: str, value: str, opt: dict[str, Any]) -> str:
+        """Modify given value following instructions in given options.
+
+        Parameters
+        ----------
+        key : `str`
+            Name of given value.
+        value : `str`
+            Value to modify.
+        opt : `dict` [`str`, `~typing.Any`]
+            Options specifying how to modify given value.  See :meth: `search`
+            method for list of options.
+
+        Returns
+        -------
+        new_value : `str`
+            Updated value.
+        """
+        _LOG.debug("modify_value: key=%s, value=%s, opt=%s", key, value, opt)
+        new_value = value
+        if key == "subDirTemplate":
+            # Save if template ends with slash
+            template_endswith_slash = new_value.endswith("/")
+
+        if opt.get("replaceEnvBps2Shell", False):
+            new_value = re.sub(r"<ENV:([^>]+)>", r"${\1}", new_value)
+        elif opt.get("expandEnvVars", True):
+            _LOG.debug("before format=%s", new_value)
+            new_value = re.sub(r"<ENV:([^>]+)>", r"${\1}", new_value)
+            new_value = expandvars(new_value)
+        elif opt.get("replaceEnvShell2Bps", opt.get("replaceEnvVars", False)):
+            # Don't replace double dollar signs or $( to allow
+            # pass-through to WMS
+            new_value = re.sub(r"\${([^$(}]+)}", r"<ENV:\1>", new_value)
+            new_value = re.sub(r"\$([^$(}]+)", r"<ENV:\1>", new_value)
+
+        _LOG.debug("modify_value: after EnvVars value=%s", new_value)
+        if opt.get("replaceVars", True):
+            new_value = self.replace_vars(new_value, opt)
+            if key == "subDirTemplate":
+                # Make yaml-specified subdirs easier to read
+                # by removing empty subdirs (//).  normpath
+                # removes any trailing slash.
+                new_value = normpath(new_value)
+                # Check if subDirTemplate pattern actually ends in slash
+                # If so, the value returned should.
+                if template_endswith_slash:
+                    new_value += "/"
+        _LOG.debug("modify_value: after replace_vars value=%s", new_value)
+        return new_value
 
     def generate_config(self) -> None:
         """Update config with values generated by bpsGenerateConfig
@@ -497,3 +535,36 @@ class BpsConfig(Config):
                     _LOG.debug("After config = %s", self)
                 else:
                     raise ValueError(f"Unparsable {genkey} value='{value}'")
+
+    def get_search_opts(self, label: str | None = None) -> dict[str, Any]:
+        """Create base search options given a label.
+
+        Parameters
+        ----------
+        label : `str` or None, optional
+            If given, label for which to define BpsConfig search options.
+
+        Returns
+        -------
+        search_opts : `dict` [`str`, `~typing.Any`]
+            Base BpsConfig search options for given label.
+        """
+        search_opts = {"curvals": {}}
+        if label:
+            search_opts["curvals"]["label"] = label
+            if label in self["cluster"]:
+                search_opts["curvals"]["curr_cluster"] = label
+            elif label in self["pipetask"]:
+                search_opts["curvals"]["curr_pipetask"] = label
+            elif label in self:
+                search_opts["searchobj"] = self[label]
+
+        # Site/cloud can be defined per cluster/pipetask/special job
+        found, val = self.search("computeSite", search_opts)
+        if found:
+            search_opts["curvals"]["curr_site"] = val
+        found, val = self.search("computeCloud", search_opts)
+        if found:
+            search_opts["curvals"]["curr_cloud"] = val
+
+        return search_opts

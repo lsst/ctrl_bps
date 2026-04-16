@@ -31,6 +31,7 @@ from contextlib import contextmanager
 
 import click
 
+from lsst.ctrl.mpexec.cli.opt import save_qgraph_option
 from lsst.daf.butler.cli.utils import MWCommand
 
 from ... import BpsSubprocessError
@@ -226,6 +227,7 @@ def submitcmd(*args, **kwargs):
 @click.command(cls=BpsCommand)
 @opt.config_file_argument(required=True)
 @opt.submission_options()
+@save_qgraph_option()
 def batch_acquire(*args, **kwargs):
     """Run inside a batch job to create a new quantum graph."""
     with catch_errors():
