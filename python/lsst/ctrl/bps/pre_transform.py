@@ -190,8 +190,10 @@ def create_quantum_graph(config: BpsConfig, out_prefix: str = "") -> str:
     BpsSubprocessError
         Raised if the command for generating the QuantumGraph failed.
     """
-    # Create name of file to store QuantumGraph.
-    qgraph_filename = os.path.join(out_prefix, config["qgraphFileTemplate"])
+    found, qgraph_filename = config.search(".bps_defined.runQgraphFile")
+    if not found:
+        # Create name of file to store QuantumGraph.
+        qgraph_filename = os.path.join(out_prefix, config["qgraphFileTemplate"])
 
     # Get QuantumGraph generation command.
     search_opt = {"curvals": {"qgraphFile": qgraph_filename}}

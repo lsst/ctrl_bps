@@ -47,7 +47,11 @@ from . import (
     GenericWorkflowFile,
     GenericWorkflowJob,
 )
-from .bps_utils import WhenToSaveQuantumGraphs, create_job_quantum_graph_filename, save_qg_subgraph
+from .bps_utils import (
+    WhenToSaveQuantumGraphs,
+    create_job_quantum_graph_filename,
+    save_qg_subgraph,
+)
 
 # All available job attributes.
 _ATTRS_ALL = frozenset([field.name for field in dataclasses.fields(GenericWorkflowJob)])
@@ -216,22 +220,21 @@ def _enhance_command(config, generic_workflow, gwjob, cached_job_values):
     """
     _LOG.debug("gwjob given to _enhance_command: %s", gwjob)
 
-    curvals = {
-        "curr_pipetask": gwjob.label,
-        "curr_cluster": gwjob.label,
-        "jobName": gwjob.name,
-        "jobLabel": gwjob.label,
-    }
-    for key, value in gwjob.tags.items():
-        curvals[key] = value
+    search_opt = config.get_search_opts(gwjob.label)
 
-    search_opt = {
-        "curvals": curvals,
-        "replaceVars": False,
-        "expandEnvVars": False,
-        "replaceEnvVars": True,
-        "required": False,
-    }
+    search_opt["curvals"]["jobName"] = gwjob.name
+    search_opt["curvals"]["jobLabel"] = gwjob.label
+    for key, value in gwjob.tags.items():
+        search_opt["curvals"][key] = value
+
+    search_opt.update(
+        {
+            "replaceVars": False,
+            "expandEnvVars": False,
+            "replaceEnvVars": True,
+            "required": False,
+        }
+    )
 
     if gwjob.label not in cached_job_values:
         cached_job_values[gwjob.label] = {}
@@ -269,13 +272,16 @@ def _enhance_command(config, generic_workflow, gwjob, cached_job_values):
     # (Be careful to not replace env variables as they may
     # be different in compute job.)
     search_opt["replaceVars"] = True
+    _LOG.debug("before cmdvals = %s (search_opt = %s)", gwjob.cmdvals, search_opt)
     for key in re.findall(r"{([^}]+)}", gwjob.arguments):
+        _LOG.debug("looking for %s in cmdvals", key)
         if key in gwjob.cmdvals:
             continue
         elif key in cached_job_values[gwjob.label]:
             gwjob.cmdvals[key] = cached_job_values[gwjob.label][key]
         else:
             _, gwjob.cmdvals[key] = config.search(key, opt=search_opt)
+    _LOG.debug("after cmdvals = %s", gwjob.cmdvals)
 
     # backwards compatibility
     if not cached_job_values[gwjob.label]["useLazyCommands"]:

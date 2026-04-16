@@ -20,6 +20,11 @@ pipetask:
     genval1: "-c val1:0.1 bpsEval(lsst.ctrl.bps.tests.config_test_utils.generate_value_1, {p1})"
     genval2: "-c val1:bpsEval(max, [{p1}, {p3}])"
 
+cluster:
+  cl1:
+    p3: 64
+    p5: 55
+
 finalJob:
   p1: 9
   p2: "unused final"
@@ -28,3 +33,11 @@ finalJob:
   gencfg_4: 9
   gencfg_5: -3
   gencfg_6: 16
+
+site:
+  site1:
+    p1: 33
+
+cloud:
+  cloud1:
+    p1: 34
