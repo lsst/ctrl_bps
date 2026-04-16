@@ -359,7 +359,7 @@ class TestBatchAcquireDriver(unittest.TestCase):
     def setUp(self):
         self.tmpdir = Path(tempfile.mkdtemp())
         self.config_file = str(self.tmpdir / "config.yaml")
-        config = BpsConfig({"bps_defined": {"submitPath": str(self.tmpdir)}})
+        config = BpsConfig({"bps_defined": {"submitPath": str(self.tmpdir)}, "computeSite": "site1"})
 
         with open(self.config_file, "w") as fh:
             config.dump(fh)
@@ -389,7 +389,7 @@ class TestBatchPrepareDriver(unittest.TestCase):
 
     @unittest.mock.patch("lsst.ctrl.bps.drivers.batch_payload_prepare")
     def testSuccess(self, mock_prepare):
-        drivers.batch_prepare_driver(self.config_file)
+        drivers.batch_prepare_driver(self.config_file, qgraph="test.qg")
         mock_prepare.assert_called_once()
 
 
@@ -412,7 +412,11 @@ class TestBatchSubmitDriver(unittest.TestCase):
         self.tmpdir = Path(tempfile.mkdtemp())
         self.config_file = str(self.tmpdir / "config.yaml")
         self.config = BpsConfig(
-            {"bps_defined": {"submitPath": str(self.tmpdir), "outputRun": "output_run_dir"}}
+            {
+                "bps_defined": {"submitPath": str(self.tmpdir), "outputRun": "output_run_dir"},
+                "whenSaveJobQgraph": "NEVER",
+                "wmsServiceClass": "wms_test_utils.WmsServiceDefault",
+            }
         )
 
         with open(self.config_file, "w") as fh:
@@ -421,36 +425,14 @@ class TestBatchSubmitDriver(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.tmpdir, ignore_errors=True)
 
-    @unittest.mock.patch("lsst.ctrl.bps.drivers.submit")
-    @unittest.mock.patch("lsst.ctrl.bps.drivers.prepare")
-    @unittest.mock.patch("lsst.ctrl.bps.drivers.create_batch_stages")
+    @unittest.mock.patch("lsst.ctrl.bps.drivers.batch_submit")
     @unittest.mock.patch("lsst.ctrl.bps.drivers._init_submission_driver")
-    def testDryRun(self, mock_init, mock_create, mock_prepare, mock_submit):
+    def testSubmit(self, mock_init, mock_submit):
         mock_init.return_value = self.config
-        mock_create.return_value = ["mock_generic_workflow", self.config]
-        mock_prepare.return_value = _TestWorkflow("mock1", self.config)
-        drivers.batch_submit_driver(self.config_file, dry_run=True)
-        mock_init.assert_called_once()
-        mock_create.assert_called_once()
-        mock_prepare.assert_called_once()
-        mock_submit.assert_not_called()
-
-    @unittest.mock.patch("lsst.ctrl.bps.drivers._make_id_link")
-    @unittest.mock.patch("lsst.ctrl.bps.drivers.submit")
-    @unittest.mock.patch("lsst.ctrl.bps.drivers.prepare")
-    @unittest.mock.patch("lsst.ctrl.bps.drivers.create_batch_stages")
-    @unittest.mock.patch("lsst.ctrl.bps.drivers._init_submission_driver")
-    def testSubmit(self, mock_init, mock_create, mock_prepare, mock_submit, mock_link):
-        mock_init.return_value = self.config
-        mock_create.return_value = ["mock_generic_workflow", self.config]
-        mock_prepare.return_value = _TestWorkflow("mock1", self.config)
         mock_submit.return_value = _TestWorkflow("mock1", self.config, 12345)
         drivers.batch_submit_driver(self.config_file)
         mock_init.assert_called_once()
-        mock_create.assert_called_once()
-        mock_prepare.assert_called_once()
         mock_submit.assert_called_once()
-        mock_link.assert_called_once()
 
 
 if __name__ == "__main__":

@@ -497,3 +497,34 @@ class BpsConfig(Config):
                     _LOG.debug("After config = %s", self)
                 else:
                     raise ValueError(f"Unparsable {genkey} value='{value}'")
+
+    def get_search_opts(self, label: str) -> dict[str, Any]:
+        """Create base search options given a label.
+
+        Parameters
+        ----------
+        label : `str`
+            Label for which to define BpsConfig search options.
+
+        Returns
+        -------
+        search_opts : `dict` [`str`, `~typing.Any`]
+            Base BpsConfig search options for given label.
+        """
+        search_opts = {"curvals": {"label": label}}
+        if label in self["cluster"]:
+            search_opts.setdefault("curvals", {})["curr_cluster"] = label
+        elif label in self["pipetask"]:
+            search_opts.setdefault("curvals", {})["curr_pipetask"] = label
+        elif label in self:
+            search_opts["searchobj"] = self[label]
+
+        # Site/cloud can be defined per cluster/pipetask/special job
+        found, val = self.search("computeSite", search_opts)
+        if found:
+            search_opts["curvals"] = {"curr_site": val}
+        found, val = self.search("computeCloud", search_opts)
+        if found:
+            search_opts["curvals"] = {"curr_cloud": val}
+
+        return search_opts

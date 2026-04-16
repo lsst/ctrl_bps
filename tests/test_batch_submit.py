@@ -36,9 +36,19 @@ from lsst.ctrl.bps import BpsConfig, batch_submit
 class TestCreateBatchStages(unittest.TestCase):
     """Tests for create_batch_stages function."""
 
+    def setUp(self):
+        self.common_config = {
+            "bpsUseShared": True,
+            "whenSaveJobQgraph": "NEVER",
+            "useLazyCommands": True,
+            "submitPath": "/the/path",
+        }
+
     def testMissingBuildCmd(self):
         """Missing buildQuantumGraph jobCommand"""
-        config = BpsConfig({"uniqProcName": "uniq_proc_name"})
+        config_info = dict(self.common_config)
+        config_info.update({"uniqProcName": "uniq_proc_name"})
+        config = BpsConfig(config_info)
         with self.assertRaisesRegex(
             RuntimeError, "Missing executable for buildQuantumGraph.  Double check submit yaml for jobCommand"
         ):
@@ -46,16 +56,17 @@ class TestCreateBatchStages(unittest.TestCase):
 
     def testMissingPrepareCmd(self):
         """Missing preparePayloadWorkflow jobCommand"""
-        config = BpsConfig(
+        config_info = dict(self.common_config)
+        config_info.update(
             {
                 "configFile": "not_used_configFile",
                 "uniqProcName": "uniq_proc_name",
                 "operator": "testuser",
                 "payload": {"payloadName": "testPayload"},
-                "bpsPreCommandOpts": "--long-log --log-level=VERBOSE",
                 "buildQuantumGraph": {"jobCommand": "${CTRL_BPS_DIR}/bin/bps batch-acquire {configFile}"},
             }
         )
+        config = BpsConfig(config_info)
         with self.assertRaisesRegex(
             RuntimeError,
             "Missing executable for preparePayloadWorkflow.  Double check submit yaml for jobCommand",
@@ -64,13 +75,13 @@ class TestCreateBatchStages(unittest.TestCase):
 
     def testSuccess(self):
         # No saving of files
-        config = BpsConfig(
+        config_info = dict(self.common_config)
+        config_info.update(
             {
                 "configFile": "not_used_configFile",
                 "uniqProcName": "uniq_proc_name",
                 "operator": "testuser",
                 "payload": {"payloadName": "testPayload"},
-                "bpsPreCommandOpts": "--long-log --log-level=VERBOSE",
                 "buildQuantumGraph": {
                     "jobCommand": "${CTRL_BPS_DIR}/bin/bps batch-acquire {configFile}",
                     "requestMemory": 16384,
@@ -81,6 +92,7 @@ class TestCreateBatchStages(unittest.TestCase):
                 },
             }
         )
+        config = BpsConfig(config_info)
 
         with tempfile.TemporaryDirectory() as tmpdir:
             gw, config = batch_submit.create_batch_stages(config, tmpdir)
@@ -97,7 +109,8 @@ class TestCreateBatchStages(unittest.TestCase):
             self.assertEqual(list(Path(tmpdir).iterdir()), [])
 
     def testSaving(self):
-        config = BpsConfig(
+        config_info = dict(self.common_config)
+        config_info.update(
             {
                 "configFile": "not_used_configFile",
                 "uniqProcName": "uniq_proc_name",
@@ -115,16 +128,10 @@ class TestCreateBatchStages(unittest.TestCase):
                 "saveGenericWorkflow": True,
             }
         )
+        config = BpsConfig(config_info)
         with tempfile.TemporaryDirectory() as tmpdir:
             gw, config = batch_submit.create_batch_stages(config, tmpdir)
             self.assertTrue((Path(tmpdir) / "bps_stages_generic_workflow.pickle").exists())
-
-
-class TestBatchPayloadPrepare(unittest.TestCase):
-    """Tests for batch_payload_prepare function."""
-
-    def testSuccess(self):
-        pass
 
 
 if __name__ == "__main__":

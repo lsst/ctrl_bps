@@ -33,6 +33,7 @@ __all__ = [
     "out_collection_validator",
     "output_run_validator",
     "submit_path_validator",
+    "translate_command_line_values",
 ]
 
 import getpass
@@ -40,6 +41,7 @@ import logging
 import re
 import shutil
 from collections.abc import Callable, Iterable
+from pathlib import Path
 
 from lsst.ctrl.bps import BPS_DEFAULTS, BPS_SEARCH_ORDER, BpsConfig
 from lsst.ctrl.bps.bps_utils import _dump_env_info, _dump_pkg_info, mkdir
@@ -49,36 +51,17 @@ from lsst.utils import doImport
 _LOG = logging.getLogger(__name__)
 
 
-def init_submission(
-    config_file: str, validators: Iterable[Callable[[BpsConfig], None]] = (), **kwargs
-) -> BpsConfig:
-    """Initialize BPS configuration and create submit directory.
+def translate_command_line_values(config: BpsConfig, **kwargs) -> None:
+    """Override config with command-line values.
 
     Parameters
     ----------
-    config_file : `str`
-        Name of the configuration file.
-    validators : `~collections.abc.Iterable` \
-            [`~collections.abc.Callable` [[`BpsConfig`], `None`]], optional
-        A list of functions performing checks on the given configuration.
-        Each function should take a single argument, a BpsConfig object, and
-        raise if the check fails. By default, no checks are performed.
-    **kwargs : `~typing.Any`
-        Additional modifiers to the configuration.
-
-    Returns
-    -------
     config : `lsst.ctrl.bps.BpsConfig`
-        Batch Processing Service configuration.
+        BPS configuration.
+    **kwargs
+        Additional modifiers to the configuration from the command line.
     """
-    config = BpsConfig(
-        config_file,
-        search_order=BPS_SEARCH_ORDER,
-        defaults=BPS_DEFAULTS,
-        wms_service_class_fqn=kwargs.get("wms_service"),
-    )
-
-    # Override config with command-line values.
+    _LOG.info("translate_command_line_values: kwargs = %s", kwargs)
     # Handle diffs between pipetask argument names vs bps yaml
     translation = {
         "input": "inCollection",
@@ -97,6 +80,40 @@ def init_submission(
                 value = ",".join(value)
             new_key = translation.get(key, re.sub(r"_(\S)", lambda match: match.group(1).upper(), key))
             config[f".bps_cmdline.{new_key}"] = value
+
+    _LOG.debug("translate_command_line_values: .bps_cmdline = %s", config[".bps_cmdline"])
+
+
+def init_submission(
+    config_file: str, validators: Iterable[Callable[[BpsConfig], None]] = (), **kwargs
+) -> BpsConfig:
+    """Initialize BPS configuration and create submit directory.
+
+    Parameters
+    ----------
+    config_file : `str`
+        Name of the configuration file.
+    validators : `~collections.abc.Iterable` \
+            [`~collections.abc.Callable` [[`BpsConfig`], `None`]], optional
+        A list of functions performing checks on the given configuration.
+        Each function should take a single argument, a BpsConfig object, and
+        raise if the check fails. By default, no checks are performed.
+    **kwargs
+        Additional modifiers to the configuration.
+
+    Returns
+    -------
+    config : `lsst.ctrl.bps.BpsConfig`
+        Batch Processing Service configuration.
+    """
+    config = BpsConfig(
+        config_file,
+        search_order=BPS_SEARCH_ORDER,
+        defaults=BPS_DEFAULTS,
+        wms_service_class_fqn=kwargs.get("wms_service"),
+    )
+
+    translate_command_line_values(config, **kwargs)
 
     # Run validation tests on the given config if any.
     for validator in validators:
@@ -137,6 +154,11 @@ def init_submission(
     # Make submit directory to contain all outputs.
     submit_path = mkdir(config["submitPath"])
     config[".bps_defined.submitPath"] = str(submit_path)
+
+    # Pre-make quantum graph filename
+    prefix = Path(submit_path)
+    qgraph_filename = prefix / config["qgraphFileTemplate"]
+    config[".bps_defined.runQgraphFile"] = str(qgraph_filename)
 
     # save copy of configs (orig and expanded config)
     shutil.copy2(config_file, submit_path)

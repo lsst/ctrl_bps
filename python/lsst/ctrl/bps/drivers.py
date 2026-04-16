@@ -55,6 +55,7 @@ from pathlib import Path
 from typing import Any
 
 from lsst.pipe.base.quantum_graph import PredictedQuantumGraph
+from lsst.resources import ResourcePath
 from lsst.utils.timer import time_this
 from lsst.utils.usage import get_peak_mem_usage
 
@@ -67,7 +68,7 @@ from . import (
     ClusteredQuantumGraph,
     GenericWorkflow,
 )
-from .batch_submit import batch_payload_prepare, create_batch_stages
+from .batch_submit import batch_payload_prepare, batch_submit
 from .bps_reports import compile_code_summary, compile_job_summary
 from .bps_utils import _dump_env_info, _dump_pkg_info, _make_id_link
 from .cancel import cancel
@@ -78,6 +79,7 @@ from .initialize import (
     out_collection_validator,
     output_run_validator,
     submit_path_validator,
+    translate_command_line_values,
 )
 from .ping import ping
 from .pre_transform import acquire_quantum_graph, cluster_quanta, read_quantum_graph
@@ -98,7 +100,7 @@ def _init_submission_driver(config_file: str, **kwargs) -> BpsConfig:
     ----------
     config_file : `str`
         Name of the configuration file.
-    **kwargs : `~typing.Any`
+    **kwargs : `dict` [`str`, `~typing.Any`]
         Additional modifiers to the configuration.
 
     Returns
@@ -704,18 +706,22 @@ def _log_mem_usage() -> None:
         )
 
 
-def batch_acquire_driver(config_file: str, **kwargs: Any) -> None:
+def batch_acquire_driver(config_file: str, **kwargs) -> None:
     """Create a quantum graph from pipeline definition in a batch job.
 
     Parameters
     ----------
     config_file : `str`
         Name of the configuration file.
-    **kwargs : `~typing.Any`
+    **kwargs
         Additional modifiers to the configuration.
     """
     config = BpsConfig(config_file)
-    submit_path = config[".bps_defined.submitPath"]
+    translate_command_line_values(config, **kwargs)
+
+    found, val = config.search("saveQgraph")
+    if found:
+        config[".bps_defined.runQgraphFile"] = val
 
     _LOG.info("Starting acquire stage (generating and/or reading quantum graph)")
     with time_this(
@@ -727,21 +733,48 @@ def batch_acquire_driver(config_file: str, **kwargs: Any) -> None:
         mem_unit=DEFAULT_MEM_UNIT,
         mem_fmt=DEFAULT_MEM_FMT,
     ):
-        _ = acquire_quantum_graph(config, out_prefix=submit_path)
+        _ = acquire_quantum_graph(config, out_prefix="")
+
+    # Copy quantum graph to staging area
+    found, use_run_temp_space = config.search(
+        "bpsUseRunTempSpace", opt={"curvals": {"curr_site": config[".computeSite"]}}
+    )
+    if found and use_run_temp_space:
+        found, run_temp_space = config.search(
+            "fileDistributionEndpoint", opt={"curvals": {"curr_site": config[".computeSite"]}}
+        )
+        if found:
+            _LOG.debug("run_temp_space = %s", run_temp_space)
+            dest = ResourcePath(run_temp_space, forceDirectory=True).join(config["qgraphFileTemplate"])
+            src = ResourcePath(config[".bps_defined.runQgraphFile"], forceDirectory=False)
+            # S3 clients explicitly instantiate here to overpass this
+            # https://stackoverflow.com/questions/52820971/is-boto3-client-thread-safe
+            dest.exists()
+
+            _LOG.debug("Copying quantum graph from %s to %s", src, dest)
+            dest.transfer_from(src, transfer="copy")
+        else:
+            raise KeyError("Config is missing fileDistributionEndpoint.")
+    elif not found:
+        _LOG.debug("Config is missing bpsUseRunTempSpace")
+
     _log_mem_usage()
 
 
-def batch_prepare_driver(config_file: str, **kwargs: Any) -> None:
+def batch_prepare_driver(config_file: str, **kwargs) -> None:
     """Run workflow preparation in a batch job for an existing QuantumGraph.
 
     Parameters
     ----------
     config_file : `str`
         Name of the configuration file.
-    **kwargs : `~typing.Any`
+    **kwargs
         Additional modifiers to the configuration.
     """
     config = BpsConfig(config_file)
+    translate_command_line_values(config, **kwargs)
+
+    config[".bps_defined.runQgraphFile"] = kwargs["qgraph"]
     submit_path = config[".bps_defined.submitPath"]
 
     with time_this(
@@ -757,14 +790,14 @@ def batch_prepare_driver(config_file: str, **kwargs: Any) -> None:
     _log_mem_usage()
 
 
-def batch_submit_driver(config_file: str, **kwargs: Any) -> None:
+def batch_submit_driver(config_file: str, **kwargs) -> None:
     """Submit a workflow for execution with preparation done in batch jobs.
 
     Parameters
     ----------
     config_file : `str`
         Name of the configuration file.
-    **kwargs : `~typing.Any`
+    **kwargs
         Additional modifiers to the configuration.
     """
     kwargs.setdefault("runWmsSubmissionChecks", True)
@@ -775,7 +808,6 @@ def batch_submit_driver(config_file: str, **kwargs: Any) -> None:
     )
 
     config = _init_submission_driver(config_file, **kwargs)
-    submit_path = config[".bps_defined.submitPath"]
 
     _LOG.info("Starting batch submission")
     with time_this(
@@ -787,50 +819,8 @@ def batch_submit_driver(config_file: str, **kwargs: Any) -> None:
         mem_unit=DEFAULT_MEM_UNIT,
         mem_fmt=DEFAULT_MEM_FMT,
     ):
-        _LOG.info("Starting to create control workflow")
-        with time_this(
-            log=_LOG,
-            level=logging.INFO,
-            prefix=None,
-            msg="Creation completed",
-            mem_usage=True,
-            mem_unit=DEFAULT_MEM_UNIT,
-            mem_fmt=DEFAULT_MEM_FMT,
-        ):
-            generic_workflow, config = create_batch_stages(config, submit_path)
-
-        _LOG.info("Starting to prepare control workflow")
-        with time_this(
-            log=_LOG,
-            level=logging.INFO,
-            prefix=None,
-            msg="Preparation completed",
-            mem_usage=True,
-            mem_unit=DEFAULT_MEM_UNIT,
-            mem_fmt=DEFAULT_MEM_FMT,
-        ):
-            wms_workflow = prepare(config, generic_workflow, submit_path)
-
-        if kwargs.get("dry_run", False):
-            return
-
-        _LOG.info("Starting to submit control workflow")
-        with time_this(
-            log=_LOG,
-            level=logging.INFO,
-            prefix=None,
-            msg="Submission completed",
-            mem_usage=True,
-            mem_unit=DEFAULT_MEM_UNIT,
-            mem_fmt=DEFAULT_MEM_FMT,
-        ):
-            submit(config, wms_workflow, **kwargs)
-        _LOG.info("Run '%s' submitted for execution with id '%s'", wms_workflow.name, wms_workflow.run_id)
+        wms_workflow = batch_submit(config)
     _log_mem_usage()
 
-    _make_id_link(config, wms_workflow.run_id)
-
     print(f"Run Id: {wms_workflow.run_id}")
-    # The workflow names are for the controlling workflow with _ctrl
-    # in the name.  We want to still print out the normal run name.
     print(f"Run Name: {config['uniqProcName']}")
