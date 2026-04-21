@@ -990,9 +990,10 @@ class GenericWorkflow(DiGraph):
 
             if unused_labels:
                 _LOG.info("Workflow job labels = %s", ",".join(self._job_labels.labels))
-                raise RuntimeError(
-                    f"Job label(s) ({','.join(unused_labels)}) from job ordering group "
-                    f"{group} does not exist in workflow.  Aborting."
+                _LOG.warning(
+                    "Job label(s) (%s) from job ordering group %s does not exist in workflow.",
+                    ",".join(unused_labels),
+                    group,
                 )
 
             label_subgraph = self._job_labels.subgraph(job_labels)

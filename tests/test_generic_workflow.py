@@ -451,11 +451,7 @@ class TestGenericWorkflow(unittest.TestCase):
 
     def testCheckJobOrderingConfigUnusedLabel(self):
         gwf = gtu.make_3_label_workflow("test_unused_label", final=True)
-        with self.assertRaisesRegex(
-            RuntimeError,
-            r"Job label\(s\) \(unused1,unused2\) from job ordering group "
-            "order1 does not exist in workflow.  Aborting.",
-        ):
+        with self.assertLogs("lsst.ctrl.bps.generic_workflow", level=logging.WARNING) as cm:
             gwf._check_job_ordering_config(
                 {
                     "order1": {
@@ -465,6 +461,14 @@ class TestGenericWorkflow(unittest.TestCase):
                     },
                 }
             )
+        self.assertTrue(
+            any(
+                "Job label(s) (unused1,unused2) from job ordering group order1 does not exist in workflow."
+                in record.getMessage()
+                for record in cm.records
+            ),
+            "Expected warning about unused labels",
+        )
 
     def testCheckJobOrderingConfigMissingDim(self):
         gwf = gtu.make_3_label_workflow("test_missing_dim", final=True)
