@@ -31,11 +31,15 @@ from contextlib import contextmanager
 
 import click
 
+from lsst.ctrl.mpexec.cli.opt import save_qgraph_option
 from lsst.daf.butler.cli.utils import MWCommand
 
 from ... import BpsSubprocessError
 from ...drivers import (
     acquire_qgraph_driver,
+    batch_acquire_driver,
+    batch_prepare_driver,
+    batch_submit_driver,
     cancel_driver,
     cluster_qgraph_driver,
     ping_driver,
@@ -219,3 +223,32 @@ def ping(*args, **kwargs):
 def submitcmd(*args, **kwargs):
     """Submit a command for execution."""
     submitcmd_driver(*args, **kwargs)
+
+
+@click.command(cls=BpsCommand)
+@opt.config_file_argument(required=True)
+@opt.submission_options()
+@save_qgraph_option()
+def batch_acquire(*args, **kwargs):
+    """Run inside a batch job to create a new quantum graph."""
+    with catch_errors():
+        batch_acquire_driver(*args, **kwargs)
+
+
+@click.command(cls=BpsCommand)
+@opt.config_file_argument(required=True)
+@opt.submission_options()
+def batch_prepare(*args, **kwargs):
+    """Run payload workflow preparation inside a batch job."""
+    with catch_errors():
+        batch_prepare_driver(*args, **kwargs)
+
+
+@click.command(cls=BpsCommand)
+@opt.config_file_argument(required=True)
+@opt.submission_options()
+@click.option("--dry-run", "dry_run", is_flag=True, help="Prepare workflow but don't submit")
+def batch_submit(*args, **kwargs):
+    """Submit a workflow with preparation inside a batch jobs too."""
+    with catch_errors():
+        batch_submit_driver(*args, **kwargs)

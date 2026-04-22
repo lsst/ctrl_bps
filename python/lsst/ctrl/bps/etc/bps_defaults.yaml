@@ -150,3 +150,11 @@ memoryLimit: 491520
 # Default values for making id soft link to submit directory
 makeIdLink: False
 idLinkPath: "${PWD}/bps_links"
+
+
+# Running submit stages as batch jobs
+bpsPreCommandOpts: "{defaultPreCmdOpts}"
+buildQuantumGraph:
+  jobCommand: "${CTRL_BPS_DIR}/bin/bps {bpsPreCommandOpts} batch-acquire {configFile} --save-qgraph {fileDistributionEndPoint}{qgraphFile}"
+preparePayloadWorkflow:
+  jobCommand: "${CTRL_BPS_DIR}/bin/bps {bpsPreCommandOpts} batch-prepare {configFile} -g {fileDistributionEndPoint}{qgraphFile}"
