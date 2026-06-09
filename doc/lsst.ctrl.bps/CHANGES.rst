@@ -1,3 +1,13 @@
+lsst-ctrl-bps v30.0.8 (2026-06-08)
+==================================
+
+Other Changes and Additions
+---------------------------
+
+- Changed BPS behavior so it doesn't throw when there are job labels in job ordering groups that were not included in the final version of the workflow.
+  From now on BPS will only warn the user when it occurs. (`DM-54613 <https://rubinobs.atlassian.net/browse/DM-54613>`_)
+
+
 lsst-ctrl-bps v30.0.6 (2026-04-06)
 ==================================
 
