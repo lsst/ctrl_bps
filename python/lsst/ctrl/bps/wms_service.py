@@ -249,6 +249,9 @@ class WmsRunReport:
     operator: str | None = None
     """Username of the operator who submitted the run."""
 
+    site: str | None = None
+    """Compute site for payload jobs."""
+
     run_summary: str | None = None
     """Job counts per label."""
 

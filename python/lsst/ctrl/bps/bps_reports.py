@@ -28,6 +28,7 @@
 """Classes and functions used in reporting run status."""
 
 __all__ = [
+    "DISPLAY_SUMMARY_FIELDS",
     "BaseRunReport",
     "DetailedRunReport",
     "ExitCodesReport",
@@ -44,6 +45,20 @@ from astropy.table import Table
 from .wms_service import WmsRunReport, WmsStates
 
 _LOG = logging.getLogger(__name__)
+
+
+DISPLAY_SUMMARY_FIELDS = [
+    ("X", "S"),
+    ("STATE", "S"),
+    ("%S", "S"),
+    ("ID", "S"),
+    ("OPERATOR", "S"),
+    ("PROJECT", "S"),
+    ("CAMPAIGN", "S"),
+    ("SITE", "S"),
+    ("PAYLOAD", "S"),
+    ("RUN", "S"),
+]
 
 
 class BaseRunReport(abc.ABC):
@@ -175,6 +190,7 @@ class SummaryRunReport(BaseRunReport):
             run_report.operator,
             run_report.project,
             run_report.campaign,
+            run_report.site,
             run_report.payload,
             run_report.run,
         )

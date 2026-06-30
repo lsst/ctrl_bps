@@ -83,6 +83,7 @@ def create_batch_stages(
             "bps_project": config["project"],
             "bps_campaign": config["campaign"],
             "bps_run": config["uniqProcName"],
+            "bps_runsite": config["computeSite"],
             "bps_operator": config["operator"],
             "bps_payload": config["payloadName"],
         }
