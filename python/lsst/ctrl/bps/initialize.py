@@ -43,10 +43,17 @@ import shutil
 from collections.abc import Callable, Iterable
 from pathlib import Path
 
-from lsst.ctrl.bps import BPS_DEFAULTS, BPS_SEARCH_ORDER, BpsConfig
+from lsst.ctrl.bps import (
+    BPS_DEFAULTS,
+    BPS_SEARCH_ORDER,
+    DEFAULT_MEM_FMT,
+    DEFAULT_MEM_UNIT,
+    BpsConfig,
+)
 from lsst.ctrl.bps.bps_utils import _dump_env_info, _dump_pkg_info, mkdir
 from lsst.pipe.base import Instrument
 from lsst.utils import doImport
+from lsst.utils.timer import time_this
 
 _LOG = logging.getLogger(__name__)
 
@@ -113,11 +120,29 @@ def init_submission(
         wms_service_class_fqn=kwargs.get("wms_service"),
     )
 
-    translate_command_line_values(config, **kwargs)
+    with time_this(
+        log=_LOG,
+        level=logging.DEBUG,
+        prefix=None,
+        msg="Translating command line values completed",
+        mem_usage=True,
+        mem_unit=DEFAULT_MEM_UNIT,
+        mem_fmt=DEFAULT_MEM_FMT,
+    ):
+        translate_command_line_values(config, **kwargs)
 
-    # Run validation tests on the given config if any.
-    for validator in validators:
-        validator(config)
+    with time_this(
+        log=_LOG,
+        level=logging.DEBUG,
+        prefix=None,
+        msg="Validation tests completed",
+        mem_usage=True,
+        mem_unit=DEFAULT_MEM_UNIT,
+        mem_fmt=DEFAULT_MEM_FMT,
+    ):
+        # Run validation tests on the given config if any.
+        for validator in validators:
+            validator(config)
 
     # Set some initial values
     config[".bps_defined.timestamp"] = Instrument.makeCollectionTimestamp()
@@ -128,32 +153,50 @@ def init_submission(
     if "uniqProcName" not in config:
         config[".bps_defined.uniqProcName"] = config["outputRun"].replace("/", "_")
 
-    # If requested, run WMS plugin checks early in submission process to
-    # ensure WMS has what it will need for prepare() or submit().
-    if kwargs.get("runWmsSubmissionChecks", False):
-        found, wms_class = config.search("wmsServiceClass")
-        if not found:
-            raise KeyError("Missing wmsServiceClass in bps config.  Aborting.")
+    with time_this(
+        log=_LOG,
+        level=logging.DEBUG,
+        prefix=None,
+        msg="Submission tests completed",
+        mem_usage=True,
+        mem_unit=DEFAULT_MEM_UNIT,
+        mem_fmt=DEFAULT_MEM_FMT,
+    ):
+        # If requested, run WMS plugin checks early in submission process to
+        # ensure WMS has what it will need for prepare() or submit().
+        if kwargs.get("runWmsSubmissionChecks", False):
+            found, wms_class = config.search("wmsServiceClass")
+            if not found:
+                raise KeyError("Missing wmsServiceClass in bps config.  Aborting.")
 
-        # Check that can import wms service class.
-        wms_service_class = doImport(wms_class)
-        wms_service = wms_service_class(config)
+            # Check that can import wms service class.
+            wms_service_class = doImport(wms_class)
+            wms_service = wms_service_class(config)
 
-        try:
-            wms_service.run_submission_checks()
-        except NotImplementedError:
-            # Allow various plugins to implement only when needed to do extra
-            # checks.
-            _LOG.debug("run_submission_checks is not implemented in %s.", wms_class)
-    else:
-        _LOG.debug("Skipping submission checks.")
+            try:
+                wms_service.run_submission_checks()
+            except NotImplementedError:
+                # Allow various plugins to implement only when needed to do
+                # extra checks.
+                _LOG.debug("run_submission_checks is not implemented in %s.", wms_class)
+        else:
+            _LOG.debug("Skipping submission checks.")
 
     # Replace all bpsGenerateConfig
     config.generate_config()
 
-    # Make submit directory to contain all outputs.
-    submit_path = mkdir(config["submitPath"])
-    config[".bps_defined.submitPath"] = str(submit_path)
+    with time_this(
+        log=_LOG,
+        level=logging.DEBUG,
+        prefix=None,
+        msg="Submit path created",
+        mem_usage=True,
+        mem_unit=DEFAULT_MEM_UNIT,
+        mem_fmt=DEFAULT_MEM_FMT,
+    ):
+        # Make submit directory to contain all outputs.
+        submit_path = mkdir(config["submitPath"])
+        config[".bps_defined.submitPath"] = str(submit_path)
 
     # Pre-make quantum graph filename
     prefix = Path(submit_path)
@@ -168,9 +211,18 @@ def init_submission(
     with open(expanded_config_file, "w") as fh:
         config.dump(fh)
 
-    # Dump information about runtime environment and software versions in use.
-    _dump_env_info(f"{submit_path}/{config['uniqProcName']}.env.info.yaml")
-    _dump_pkg_info(f"{submit_path}/{config['uniqProcName']}.pkg.info.yaml")
+    with time_this(
+        log=_LOG,
+        level=logging.DEBUG,
+        prefix=None,
+        msg="Saved environment and package information",
+        mem_usage=True,
+        mem_unit=DEFAULT_MEM_UNIT,
+        mem_fmt=DEFAULT_MEM_FMT,
+    ):
+        # Dump information about runtime environment and software versions.
+        _dump_env_info(f"{submit_path}/{config['uniqProcName']}.env.info.yaml")
+        _dump_pkg_info(f"{submit_path}/{config['uniqProcName']}.pkg.info.yaml")
 
     return config
 
