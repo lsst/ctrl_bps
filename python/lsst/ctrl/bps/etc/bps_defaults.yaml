@@ -150,3 +150,25 @@ memoryLimit: 491520
 # Default values for making id soft link to submit directory
 makeIdLink: False
 idLinkPath: "${PWD}/bps_links"
+
+
+# Running submit stages as batch jobs
+bpsBatchSubmission: false
+bpsPreCommandOpts: "{defaultPreCmdOpts}"
+buildQuantumGraph:
+  jobCommand: "${CTRL_BPS_DIR}/bin/bps {bpsPreCommandOpts} batch-acquire {configFile} --save-qgraph {fileDistributionEndPoint}{qgraphFile}"
+  requestMemory: 32768
+preparePayloadWorkflow:
+  #bpsPreCommandOpts: "--log-level=lsst.ctrl.bps.htcondor.prepare_utils=DEBUG --long-log"
+  jobCommand: "${CTRL_BPS_DIR}/bin/bps {bpsPreCommandOpts} batch-prepare {configFile} -g {fileDistributionEndPoint}{qgraphFile}"
+  requestMemory: 32768
+
+
+# Whether bps jobs, like preparePayloadWorkflow, use
+# the site run temp space for staging files.  Set
+# default for local submissions.
+bpsUseRunTempSpace: false
+
+# Whether BPS makes the exact command to be executed or
+# whether WMS is responsible for any additional job commands.
+bpsMakeCommand: true

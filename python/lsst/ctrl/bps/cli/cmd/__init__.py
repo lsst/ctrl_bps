@@ -27,6 +27,8 @@
 
 __all__ = [
     "acquire",
+    "batch_acquire",
+    "batch_prepare",
     "cluster",
     "transform",
     "prepare",
@@ -41,6 +43,8 @@ __all__ = [
 
 from .commands import (
     acquire,
+    batch_acquire,
+    batch_prepare,
     cancel,
     cluster,
     ping,

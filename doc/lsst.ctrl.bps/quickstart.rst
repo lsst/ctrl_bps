@@ -1613,6 +1613,55 @@ Parsl).
     responsibility to remove them once no longer needed.  The removal
     should be done regularly to avoid too many in single directory.
 
+.. _bps_submit_as_batch:
+
+Submit Stages as Batch Jobs
+---------------------------
+
+In cases where one cannot run ``bps submit`` interactively (e.g., needs
+too much memory), BPS can run the submit processes as batch jobs after
+which the payload workflow will start running.  This also is necessary
+when running at a remote site (i.e., a site where the butler repository
+isn't directly accessible).
+
+.. note::
+
+   Currently only the HTCondor WMS plugin supports this feature as described
+   below.  The PanDA WMS plugin uses a special PanDA feature to run
+   ``bps submit`` on a remote site.  See PanDA documentation for details.
+
+To tell BPS to execute submit stages as batch jobs, the submit yaml must
+set ``bpsBatchSubmission`` to ``true``.
+
+The interactive submission process, ``bps submit <submit yaml>``,
+is much shorter.  It will create a workflow with two jobs:
+
+- ``buildQuantumGraph`` which creates the quantum graph.
+- ``preparePayloadWorkflow`` which does the rest of the submission stages
+  seen when running ``bps submit``.  These include clustering, creation of
+  the payload workflow, and preparing the WMS-specific workflow.
+
+One can set runtime values specific to those jobs (e.g., ``requestMemory``) in
+sections with corresponding names similar to ``finalJob``.  Currently the
+logging-related command-line arguments aren't passed from ``bps batch-submit``
+to these jobs.  Instead, one can set ``bpsPreCommandOpts``, which has the
+same default as the payload job.
+
+Even with the new jobs, there is only one output run collection, one submit
+directory and one top level WMS ID to be used with BPS commands.
+
+``bps report --id <id|path>`` will show these 2 new jobs same as the payload
+jobs.  They will be the only lines to appear in the report until the
+``preparePayloadWorkflow`` has finished at which time the expected payload
+lines should appear (from ``pipetaskInit`` through ``finalJob``).
+
+``bps cancel`` can be used to abort the run during these new jobs or later
+during the running of the payload jobs.  Note, the ``finalJob`` job won't
+automatically run unless the payload workflow was successfully submitted.
+
+See the corresponding section in the WMS-plugin documentation for additional
+information and yaml settings.
+
 .. _bps-troubleshooting:
 
 Troubleshooting
