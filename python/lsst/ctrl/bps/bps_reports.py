@@ -187,14 +187,17 @@ class SummaryRunReport(BaseRunReport):
             run_report.state.name,
             percent_succeeded,
             run_report.global_wms_id if use_global_id else run_report.wms_id,
-            run_report.operator,
-            run_report.project,
-            run_report.campaign,
-            run_report.site,
-            run_report.payload,
+            run_report.operator if run_report.operator is not None else "",
+            run_report.project if run_report.project is not None else "",
+            run_report.campaign if run_report.campaign is not None else "",
+            run_report.site if run_report.site is not None else "",
+            run_report.payload if run_report.payload is not None else "",
             run_report.run,
         )
-        self._table.add_row(row)
+        try:
+            self._table.add_row(row)
+        except ValueError as ex:
+            _LOG.error("Error when adding summary report row: %s (%s)", repr(ex), row)
 
 
 class DetailedRunReport(BaseRunReport):

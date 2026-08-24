@@ -29,6 +29,7 @@
 
 import dataclasses
 import io
+import logging
 import unittest
 
 from astropy.table import Table
@@ -205,6 +206,43 @@ class SummaryRunReportTestCase(unittest.TestCase):
         }
         self.report.add(self.run)
         print(self.report, file=self.actual_output)
+
+        self.assertEqual(self.actual_output.getvalue(), self.expected_output.getvalue())
+
+    def testNoneValues(self):
+        """Test no exception if plugin lets values default to None."""
+        self.maxDiff = None
+
+        self.run.operator = None
+        self.run.project = None
+        self.run.campaign = None
+        self.run.operator = None
+        self.run.payload = None
+        self.run.site = None
+        self.report.add(self.run)
+        print(self.report, file=self.actual_output)
+
+        self.expected = Table(dtype=self.fields)
+        self.expected.add_row(["", "RUNNING", "50", "1.0", "", "", "", "", "", "run"])
+        print("\n".join(self.expected.pformat(max_lines=-1, max_width=-1)), file=self.expected_output)
+
+        self.assertEqual(self.actual_output.getvalue(), self.expected_output.getvalue())
+
+    def testValueError(self):
+        """Test no exception if plugin lets values default to None."""
+        self.maxDiff = None
+
+        logger = logging.getLogger("test_bps_report")
+        logger.setLevel(logging.INFO)
+
+        self.run.run = None
+        with self.assertLogs(level=logging.ERROR) as cm:
+            self.report.add(self.run)
+            print(self.report, file=self.actual_output)
+            self.assertRegex(cm.records[0].getMessage(), "Error when adding summary report row")
+
+        self.expected = Table(dtype=self.fields)
+        print("\n".join(self.expected.pformat(max_lines=-1, max_width=-1)), file=self.expected_output)
 
         self.assertEqual(self.actual_output.getvalue(), self.expected_output.getvalue())
 
