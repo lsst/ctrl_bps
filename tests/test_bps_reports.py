@@ -29,12 +29,14 @@
 
 import dataclasses
 import io
+import logging
 import unittest
 
 from astropy.table import Table
 from wms_test_utils import TEST_REPORT
 
 from lsst.ctrl.bps import (
+    DISPLAY_SUMMARY_FIELDS,
     BaseRunReport,
     DetailedRunReport,
     ExitCodesReport,
@@ -113,23 +115,14 @@ class SummaryRunReportTestCase(unittest.TestCase):
     """Test a summary run report."""
 
     def setUp(self):
-        self.fields = [
-            ("X", "S"),
-            ("STATE", "S"),
-            ("%S", "S"),
-            ("ID", "S"),
-            ("OPERATOR", "S"),
-            ("PROJECT", "S"),
-            ("CAMPAIGN", "S"),
-            ("PAYLOAD", "S"),
-            ("RUN", "S"),
-        ]
+        self.fields = DISPLAY_SUMMARY_FIELDS
         self.run = WmsRunReport(
             wms_id="1.0",
             global_wms_id="foo#1.0",
             path="/path/to/run",
             label="label",
             run="run",
+            site="SITE1",
             project="dev",
             campaign="testing",
             payload="test",
@@ -146,7 +139,9 @@ class SummaryRunReportTestCase(unittest.TestCase):
         self.report = SummaryRunReport(self.fields)
 
         self.expected = Table(dtype=self.fields)
-        self.expected.add_row(["", "RUNNING", "50", "1.0", "tester", "dev", "testing", "test", "run"])
+        self.expected.add_row(
+            ["", "RUNNING", "50", "1.0", "tester", "dev", "testing", "SITE1", "test", "run"]
+        )
 
         self.expected_output = io.StringIO()
         self.actual_output = io.StringIO()
@@ -157,6 +152,8 @@ class SummaryRunReportTestCase(unittest.TestCase):
 
     def testAddWithNoFlag(self):
         """Test adding a report for a run with no issues."""
+        self.maxDiff = None
+
         print("\n".join(self.expected.pformat(max_lines=-1, max_width=-1)), file=self.expected_output)
 
         self.report.add(self.run)
@@ -166,6 +163,8 @@ class SummaryRunReportTestCase(unittest.TestCase):
 
     def testAddWithFailedFlag(self):
         """Test adding a run with a failed job."""
+        self.maxDiff = None
+
         self.expected["X"][0] = "F"
         print("\n".join(self.expected.pformat(max_lines=-1, max_width=-1)), file=self.expected_output)
 
@@ -180,6 +179,8 @@ class SummaryRunReportTestCase(unittest.TestCase):
 
     def testAddWithHeldFlag(self):
         """Test adding a run with a held job."""
+        self.maxDiff = None
+
         self.expected["X"][0] = "H"
         print("\n".join(self.expected.pformat(max_lines=-1, max_width=-1)), file=self.expected_output)
 
@@ -194,6 +195,8 @@ class SummaryRunReportTestCase(unittest.TestCase):
 
     def testAddWithDeletedFlag(self):
         """Test adding a run with a deleted job."""
+        self.maxDiff = None
+
         self.expected["X"][0] = "D"
         print("\n".join(self.expected.pformat(max_lines=-1, max_width=-1)), file=self.expected_output)
 
@@ -203,6 +206,43 @@ class SummaryRunReportTestCase(unittest.TestCase):
         }
         self.report.add(self.run)
         print(self.report, file=self.actual_output)
+
+        self.assertEqual(self.actual_output.getvalue(), self.expected_output.getvalue())
+
+    def testNoneValues(self):
+        """Test no exception if plugin lets values default to None."""
+        self.maxDiff = None
+
+        self.run.operator = None
+        self.run.project = None
+        self.run.campaign = None
+        self.run.operator = None
+        self.run.payload = None
+        self.run.site = None
+        self.report.add(self.run)
+        print(self.report, file=self.actual_output)
+
+        self.expected = Table(dtype=self.fields)
+        self.expected.add_row(["", "RUNNING", "50", "1.0", "", "", "", "", "", "run"])
+        print("\n".join(self.expected.pformat(max_lines=-1, max_width=-1)), file=self.expected_output)
+
+        self.assertEqual(self.actual_output.getvalue(), self.expected_output.getvalue())
+
+    def testValueError(self):
+        """Test no exception if plugin lets values default to None."""
+        self.maxDiff = None
+
+        logger = logging.getLogger("test_bps_report")
+        logger.setLevel(logging.INFO)
+
+        self.run.run = None
+        with self.assertLogs(level=logging.ERROR) as cm:
+            self.report.add(self.run)
+            print(self.report, file=self.actual_output)
+            self.assertRegex(cm.records[0].getMessage(), "Error when adding summary report row")
+
+        self.expected = Table(dtype=self.fields)
+        print("\n".join(self.expected.pformat(max_lines=-1, max_width=-1)), file=self.expected_output)
 
         self.assertEqual(self.actual_output.getvalue(), self.expected_output.getvalue())
 
@@ -229,6 +269,7 @@ class DetailedRunReportTestCase(unittest.TestCase):
             path="/path/to/run",
             label="label",
             run="run",
+            site="TEST",
             project="dev",
             campaign="testing",
             payload="test",

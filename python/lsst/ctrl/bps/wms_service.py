@@ -43,6 +43,8 @@ from abc import ABCMeta, abstractmethod
 from enum import Enum
 from typing import Any
 
+from . import BpsConfig
+
 _LOG = logging.getLogger(__name__)
 
 
@@ -246,6 +248,9 @@ class WmsRunReport:
 
     operator: str | None = None
     """Username of the operator who submitted the run."""
+
+    site: str | None = None
+    """Compute site for payload jobs."""
 
     run_summary: str | None = None
     """Job counts per label."""
@@ -574,5 +579,15 @@ class BaseWmsWorkflow(metaclass=ABCMeta):
         out_prefix : `str`
             Root directory to be used for WMS workflow inputs and outputs
             as well as internal WMS files.
+        """
+        raise NotImplementedError
+
+    def add_to_parent_workflow(self, config: BpsConfig) -> None:
+        """Add self to parent workflow.
+
+        Parameters
+        ----------
+        config : `lsst.ctrl.bps.BpsConfig`
+            BPS configuration.
         """
         raise NotImplementedError

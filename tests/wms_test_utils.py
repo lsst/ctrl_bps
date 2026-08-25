@@ -38,6 +38,7 @@ TEST_REPORT = WmsRunReport(
     path="/path/to/run",
     label="label",
     run="run",
+    site="SITE1",
     project="dev",
     campaign="testing",
     payload="test",

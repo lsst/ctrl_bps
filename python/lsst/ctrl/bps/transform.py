@@ -47,7 +47,11 @@ from . import (
     GenericWorkflowFile,
     GenericWorkflowJob,
 )
-from .bps_utils import WhenToSaveQuantumGraphs, create_job_quantum_graph_filename, save_qg_subgraph
+from .bps_utils import (
+    WhenToSaveQuantumGraphs,
+    create_job_quantum_graph_filename,
+    save_qg_subgraph,
+)
 
 # All available job attributes.
 _ATTRS_ALL = frozenset([field.name for field in dataclasses.fields(GenericWorkflowJob)])
@@ -216,22 +220,21 @@ def _enhance_command(config, generic_workflow, gwjob, cached_job_values):
     """
     _LOG.debug("gwjob given to _enhance_command: %s", gwjob)
 
-    curvals = {
-        "curr_pipetask": gwjob.label,
-        "curr_cluster": gwjob.label,
-        "jobName": gwjob.name,
-        "jobLabel": gwjob.label,
-    }
-    for key, value in gwjob.tags.items():
-        curvals[key] = value
+    search_opt = config.get_search_opts(gwjob.label)
 
-    search_opt = {
-        "curvals": curvals,
-        "replaceVars": False,
-        "expandEnvVars": False,
-        "replaceEnvVars": True,
-        "required": False,
-    }
+    search_opt["curvals"]["jobName"] = gwjob.name
+    search_opt["curvals"]["jobLabel"] = gwjob.label
+    for key, value in gwjob.tags.items():
+        search_opt["curvals"][key] = value
+
+    search_opt.update(
+        {
+            "replaceVars": False,
+            "expandEnvVars": False,
+            "replaceEnvVars": True,
+            "required": False,
+        }
+    )
 
     if gwjob.label not in cached_job_values:
         cached_job_values[gwjob.label] = {}
@@ -269,13 +272,16 @@ def _enhance_command(config, generic_workflow, gwjob, cached_job_values):
     # (Be careful to not replace env variables as they may
     # be different in compute job.)
     search_opt["replaceVars"] = True
+    _LOG.debug("before cmdvals = %s (search_opt = %s)", gwjob.cmdvals, search_opt)
     for key in re.findall(r"{([^}]+)}", gwjob.arguments):
+        _LOG.debug("looking for %s in cmdvals", key)
         if key in gwjob.cmdvals:
             continue
         elif key in cached_job_values[gwjob.label]:
             gwjob.cmdvals[key] = cached_job_values[gwjob.label][key]
         else:
             _, gwjob.cmdvals[key] = config.search(key, opt=search_opt)
+    _LOG.debug("after cmdvals = %s", gwjob.cmdvals)
 
     # backwards compatibility
     if not cached_job_values[gwjob.label]["useLazyCommands"]:
@@ -405,25 +411,45 @@ def _get_job_values(config, search_opt, cmd_line_key):
         else:
             job_values[attr] = getattr(default_gwjob, attr)
 
-    # Need to replace all config variables in environment values
-    # While replacing variables, convert to plain dict
-    if job_values["environment"]:
-        old_searchobj = search_opt.get("searchobj", None)
-        old_replace_vars = search_opt.get("replaceVars", None)
-        job_env = job_values["environment"]
-        search_opt["searchobj"] = job_env
-        search_opt["replaceVars"] = True
-        job_values["environment"] = {}
-        for name in job_env:
-            job_values["environment"][name] = str(config.search(name, search_opt)[1])
-        if old_searchobj is None:
-            del search_opt["searchobj"]
-        else:
-            search_opt["searchobj"] = old_searchobj
-        if old_replace_vars is None:
-            del search_opt["replaceVars"]
-        else:
-            search_opt["replaceVars"] = old_replace_vars
+    # Need to replace all config variables in environment values.
+    # Also change env vars in environment values to bash syntax.
+    #
+    # Note:  Because job_values["environment"] is a BpsConfig and
+    # currently cannot have 2 search objects, for each environment
+    # setting, we have to get the setting string as is and then
+    # separately use the overall config to replace values inside
+    # the setting string.
+    tmp_job_env = job_values.get("environment", None)
+    if tmp_job_env:
+        _LOG.debug("_get_job_values: job_values['environment'] = %s", tmp_job_env)
+
+        # Don't want to replace when getting environment setting string.
+        as_is_search_opt = {
+            "replaceVars": False,
+            "expandEnvVars": False,
+            "replaceEnvBps2Shell": False,
+            "replaceEnvShell2Bps": False,
+        }
+
+        # When updating environment string, use given search options,
+        # but ensure making the environment string using bash syntax.
+        env_search_opt = copy.copy(search_opt)
+        env_search_opt["replaceVars"] = True  # Replace bps config variables.
+        env_search_opt["replaceEnvBps2Shell"] = False  # Replace bps <ENV:var> syntax.
+        env_search_opt["replaceEnvShell2Bps"] = True  # Do not replace shell env syntax.
+        env_search_opt["expandEnvVars"] = False  # Do not replace with submission env value.
+
+        job_env = {}  # While replacing variables, convert to plain dict.
+
+        for name in tmp_job_env:
+            # Get environment setting string as is.
+            value = tmp_job_env.search(name, as_is_search_opt)[1]
+            _LOG.debug("_get_job_values: as is value for %s = %s", name, value)
+            # Replace config vars and env placeholders
+            job_env[name] = config.modify_value(name, str(value), env_search_opt)
+            _LOG.debug("_get_job_values: new env value for %s = %s", name, job_env[name])
+        # Save new dictionary back with other job values.
+        job_values["environment"] = job_env
 
     # If the automatic memory scaling is enabled (i.e. the memory multiplier
     # is set and it is a positive number greater than 1.0), adjust number

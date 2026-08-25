@@ -40,7 +40,7 @@ from typing import TextIO
 
 from lsst.utils import doImportType
 
-from .bps_reports import DetailedRunReport, ExitCodesReport, SummaryRunReport
+from .bps_reports import DISPLAY_SUMMARY_FIELDS, DetailedRunReport, ExitCodesReport, SummaryRunReport
 from .wms_service import BaseWmsService, WmsRunReport, WmsStates
 
 _LOG = logging.getLogger(__name__)
@@ -83,19 +83,7 @@ def display_report(
     file : TextIO
         File or file-like object to write the output to.
     """
-    run_brief = SummaryRunReport(
-        [
-            ("X", "S"),
-            ("STATE", "S"),
-            ("%S", "S"),
-            ("ID", "S"),
-            ("OPERATOR", "S"),
-            ("PROJECT", "S"),
-            ("CAMPAIGN", "S"),
-            ("PAYLOAD", "S"),
-            ("RUN", "S"),
-        ]
-    )
+    run_brief = SummaryRunReport(DISPLAY_SUMMARY_FIELDS)
 
     if is_detailed:
         fields = [(" ", "S")] + [(state.name, "i") for state in WmsStates] + [("EXPECTED", "i")]

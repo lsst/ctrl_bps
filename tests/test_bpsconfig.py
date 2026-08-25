@@ -466,11 +466,12 @@ class TestBpsConfigGenerateConfig(unittest.TestCase):
         #     config ordering is used.
         # Ditto for finalJob (which isn't a search section).
         # Checking all in single function to ensure doesn't quit early.
+        self.maxDiff = None
+
         self.config.generate_config()
 
         filename = os.path.join(TESTDIR, "data/initialize_config_truth.yaml")
         truth = BpsConfig(filename, BPS_SEARCH_ORDER, defaults={})
-
         self.assertEqual(self.config, truth)
 
     def testBpsEval(self):
@@ -509,6 +510,168 @@ class TestBpsConfigGenerateConfig(unittest.TestCase):
         self.config["badkey1"] = "badval1 bpsEval('sum([1,2]') blah"
         with self.assertRaisesRegex(ValueError, "Unparsable bpsEval in 'badval1 bpsEval"):
             _ = self.config.search("badkey1", opt=test_opt)
+
+
+class TestBpsConfigModifyValue(unittest.TestCase):
+    """Tests for BpsConfig.modify_value."""
+
+    def testReplaceVarsRoot(self):
+        config = BpsConfig(
+            {
+                "var2": "two",
+            }
+        )
+
+        value = "one {var2} three"
+        opt = {"replaceVars": True}
+        truth = "one two three"
+        with unittest.mock.patch.dict(os.environ, {"var2": "env_two"}):
+            results = config.modify_value("KEY1", value, opt)
+        self.assertEqual(truth, results)
+
+    def testReplaceVarsSubDirTemplateNoSlash(self):
+        config = BpsConfig({})
+
+        value = "{label}/{t1}/{t2}/{t3}/{t4}/{t5}/{t6}/{t7}"
+        search_obj = {"label": "label1", "t6": 12345}
+        opt = {"replaceVars": True, "searchobj": search_obj}
+        truth = "label1/12345"
+        with unittest.mock.patch.dict(os.environ, {"var2": "env_two"}):
+            results = config.modify_value("subDirTemplate", value, opt)
+        self.assertEqual(truth, results)
+
+    def testExpandEnvVars(self):
+        config = BpsConfig(
+            {
+                "var2": "two",
+            }
+        )
+
+        value = "one <ENV:var2> three <ENV:not_there>"
+        opt = {"expandEnvVars": True}
+        truth = "one env_two three ${not_there}"
+        with unittest.mock.patch.dict(os.environ, {"var2": "env_two"}):
+            results = config.modify_value("KEY1", value, opt)
+        self.assertEqual(truth, results)
+
+    def testReplaceEnvVars(self):
+        # Backward compatibility
+        config = BpsConfig(
+            {
+                "var2": "two",
+            }
+        )
+
+        value = "one ${var2} three"
+        opt = {"expandEnvVars": False, "replaceEnvVars": True}
+        truth = "one <ENV:var2> three"
+        with unittest.mock.patch.dict(os.environ, {"var2": "env_two"}):
+            results = config.modify_value("KEY1", value, opt)
+        self.assertEqual(truth, results)
+
+    def testReplaceEnvShell2Bps(self):
+        config = BpsConfig(
+            {
+                "var2": "two",
+            }
+        )
+        value = "one ${var2} three"
+        opt = {"expandEnvVars": False, "replaceEnvVars": True}
+        truth = "one <ENV:var2> three"
+        with unittest.mock.patch.dict(os.environ, {"var2": "env_two"}):
+            results = config.modify_value("KEY1", value, opt)
+        self.assertEqual(truth, results)
+
+    def testReplaceEnvBps2Shell(self):
+        config = BpsConfig(
+            {
+                "var2": "two",
+            }
+        )
+        value = "one ${var2} three"
+        opt = {"expandEnvVars": False, "replaceEnvVars": True}
+        truth = "one <ENV:var2> three"
+        with unittest.mock.patch.dict(os.environ, {"var2": "env_two"}):
+            results = config.modify_value("KEY1", value, opt)
+        self.assertEqual(truth, results)
+
+    def testSearchObjEnv(self):
+        config = BpsConfig({})
+
+        value = "{label}/{t1}/{t2}/{t3}/{t4}/{t5}/{t6}/{t7}"
+        search_obj = {"label": "label1", "t6": 12345}
+        opt = {"replaceVars": True, "searchobj": search_obj}
+        truth = "label1/12345"
+        with unittest.mock.patch.dict(os.environ, {"var2": "env_two"}):
+            results = config.modify_value("subDirTemplate", value, opt)
+        self.assertEqual(truth, results)
+
+
+class TestBpsConfigGetSearchOpts(unittest.TestCase):
+    """Tests for BpsConfig.get_search_opts."""
+
+    def testPipetaskLabel(self):
+        filename = os.path.join(TESTDIR, "data/initialize_config_truth.yaml")
+        config = BpsConfig(filename, BPS_SEARCH_ORDER, defaults={})
+        config["computeCloud"] = "cloud1"
+        config["computeSite"] = "site1"
+        results = config.get_search_opts("ptask1")
+        truth = {
+            "curvals": {
+                "label": "ptask1",
+                "curr_pipetask": "ptask1",
+                "curr_site": "site1",
+                "curr_cloud": "cloud1",
+            }
+        }
+        self.assertEqual(truth, results)
+
+    def testClusterLabel(self):
+        filename = os.path.join(TESTDIR, "data/initialize_config_truth.yaml")
+        config = BpsConfig(filename, BPS_SEARCH_ORDER, defaults={})
+        config["computeCloud"] = "cloud1"
+        config["computeSite"] = "site1"
+        results = config.get_search_opts("cl1")
+        truth = {
+            "curvals": {"label": "cl1", "curr_cluster": "cl1", "curr_site": "site1", "curr_cloud": "cloud1"}
+        }
+        self.assertEqual(truth, results)
+
+    def testNoMatchingLabel(self):
+        filename = os.path.join(TESTDIR, "data/initialize_config_truth.yaml")
+        config = BpsConfig(filename, BPS_SEARCH_ORDER, defaults={})
+        config["computeCloud"] = "cloud1"
+        config["computeSite"] = "site1"
+        results = config.get_search_opts("notthere")
+        truth = {"curvals": {"label": "notthere", "curr_site": "site1", "curr_cloud": "cloud1"}}
+        self.assertEqual(truth, results)
+
+    def testNoMatchingAnything(self):
+        filename = os.path.join(TESTDIR, "data/initialize_config_truth.yaml")
+        config = BpsConfig(filename, BPS_SEARCH_ORDER, defaults={})
+        config["computeCloud"] = "cloud_notthere"
+        config["computeSite"] = "site_notthere"
+        results = config.get_search_opts("notthere")
+        truth = {
+            "curvals": {"label": "notthere", "curr_site": "site_notthere", "curr_cloud": "cloud_notthere"}
+        }
+        self.assertEqual(truth, results)
+
+    def testFinal(self):
+        filename = os.path.join(TESTDIR, "data/initialize_config_truth.yaml")
+        config = BpsConfig(filename, BPS_SEARCH_ORDER, defaults={})
+        config["computeCloud"] = "cloud1"
+        config["computeSite"] = "site1"
+        results = config.get_search_opts("finalJob")
+        truth = {
+            "curvals": {
+                "label": "finalJob",
+                "curr_site": "site1",
+                "curr_cloud": "cloud1",
+            },
+            "searchobj": config["finalJob"],
+        }
+        self.assertEqual(truth, results)
 
 
 if __name__ == "__main__":

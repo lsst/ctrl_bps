@@ -200,7 +200,7 @@ class TestGetJobValues(unittest.TestCase):
             }
         )
         job_values = _get_job_values(config, {}, None)
-        truth = BpsConfig({"TEST_INT": "1", "TEST_BOOL": "False", "TEST_SPACES": "one two three"}, {}, None)
+        truth = {"TEST_INT": "1", "TEST_BOOL": "False", "TEST_SPACES": "one two three"}
         self.assertEqual(truth, job_values["environment"])
 
     def testEnvironmentOptions(self):
@@ -219,6 +219,17 @@ class TestGetJobValues(unittest.TestCase):
         self.assertEqual(search_opts["replaceVars"], False)
         self.assertEqual(search_opts["searchobj"]["requestMemory"], 8096)
         self.assertEqual(job_values["request_memory"], 8096)
+
+    def testVarsInEnvironment(self):
+        config = BpsConfig(
+            {
+                "var1": "two",
+                "environment": {"TEST_INT": 1, "TEST_BOOL": False, "TEST_SPACES": "one {var1} <ENV:var3>"},
+            }
+        )
+        job_values = _get_job_values(config, {"replaceVars": True}, None)
+        truth = {"TEST_INT": "1", "TEST_BOOL": "False", "TEST_SPACES": "one two <ENV:var3>"}
+        self.assertEqual(truth, job_values["environment"])
 
 
 class TestCreateFinalCommand(unittest.TestCase):
