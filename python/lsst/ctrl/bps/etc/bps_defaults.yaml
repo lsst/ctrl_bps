@@ -42,7 +42,7 @@ fileDistributionEndPoint: ""   # Needed by PanDA plugin, must end in / if non-em
 pipetask:
   pipetaskInit:
     runQuantumCommand: >-
-      ${CTRL_MPEXEC_DIR}/bin/pipetask {initPreCmdOpts} pre-exec-init-qbb
+      pipetask {initPreCmdOpts} pre-exec-init-qbb
       {butlerConfig}
       {fileDistributionEndPoint}{qgraphFile}
       {extraInitOptions}
@@ -59,7 +59,7 @@ pipetask:
 # Defaults to using full workflow QuantumGraph instead of per-job QuantumGraphs.
 whenSaveJobQgraph: "NEVER"
 createQuantumGraph: >-
-  ${CTRL_MPEXEC_DIR}/bin/pipetask {qgraphPreCmdOpts} qgraph
+  pipetask {qgraphPreCmdOpts} qgraph
   --butler-config {butlerConfig}
   {pipetaskInput}
   {pipetaskOutput}
@@ -70,13 +70,13 @@ createQuantumGraph: >-
   {pipetaskDataQuery}
   {extraQgraphOptions}
 runQuantumCommand: >-
-  ${CTRL_MPEXEC_DIR}/bin/pipetask {runPreCmdOpts} run-qbb
+  pipetask {runPreCmdOpts} run-qbb
   {butlerConfig}
   {fileDistributionEndPoint}{qgraphFile}
   --qgraph-node-id {qgraphNodeId}
   {extraRunQuantumOptions}
 updateQuantumGraph: >-
-  ${CTRL_MPEXEC_DIR}/bin/pipetask {updateQgraphPreCmdOpts} update-graph-run
+  pipetask {updateQgraphPreCmdOpts} update-graph-run
   {inputQgraphFile}
   {outputRun}
   {qgraphFile}
@@ -128,7 +128,7 @@ finalJob:
   requestCpus: 16
   requestMemory: 32768
   command1: >-
-    ${DAF_BUTLER_DIR}/bin/butler {finalPreCmdOpts} aggregate-graph
+    butler {finalPreCmdOpts} aggregate-graph
     {fileDistributionEndPoint}{qgraphFile}
     {butlerConfig}
     -j {requestCpus}
@@ -156,11 +156,11 @@ idLinkPath: "${PWD}/bps_links"
 bpsBatchSubmission: false
 bpsPreCommandOpts: "{defaultPreCmdOpts}"
 buildQuantumGraph:
-  jobCommand: "${CTRL_BPS_DIR}/bin/bps {bpsPreCommandOpts} batch-acquire {configFile} --save-qgraph {fileDistributionEndPoint}{qgraphFile}"
+  jobCommand: "bps {bpsPreCommandOpts} batch-acquire {configFile} --save-qgraph {fileDistributionEndPoint}{qgraphFile}"
   requestMemory: 32768
 preparePayloadWorkflow:
   #bpsPreCommandOpts: "--log-level=lsst.ctrl.bps.htcondor.prepare_utils=DEBUG --long-log"
-  jobCommand: "${CTRL_BPS_DIR}/bin/bps {bpsPreCommandOpts} batch-prepare {configFile} -g {fileDistributionEndPoint}{qgraphFile}"
+  jobCommand: "bps {bpsPreCommandOpts} batch-prepare {configFile} -g {fileDistributionEndPoint}{qgraphFile}"
   requestMemory: 32768
 
 
