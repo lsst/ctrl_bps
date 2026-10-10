@@ -1,0 +1,81 @@
+# For transform tests to be used with results of make_test_clustered_quantum_graph()
+# Excessive environment settings for testing.
+
+computeSite: "root"
+runQuantumCommand: "gexe -q {qgraphFile} --qgraph-node-id {qgraphNodeId}"
+var1: "root_val1"
+environment:
+  VAR2: "root_val2"
+  VAR3: "root_val3"
+  VAR_PATH: "${PACKAGE_DIR}/root_dir:${VAR_PATH}"
+  TEST_VAR: "one {var1} three"
+
+clusterTemplate: "{D1}_{D2}"
+cluster:
+  clusterT1T2:
+    requestMemory: 6144
+    pipetasks: "T1, T2"
+    dimensions: "D1, D2"
+    var1: "cl12_val1"
+    environment:
+      VAR2: "bps_none"  # test case-insensitivity
+      VAR3: "cl12_val3"
+      VAR4: "cl12_val4"
+      VAR_PATH: "${PACKAGE_DIR}/cl12_dir:${VAR_PATH}"
+  clusterT3T4:
+    pipetasks: "T3, T4"
+    dimensions: "D1, D2"
+    var1: "cl34_val1"
+    environment:
+      VAR3: "cl34_val3"
+      VAR4: "cl34_val4"
+      VAR_PATH: "${PACKAGE_DIR}/cl34_dir:${VAR_PATH}"
+
+cloud:
+  cloud1:
+    runQuantumCommand: "c1exe -q {qgraphFile} --qgraph-node-id {qgraphNodeId}"
+    environment:
+      VAR3: "cloud1_val3"
+      VAR4: "cloud1_val4"
+      VAR_PATH: "${PACKAGE_DIR}/cloud1:${VAR_PATH}"
+site:
+  site1:
+    var1: "site1_val1"
+    environment:
+      VAR4: "site1_val4"
+      VAR_PATH: "${PACKAGE_DIR}/site1_dir:${VAR_PATH}"
+    runQuantumCommand: "s1exe -q {qgraphFile} --qgraph-node-id {qgraphNodeId}"
+
+pipetask:
+  pipetaskInit:
+    var1: "init_val1"
+    requestMemory: 8096
+    initPreCmdOpts: "--log-level=DEBUG"
+  T1:
+    var1: "T1_val1"
+    requestMemory: 1024
+  T2:
+    requestMemory: 1024
+  T2b:
+    var1: "T2b_val1"
+    environment:
+      VAR4: "T2b_val4"
+      VAR_PATH: "${PACKAGE_DIR}/t2b_dir:${VAR_PATH}"
+  T3:
+    requestMemory: 1024
+  T4:
+    requestMemory: 4048
+  T5:
+    var1: "T5_val1"
+    environment:
+      VAR4: "T5_val4"
+      VAR_PATH: "${PACKAGE_DIR}/t5_dir:${VAR_PATH}"
+
+finalJob:
+  command1: "/usr/bin/env"
+  var1: "final_val1"
+  environment:
+    VAR3: "BPS_NONE"
+    VAR4: "BPS_NONE"
+    VAR5: "final_val5"
+    VAR_PATH: "${PACKAGE_DIR}/final_dir:${VAR_PATH}"

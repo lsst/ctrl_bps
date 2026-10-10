@@ -33,13 +33,17 @@ import logging
 import math
 import os
 import re
+from typing import Any
 
 from lsst.ctrl.bps import ClusteredQuantumGraph
+from lsst.daf.butler import Config
 from lsst.pipe.base import QuantumGraph
 from lsst.utils.logging import VERBOSE
 from lsst.utils.timer import timeMethod
 
 from . import (
+    BPS_NONE,
+    BPS_SEARCH_ORDER,
     DEFAULT_MEM_RETRIES,
     BpsConfig,
     GenericWorkflow,
@@ -411,45 +415,7 @@ def _get_job_values(config, search_opt, cmd_line_key):
         else:
             job_values[attr] = getattr(default_gwjob, attr)
 
-    # Need to replace all config variables in environment values.
-    # Also change env vars in environment values to bash syntax.
-    #
-    # Note:  Because job_values["environment"] is a BpsConfig and
-    # currently cannot have 2 search objects, for each environment
-    # setting, we have to get the setting string as is and then
-    # separately use the overall config to replace values inside
-    # the setting string.
-    tmp_job_env = job_values.get("environment", None)
-    if tmp_job_env:
-        _LOG.debug("_get_job_values: job_values['environment'] = %s", tmp_job_env)
-
-        # Don't want to replace when getting environment setting string.
-        as_is_search_opt = {
-            "replaceVars": False,
-            "expandEnvVars": False,
-            "replaceEnvBps2Shell": False,
-            "replaceEnvShell2Bps": False,
-        }
-
-        # When updating environment string, use given search options,
-        # but ensure making the environment string using bash syntax.
-        env_search_opt = copy.copy(search_opt)
-        env_search_opt["replaceVars"] = True  # Replace bps config variables.
-        env_search_opt["replaceEnvBps2Shell"] = False  # Replace bps <ENV:var> syntax.
-        env_search_opt["replaceEnvShell2Bps"] = True  # Do not replace shell env syntax.
-        env_search_opt["expandEnvVars"] = False  # Do not replace with submission env value.
-
-        job_env = {}  # While replacing variables, convert to plain dict.
-
-        for name in tmp_job_env:
-            # Get environment setting string as is.
-            value = tmp_job_env.search(name, as_is_search_opt)[1]
-            _LOG.debug("_get_job_values: as is value for %s = %s", name, value)
-            # Replace config vars and env placeholders
-            job_env[name] = config.modify_value(name, str(value), env_search_opt)
-            _LOG.debug("_get_job_values: new env value for %s = %s", name, job_env[name])
-        # Save new dictionary back with other job values.
-        job_values["environment"] = job_env
+    job_values["environment"] = gather_job_environment(config, search_opt)
 
     # If the automatic memory scaling is enabled (i.e. the memory multiplier
     # is set and it is a positive number greater than 1.0), adjust number
@@ -631,8 +597,6 @@ def create_generic_workflow(
     _, when_save = config.search("whenSaveJobQgraph", {"default": WhenToSaveQuantumGraphs.TRANSFORM.name})
     save_qgraph_per_job = WhenToSaveQuantumGraphs[when_save.upper()]
 
-    search_opt = {"replaceVars": False, "expandEnvVars": False, "replaceEnvVars": True, "required": False}
-
     generic_workflow = GenericWorkflow(name)
 
     # Save full run QuantumGraph for use by jobs
@@ -664,13 +628,15 @@ def create_generic_workflow(
         gwjob = GenericWorkflowJob(cluster.name, cluster.label)
 
         # First get job values from cluster or cluster config
-        search_opt["curvals"] = {"curr_cluster": cluster.label}
-        found, value = config.search("computeSite", opt=search_opt)
-        if found:
-            search_opt["curvals"]["curr_site"] = value
-        found, value = config.search("computeCloud", opt=search_opt)
-        if found:
-            search_opt["curvals"]["curr_cloud"] = value
+        search_opt = config.get_search_opts(cluster.label)
+        search_opt.update(
+            {
+                "replaceVars": False,
+                "expandEnvVars": False,
+                "replaceEnvVars": True,
+                "required": False,
+            }
+        )
 
         # If some config values are set for this cluster
         if cluster.label not in cached_job_values:
@@ -694,6 +660,10 @@ def create_generic_workflow(
                     _get_job_values(config["cluster"][cluster.label], search_opt, "runQuantumCommand")
                 )
         cluster_job_values = copy.copy(cached_job_values[cluster.label])
+        # Environment is special because of the way it is merged.
+        # It needs to be set in the cached_pipetask_values, so
+        # don't include it here.
+        cluster_job_values.pop("environment", None)
 
         cluster_job_values["name"] = cluster.name
         cluster_job_values["label"] = cluster.label
@@ -701,6 +671,12 @@ def create_generic_workflow(
         cluster_job_values["tags"] = cluster.tags
         _LOG.debug("cluster_job_values = %s", cluster_job_values)
         _handle_job_values(cluster_job_values, gwjob, cluster_job_values.keys())
+        _LOG.debug(
+            "After _handle_job_values cluster %s: gwjob.environment = %s", cluster.label, gwjob.environment
+        )
+        _LOG.debug(
+            "After _handle_job_values cluster %s: gwjob.arguments = %s", cluster.label, gwjob.arguments
+        )
 
         # For purposes of whether to continue searching for a value is whether
         # the value evaluates to False.
@@ -719,7 +695,19 @@ def create_generic_workflow(
             if task_label not in cached_pipetask_values:
                 search_opt["curvals"]["curr_pipetask"] = task_label
                 cached_pipetask_values[task_label] = _get_job_values(config, search_opt, "runQuantumCommand")
+                _LOG.debug(
+                    "cached_pipetask_values[%s]['environment'] = %s",
+                    task_label,
+                    cached_pipetask_values[task_label].get("environment", None),
+                )
+                _LOG.debug(
+                    "cached_pipetask_values[%s]['arguments'] = %s",
+                    task_label,
+                    cached_pipetask_values[task_label].get("arguments", None),
+                )
             _handle_job_values(cached_pipetask_values[task_label], gwjob, unset_attributes)
+            _LOG.debug("After _handle_job_values pipetask: gwjob.environment = %s", gwjob.environment)
+            _LOG.debug("After _handle_job_values pipetask: gwjob.arguments = %s", gwjob.arguments)
 
         # Update job with workflow attribute and profile values.
         qgraph_gwfile = _get_qgraph_gwfile(
@@ -732,7 +720,10 @@ def create_generic_workflow(
         gwjob.cmdvals["qgraphNodeId"] = ",".join(
             sorted([f"{node_id}" for node_id in cluster.qgraph_node_ids])
         )
+        _LOG.debug("Before _enhance_command: gwjob.arguments = %s", gwjob.arguments)
+        _LOG.debug("Before _enhance_command: gwjob.cmdvals = %s", gwjob.cmdvals)
         _enhance_command(config, generic_workflow, gwjob, cached_job_values)
+        _LOG.debug("After _enhance_command: gwjob.environment = %s", gwjob.environment)
 
         # If writing per-job QuantumGraph files during TRANSFORM stage,
         # write it now while in memory.
@@ -948,3 +939,91 @@ def add_final_job_as_sink(generic_workflow, final_job):
 
     generic_workflow.add_job(final_job)
     generic_workflow.add_job_relationships(gw_sinks, final_job.name)
+
+
+def gather_job_environment(config: BpsConfig, search_opt: dict[str, Any]) -> dict[str, str]:
+    """Gather environment settings using given config search options.
+
+    Parameters
+    ----------
+    config : `lsst.ctrl.bps.BpsConfig`
+        Bps configuration.
+    search_opt : `dict` [`str`, `~typing.Any`]
+        Config search options.
+
+    Returns
+    -------
+    environment : `dict` [`str`, `str`]
+        Dictionary of environment variable names and values.
+    """
+    # Don't want to replace when getting environment setting string.
+    as_is_search_opt = {
+        "replaceVars": False,
+        "expandEnvVars": False,
+        "replaceEnvBps2Shell": True,  # Merge needs it to be shell syntax
+        "replaceEnvShell2Bps": False,
+    }
+
+    def _update_env(env_updates: dict[str, str], environment: dict[str, str]):
+        """Update environment with values from given environment
+        section.
+
+        Parameters
+        ----------
+        env_updates : `dict` [`str`, `str`]  or `~lsst.daf.butler.Config`
+            New values to use for update.
+        environment : `dict` [`str`, `str`]
+            Current environment values to update. Modified in place.
+        """
+        for key, value in env_updates.items():
+            value = config.modify_value(key, str(value), as_is_search_opt)
+
+            for envkey in re.findall(r"\${([^}]+)}", value):
+                if envkey == key and envkey in environment:
+                    oldval = environment[key]
+                    value = re.sub(rf"\${{{envkey}}}", oldval, value)
+            environment[key] = value
+
+    environment = {}
+    if ".environment" in config:
+        _, root_env = config.search("environment", as_is_search_opt)
+
+        # Cast to Config to avoid replacing variables.
+        environment.update(Config(root_env))
+
+    curvals = search_opt.get("curvals", {})
+
+    # In order to do the concatenation correctly, must
+    # search in reverse order than normal config searches
+    for sect in reversed(BPS_SEARCH_ORDER):
+        sect_key = "curr_" + sect
+        if sect_key in curvals and sect in config and curvals[sect_key] in config[sect]:
+            search_sect = config[sect][curvals[sect_key]]
+            if "environment" in search_sect:
+                # Cast to Config to avoid replacing variables
+                _update_env(Config(search_sect["environment"]), environment)
+
+    # Because not using normal config search, also have to check the
+    # search object if given.
+    if "searchobj" in search_opt and "environment" in search_opt["searchobj"]:
+        # Cast to Config to avoid replacing variables
+        env_sect = Config(search_opt["searchobj"]["environment"])
+        _update_env(env_sect, environment)
+
+    # Need to replace all config variables in environment values.
+    # Also remove any environment variable where value is "BPS_NONE".
+    new_environment = {}
+    if environment:
+        env_search_opt = copy.copy(search_opt)
+        env_search_opt["replaceVars"] = True  # Replace bps config variables.
+        env_search_opt["replaceEnvBps2Shell"] = False  # Keep bps <ENV:var> syntax.
+        env_search_opt["replaceEnvShell2Bps"] = True  # Replace shell env syntax.
+        env_search_opt["expandEnvVars"] = False  # Do not replace with submission env values.
+        for name in environment:
+            # Ensure that environment values are strings
+            new_environment[name] = config.modify_value(name, str(environment[name]), env_search_opt)
+            if new_environment[name].upper() == BPS_NONE:
+                _LOG.debug("Removing %s from the merged environment", name)
+                del new_environment[name]
+
+    return new_environment

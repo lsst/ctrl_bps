@@ -253,3 +253,84 @@ def make_test_clustered_quantum_graph(outdir):
     cqg.add_cluster(cluster)
 
     return qgraph, cqg
+
+
+#  T1(1,2)    T1(1,4)     T1(3,4)  T5(1,2)  T5(1,4)  T5(3,4)
+#   |          |           |
+#  T2(1,2)    T2(1,4)     T2(3,4)
+#   |   |      |   |       |   |
+#   | T2b(1,2) | T2b(1,4)  | T2b(3,4)
+#   |          |           |
+#  T3(1,2)    T3(1,4)     T3(3,4)
+#   |          |           |
+#  T4(1,2)    T4(1,4)     T4(3,4)
+def make_test_2_cluster_cqg(outdir):
+    """Make a ClusteredQuantumGraph with 2 sets of clusters for testing.
+
+    Parameters
+    ----------
+    outdir : `str`
+        Root used for the quantum graph filename stored
+        in the ClusteredQuantumGraph.  The quantum graph is always saved to
+        this location.
+
+    Returns
+    -------
+    qgraph : `lsst.pipe.base.quantum_graph.PredictedQuantumGraph`
+        The fake QuantumGraph created for the test
+        ClusteredQuantumGraph returned separately.
+    cqg : `lsst.ctrl.bps.ClusteredQuantumGraph`
+        Clustered quantum graph.
+    """
+    with make_test_helper() as helper:
+        qgc = helper.make_quantum_graph_builder(output_run="run").finish(attach_datastore_records=False)
+    qg_filename = f"{outdir}/test_file.qg"
+    # qgc.write(qg_filename)
+    qgraph = qgc.assemble()
+    cqg = ClusteredQuantumGraph("cqg2", qgraph, qg_filename)
+
+    # since random hash ids, create mapping for tests
+    test_lookup = {}
+    for task_label, quanta_for_task in qgraph.quanta_by_task.items():
+        for data_coordinate, quantum_id in quanta_for_task.items():
+            data_id = dict(data_coordinate.required)
+            key = f"{task_label}_{data_id['D1']}_{data_id['D2']}"
+            test_lookup[key] = (quantum_id, cqg.qxgraph.nodes[quantum_id])
+
+    def get_add_quantum_args(key: str) -> tuple[uuid.UUID, str]:
+        quantum_id, quantum_info = test_lookup[key]
+        return quantum_id, quantum_info["task_label"]
+
+    for dims in [(1, 2), (1, 4), (3, 4)]:
+        dims_str = f"{dims[0]}_{dims[1]}"
+
+        # cluster T1,T2
+        qc12 = QuantaCluster.from_quantum_info(
+            *test_lookup[f"T1_{dims_str}"], template=f"clusterT1T2_{dims_str}"
+        )
+        qc12.add_quantum(*get_add_quantum_args(f"T2_{dims_str}"))
+        qc12.label = "clusterT1T2"  # update label so doesnt look like only T1
+        qc12.tags["label"] = qc12.label
+
+        # cluster T3, T4
+        qc34 = QuantaCluster.from_quantum_info(
+            *test_lookup[f"T3_{dims_str}"], template=f"clusterT3T4_{dims_str}"
+        )
+        qc34.add_quantum(*get_add_quantum_args(f"T4_{dims_str}"))
+        qc34.label = "clusterT3T4"  # update label so doesnt look like only T1
+        qc34.tags["label"] = qc34.label
+
+        # T1,T2 -> T3,T4
+        cqg.add_cluster([qc34, qc12])  # reversed to check order is corrected in tests
+        cqg.add_dependency(qc12, qc34)
+
+        # Add singleton dependency T2b
+        qc2b = QuantaCluster.from_quantum_info(*test_lookup[f"T2b_{dims_str}"], template=f"T2b_{dims_str}")
+        cqg.add_cluster(qc2b)
+        cqg.add_dependency(qc12, qc2b)
+
+        # Add singleton independent
+        cluster = QuantaCluster.from_quantum_info(*test_lookup[f"T5_{dims_str}"], template=f"T5_{dims_str}")
+        cqg.add_cluster(cluster)
+
+    return qgraph, cqg
