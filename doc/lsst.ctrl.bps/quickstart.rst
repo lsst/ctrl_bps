@@ -1560,21 +1560,11 @@ across sections.
    To not include an environment variable from another section, use the special
    string ``BPS_NONE`` as the environment variable value (case-insensitive).
 
-.. warning::
+.. note::
 
-   The code that handles the ``includeConfigs`` (daf_butler._config) will
-   only look at a single key/value pair at a time.  It will only do the
-   environment variable substitution if the key ends with ``_PATH`` and
-   if the environment variable to substitute equals the key.
-
-   ctrl_bps understands that it is seeing an ``environment`` section.  So
-   it doesn't add these restrictions.  The only place where the daf_butler
-   restrictions come into play is when an key/value pair in one or more
-   included config(s) want the variable substitution and are in the same
-   yaml section (e.g., both setting ``DAF_BUTLER_CONFIG_PATH`` at the root
-   level).  If you want the variable substitution and need to set it in
-   multiple yaml files in the same section, but the variable name doesn't
-   end in ``_PATH``, there will need to be a code change to ``daf_butler``.
+   The same chaining applies when several files pulled in via ``includeConfigs`` set the same environment variable in the same section.
+   Each later file chains onto the earlier ones and the including file chains onto all of them.
+   For example, two included files that each prepend a directory to ``DAF_BUTLER_CONFIG_PATH`` produce a single value listing both directories.
 
 Here are some examples of the environment variables that BPS instructs
 the WMS-plugin to set inside the job, based on the following BPS YAML

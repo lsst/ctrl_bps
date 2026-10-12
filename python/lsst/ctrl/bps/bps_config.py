@@ -37,6 +37,7 @@ import logging
 import os
 import re
 import string
+from collections.abc import Mapping
 from os.path import expandvars, normpath
 from typing import Any
 
@@ -69,6 +70,36 @@ class BpsFormatter(string.Formatter):
     def get_value(self, key, args, kwargs):
         _, val = args[0].search(key, opt=args[1])
         return val
+
+
+class _ChainedEnvConfig(Config):
+    """Config whose merges chain ``${VAR}`` self-references inside
+    ``environment`` sections.
+
+    When the value being merged for environment variable ``VAR`` contains
+    ``${VAR}`` and this config already holds a value for that variable, the
+    placeholder is replaced by the existing value instead of the whole value
+    being overwritten.  This mirrors shell behavior such as
+    ``PATH="/new/dir:${PATH}"`` and lets several config files pulled in via
+    ``includeConfigs`` each prepend to the same variable.  Any ``${VAR}``
+    left in the final value is expanded from the job's shell environment as
+    usual.
+    """
+
+    def update(self, other: Mapping[str, Any]) -> None:
+        # Work on a copy so the caller's mapping is left untouched.
+        updates = Config(other)
+        for path in updates.nameTuples():
+            if len(path) < 2 or path[-2] != "environment":
+                continue
+            name = path[-1]
+            value = updates[path]
+            if not isinstance(value, str) or f"${{{name}}}" not in value:
+                continue
+            previous = self.get(path)
+            if isinstance(previous, str):
+                updates[path] = value.replace(f"${{{name}}}", previous)
+        super().update(updates)
 
 
 class BpsConfig(Config):
@@ -122,12 +153,15 @@ class BpsConfig(Config):
         # class __getitem__ method.
         super().__init__()
 
+        # Read the config with environment chaining so that files pulled in
+        # via includeConfigs can each prepend to the same environment
+        # variable rather than the last file replacing the earlier values.
         try:
-            other_config = Config(other)
+            other_config = _ChainedEnvConfig(other)
         except Exception as exc:
             raise ValueError(f"A BpsConfig could not be loaded from other: {other}") from exc
 
-        config = Config()
+        config = _ChainedEnvConfig()
 
         # Pre-populate the config with default settings if any were provided
         # by the caller. Include WMS plugin specific defaults and/or
