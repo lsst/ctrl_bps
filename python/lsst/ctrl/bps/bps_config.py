@@ -86,7 +86,7 @@ class _ChainedEnvConfig(Config):
     usual.
     """
 
-    def update(self, other: Mapping[str, Any]) -> None:
+    def update(self, other: Mapping[str, Any]) -> None:  # type: ignore[override]
         # Work on a copy so the caller's mapping is left untouched.
         updates = Config(other)
         for path in updates.nameTuples():
