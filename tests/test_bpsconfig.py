@@ -25,6 +25,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import os
+import tempfile
 import unittest
 
 import yaml
@@ -672,6 +673,112 @@ class TestBpsConfigGetSearchOpts(unittest.TestCase):
             "searchobj": config["finalJob"],
         }
         self.assertEqual(truth, results)
+
+
+class TestBpsConfigEnvironmentChaining(unittest.TestCase):
+    """Test that ``${VAR}`` references in environment sections chain onto
+    values from earlier config files instead of replacing them.
+    """
+
+    def setUp(self):
+        self.tmpdir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmpdir.cleanup)
+        self._write(
+            "cache.yaml",
+            {
+                "environment": {
+                    "BPS_TEST_PATH": "${CACHE}/config:${BPS_TEST_PATH}",
+                    "BPS_TEST_DIRS": "${CACHE}/dirs:${BPS_TEST_DIRS}",
+                },
+                "BPS_TEST_PATH": "cache:${BPS_TEST_PATH}",
+            },
+        )
+        self._write(
+            "compression.yaml",
+            {
+                "environment": {
+                    "BPS_TEST_PATH": "${COMPRESS}/config:${BPS_TEST_PATH}",
+                    "BPS_TEST_DIRS": "${COMPRESS}/dirs:${BPS_TEST_DIRS}",
+                    "OTHER": "from compression",
+                },
+                "BPS_TEST_PATH": "compression:${BPS_TEST_PATH}",
+            },
+        )
+        self.submit = self._write(
+            "submit.yaml",
+            {
+                "includeConfigs": ["cache.yaml", "compression.yaml"],
+                "environment": {
+                    "BPS_TEST_PATH": "${SUBMIT}/config:${BPS_TEST_PATH}",
+                    "OTHER": "from submit",
+                },
+                "site": {
+                    "site1": {
+                        "includeConfigs": "cache.yaml",
+                        "environment": {"BPS_TEST_DIRS": "site:${BPS_TEST_DIRS}"},
+                    }
+                },
+            },
+        )
+
+    def _write(self, name, data):
+        filename = os.path.join(self.tmpdir.name, name)
+        with open(filename, "w") as f:
+            yaml.safe_dump(data, f)
+        return filename
+
+    @staticmethod
+    def _raw(config, key):
+        """Return the stored value without BPS variable expansion."""
+        return Config.__getitem__(config, key)
+
+    def testIncludedFilesChain(self):
+        """Later includes chain onto earlier ones and the including file
+        chains onto all of them, whatever the variable is called.
+        """
+        config = BpsConfig(self.submit)
+        self.assertEqual(
+            self._raw(config, ".environment.BPS_TEST_PATH"),
+            "${SUBMIT}/config:${COMPRESS}/config:${CACHE}/config:${BPS_TEST_PATH}",
+        )
+        self.assertEqual(
+            self._raw(config, ".environment.BPS_TEST_DIRS"),
+            "${COMPRESS}/dirs:${CACHE}/dirs:${BPS_TEST_DIRS}",
+        )
+
+    def testValueWithoutPlaceholderOverrides(self):
+        config = BpsConfig(self.submit)
+        self.assertEqual(self._raw(config, ".environment.OTHER"), "from submit")
+
+    def testNestedSectionInclude(self):
+        config = BpsConfig(self.submit)
+        self.assertEqual(
+            self._raw(config, ".site.site1.environment.BPS_TEST_DIRS"), "site:${CACHE}/dirs:${BPS_TEST_DIRS}"
+        )
+
+    def testOnlyEnvironmentSectionsChain(self):
+        """A same-named key outside an environment section is simply
+        overwritten.
+        """
+        config = BpsConfig(self.submit)
+        self.assertEqual(self._raw(config, "BPS_TEST_PATH"), "compression:${BPS_TEST_PATH}")
+
+    def testChainsOntoDefaults(self):
+        defaults = {"environment": {"BPS_TEST_PATH": "default:${BPS_TEST_PATH}"}}
+        config = BpsConfig(self.submit, defaults=defaults)
+        self.assertEqual(
+            self._raw(config, ".environment.BPS_TEST_PATH"),
+            "${SUBMIT}/config:${COMPRESS}/config:${CACHE}/config:default:${BPS_TEST_PATH}",
+        )
+
+    def testSourceNotModified(self):
+        """Merging must not rewrite the values in the config being merged
+        in.
+        """
+        other = Config({"environment": {"BPS_TEST_PATH": "new:${BPS_TEST_PATH}"}})
+        config = BpsConfig(other, defaults={"environment": {"BPS_TEST_PATH": "old"}})
+        self.assertEqual(self._raw(config, ".environment.BPS_TEST_PATH"), "new:old")
+        self.assertEqual(other[".environment.BPS_TEST_PATH"], "new:${BPS_TEST_PATH}")
 
 
 if __name__ == "__main__":
