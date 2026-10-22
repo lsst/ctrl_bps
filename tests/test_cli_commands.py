@@ -138,10 +138,10 @@ class TestCommandStatus(unittest.TestCase):
                 ],
             )
             self.assertEqual(result.exit_code, 0)
-            mock_driver.assert_called_with(
+            mock_driver.assert_called_once_with(
                 wms_service="wms_test_utils.WmsServiceDummy",
                 run_id="100",
-                hist_days=0.0,
+                hist_days=0.5,
                 is_global=False,
             )
 

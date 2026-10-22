@@ -536,6 +536,13 @@ def status_driver(wms_service: str, run_id: str, hist_days: float, is_global: bo
     state : `int`
         Status of submitted workflow.
     """
+    _LOG.debug(
+        "status_driver: wms_service=%s, run_id=%s, hist_days=%f, is_global=%s",
+        wms_service,
+        run_id,
+        hist_days,
+        is_global,
+    )
     if wms_service is None:
         default_config = BpsConfig(BPS_DEFAULTS)
         wms_service = os.environ.get("BPS_WMS_SERVICE_CLASS", default_config["wmsServiceClass"])
