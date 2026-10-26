@@ -1,0 +1,1 @@
+Updated default value for ``--hist`` to 0.5 so that ``bps status`` will show status for recently completed runs.  Also updated the default for ``bps report`` so the default behavior is the same.

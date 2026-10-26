@@ -144,7 +144,7 @@ def restart(*args, **kwargs):
 @opt.wms_service_option()
 @click.option("--id", "run_id", help="Restrict report to specific WMS run id.")
 @click.option("--user", help="Restrict report to specific user.")
-@click.option("--hist", "hist_days", default=0.0, help="Search WMS history X days for completed info.")
+@click.option("--hist", "hist_days", default=0.5, help="Search WMS history X days for completed info.")
 @click.option("--pass-thru", help="Pass the given string to the WMS service class.")
 @click.option(
     "--return-exit-codes",
@@ -166,8 +166,8 @@ def report(*args, **kwargs):
 
 @click.command(cls=BpsCommand)
 @opt.wms_service_option()
-@click.option("--id", "run_id", required=True, help="Restrict report to specific WMS run id.")
-@click.option("--hist", "hist_days", default=0.0, help="Search WMS history X days for completed info.")
+@click.option("--id", "run_id", required=True, help="Restrict status report to specific WMS run id.")
+@click.option("--hist", "hist_days", default=0.5, help="Search WMS history X days for completed info.")
 @click.option(
     "--global/--no-global",
     "is_global",
