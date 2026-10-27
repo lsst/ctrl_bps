@@ -1,3 +1,20 @@
+lsst-ctrl-bps v30.0.12 (2026-10-27)
+===================================
+
+New Features
+------------
+
+- Added ability to run submit processes as batch jobs on same cluster with shared filesystems. (`DM-53494 <https://rubinobs.atlassian.net/browse/DM-53494>`_)
+- Made improvements to how the environment specifications in submit yaml are handled.  See ``Job Environment`` section in docs for details and examples.
+  Environment variables set in several ``includeConfigs`` files can now chain onto each other with ``${VAR}``, whatever the variable is called. (`DM-53944 <https://rubinobs.atlassian.net/browse/DM-53944>`_)
+
+
+Bug Fixes
+---------
+
+- Updated default value for ``--hist`` to 0.5 so that ``bps status`` will show status for recently completed runs.  Also updated the default for ``bps report`` so the default behavior is the same. (`DM-56633 <https://rubinobs.atlassian.net/browse/DM-56633>`_)
+
+
 lsst-ctrl-bps v30.0.8 (2026-06-08)
 ==================================
 
