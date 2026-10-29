@@ -1,2 +1,0 @@
-Made improvements to how the environment specifications in submit yaml are handled.  See ``Job Environment`` section in docs for details and examples.
-Environment variables set in several ``includeConfigs`` files can now chain onto each other with ``${VAR}``, whatever the variable is called.
